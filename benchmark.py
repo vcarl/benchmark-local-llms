@@ -30,6 +30,7 @@ from typing import Optional
 LLAMA_CPP_DIR = Path(__file__).parent / "llama.cpp" / "llama-b8400"
 LLAMA_CLI = LLAMA_CPP_DIR / "llama-cli"
 LLAMA_SERVER = LLAMA_CPP_DIR / "llama-server"
+LLAMA_CACHE_DIR = Path.home() / "Library" / "Caches" / "llama.cpp"
 RESULTS_DIR = Path(__file__).parent / "benchmark-results"
 
 # Models to benchmark. Each entry has:
@@ -150,6 +151,36 @@ class BenchmarkResult:
     wall_time_sec: float = 0.0
     output: str = ""
     error: Optional[str] = None
+
+
+# ── Cache checking ─────────────────────────────────────────────────────────
+
+def is_llamacpp_cached(model_cfg: dict) -> bool:
+    """Check if a llama.cpp model is already downloaded in the cache."""
+    # llama.cpp caches in ~/Library/Caches/llama.cpp/ with filenames like:
+    # Qwen_Qwen2.5-72B-Instruct-GGUF_qwen2.5-72b-instruct-q4_k_m-00001-of-00003.gguf
+    # The prefix is repo with / replaced by _
+    repo = model_cfg["llamacpp_hf"]
+    prefix = repo.replace("/", "_")
+    quant = model_cfg["llamacpp_quant"].lower()
+    if not LLAMA_CACHE_DIR.exists():
+        return False
+    for f in LLAMA_CACHE_DIR.iterdir():
+        if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
+            return True
+    return False
+
+
+def is_mlx_cached(model_cfg: dict) -> bool:
+    """Check if an MLX model is already downloaded in the HuggingFace cache."""
+    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
+    if not hf_cache.exists():
+        return False
+    # HF cache stores models as models--{org}--{name}
+    model_id = model_cfg["mlx_model"]
+    cache_dir_name = "models--" + model_id.replace("/", "--")
+    model_cache = hf_cache / cache_dir_name
+    return model_cache.exists() and any(model_cache.rglob("*.safetensors"))
 
 
 # ── llama.cpp runner ───────────────────────────────────────────────────────
@@ -357,9 +388,12 @@ def download_llamacpp_model(model_cfg: dict) -> bool:
             [
                 str(LLAMA_CLI),
                 "-hf", hf_spec,
-                "-n", "0",
+                "-p", "hi",
+                "-n", "1",
+                "-st",
                 "--no-warmup",
                 "--log-disable",
+                "--simple-io",
             ],
             capture_output=True,
             text=True,
@@ -577,15 +611,11 @@ def main():
     if args.quick and not args.download:
         args.max_tokens = 32
 
-    # Filter models — each tier includes all smaller tiers
-    size_tiers = {
-        "small": {"small"},
-        "large": {"small", "large"},
-        "xlarge": {"small", "large", "xlarge"},
-        "all": {"small", "large", "xlarge"},
-    }
-    allowed = size_tiers[args.models]
-    models = [m for m in MODELS if m["size_class"] in allowed]
+    # Filter models — each tier runs only its own models, "all" runs everything
+    if args.models == "all":
+        models = MODELS
+    else:
+        models = [m for m in MODELS if m["size_class"] == args.models]
 
     # Filter prompts
     if args.quick:
@@ -641,6 +671,14 @@ def main():
             print_header(f"{model_cfg['name']} — {prompt_cfg['name']}")
 
             for runtime in runtimes:
+                # Check if model is cached — don't try to download during benchmark runs
+                if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
+                    print(f"\n  Skipping {runtime}: model not downloaded. Run with --download first.")
+                    continue
+                if runtime == "mlx" and not is_mlx_cached(model_cfg):
+                    print(f"\n  Skipping {runtime}: model not downloaded. Run with --download first.")
+                    continue
+
                 print(f"\n  Running {runtime}...", flush=True)
 
                 if runtime == "llamacpp":
