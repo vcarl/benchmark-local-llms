@@ -80,7 +80,7 @@ MODELS = [
         "size_class": "xlarge",
         "llamacpp_hf": "bartowski/Mistral-Large-Instruct-2411-GGUF",
         "llamacpp_quant": "Q4_K_M",
-        "mlx_model": "mlx-community/Mistral-Large-Instruct-2407-4bit",
+        "mlx_model": "zachlandes/Mistral-Large-Instruct-2411-Q4-MLX",
     },
     {
         "name": "Qwen 3 235B-A22B (MoE)",
