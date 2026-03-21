@@ -1074,7 +1074,7 @@ def is_mlx_cached(model_cfg: dict) -> bool:
     return model_cache.exists() and any(model_cache.rglob("*.safetensors"))
 
 
-# ── llama.cpp runner (server-based) ────────────────────────────────────────
+# ── llama.cpp runner (persistent server) ───────────────────────────────────
 
 LLAMACPP_PORT = 18080
 
@@ -1115,12 +1115,9 @@ def _chat_completion(port: int, system: str, user: str, max_tokens: int,
     return json.loads(resp.read())
 
 
-def run_llamacpp_batch(model_cfg: dict, prompts: list[dict],
-                       max_tokens: int) -> list[BenchmarkResult]:
-    """Start llama-server once, run all prompts, return results."""
-    results = []
+def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
+    """Start llama-server and wait until ready. Returns the process or None on failure."""
     hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
-
     server_cmd = [
         str(LLAMA_SERVER),
         "-hf", hf_spec,
@@ -1130,110 +1127,97 @@ def run_llamacpp_batch(model_cfg: dict, prompts: list[dict],
     ]
 
     print(f"    Starting llama-server for {model_cfg['name']}...", flush=True)
-    server_proc = subprocess.Popen(
-        server_cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+    proc = subprocess.Popen(server_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+    if _wait_for_server(LLAMACPP_PORT):
+        print(f"    Server ready.", flush=True)
+        return proc
+    else:
+        stderr = proc.stderr.read().decode() if proc.stderr else ""
+        print(f"    Server failed to start: {stderr[-200:]}", flush=True)
+        proc.kill()
+        proc.wait()
+        return None
+
+
+def stop_llamacpp_server(proc: subprocess.Popen) -> None:
+    """Stop a running llama-server."""
+    print(f"    Stopping server...", flush=True)
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
+def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
+                        max_tokens: int) -> BenchmarkResult:
+    """Run a single prompt against an already-running llama-server."""
+    result = BenchmarkResult(
+        model=model_cfg["name"],
+        runtime="llama.cpp",
+        prompt_name=prompt_cfg["name"],
     )
 
+    start = time.perf_counter()
     try:
-        if not _wait_for_server(LLAMACPP_PORT):
-            # Server failed to start
-            stderr = server_proc.stderr.read().decode() if server_proc.stderr else ""
-            for prompt_cfg in prompts:
-                r = BenchmarkResult(
-                    model=model_cfg["name"], runtime="llama.cpp",
-                    prompt_name=prompt_cfg["name"],
-                    error=f"Server failed to start: {stderr[-200:]}",
-                )
-                results.append(r)
-            return results
+        data = _chat_completion(
+            LLAMACPP_PORT,
+            prompt_cfg["system"],
+            prompt_cfg["prompt"],
+            max_tokens,
+        )
+        result.wall_time_sec = time.perf_counter() - start
 
-        print(f"    Server ready. Running {len(prompts)} prompts...", flush=True)
+        choice = data["choices"][0]
+        result.output = choice["message"]["content"].strip()
 
-        for prompt_cfg in prompts:
-            result = BenchmarkResult(
-                model=model_cfg["name"],
-                runtime="llama.cpp",
-                prompt_name=prompt_cfg["name"],
-            )
+        usage = data.get("usage", {})
+        result.prompt_tokens = usage.get("prompt_tokens", 0)
+        result.generation_tokens = usage.get("completion_tokens", 0)
 
-            start = time.perf_counter()
-            try:
-                data = _chat_completion(
-                    LLAMACPP_PORT,
-                    prompt_cfg["system"],
-                    prompt_cfg["prompt"],
-                    max_tokens,
-                )
-                result.wall_time_sec = time.perf_counter() - start
+        timings = data.get("timings", {})
+        if timings:
+            result.prompt_tps = timings.get("prompt_per_second", 0.0)
+            result.generation_tps = timings.get("predicted_per_second", 0.0)
+        elif result.generation_tokens > 0 and result.wall_time_sec > 0:
+            result.generation_tps = result.generation_tokens / result.wall_time_sec
 
-                choice = data["choices"][0]
-                result.output = choice["message"]["content"].strip()
+    except Exception as e:
+        result.wall_time_sec = time.perf_counter() - start
+        result.error = str(e)[:200]
 
-                usage = data.get("usage", {})
-                result.prompt_tokens = usage.get("prompt_tokens", 0)
-                result.generation_tokens = usage.get("completion_tokens", 0)
-
-                # Calculate t/s from timing data if available
-                timings = data.get("timings", {})
-                if timings:
-                    result.prompt_tps = timings.get("prompt_per_second", 0.0)
-                    result.generation_tps = timings.get("predicted_per_second", 0.0)
-                elif result.generation_tokens > 0 and result.wall_time_sec > 0:
-                    result.generation_tps = result.generation_tokens / result.wall_time_sec
-
-            except Exception as e:
-                result.wall_time_sec = time.perf_counter() - start
-                result.error = str(e)[:200]
-
-            results.append(result)
-
-    finally:
-        # Clean shutdown
-        print(f"    Stopping server...", flush=True)
-        server_proc.terminate()
-        try:
-            server_proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            server_proc.kill()
-            server_proc.wait()
-
-    return results
+    return result
 
 
-# ── MLX runner (batch, single subprocess) ──────────────────────────────────
+# ── MLX runner (persistent subprocess) ─────────────────────────────────────
 
-def run_mlx_batch(model_cfg: dict, prompts: list[dict],
-                  max_tokens: int) -> list[BenchmarkResult]:
-    """Load model once in a subprocess, run all prompts, return results."""
-    results = []
+# The MLX child process stays alive, reads JSON prompt objects from stdin
+# one per line, and writes JSON result objects to stdout one per line.
+# Send {"cmd": "quit"} to shut down.
 
-    # Write prompts to a temp file to avoid env var size limits
-    prompt_data = json.dumps({
-        "model_id": model_cfg["mlx_model"],
-        "max_tokens": max_tokens,
-        "prompts": [
-            {"name": p["name"], "system": p["system"], "user": p["prompt"]}
-            for p in prompts
-        ],
-    })
-
-    script = '''
-import json, os, sys, time
+_MLX_CHILD_SCRIPT = '''
+import json, sys, time
 from mlx_lm import load, stream_generate
 
-cfg = json.loads(os.environ["BENCH_CONFIG"])
-
+model_id = sys.argv[1]
 print("LOADING_MODEL", flush=True)
-model, tokenizer = load(cfg["model_id"])
+model, tokenizer = load(model_id)
 print("MODEL_READY", flush=True)
 
-results = []
-for p in cfg["prompts"]:
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    req = json.loads(line)
+
+    if req.get("cmd") == "quit":
+        break
+
     messages = [
-        {"role": "system", "content": p["system"]},
-        {"role": "user", "content": p["user"]},
+        {"role": "system", "content": req["system"]},
+        {"role": "user", "content": req["user"]},
     ]
     prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
 
@@ -1241,15 +1225,15 @@ for p in cfg["prompts"]:
     response = None
     start = time.perf_counter()
     try:
-        for response in stream_generate(model, tokenizer, prompt, max_tokens=cfg["max_tokens"]):
+        for response in stream_generate(model, tokenizer, prompt, max_tokens=req["max_tokens"]):
             text += response.text
         wall = time.perf_counter() - start
 
         if response is None:
-            results.append({"name": p["name"], "error": "No response generated", "wall": wall})
+            out = {"name": req["name"], "error": "No response generated", "wall": wall}
         else:
-            results.append({
-                "name": p["name"],
+            out = {
+                "name": req["name"],
                 "output": text,
                 "prompt_tokens": response.prompt_tokens,
                 "generation_tokens": response.generation_tokens,
@@ -1257,91 +1241,105 @@ for p in cfg["prompts"]:
                 "generation_tps": response.generation_tps,
                 "peak_memory_gb": response.peak_memory,
                 "wall": wall,
-            })
+            }
     except Exception as e:
         wall = time.perf_counter() - start
-        results.append({"name": p["name"], "error": str(e)[:200], "wall": wall})
+        out = {"name": req["name"], "error": str(e)[:200], "wall": wall}
 
-    # Flush a progress indicator so the parent knows we're still alive
-    print(f"DONE:{p['name']}", flush=True)
-
-print("RESULTS_JSON:" + json.dumps(results), flush=True)
+    print("RESULT:" + json.dumps(out), flush=True)
 '''
 
-    env = {**os.environ, "BENCH_CONFIG": prompt_data}
 
+def start_mlx_subprocess(model_cfg: dict) -> Optional[subprocess.Popen]:
+    """Start the persistent MLX child process. Returns the process or None."""
     print(f"    Loading MLX model {model_cfg['name']}...", flush=True)
 
-    try:
-        proc = subprocess.Popen(
-            [sys.executable, "-c", script],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
-        )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _MLX_CHILD_SCRIPT, model_cfg["mlx_model"]],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
 
-        # Read stdout line by line for progress
-        json_line = None
-        for line in proc.stdout:
-            line = line.strip()
-            if line == "MODEL_READY":
-                print(f"    Model loaded. Running {len(prompts)} prompts...", flush=True)
-            elif line.startswith("DONE:"):
-                prompt_name = line[5:]
-                print(f"      Completed: {prompt_name}", flush=True)
-            elif line.startswith("RESULTS_JSON:"):
-                json_line = line[13:]
-
-        proc.wait(timeout=60)
-
-        if json_line is None:
+    # Wait for MODEL_READY
+    deadline = time.perf_counter() + 600
+    while time.perf_counter() < deadline:
+        line = proc.stdout.readline().strip()
+        if line == "MODEL_READY":
+            print(f"    Model loaded.", flush=True)
+            return proc
+        if line == "LOADING_MODEL":
+            continue
+        if proc.poll() is not None:
             stderr = proc.stderr.read()
-            for prompt_cfg in prompts:
-                results.append(BenchmarkResult(
-                    model=model_cfg["name"], runtime="mlx",
-                    prompt_name=prompt_cfg["name"],
-                    error=f"No results from MLX subprocess: {stderr[-200:]}",
-                ))
-            return results
+            print(f"    MLX subprocess died: {stderr[-200:]}", flush=True)
+            return None
 
-        data_list = json.loads(json_line)
-        for d in data_list:
-            r = BenchmarkResult(
-                model=model_cfg["name"],
-                runtime="mlx",
-                prompt_name=d["name"],
-            )
-            if "error" in d:
-                r.error = d["error"]
-                r.wall_time_sec = d.get("wall", 0.0)
-            else:
-                r.output = d["output"]
-                r.prompt_tokens = d["prompt_tokens"]
-                r.generation_tokens = d["generation_tokens"]
-                r.prompt_tps = d["prompt_tps"]
-                r.generation_tps = d["generation_tps"]
-                r.peak_memory_gb = d["peak_memory_gb"]
-                r.wall_time_sec = d["wall"]
-            results.append(r)
+    print(f"    MLX subprocess timed out during model load.", flush=True)
+    proc.kill()
+    proc.wait()
+    return None
 
-    except subprocess.TimeoutExpired:
+
+def stop_mlx_subprocess(proc: subprocess.Popen) -> None:
+    """Send quit command and wait for the MLX child to exit."""
+    print(f"    Stopping MLX subprocess...", flush=True)
+    try:
+        proc.stdin.write('{"cmd": "quit"}\n')
+        proc.stdin.flush()
+        proc.wait(timeout=10)
+    except Exception:
         proc.kill()
-        for prompt_cfg in prompts:
-            results.append(BenchmarkResult(
-                model=model_cfg["name"], runtime="mlx",
-                prompt_name=prompt_cfg["name"],
-                error="MLX subprocess timed out",
-            ))
-    except Exception as e:
-        for prompt_cfg in prompts:
-            results.append(BenchmarkResult(
-                model=model_cfg["name"], runtime="mlx",
-                prompt_name=prompt_cfg["name"],
-                error=str(e)[:200],
-            ))
+        proc.wait()
 
-    return results
+
+def run_mlx_prompt(proc: subprocess.Popen, model_cfg: dict,
+                   prompt_cfg: dict, max_tokens: int) -> BenchmarkResult:
+    """Send a single prompt to the running MLX subprocess and read the result."""
+    result = BenchmarkResult(
+        model=model_cfg["name"],
+        runtime="mlx",
+        prompt_name=prompt_cfg["name"],
+    )
+
+    req = json.dumps({
+        "name": prompt_cfg["name"],
+        "system": prompt_cfg["system"],
+        "user": prompt_cfg["prompt"],
+        "max_tokens": max_tokens,
+    })
+
+    try:
+        proc.stdin.write(req + "\n")
+        proc.stdin.flush()
+
+        # Read until we get a RESULT: line
+        while True:
+            line = proc.stdout.readline().strip()
+            if line.startswith("RESULT:"):
+                d = json.loads(line[7:])
+                break
+            if not line and proc.poll() is not None:
+                result.error = "MLX subprocess died unexpectedly"
+                return result
+
+        if "error" in d:
+            result.error = d["error"]
+            result.wall_time_sec = d.get("wall", 0.0)
+        else:
+            result.output = d["output"]
+            result.prompt_tokens = d["prompt_tokens"]
+            result.generation_tokens = d["generation_tokens"]
+            result.prompt_tps = d["prompt_tps"]
+            result.generation_tps = d["generation_tps"]
+            result.peak_memory_gb = d["peak_memory_gb"]
+            result.wall_time_sec = d["wall"]
+
+    except Exception as e:
+        result.error = str(e)[:200]
+
+    return result
 
 
 # ── Model downloading ──────────────────────────────────────────────────────
@@ -1860,58 +1858,80 @@ def main():
         for runtime in runtimes:
             # Check if model is cached
             if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
-                print(f"\n  Skipping {model_cfg['name']} / llama.cpp: model not downloaded. Run with --download first.")
+                print(f"\n  Skipping {model_cfg['name']} / llama.cpp: not downloaded. Run with --download first.")
                 continue
             if runtime == "mlx" and not is_mlx_cached(model_cfg):
-                print(f"\n  Skipping {model_cfg['name']} / mlx: model not downloaded. Run with --download first.")
+                print(f"\n  Skipping {model_cfg['name']} / mlx: not downloaded. Run with --download first.")
                 continue
 
-            # Track per-category pass rates for tier gating
-            cat_scores: dict[str, list[float]] = defaultdict(list)
-            skipped_cats: set[str] = set()
+            print_header(f"{model_cfg['name']} — {runtime}")
 
-            for tier_num in tier_order:
-                tier_prompts = tiers[tier_num]
-
-                # Gate check: skip categories that failed previous tier
-                if tier_num == 2:
-                    for cat in categories:
-                        scores = cat_scores.get(cat, [])
-                        if scores and (sum(scores) / len(scores)) < TIER_1_GATE:
-                            skipped_cats.add(cat)
-                            print(f"\n    Skipping tier 2 {cat}: tier 1 pass rate {sum(scores)/len(scores):.0%} < {TIER_1_GATE:.0%}")
-                elif tier_num == 3:
-                    for cat in categories:
-                        scores = cat_scores.get(cat, [])
-                        if scores and (sum(scores) / len(scores)) < TIER_2_GATE:
-                            skipped_cats.add(cat)
-                            if cat not in skipped_cats:
-                                print(f"\n    Skipping tier 3 {cat}: cumulative pass rate {sum(scores)/len(scores):.0%} < {TIER_2_GATE:.0%}")
-
-                # Filter to non-skipped prompts for this tier
-                active_prompts = [p for p in tier_prompts if p.get("category", "") not in skipped_cats]
-
-                if not active_prompts:
+            # Start the model once
+            server_proc = None
+            mlx_proc = None
+            if runtime == "llamacpp":
+                server_proc = start_llamacpp_server(model_cfg)
+                if not server_proc:
+                    print(f"    Failed to start server, skipping.", flush=True)
+                    continue
+            elif runtime == "mlx":
+                mlx_proc = start_mlx_subprocess(model_cfg)
+                if not mlx_proc:
+                    print(f"    Failed to start MLX, skipping.", flush=True)
                     continue
 
-                print_header(f"{model_cfg['name']} — {runtime} — Tier {tier_num}")
+            try:
+                # Track per-category pass rates for tier gating
+                cat_scores: dict[str, list[float]] = defaultdict(list)
+                skipped_cats: set[str] = set()
 
-                if runtime == "llamacpp":
-                    batch_results = run_llamacpp_batch(model_cfg, active_prompts, args.max_tokens)
-                elif runtime == "mlx":
-                    batch_results = run_mlx_batch(model_cfg, active_prompts, args.max_tokens)
+                for tier_num in tier_order:
+                    tier_prompts = tiers[tier_num]
 
-                # Match results back to prompt configs and score
-                # Results come back in the same order as active_prompts
-                for r, pcfg in zip(batch_results, active_prompts):
-                    r.prompt_name = pcfg["_key"]  # use unique key
-                    score_result(r, pcfg)
-                    print_result_summary(r)
-                    results.append(r)
+                    # Gate check: skip categories that failed previous tier
+                    if tier_num == 2:
+                        for cat in categories:
+                            scores = cat_scores.get(cat, [])
+                            if scores and (sum(scores) / len(scores)) < TIER_1_GATE:
+                                skipped_cats.add(cat)
+                                print(f"\n    Skipping tier 2 {cat}: pass rate {sum(scores)/len(scores):.0%} < {TIER_1_GATE:.0%}")
+                    elif tier_num == 3:
+                        for cat in categories:
+                            if cat in skipped_cats:
+                                continue
+                            scores = cat_scores.get(cat, [])
+                            if scores and (sum(scores) / len(scores)) < TIER_2_GATE:
+                                skipped_cats.add(cat)
+                                print(f"\n    Skipping tier 3 {cat}: pass rate {sum(scores)/len(scores):.0%} < {TIER_2_GATE:.0%}")
 
-                    # Track scores for tier gating
-                    if r.score is not None:
-                        cat_scores[pcfg.get("category", "")].append(r.score)
+                    # Filter to non-skipped prompts for this tier
+                    active_prompts = [p for p in tier_prompts if p.get("category", "") not in skipped_cats]
+                    if not active_prompts:
+                        continue
+
+                    print(f"\n  ── Tier {tier_num} ({len(active_prompts)} prompts) ──", flush=True)
+
+                    for pcfg in active_prompts:
+                        # Run single prompt against the already-loaded model
+                        if runtime == "llamacpp":
+                            r = run_llamacpp_prompt(model_cfg, pcfg, args.max_tokens)
+                        elif runtime == "mlx":
+                            r = run_mlx_prompt(mlx_proc, model_cfg, pcfg, args.max_tokens)
+
+                        r.prompt_name = pcfg["_key"]
+                        score_result(r, pcfg)
+                        print_result_summary(r)
+                        results.append(r)
+
+                        if r.score is not None:
+                            cat_scores[pcfg.get("category", "")].append(r.score)
+
+            finally:
+                # Shut down the model
+                if server_proc:
+                    stop_llamacpp_server(server_proc)
+                if mlx_proc:
+                    stop_mlx_subprocess(mlx_proc)
 
     # Final summary
     print_header("SUMMARY")
