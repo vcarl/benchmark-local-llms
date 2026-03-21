@@ -125,738 +125,48 @@ MODELS = [
 
 # ── System prompts by style ────────────────────────────────────────────────
 
-SYSTEM_DIRECT = "You are a helpful assistant. Be concise. Answer with just the answer unless told otherwise."
-SYSTEM_COT = "You are a helpful assistant. Think step by step to solve problems. Write your final answer on its own line at the end, prefixed with 'ANSWER:'."
-SYSTEM_STRUCTURED = "You are a helpful assistant. Always respond in the exact format requested. No extra text."
-SYSTEM_FEW_SHOT = "You are a helpful assistant. Follow the pattern shown in the examples."
-SYSTEM_NOISY = "You are a helpful assistant. Focus on the core question and ignore irrelevant details. Be concise."
-SYSTEM_ADVERSARIAL = "You are a helpful assistant. Read carefully — some questions are tricky. Be concise. Answer with just the answer."
-
-SYSTEM_CODE_DIRECT = (
-    "You are a Python code generator. Output ONLY the requested function. "
-    "No explanations, no examples, no tests, no markdown, no commentary. "
-    "Start directly with 'def '."
-)
-SYSTEM_CODE_TDD = (
-    "You are a Python developer practicing TDD. Given the test cases below, "
-    "write the function that makes all tests pass. Output ONLY the function, "
-    "no tests, no markdown, no commentary."
-)
-SYSTEM_CODE_BUGFIX = (
-    "You are a code reviewer. Fix the bug in the function below. "
-    "Output ONLY the corrected function, no explanations, no markdown."
-)
-SYSTEM_CODE_DOCSTRING = (
-    "You are a Python code generator. Complete the function body based on "
-    "the docstring. Output ONLY the complete function including the def line "
-    "and docstring. No markdown, no commentary."
-)
+SYSTEM_PROMPTS = {
+    "direct": "You are a helpful assistant. Be concise. Answer with just the answer unless told otherwise.",
+    "cot": "You are a helpful assistant. Think step by step to solve problems. Write your final answer on its own line at the end, prefixed with 'ANSWER:'.",
+    "structured": "You are a helpful assistant. Always respond in the exact format requested. No extra text.",
+    "few_shot": "You are a helpful assistant. Follow the pattern shown in the examples.",
+    "noisy": "You are a helpful assistant. Focus on the core question and ignore irrelevant details. Be concise.",
+    "adversarial": "You are a helpful assistant. Read carefully — some questions are tricky. Be concise. Answer with just the answer.",
+    "code_direct": (
+        "You are a Python code generator. Output ONLY the requested function. "
+        "No explanations, no examples, no tests, no markdown, no commentary. "
+        "Start directly with 'def '."
+    ),
+    "code_tdd": (
+        "You are a Python developer practicing TDD. Given the test cases below, "
+        "write the function that makes all tests pass. Output ONLY the function, "
+        "no tests, no markdown, no commentary."
+    ),
+    "code_bugfix": (
+        "You are a code reviewer. Fix the bug in the function below. "
+        "Output ONLY the corrected function, no explanations, no markdown."
+    ),
+    "code_docstring": (
+        "You are a Python code generator. Complete the function body based on "
+        "the docstring. Output ONLY the complete function including the def line "
+        "and docstring. No markdown, no commentary."
+    ),
+}
 
 # Tier gate thresholds — minimum pass rate to advance to next tier
 TIER_1_GATE = 0.70  # need 70% on tier 1 to attempt tier 2
 TIER_2_GATE = 0.50  # need 50% cumulative on tier 1+2 to attempt tier 3
 
-# ── Shared test code for code challenges ───────────────────────────────────
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-_TEST_PALINDROME = """
-assert is_palindrome("racecar") == True
-assert is_palindrome("hello") == False
-assert is_palindrome("") == True
-assert is_palindrome("A man a plan a canal Panama") == True
-assert is_palindrome("Was it a car or a cat I saw") == True
-assert is_palindrome("No lemon, no melon") == True
-assert is_palindrome("abc") == False
-"""
-
-_TEST_FIBONACCI = """
-assert fibonacci(0) == 0
-assert fibonacci(1) == 1
-assert fibonacci(2) == 1
-assert fibonacci(10) == 55
-assert fibonacci(20) == 6765
-"""
-
-_TEST_TWO_SUM = """
-result = two_sum([2, 7, 11, 15], 9)
-assert sorted(result) == [0, 1]
-result = two_sum([3, 2, 4], 6)
-assert sorted(result) == [1, 2]
-result = two_sum([3, 3], 6)
-assert sorted(result) == [0, 1]
-"""
-
-_TEST_CAESAR = """
-assert caesar_cipher("abc", 1) == "bcd"
-assert caesar_cipher("xyz", 3) == "abc"
-assert caesar_cipher("Hello, World!", 13) == "Uryyb, Jbeyq!"
-assert caesar_cipher("Uryyb, Jbeyq!", -13) == "Hello, World!"
-assert caesar_cipher("ABC", 26) == "ABC"
-assert caesar_cipher("abc", 0) == "abc"
-"""
-
-PROMPTS = [
-    # ══════════════════════════════════════════════════════════════════════════
-    #  MATH
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ── Tier 1: direct ─────────────────────────────────────────────────────
-    {
-        "name": "math_multiply", "category": "math", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "What is 47 * 89? Reply with just the number.",
-        "scorer": "exact_match", "expected": "4183", "extract": r"(\d[\d,]*)",
-    },
-    {
-        "name": "math_chain", "category": "math", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "Start with 5. Double it. Add 7. Triple the result. What number do you have? Reply with just the number.",
-        "scorer": "exact_match", "expected": "51", "extract": r"(\d+)",
-    },
-    {
-        "name": "math_word_problem", "category": "math", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": (
-            "A baker makes 4 batches of cookies. Each batch has 36 cookies. "
-            "She gives away 1/3 of all the cookies. How many does she have left? "
-            "Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "96", "extract": r"(\d+)",
-    },
-    {
-        "name": "math_primes_sum", "category": "math", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "What is the sum of all prime numbers less than 20? Reply with just the number.",
-        "scorer": "exact_match", "expected": "77", "extract": r"(\d+)",
-    },
-
-    # ── Tier 2: same challenges, varied prompting styles ───────────────────
-    {
-        "name": "math_multiply", "category": "math", "tier": 2, "style": "cot",
-        "system": SYSTEM_COT,
-        "prompt": "What is 47 * 89? Think step by step, then write ANSWER: followed by just the number.",
-        "scorer": "exact_match", "expected": "4183", "extract": r"ANSWER:\s*(\d[\d,]*)",
-    },
-    {
-        "name": "math_multiply", "category": "math", "tier": 2, "style": "few_shot",
-        "system": SYSTEM_FEW_SHOT,
-        "prompt": (
-            "Q: What is 23 * 17?\nA: 391\n\n"
-            "Q: What is 56 * 34?\nA: 1904\n\n"
-            "Q: What is 47 * 89?\nA:"
-        ),
-        "scorer": "exact_match", "expected": "4183", "extract": r"(\d[\d,]*)",
-    },
-    {
-        "name": "math_chain", "category": "math", "tier": 2, "style": "noisy",
-        "system": SYSTEM_NOISY,
-        "prompt": (
-            "My friend told me this puzzle yesterday at the coffee shop (great latte by the way). "
-            "Start with 5. Double it. Add 7. Triple the result. "
-            "I think the answer might be 45 but I'm not sure. What number do you get? "
-            "Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "51", "extract": r"(\d+)",
-    },
-    {
-        "name": "math_word_problem", "category": "math", "tier": 2, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "A baker makes 4 batches of cookies. Each batch has 36 cookies. "
-            "She gives away 1/3 of all the cookies. How many does she have left?\n\n"
-            'Respond with exactly this JSON: {"answer": <number>}'
-        ),
-        "scorer": "exact_match", "expected": "96",
-        "extract": r'"answer"\s*:\s*(\d+)',
-    },
-    {
-        "name": "math_primes_sum", "category": "math", "tier": 2, "style": "adversarial",
-        "system": SYSTEM_ADVERSARIAL,
-        "prompt": (
-            "What is the sum of all prime numbers less than 20? "
-            "Remember, 1 is not a prime number and 2 is the only even prime. "
-            "Also note that 20 itself should not be included. "
-            "Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "77", "extract": r"(\d+)",
-    },
-    {
-        "name": "math_word_problem", "category": "math", "tier": 2, "style": "decomposed",
-        "system": SYSTEM_DIRECT,
-        "prompt": (
-            "Solve this step by step:\n"
-            "1. A baker makes 4 batches of cookies, 36 per batch. How many total?\n"
-            "2. She gives away 1/3. How many given away?\n"
-            "3. How many left?\n\n"
-            "Reply with ONLY the final number from step 3."
-        ),
-        "scorer": "exact_match", "expected": "96", "extract": r"(\d+)",
-    },
-
-    # ── Tier 3: harder math ────────────────────────────────────────────────
-    {
-        "name": "math_compound_interest", "category": "math", "tier": 3, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": (
-            "You invest $1000 at 10% annual interest compounded once per year. "
-            "How much do you have after 3 years, rounded to the nearest dollar? "
-            "Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "1331", "extract": r"(\d[\d,]*)",
-    },
-    {
-        "name": "math_combinatorics", "category": "math", "tier": 3, "style": "cot",
-        "system": SYSTEM_COT,
-        "prompt": (
-            "How many ways can you choose 3 items from a set of 7? "
-            "Think step by step, then write ANSWER: followed by just the number."
-        ),
-        "scorer": "exact_match", "expected": "35", "extract": r"ANSWER:\s*(\d+)",
-    },
-    {
-        "name": "math_modular", "category": "math", "tier": 3, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "What is (17^3) mod 13? "
-            'Respond with exactly: {"result": <number>}'
-        ),
-        "scorer": "exact_match", "expected": "4",
-        "extract": r'"result"\s*:\s*(\d+)',
-    },
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  FACTUAL
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ── Tier 1: direct ─────────────────────────────────────────────────────
-    {
-        "name": "fact_treaty", "category": "factual", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "In what year was the Treaty of Westphalia signed? Reply with just the year.",
-        "scorer": "exact_match", "expected": "1648", "extract": r"(\d{4})",
-    },
-    {
-        "name": "fact_gold", "category": "factual", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "What is the chemical symbol for gold? Reply with just the symbol.",
-        "scorer": "exact_match", "expected": "Au", "extract": r"\b([A-Z][a-z]?)\b",
-    },
-    {
-        "name": "fact_chromosomes", "category": "factual", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "How many chromosomes do humans have? Reply with just the number.",
-        "scorer": "exact_match", "expected": "46", "extract": r"(\d+)",
-    },
-
-    # ── Tier 2: varied styles ──────────────────────────────────────────────
-    {
-        "name": "fact_treaty", "category": "factual", "tier": 2, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": 'When was the Treaty of Westphalia signed? Reply as: {"year": <number>}',
-        "scorer": "exact_match", "expected": "1648",
-        "extract": r'"year"\s*:\s*(\d{4})',
-    },
-    {
-        "name": "fact_gold", "category": "factual", "tier": 2, "style": "noisy",
-        "system": SYSTEM_NOISY,
-        "prompt": (
-            "I'm working on a chemistry homework assignment about transition metals. "
-            "The periodic table is so confusing with all those symbols! "
-            "Anyway, what's the chemical symbol for gold? Just the symbol please."
-        ),
-        "scorer": "exact_match", "expected": "Au", "extract": r"\b([A-Z][a-z]?)\b",
-    },
-    {
-        "name": "fact_chromosomes", "category": "factual", "tier": 2, "style": "adversarial",
-        "system": SYSTEM_ADVERSARIAL,
-        "prompt": (
-            "How many chromosomes do humans have? "
-            "Note: I'm asking about the total number in a normal diploid cell, "
-            "not the haploid number in gametes. Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "46", "extract": r"(\d+)",
-    },
-    {
-        "name": "fact_boiling", "category": "factual", "tier": 2, "style": "few_shot",
-        "system": SYSTEM_FEW_SHOT,
-        "prompt": (
-            "Q: What is the freezing point of water in Fahrenheit?\nA: 32\n\n"
-            "Q: What is the boiling point of water in Celsius?\nA: 100\n\n"
-            "Q: What is the boiling point of water in Fahrenheit?\nA:"
-        ),
-        "scorer": "exact_match", "expected": "212", "extract": r"(\d+)",
-    },
-
-    # ── Tier 3: harder factual ─────────────────────────────────────────────
-    {
-        "name": "fact_planck", "category": "factual", "tier": 3, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "What is Planck's constant in units of 10^-34 J·s, rounded to 2 decimal places? Reply with just the number (e.g. 6.63).",
-        "scorer": "exact_match", "expected": "6.63", "extract": r"(\d+\.\d+)",
-    },
-    {
-        "name": "fact_elements", "category": "factual", "tier": 3, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": 'What element has atomic number 79? Reply as: {"element": "<name>", "symbol": "<symbol>"}',
-        "scorer": "constraint",
-        "constraints": [
-            ("valid JSON", lambda o: _try_parse_json(o) is not None),
-            ("says gold", lambda o: "gold" in (o.lower())),
-            ("symbol Au", lambda o: "Au" in o),
-        ],
-    },
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  LOGIC
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ── Tier 1: direct ─────────────────────────────────────────────────────
-    {
-        "name": "logic_sheep", "category": "logic", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "A farmer has 17 sheep. All but 9 die. How many sheep are left? Reply with just the number.",
-        "scorer": "exact_match", "expected": "9", "extract": r"(\d+)",
-    },
-    {
-        "name": "logic_widgets", "category": "logic", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": (
-            "If it takes 5 machines 5 minutes to make 5 widgets, "
-            "how many minutes does it take 100 machines to make 100 widgets? "
-            "Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "5", "extract": r"(\d+)",
-    },
-    {
-        "name": "logic_bat_ball", "category": "logic", "tier": 1, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": (
-            "A bat and a ball cost $1.10 together. "
-            "The bat costs $1.00 more than the ball. "
-            "How much does the ball cost in cents? Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "5", "extract": r"(\d+)",
-    },
-
-    # ── Tier 2: varied styles ──────────────────────────────────────────────
-    {
-        "name": "logic_sheep", "category": "logic", "tier": 2, "style": "cot",
-        "system": SYSTEM_COT,
-        "prompt": (
-            "A farmer has 17 sheep. All but 9 die. How many sheep are left? "
-            "Think carefully about the wording, then write ANSWER: followed by the number."
-        ),
-        "scorer": "exact_match", "expected": "9", "extract": r"ANSWER:\s*(\d+)",
-    },
-    {
-        "name": "logic_widgets", "category": "logic", "tier": 2, "style": "adversarial",
-        "system": SYSTEM_ADVERSARIAL,
-        "prompt": (
-            "Here's a tricky one. If it takes 5 machines 5 minutes to make 5 widgets, "
-            "how many minutes would it take 100 machines to make 100 widgets? "
-            "Hint: the answer is NOT 100. Reply with just the number."
-        ),
-        "scorer": "exact_match", "expected": "5", "extract": r"(\d+)",
-    },
-    {
-        "name": "logic_bat_ball", "category": "logic", "tier": 2, "style": "noisy",
-        "system": SYSTEM_NOISY,
-        "prompt": (
-            "OK so my math teacher gave us this problem and half the class got it wrong lol. "
-            "A bat and a ball cost $1.10 together and the bat is $1.00 more than the ball. "
-            "Everyone keeps saying 10 cents but that's wrong right?? "
-            "What does the ball actually cost in cents? Just the number."
-        ),
-        "scorer": "exact_match", "expected": "5", "extract": r"(\d+)",
-    },
-    {
-        "name": "logic_sheep", "category": "logic", "tier": 2, "style": "few_shot",
-        "system": SYSTEM_FEW_SHOT,
-        "prompt": (
-            "Q: A classroom has 30 students. All but 12 go home. How many are left?\nA: 12\n\n"
-            "Q: A parking lot has 50 cars. All but 23 drive away. How many remain?\nA: 23\n\n"
-            "Q: A farmer has 17 sheep. All but 9 die. How many are left?\nA:"
-        ),
-        "scorer": "exact_match", "expected": "9", "extract": r"(\d+)",
-    },
-
-    # ── Tier 3: harder logic ───────────────────────────────────────────────
-    {
-        "name": "logic_ages", "category": "logic", "tier": 3, "style": "cot",
-        "system": SYSTEM_COT,
-        "prompt": (
-            "Alice is twice as old as Bob. In 10 years, Alice will be 1.5 times as old as Bob. "
-            "How old is Bob now? Think step by step, then write ANSWER: followed by the number."
-        ),
-        "scorer": "exact_match", "expected": "20", "extract": r"ANSWER:\s*(\d+)",
-    },
-    {
-        "name": "logic_sequence", "category": "logic", "tier": 3, "style": "direct",
-        "system": SYSTEM_DIRECT,
-        "prompt": "What is the next number in this sequence: 1, 1, 2, 3, 5, 8, 13, 21, __? Reply with just the number.",
-        "scorer": "exact_match", "expected": "34", "extract": r"(\d+)",
-    },
-    {
-        "name": "logic_door", "category": "logic", "tier": 3, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "There are 3 doors. Behind one is a prize. You pick door 1. "
-            "The host (who knows what's behind each door) opens door 3, showing no prize. "
-            "Should you switch to door 2 or stay with door 1? "
-            'Reply as: {"action": "switch" or "stay", "reason": "one sentence"}'
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("valid JSON", lambda o: _try_parse_json(o) is not None),
-            ("says switch", lambda o: "switch" in o.lower()),
-        ],
-    },
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  CONSTRAINT
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ── Tier 1: basic format compliance ────────────────────────────────────
-    {
-        "name": "constraint_capitals", "category": "constraint", "tier": 1, "style": "direct",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": "List exactly 5 US state capitals, one per line, numbered 1 through 5.",
-        "scorer": "constraint",
-        "constraints": [
-            ("has 5 numbered lines", lambda o: bool(re.search(r"^1[.):]\s*\S+", o, re.MULTILINE)) and
-                                                bool(re.search(r"^5[.):]\s*\S+", o, re.MULTILINE))),
-            ("has no 6th item", lambda o: not re.search(r"^6[.):]\s", o, re.MULTILINE)),
-        ],
-    },
-    {
-        "name": "constraint_json", "category": "constraint", "tier": 1, "style": "direct",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": 'Output a JSON object with exactly 3 keys: "name", "age", "city". All values must be strings. Output only the JSON, nothing else.',
-        "scorer": "constraint",
-        "constraints": [
-            ("valid JSON", lambda o: _try_parse_json(o) is not None),
-            ("has required keys", lambda o: _json_has_keys(o, ["name", "age", "city"])),
-            ("all values are strings", lambda o: _json_all_string_values(o)),
-        ],
-    },
-    {
-        "name": "constraint_keywords", "category": "constraint", "tier": 1, "style": "direct",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": "Write one paragraph about space exploration. You MUST include the words 'rocket', 'orbit', and 'gravity'.",
-        "scorer": "constraint",
-        "constraints": [
-            ("contains 'rocket'", lambda o: "rocket" in o.lower()),
-            ("contains 'orbit'", lambda o: "orbit" in o.lower()),
-            ("contains 'gravity'", lambda o: "gravity" in o.lower()),
-        ],
-    },
-    {
-        "name": "constraint_no_letter_e", "category": "constraint", "tier": 1, "style": "direct",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": "Write a sentence about a cat. The sentence must NOT contain the letter 'e' anywhere.",
-        "scorer": "constraint",
-        "constraints": [
-            ("no letter e", lambda o: "e" not in o.lower()),
-            ("is a sentence", lambda o: len(o.strip()) > 10),
-        ],
-    },
-
-    # ── Tier 2: harder constraints, varied framing ─────────────────────────
-    {
-        "name": "constraint_json_nested", "category": "constraint", "tier": 2, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            'Output a JSON object representing a person with: '
-            '"name" (string), "age" (number), "address" (object with "street", "city", "zip"). '
-            'Use realistic values. Output only valid JSON.'
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("valid JSON", lambda o: _try_parse_json(o) is not None),
-            ("has name", lambda o: _json_has_keys(o, ["name"])),
-            ("has nested address", lambda o: isinstance((_try_parse_json(o) or {}).get("address"), dict)),
-            ("address has city", lambda o: "city" in ((_try_parse_json(o) or {}).get("address") or {})),
-        ],
-    },
-    {
-        "name": "constraint_keywords", "category": "constraint", "tier": 2, "style": "adversarial",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "Write one paragraph about the ocean. You MUST include ALL of these words: "
-            "'current', 'pressure', 'salinity', 'bioluminescence', and 'trench'. "
-            "Do not use any word more than once."
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("contains 'current'", lambda o: "current" in o.lower()),
-            ("contains 'pressure'", lambda o: "pressure" in o.lower()),
-            ("contains 'salinity'", lambda o: "salinity" in o.lower()),
-            ("contains 'bioluminescence'", lambda o: "bioluminescence" in o.lower()),
-            ("contains 'trench'", lambda o: "trench" in o.lower()),
-        ],
-    },
-    {
-        "name": "constraint_no_letter_e", "category": "constraint", "tier": 2, "style": "adversarial",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "Write exactly 3 sentences about cooking dinner. "
-            "None of the sentences may contain the letter 'e'. "
-            "Number each sentence 1-3."
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("no letter e", lambda o: "e" not in o.lower()),
-            ("has 3 lines", lambda o: bool(re.search(r"^3[.):]\s", o, re.MULTILINE))),
-            ("long enough", lambda o: len(o.strip()) > 40),
-        ],
-    },
-    {
-        "name": "constraint_format_switch", "category": "constraint", "tier": 2, "style": "decomposed",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "Do these two things in order:\n"
-            "1. List 3 European countries, as a JSON array of strings.\n"
-            "2. For each country, write its capital on a new line in the format 'Country: Capital'.\n\n"
-            "Output both parts with a blank line between them."
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("has JSON array", lambda o: bool(re.search(r'\[.*".*".*\]', o, re.DOTALL))),
-            ("has colon-separated pairs", lambda o: len(re.findall(r'\w+:\s*\w+', o)) >= 3),
-        ],
-    },
-
-    # ── Tier 3: multi-constraint gauntlet ──────────────────────────────────
-    {
-        "name": "constraint_gauntlet", "category": "constraint", "tier": 3, "style": "structured",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            "Write a 4-line poem about the moon. Requirements:\n"
-            "- Exactly 4 lines\n"
-            "- Lines 1 and 3 must rhyme\n"
-            "- Lines 2 and 4 must rhyme\n"
-            "- Each line must be between 5 and 12 words\n"
-            "- The word 'moon' must appear exactly once"
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("exactly 4 lines", lambda o: len([l for l in o.strip().splitlines() if l.strip()]) == 4),
-            ("moon appears once", lambda o: o.lower().split().count("moon") == 1),
-            ("lines have 5-12 words", lambda o: all(
-                5 <= len(l.split()) <= 12
-                for l in o.strip().splitlines() if l.strip()
-            )),
-        ],
-    },
-    {
-        "name": "constraint_json_transform", "category": "constraint", "tier": 3, "style": "decomposed",
-        "system": SYSTEM_STRUCTURED,
-        "prompt": (
-            'Given this input: {"items": ["apple", "banana", "cherry"]}\n\n'
-            'Transform it to: {"items": [{"name": "<item>", "length": <char_count>}], "count": <total>}\n\n'
-            'Output only the transformed JSON.'
-        ),
-        "scorer": "constraint",
-        "constraints": [
-            ("valid JSON", lambda o: _try_parse_json(o) is not None),
-            ("has count=3", lambda o: (_try_parse_json(o) or {}).get("count") == 3),
-            ("has items array", lambda o: isinstance((_try_parse_json(o) or {}).get("items"), list)),
-            ("apple length=5", lambda o: any(
-                item.get("name") == "apple" and item.get("length") == 5
-                for item in ((_try_parse_json(o) or {}).get("items") or [])
-                if isinstance(item, dict)
-            )),
-        ],
-    },
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  CODE
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ── Tier 1: spec → implementation (direct) ─────────────────────────────
-    {
-        "name": "code_is_palindrome", "category": "code", "tier": 1, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": "Write a Python function `is_palindrome(s: str) -> bool` that returns True if the string is a palindrome (case-insensitive, ignoring non-alphanumeric characters).",
-        "scorer": "code_exec",
-        "test_code": _TEST_PALINDROME,
-    },
-    {
-        "name": "code_fibonacci", "category": "code", "tier": 1, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": "Write a Python function `fibonacci(n: int) -> int` that returns the nth Fibonacci number, where fibonacci(0) = 0, fibonacci(1) = 1.",
-        "scorer": "code_exec",
-        "test_code": _TEST_FIBONACCI,
-    },
-    {
-        "name": "code_two_sum", "category": "code", "tier": 1, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": "Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution.",
-        "scorer": "code_exec",
-        "test_code": _TEST_TWO_SUM,
-    },
-    {
-        "name": "code_caesar_cipher", "category": "code", "tier": 1, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": "Write a Python function `caesar_cipher(text: str, shift: int) -> str` that applies a Caesar cipher. Only shift a-z and A-Z, leave other characters unchanged. Support negative shifts.",
-        "scorer": "code_exec",
-        "test_code": _TEST_CAESAR,
-    },
-
-    # ── Tier 2: same challenges, different prompting approaches ────────────
-    {
-        "name": "code_is_palindrome", "category": "code", "tier": 2, "style": "tdd",
-        "system": SYSTEM_CODE_TDD,
-        "prompt": (
-            "Write the function that makes these tests pass:\n\n"
-            "```python\n"
-            'assert is_palindrome("racecar") == True\n'
-            'assert is_palindrome("hello") == False\n'
-            'assert is_palindrome("A man a plan a canal Panama") == True\n'
-            'assert is_palindrome("") == True\n'
-            "```"
-        ),
-        "scorer": "code_exec",
-        "test_code": _TEST_PALINDROME,
-    },
-    {
-        "name": "code_fibonacci", "category": "code", "tier": 2, "style": "docstring",
-        "system": SYSTEM_CODE_DOCSTRING,
-        "prompt": (
-            "Complete this function:\n\n"
-            "```python\n"
-            "def fibonacci(n: int) -> int:\n"
-            '    """Return the nth Fibonacci number.\n'
-            "    \n"
-            "    fibonacci(0) = 0\n"
-            "    fibonacci(1) = 1\n"
-            "    fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)\n"
-            '    """\n'
-            "```"
-        ),
-        "scorer": "code_exec",
-        "test_code": _TEST_FIBONACCI,
-    },
-    {
-        "name": "code_two_sum", "category": "code", "tier": 2, "style": "noisy",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": (
-            "I need a function for a leetcode problem I'm stuck on. "
-            "Function called two_sum, takes a list of ints and a target int, "
-            "returns the indices of the two numbers that add up to the target. "
-            "There's always exactly one answer. Please just give me the function."
-        ),
-        "scorer": "code_exec",
-        "test_code": _TEST_TWO_SUM,
-    },
-    {
-        "name": "code_caesar_cipher", "category": "code", "tier": 2, "style": "bugfix",
-        "system": SYSTEM_CODE_BUGFIX,
-        "prompt": (
-            "This Caesar cipher function has bugs. Fix it:\n\n"
-            "```python\n"
-            "def caesar_cipher(text: str, shift: int) -> str:\n"
-            "    result = ''\n"
-            "    for char in text:\n"
-            "        if char.isalpha():\n"
-            "            base = ord('a')  # BUG: doesn't handle uppercase\n"
-            "            result += chr((ord(char) - base + shift) % 26 + base)\n"
-            "        else:\n"
-            "            result += char\n"
-            "    return result\n"
-            "```"
-        ),
-        "scorer": "code_exec",
-        "test_code": _TEST_CAESAR,
-    },
-
-    # ── Tier 3: harder coding challenges ───────────────────────────────────
-    {
-        "name": "code_flatten", "category": "code", "tier": 3, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": "Write a Python function `flatten(lst: list) -> list` that recursively flattens a nested list of arbitrary depth.",
-        "scorer": "code_exec",
-        "test_code": """
-assert flatten([1, [2, 3], [4, [5, 6]]]) == [1, 2, 3, 4, 5, 6]
-assert flatten([]) == []
-assert flatten([1, 2, 3]) == [1, 2, 3]
-assert flatten([[[[1]]]]) == [1]
-assert flatten([1, [2, [3, [4, [5]]]]]) == [1, 2, 3, 4, 5]
-""",
-    },
-    {
-        "name": "code_word_frequency", "category": "code", "tier": 3, "style": "tdd",
-        "system": SYSTEM_CODE_TDD,
-        "prompt": (
-            "Write the function `word_frequency(text: str) -> dict[str, int]` that makes these tests pass:\n\n"
-            "```python\n"
-            'result = word_frequency("the cat sat on the mat")\n'
-            'assert result["the"] == 2\n'
-            'assert result["cat"] == 1\n'
-            'result = word_frequency("Hello, hello, HELLO!")\n'
-            'assert result["hello"] == 3\n'
-            'assert word_frequency("") == {}\n'
-            "```\n\n"
-            "Split on whitespace, strip punctuation from word edges, lowercase everything."
-        ),
-        "scorer": "code_exec",
-        "test_code": """
-result = word_frequency("the cat sat on the mat")
-assert result["the"] == 2
-assert result["cat"] == 1
-assert result["mat"] == 1
-result = word_frequency("Hello, hello, HELLO!")
-assert result["hello"] == 3
-result = word_frequency("")
-assert result == {}
-""",
-    },
-    {
-        "name": "code_matrix_rotate", "category": "code", "tier": 3, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": "Write a Python function `rotate_90(matrix: list[list[int]]) -> list[list[int]]` that rotates a square matrix 90 degrees clockwise. Do not modify the input.",
-        "scorer": "code_exec",
-        "test_code": """
-assert rotate_90([[1,2],[3,4]]) == [[3,1],[4,2]]
-assert rotate_90([[1,2,3],[4,5,6],[7,8,9]]) == [[7,4,1],[8,5,2],[9,6,3]]
-assert rotate_90([[1]]) == [[1]]
-""",
-    },
-    {
-        "name": "code_lru_cache", "category": "code", "tier": 3, "style": "direct",
-        "system": SYSTEM_CODE_DIRECT,
-        "prompt": (
-            "Write a Python class `LRUCache` with:\n"
-            "- `__init__(self, capacity: int)` — max number of items\n"
-            "- `get(self, key: int) -> int` — return value or -1 if not found\n"
-            "- `put(self, key: int, value: int)` — insert/update, evict LRU if at capacity"
-        ),
-        "scorer": "code_exec",
-        "test_code": """
-cache = LRUCache(2)
-cache.put(1, 1)
-cache.put(2, 2)
-assert cache.get(1) == 1
-cache.put(3, 3)  # evicts key 2
-assert cache.get(2) == -1
-cache.put(4, 4)  # evicts key 1
-assert cache.get(1) == -1
-assert cache.get(3) == 3
-assert cache.get(4) == 4
-""",
-    },
-]
-
-
-# ── Constraint helper functions (used in lambda constraints above) ─────────
+# ── Constraint DSL evaluator ────────────────────────────────────────────────
 
 def _try_parse_json(text: str):
     """Try to extract and parse JSON from text."""
-    # Try the whole thing first
     try:
         return json.loads(text.strip())
     except (json.JSONDecodeError, ValueError):
         pass
-    # Try to find a JSON object in the text
     match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
     if match:
         try:
@@ -866,24 +176,130 @@ def _try_parse_json(text: str):
     return None
 
 
-def _json_has_keys(text: str, keys: list[str]) -> bool:
+def evaluate_constraint(output: str, constraint: dict) -> bool:
+    """Evaluate a single constraint from YAML against the output."""
+    check = constraint["check"]
+    o = output
+
+    if check == "contains":
+        return constraint["value"].lower() in o.lower()
+    elif check == "contains_exact":
+        return constraint["value"] in o
+    elif check == "not_contains_char":
+        return constraint["char"].lower() not in o.lower()
+    elif check == "min_length":
+        return len(o.strip()) > constraint["length"]
+    elif check == "regex":
+        flags = re.DOTALL if constraint.get("dotall") else 0
+        return bool(re.search(constraint["pattern"], o, flags))
+    elif check == "regex_count_min":
+        return len(re.findall(constraint["pattern"], o)) >= constraint["min"]
+    elif check == "valid_json":
+        return _try_parse_json(o) is not None
+    elif check == "json_has_keys":
+        obj = _try_parse_json(o)
+        return isinstance(obj, dict) and all(k in obj for k in constraint["keys"])
+    elif check == "json_all_string_values":
+        obj = _try_parse_json(o)
+        return isinstance(obj, dict) and all(isinstance(v, str) for v in obj.values())
+    elif check == "json_nested_is_object":
+        obj = _try_parse_json(o)
+        return isinstance(obj, dict) and isinstance(obj.get(constraint["key"]), dict)
+    elif check == "json_nested_has_key":
+        obj = _try_parse_json(o)
+        parent = (obj or {}).get(constraint["parent"])
+        return isinstance(parent, dict) and constraint["key"] in parent
+    elif check == "json_field_equals":
+        obj = _try_parse_json(o)
+        return isinstance(obj, dict) and obj.get(constraint["key"]) == constraint["value"]
+    elif check == "json_field_is_list":
+        obj = _try_parse_json(o)
+        return isinstance(obj, dict) and isinstance(obj.get(constraint["key"]), list)
+    elif check == "json_list_item_has":
+        obj = _try_parse_json(o)
+        if not isinstance(obj, dict):
+            return False
+        items = obj.get(constraint["list_key"], [])
+        return any(
+            isinstance(item, dict)
+            and item.get(constraint["match_field"]) == constraint["match_value"]
+            and item.get(constraint["check_field"]) == constraint["check_value"]
+            for item in items
+        )
+    elif check == "numbered_lines":
+        return (bool(re.search(rf"^{constraint['from']}[.):\s]", o, re.MULTILINE)) and
+                bool(re.search(rf"^{constraint['to']}[.):\s]", o, re.MULTILINE)))
+    elif check == "no_numbered_line":
+        return not re.search(rf"^{constraint['line']}[.):\s]", o, re.MULTILINE)
+    elif check == "numbered_line_exists":
+        return bool(re.search(rf"^{constraint['line']}[.):\s]", o, re.MULTILINE))
+    elif check == "line_count":
+        lines = [l for l in o.strip().splitlines() if l.strip()]
+        return len(lines) == constraint["count"]
+    elif check == "word_count_exact":
+        return o.lower().split().count(constraint["word"]) == constraint["count"]
+    elif check == "all_lines_word_count":
+        lines = [l for l in o.strip().splitlines() if l.strip()]
+        return all(constraint["min"] <= len(l.split()) <= constraint["max"] for l in lines)
+    else:
+        raise ValueError(f"Unknown constraint check: {check}")
+
+
+# ── YAML prompt loader ────────────────────────────────────────────────────
+
+def load_prompts(prompts_dir: Path = PROMPTS_DIR) -> list[dict]:
+    """Load all prompt YAML files from the prompts directory."""
+    import yaml
+    prompts = []
+    for yaml_file in sorted(prompts_dir.glob("*.yaml")):
+        with open(yaml_file) as f:
+            entries = yaml.safe_load(f)
+        if not entries:
+            continue
+        for p in entries:
+            # Resolve system prompt name to actual text
+            system_key = p.get("system", "direct")
+            p["system"] = SYSTEM_PROMPTS.get(system_key, system_key)
+            # Set category from filename if not specified
+            if "category" not in p:
+                p["category"] = yaml_file.stem
+            # Convert YAML constraint dicts to (name, check_fn) tuples
+            if p.get("scorer") == "constraint" and "constraints" in p:
+                p["constraints"] = [
+                    (c["name"], lambda o, c=c: evaluate_constraint(o, c))
+                    for c in p["constraints"]
+                ]
+            prompts.append(p)
+    return prompts
+
+
+PROMPTS = load_prompts()
+
+
+# ── Legacy aliases (keep old code working) ─────────────────────────────────
+# These were previously used directly in lambda constraints
+def _json_has_keys(text, keys):
     obj = _try_parse_json(text)
-    if not isinstance(obj, dict):
-        return False
-    return all(k in obj for k in keys)
+    return isinstance(obj, dict) and all(k in obj for k in keys)
 
-
-def _json_all_string_values(text: str) -> bool:
+def _json_all_string_values(text):
     obj = _try_parse_json(text)
-    if not isinstance(obj, dict):
-        return False
-    return all(isinstance(v, str) for v in obj.values())
+    return isinstance(obj, dict) and all(isinstance(v, str) for v in obj.values())
 
-
-def _count_sentences(text: str) -> int:
-    """Rough sentence count by splitting on terminal punctuation."""
+def _count_sentences(text):
     sentences = re.split(r'[.!?]+', text.strip())
     return len([s for s in sentences if s.strip()])
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# NOTE: Prompts are now loaded from YAML files in the prompts/ directory.
+# To add or modify challenges, edit the YAML files directly:
+#   prompts/math.yaml
+#   prompts/factual.yaml
+#   prompts/logic.yaml
+#   prompts/constraint.yaml
+#   prompts/code.yaml
+# ══════════════════════════════════════════════════════════════════════════
 
 
 @dataclass

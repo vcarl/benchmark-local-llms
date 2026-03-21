@@ -1,0 +1,226 @@
+# Code challenges — generate code, execute against test assertions
+
+# ── Tier 1: spec → implementation (direct) ─────────────────────────────────
+- name: code_is_palindrome
+  tier: 1
+  style: direct
+  system: code_direct
+  prompt: "Write a Python function `is_palindrome(s: str) -> bool` that returns True if the string is a palindrome (case-insensitive, ignoring non-alphanumeric characters)."
+  scorer: code_exec
+  test_code: |
+    assert is_palindrome("racecar") == True
+    assert is_palindrome("hello") == False
+    assert is_palindrome("") == True
+    assert is_palindrome("A man a plan a canal Panama") == True
+    assert is_palindrome("Was it a car or a cat I saw") == True
+    assert is_palindrome("No lemon, no melon") == True
+    assert is_palindrome("abc") == False
+
+- name: code_fibonacci
+  tier: 1
+  style: direct
+  system: code_direct
+  prompt: "Write a Python function `fibonacci(n: int) -> int` that returns the nth Fibonacci number, where fibonacci(0) = 0, fibonacci(1) = 1."
+  scorer: code_exec
+  test_code: |
+    assert fibonacci(0) == 0
+    assert fibonacci(1) == 1
+    assert fibonacci(2) == 1
+    assert fibonacci(10) == 55
+    assert fibonacci(20) == 6765
+
+- name: code_two_sum
+  tier: 1
+  style: direct
+  system: code_direct
+  prompt: "Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution."
+  scorer: code_exec
+  test_code: |
+    result = two_sum([2, 7, 11, 15], 9)
+    assert sorted(result) == [0, 1]
+    result = two_sum([3, 2, 4], 6)
+    assert sorted(result) == [1, 2]
+    result = two_sum([3, 3], 6)
+    assert sorted(result) == [0, 1]
+
+- name: code_caesar_cipher
+  tier: 1
+  style: direct
+  system: code_direct
+  prompt: "Write a Python function `caesar_cipher(text: str, shift: int) -> str` that applies a Caesar cipher. Only shift a-z and A-Z, leave other characters unchanged. Support negative shifts."
+  scorer: code_exec
+  test_code: |
+    assert caesar_cipher("abc", 1) == "bcd"
+    assert caesar_cipher("xyz", 3) == "abc"
+    assert caesar_cipher("Hello, World!", 13) == "Uryyb, Jbeyq!"
+    assert caesar_cipher("Uryyb, Jbeyq!", -13) == "Hello, World!"
+    assert caesar_cipher("ABC", 26) == "ABC"
+    assert caesar_cipher("abc", 0) == "abc"
+
+# ── Tier 2: same challenges, different prompting approaches ────────────────
+- name: code_is_palindrome
+  tier: 2
+  style: tdd
+  system: code_tdd
+  prompt: |-
+    Write the function that makes these tests pass:
+
+    ```python
+    assert is_palindrome("racecar") == True
+    assert is_palindrome("hello") == False
+    assert is_palindrome("A man a plan a canal Panama") == True
+    assert is_palindrome("") == True
+    ```
+  scorer: code_exec
+  test_code: |
+    assert is_palindrome("racecar") == True
+    assert is_palindrome("hello") == False
+    assert is_palindrome("") == True
+    assert is_palindrome("A man a plan a canal Panama") == True
+    assert is_palindrome("Was it a car or a cat I saw") == True
+    assert is_palindrome("No lemon, no melon") == True
+    assert is_palindrome("abc") == False
+
+- name: code_fibonacci
+  tier: 2
+  style: docstring
+  system: code_docstring
+  prompt: |-
+    Complete this function:
+
+    ```python
+    def fibonacci(n: int) -> int:
+        """Return the nth Fibonacci number.
+
+        fibonacci(0) = 0
+        fibonacci(1) = 1
+        fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)
+        """
+    ```
+  scorer: code_exec
+  test_code: |
+    assert fibonacci(0) == 0
+    assert fibonacci(1) == 1
+    assert fibonacci(2) == 1
+    assert fibonacci(10) == 55
+    assert fibonacci(20) == 6765
+
+- name: code_two_sum
+  tier: 2
+  style: noisy
+  system: code_direct
+  prompt: >-
+    I need a function for a leetcode problem I'm stuck on.
+    Function called two_sum, takes a list of ints and a target int,
+    returns the indices of the two numbers that add up to the target.
+    There's always exactly one answer. Please just give me the function.
+  scorer: code_exec
+  test_code: |
+    result = two_sum([2, 7, 11, 15], 9)
+    assert sorted(result) == [0, 1]
+    result = two_sum([3, 2, 4], 6)
+    assert sorted(result) == [1, 2]
+    result = two_sum([3, 3], 6)
+    assert sorted(result) == [0, 1]
+
+- name: code_caesar_cipher
+  tier: 2
+  style: bugfix
+  system: code_bugfix
+  prompt: |-
+    This Caesar cipher function has bugs. Fix it:
+
+    ```python
+    def caesar_cipher(text: str, shift: int) -> str:
+        result = ''
+        for char in text:
+            if char.isalpha():
+                base = ord('a')  # BUG: doesn't handle uppercase
+                result += chr((ord(char) - base + shift) % 26 + base)
+            else:
+                result += char
+        return result
+    ```
+  scorer: code_exec
+  test_code: |
+    assert caesar_cipher("abc", 1) == "bcd"
+    assert caesar_cipher("xyz", 3) == "abc"
+    assert caesar_cipher("Hello, World!", 13) == "Uryyb, Jbeyq!"
+    assert caesar_cipher("Uryyb, Jbeyq!", -13) == "Hello, World!"
+    assert caesar_cipher("ABC", 26) == "ABC"
+    assert caesar_cipher("abc", 0) == "abc"
+
+# ── Tier 3: harder coding challenges ───────────────────────────────────────
+- name: code_flatten
+  tier: 3
+  style: direct
+  system: code_direct
+  prompt: "Write a Python function `flatten(lst: list) -> list` that recursively flattens a nested list of arbitrary depth."
+  scorer: code_exec
+  test_code: |
+    assert flatten([1, [2, 3], [4, [5, 6]]]) == [1, 2, 3, 4, 5, 6]
+    assert flatten([]) == []
+    assert flatten([1, 2, 3]) == [1, 2, 3]
+    assert flatten([[[[1]]]]) == [1]
+    assert flatten([1, [2, [3, [4, [5]]]]]) == [1, 2, 3, 4, 5]
+
+- name: code_word_frequency
+  tier: 3
+  style: tdd
+  system: code_tdd
+  prompt: |-
+    Write the function `word_frequency(text: str) -> dict[str, int]` that makes these tests pass:
+
+    ```python
+    result = word_frequency("the cat sat on the mat")
+    assert result["the"] == 2
+    assert result["cat"] == 1
+    result = word_frequency("Hello, hello, HELLO!")
+    assert result["hello"] == 3
+    assert word_frequency("") == {}
+    ```
+
+    Split on whitespace, strip punctuation from word edges, lowercase everything.
+  scorer: code_exec
+  test_code: |
+    result = word_frequency("the cat sat on the mat")
+    assert result["the"] == 2
+    assert result["cat"] == 1
+    assert result["mat"] == 1
+    result = word_frequency("Hello, hello, HELLO!")
+    assert result["hello"] == 3
+    result = word_frequency("")
+    assert result == {}
+
+- name: code_matrix_rotate
+  tier: 3
+  style: direct
+  system: code_direct
+  prompt: "Write a Python function `rotate_90(matrix: list[list[int]]) -> list[list[int]]` that rotates a square matrix 90 degrees clockwise. Do not modify the input."
+  scorer: code_exec
+  test_code: |
+    assert rotate_90([[1,2],[3,4]]) == [[3,1],[4,2]]
+    assert rotate_90([[1,2,3],[4,5,6],[7,8,9]]) == [[7,4,1],[8,5,2],[9,6,3]]
+    assert rotate_90([[1]]) == [[1]]
+
+- name: code_lru_cache
+  tier: 3
+  style: direct
+  system: code_direct
+  prompt: |-
+    Write a Python class `LRUCache` with:
+    - `__init__(self, capacity: int)` — max number of items
+    - `get(self, key: int) -> int` — return value or -1 if not found
+    - `put(self, key: int, value: int)` — insert/update, evict LRU if at capacity
+  scorer: code_exec
+  test_code: |
+    cache = LRUCache(2)
+    cache.put(1, 1)
+    cache.put(2, 2)
+    assert cache.get(1) == 1
+    cache.put(3, 3)  # evicts key 2
+    assert cache.get(2) == -1
+    cache.put(4, 4)  # evicts key 1
+    assert cache.get(1) == -1
+    assert cache.get(3) == 3
+    assert cache.get(4) == 4
