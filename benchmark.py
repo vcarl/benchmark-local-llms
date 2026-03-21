@@ -1015,6 +1015,31 @@ def print_result_summary(r: BenchmarkResult):
         print(f"{'':>17} | error: {r.error[:80]}")
 
 
+def print_summary_table(results: list[BenchmarkResult]):
+    """Print one row per model+runtime with aggregate stats."""
+    summary: dict[tuple[str, str], dict] = {}
+    for r in results:
+        key = (r.model, r.runtime)
+        if key not in summary:
+            summary[key] = {"scores": [], "tokens": 0, "wall": 0.0, "gen_tps": []}
+        s = summary[key]
+        if r.score is not None:
+            s["scores"].append(r.score)
+        s["tokens"] += r.generation_tokens
+        s["wall"] += r.wall_time_sec
+        if r.generation_tps > 0:
+            s["gen_tps"].append(r.generation_tps)
+
+    print(f"\n{'─' * 85}")
+    print(f"{'Model':<30} {'Runtime':<12} {'Avg Score':>10} {'Tokens':>8} {'Wall Time':>10} {'Gen t/s':>8}")
+    print(f"{'─' * 85}")
+    for (model, runtime), s in sorted(summary.items()):
+        avg_score = sum(s["scores"]) / len(s["scores"]) if s["scores"] else 0
+        avg_gen = sum(s["gen_tps"]) / len(s["gen_tps"]) if s["gen_tps"] else 0
+        print(f"{model:<30} {runtime:<12} {avg_score:>9.0%} {s['tokens']:>8} {s['wall']:>9.1f}s {avg_gen:>7.1f}")
+    print(f"{'─' * 85}")
+
+
 def print_comparison_table(results: list[BenchmarkResult]):
     """Print a summary table comparing all results."""
     print(f"\n{'─' * 100}")
@@ -1087,8 +1112,10 @@ def print_output_comparison(results: list[BenchmarkResult], prompt_name: str):
         print(output)
 
 
-def save_results(results: list[BenchmarkResult], output_dir: Path):
+def save_results(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
     """Save results to JSON and markdown."""
+    from collections import defaultdict
+
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
@@ -1097,29 +1124,129 @@ def save_results(results: list[BenchmarkResult], output_dir: Path):
     with open(json_path, "w") as f:
         json.dump([asdict(r) for r in results], f, indent=2)
 
+    # Build prompt lookup
+    prompt_lookup = {p["name"]: p for p in prompts}
+
     # Markdown summary
     md_path = output_dir / f"benchmark-{timestamp}.md"
     with open(md_path, "w") as f:
         f.write(f"# Benchmark Results — {time.strftime('%Y-%m-%d %H:%M')}\n\n")
 
-        f.write("## Performance Summary\n\n")
-        f.write("| Model | Runtime | Prompt | PP t/s | Gen t/s | Wall Time | Score |\n")
-        f.write("|---|---|---|---|---|---|---|\n")
+        # ── SUMMARY (one row per model+runtime) ──
+        f.write("# SUMMARY\n\n")
+        from collections import defaultdict
+        summary: dict[tuple[str, str], dict] = {}
         for r in results:
-            err = " (error)" if r.error else ""
-            score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
-            f.write(f"| {r.model} | {r.runtime} | {r.prompt_name} | "
-                    f"{r.prompt_tps:.1f} | {r.generation_tps:.1f} | "
-                    f"{r.wall_time_sec:.1f}s | {score_str}{err} |\n")
+            key = (r.model, r.runtime)
+            if key not in summary:
+                summary[key] = {"scores": [], "tokens": 0, "wall": 0.0, "gen_tps": []}
+            s = summary[key]
+            if r.score is not None:
+                s["scores"].append(r.score)
+            s["tokens"] += r.generation_tokens
+            s["wall"] += r.wall_time_sec
+            if r.generation_tps > 0:
+                s["gen_tps"].append(r.generation_tps)
 
-        f.write("\n## Outputs\n\n")
+        f.write(f"{'─' * 85}\n")
+        f.write(f"{'Model':<30} {'Runtime':<12} {'Avg Score':>10} {'Tokens':>8} {'Wall Time':>10} {'Gen t/s':>8}\n")
+        f.write(f"{'─' * 85}\n")
+        for (model, runtime), s in sorted(summary.items()):
+            avg_score = sum(s["scores"]) / len(s["scores"]) if s["scores"] else 0
+            avg_gen = sum(s["gen_tps"]) / len(s["gen_tps"]) if s["gen_tps"] else 0
+            f.write(f"{model:<30} {runtime:<12} {avg_score:>9.0%} {s['tokens']:>8} {s['wall']:>9.1f}s {avg_gen:>7.1f}\n")
+        f.write(f"{'─' * 85}\n\n")
+
+        # ── PERFORMANCE (fixed-width table, same as print_comparison_table) ──
+        f.write("# PERFORMANCE\n\n")
+        f.write(f"{'─' * 100}\n")
+        f.write(f"{'Model':<30} {'Runtime':<12} {'Prompt':<22} "
+                f"{'PP t/s':>8} {'Gen t/s':>8} {'Wall':>7} {'Score':>6}\n")
+        f.write(f"{'─' * 100}\n")
         for r in results:
-            if r.error:
-                f.write(f"### {r.model} / {r.runtime} / {r.prompt_name} — ERROR\n\n")
-                f.write(f"```\n{r.error}\n```\n\n")
-            else:
-                f.write(f"### {r.model} / {r.runtime} / {r.prompt_name}\n\n")
-                f.write(f"```\n{r.output}\n```\n\n")
+            score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
+            err = " *" if r.error else ""
+            f.write(f"{r.model:<30} {r.runtime:<12} {r.prompt_name:<22} "
+                    f"{r.prompt_tps:>8.1f} {r.generation_tps:>8.1f} "
+                    f"{r.wall_time_sec:>6.1f}s {score_str:>5}{err}\n")
+        f.write(f"{'─' * 100}\n")
+
+        # ── Scores by Category (fixed-width, same as print_score_summary) ──
+        f.write("\n## Scores by Category\n\n")
+        groups: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+        for r in results:
+            if r.score is not None:
+                key = (r.model, r.runtime)
+                groups[key][r.category].append(r.score)
+                groups[key]["_overall"].append(r.score)
+
+        if groups:
+            all_cats = sorted({cat for scores in groups.values() for cat in scores if cat != "_overall"})
+            sep_width = 42 + 10 * len(all_cats) + 10
+            f.write(f"{'─' * sep_width}\n")
+            header = f"{'Model':<30} {'Runtime':<12}"
+            for cat in all_cats:
+                header += f" {cat:>8}"
+            header += f" {'OVERALL':>8}"
+            f.write(header + "\n")
+            f.write(f"{'─' * sep_width}\n")
+            for (model, runtime), scores in sorted(groups.items()):
+                line = f"{model:<30} {runtime:<12}"
+                for cat in all_cats:
+                    if cat in scores:
+                        avg = sum(scores[cat]) / len(scores[cat])
+                        line += f" {avg:>7.0%}"
+                    else:
+                        line += f" {'n/a':>7}"
+                overall = sum(scores["_overall"]) / len(scores["_overall"])
+                line += f" {overall:>7.0%}"
+                f.write(line + "\n")
+            f.write(f"{'─' * sep_width}\n")
+
+        # ── Detailed Results ──
+        f.write("\n## Detailed Results\n\n")
+        for prompt_cfg in prompts:
+            prompt_results = [r for r in results if r.prompt_name == prompt_cfg["name"]]
+            if not prompt_results:
+                continue
+
+            expected = prompt_cfg.get("expected", "")
+            prompt_text = prompt_cfg["prompt"]
+            truncated_prompt = prompt_text[:120] + ("..." if len(prompt_text) > 120 else "")
+
+            f.write(f"  ── {prompt_cfg['name']} ({prompt_cfg.get('category', '')}) ──\n")
+            f.write(f"  Prompt: {truncated_prompt}\n")
+            if expected:
+                f.write(f"  Expected: {expected}\n")
+
+            for r in prompt_results:
+                score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
+                icon = "pass" if r.score and r.score >= 1.0 else "FAIL" if r.score is not None else "    "
+                output = r.output if r.output else "(no output)"
+                output_oneline = output.replace("\n", "\\n")
+                output_oneline = output_oneline[:120] + ("..." if len(output_oneline) > 120 else "")
+
+                f.write(f"    [{icon}] {r.model:<30} {r.runtime:<10} {score_str:>5}  | {r.score_details}\n")
+                f.write(f"           Output: {output_oneline}\n")
+
+            f.write("\n")
+
+        # ── Full Outputs ──
+        f.write("\n## Full Outputs\n\n")
+        for r in results:
+            f.write(f"### {r.model} / {r.runtime} / {r.prompt_name}\n\n")
+
+            prompt_cfg = prompt_lookup.get(r.prompt_name, {})
+            expected = prompt_cfg.get("expected", "")
+            if expected:
+                f.write(f"Expected: {expected}\n")
+
+            score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
+            icon = "pass" if r.score and r.score >= 1.0 else "FAIL" if r.score is not None else "    "
+            f.write(f"[{icon}] {r.model} {r.runtime} {score_str} | {r.score_details}\n\n")
+
+            output = r.output if r.output else r.error or "(no output)"
+            f.write(f"```\n{output}\n```\n\n")
 
     print(f"\nResults saved to:")
     print(f"  {json_path}")
@@ -1267,6 +1394,9 @@ def main():
                 results.append(r)
 
     # Final summary
+    print_header("SUMMARY")
+    print_summary_table(results)
+
     print_header("PERFORMANCE")
     print_comparison_table(results)
 
@@ -1301,7 +1431,7 @@ def main():
 
     # Save
     if not args.no_save:
-        save_results(results, RESULTS_DIR)
+        save_results(results, RESULTS_DIR, prompts)
 
 
 if __name__ == "__main__":
