@@ -18,9 +18,13 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.request
+import urllib.error
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
@@ -677,209 +681,274 @@ def is_mlx_cached(model_cfg: dict) -> bool:
     return model_cache.exists() and any(model_cache.rglob("*.safetensors"))
 
 
-# ── llama.cpp runner ───────────────────────────────────────────────────────
+# ── llama.cpp runner (server-based) ────────────────────────────────────────
 
-def run_llamacpp(model_cfg: dict, prompt_cfg: dict, max_tokens: int) -> BenchmarkResult:
-    """Run a single benchmark with llama.cpp CLI."""
-    result = BenchmarkResult(
-        model=model_cfg["name"],
-        runtime="llama.cpp",
-        prompt_name=prompt_cfg["name"],
+LLAMACPP_PORT = 18080
+
+
+def _wait_for_server(port: int, timeout: float = 300) -> bool:
+    """Poll llama-server health endpoint until ready."""
+    url = f"http://127.0.0.1:{port}/health"
+    deadline = time.perf_counter() + timeout
+    while time.perf_counter() < deadline:
+        try:
+            resp = urllib.request.urlopen(url, timeout=2)
+            if resp.status == 200:
+                return True
+        except (urllib.error.URLError, ConnectionError, OSError):
+            pass
+        time.sleep(1)
+    return False
+
+
+def _chat_completion(port: int, system: str, user: str, max_tokens: int,
+                     timeout: float = 600) -> dict:
+    """Send a chat completion request to llama-server."""
+    url = f"http://127.0.0.1:{port}/v1/chat/completions"
+    payload = json.dumps({
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.7,
+    }).encode()
+
+    req = urllib.request.Request(
+        url, data=payload,
+        headers={"Content-Type": "application/json"},
     )
+    resp = urllib.request.urlopen(req, timeout=timeout)
+    return json.loads(resp.read())
 
+
+def run_llamacpp_batch(model_cfg: dict, prompts: list[dict],
+                       max_tokens: int) -> list[BenchmarkResult]:
+    """Start llama-server once, run all prompts, return results."""
+    results = []
     hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
-    cmd = [
-        str(LLAMA_CLI),
+
+    server_cmd = [
+        str(LLAMA_SERVER),
         "-hf", hf_spec,
-        "-sys", prompt_cfg["system"],
-        "-p", prompt_cfg["prompt"],
-        "-n", str(max_tokens),
-        "-st",  # single turn
-        "--no-warmup",
+        "--host", "127.0.0.1",
+        "--port", str(LLAMACPP_PORT),
         "--log-disable",
-        "--simple-io",
     ]
 
-    start = time.perf_counter()
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-        result.wall_time_sec = time.perf_counter() - start
-        stdout = proc.stdout
-
-        # llama-cli in conversation + single-turn mode puts everything on stdout:
-        #   - banner and chrome
-        #   - "> {prompt}" echo
-        #   - response text
-        #   - "[ Prompt: X t/s | Generation: Y t/s ]"
-        #   - "Exiting..."
-        #
-        # Extract response: everything between the prompt echo line and the timing line.
-        # The prompt is echoed as "> {prompt_text}\n" followed by a blank line,
-        # then the response, then a blank line before the timing bracket.
-
-        # Parse timing from stdout: [ Prompt: 433.0 t/s | Generation: 150.8 t/s ]
-        timing_match = re.search(
-            r"\[\s*Prompt:\s*([\d.]+)\s*t/s\s*\|\s*Generation:\s*([\d.]+)\s*t/s\s*\]",
-            stdout,
-        )
-        if timing_match:
-            result.prompt_tps = float(timing_match.group(1))
-            result.generation_tps = float(timing_match.group(2))
-
-        # Extract the response text between the prompt echo and the timing line.
-        # Look for "> {prompt}\n" then capture everything until "[ Prompt:"
-        prompt_escaped = re.escape(prompt_cfg["prompt"])
-        response_match = re.search(
-            r">\s*" + prompt_escaped + r"\s*\n(.*?)(?:\n\s*\[\s*Prompt:|\nExiting\.\.\.)",
-            stdout,
-            re.DOTALL,
-        )
-        if response_match:
-            # Clean up: strip the leading "| " that llama-cli prepends in conversation mode
-            text = response_match.group(1).strip()
-            # Remove leading "| " prefix if present (conversation mode indicator)
-            text = re.sub(r"^\|\s*", "", text)
-            result.output = text
-        else:
-            # Fallback: try to grab text between last empty line after ">" and timing
-            lines = stdout.split("\n")
-            capturing = False
-            response_lines = []
-            for line in lines:
-                if line.startswith("> "):
-                    capturing = True
-                    response_lines = []
-                    continue
-                if capturing:
-                    if re.match(r"\s*\[\s*Prompt:", line) or line.strip() == "Exiting...":
-                        break
-                    response_lines.append(line)
-            if response_lines:
-                text = "\n".join(response_lines).strip()
-                text = re.sub(r"^\|\s*", "", text)
-                result.output = text
-
-        # Count generation tokens from output (approximate by whitespace-splitting)
-        if result.output and result.generation_tokens == 0:
-            # Rough estimate; actual token count may differ
-            result.generation_tokens = max_tokens  # we requested this many
-
-        if proc.returncode != 0 and not result.output:
-            result.error = f"Exit code {proc.returncode}: {proc.stderr[-500:]}"
-
-    except subprocess.TimeoutExpired:
-        result.wall_time_sec = time.perf_counter() - start
-        result.error = "Timeout (600s)"
-    except Exception as e:
-        result.wall_time_sec = time.perf_counter() - start
-        result.error = str(e)
-
-    return result
-
-
-# ── MLX runner ─────────────────────────────────────────────────────────────
-
-def run_mlx(model_cfg: dict, prompt_cfg: dict, max_tokens: int) -> BenchmarkResult:
-    """Run a single benchmark with MLX."""
-    result = BenchmarkResult(
-        model=model_cfg["name"],
-        runtime="mlx",
-        prompt_name=prompt_cfg["name"],
+    print(f"    Starting llama-server for {model_cfg['name']}...", flush=True)
+    server_proc = subprocess.Popen(
+        server_cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
     )
 
-    # MLX needs to run in-process for accurate timing
-    # Use subprocess to avoid model caching between runs affecting results
-    # Pass prompt data as JSON via env var to avoid shell escaping issues
+    try:
+        if not _wait_for_server(LLAMACPP_PORT):
+            # Server failed to start
+            stderr = server_proc.stderr.read().decode() if server_proc.stderr else ""
+            for prompt_cfg in prompts:
+                r = BenchmarkResult(
+                    model=model_cfg["name"], runtime="llama.cpp",
+                    prompt_name=prompt_cfg["name"],
+                    error=f"Server failed to start: {stderr[-200:]}",
+                )
+                results.append(r)
+            return results
+
+        print(f"    Server ready. Running {len(prompts)} prompts...", flush=True)
+
+        for prompt_cfg in prompts:
+            result = BenchmarkResult(
+                model=model_cfg["name"],
+                runtime="llama.cpp",
+                prompt_name=prompt_cfg["name"],
+            )
+
+            start = time.perf_counter()
+            try:
+                data = _chat_completion(
+                    LLAMACPP_PORT,
+                    prompt_cfg["system"],
+                    prompt_cfg["prompt"],
+                    max_tokens,
+                )
+                result.wall_time_sec = time.perf_counter() - start
+
+                choice = data["choices"][0]
+                result.output = choice["message"]["content"].strip()
+
+                usage = data.get("usage", {})
+                result.prompt_tokens = usage.get("prompt_tokens", 0)
+                result.generation_tokens = usage.get("completion_tokens", 0)
+
+                # Calculate t/s from timing data if available
+                timings = data.get("timings", {})
+                if timings:
+                    result.prompt_tps = timings.get("prompt_per_second", 0.0)
+                    result.generation_tps = timings.get("predicted_per_second", 0.0)
+                elif result.generation_tokens > 0 and result.wall_time_sec > 0:
+                    result.generation_tps = result.generation_tokens / result.wall_time_sec
+
+            except Exception as e:
+                result.wall_time_sec = time.perf_counter() - start
+                result.error = str(e)[:200]
+
+            results.append(result)
+
+    finally:
+        # Clean shutdown
+        print(f"    Stopping server...", flush=True)
+        server_proc.terminate()
+        try:
+            server_proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server_proc.kill()
+            server_proc.wait()
+
+    return results
+
+
+# ── MLX runner (batch, single subprocess) ──────────────────────────────────
+
+def run_mlx_batch(model_cfg: dict, prompts: list[dict],
+                  max_tokens: int) -> list[BenchmarkResult]:
+    """Load model once in a subprocess, run all prompts, return results."""
+    results = []
+
+    # Write prompts to a temp file to avoid env var size limits
     prompt_data = json.dumps({
         "model_id": model_cfg["mlx_model"],
-        "system": prompt_cfg["system"],
-        "user": prompt_cfg["prompt"],
         "max_tokens": max_tokens,
+        "prompts": [
+            {"name": p["name"], "system": p["system"], "user": p["prompt"]}
+            for p in prompts
+        ],
     })
 
     script = '''
 import json, os, sys, time
 from mlx_lm import load, stream_generate
 
-cfg = json.loads(os.environ["BENCH_PROMPT"])
+cfg = json.loads(os.environ["BENCH_CONFIG"])
+
+print("LOADING_MODEL", flush=True)
 model, tokenizer = load(cfg["model_id"])
+print("MODEL_READY", flush=True)
 
-messages = [
-    {"role": "system", "content": cfg["system"]},
-    {"role": "user", "content": cfg["user"]},
-]
-prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+results = []
+for p in cfg["prompts"]:
+    messages = [
+        {"role": "system", "content": p["system"]},
+        {"role": "user", "content": p["user"]},
+    ]
+    prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
 
-text = ""
-response = None
-for response in stream_generate(model, tokenizer, prompt, max_tokens=cfg["max_tokens"]):
-    text += response.text
-
-if response is None:
-    print(json.dumps({"error": "No response generated"}))
-    sys.exit(1)
-
-print(json.dumps({
-    "output": text,
-    "prompt_tokens": response.prompt_tokens,
-    "generation_tokens": response.generation_tokens,
-    "prompt_tps": response.prompt_tps,
-    "generation_tps": response.generation_tps,
-    "peak_memory_gb": response.peak_memory,
-}))
-'''
-
-    env = {**os.environ, "BENCH_PROMPT": prompt_data}
-
+    text = ""
+    response = None
     start = time.perf_counter()
     try:
-        proc = subprocess.run(
+        for response in stream_generate(model, tokenizer, prompt, max_tokens=cfg["max_tokens"]):
+            text += response.text
+        wall = time.perf_counter() - start
+
+        if response is None:
+            results.append({"name": p["name"], "error": "No response generated", "wall": wall})
+        else:
+            results.append({
+                "name": p["name"],
+                "output": text,
+                "prompt_tokens": response.prompt_tokens,
+                "generation_tokens": response.generation_tokens,
+                "prompt_tps": response.prompt_tps,
+                "generation_tps": response.generation_tps,
+                "peak_memory_gb": response.peak_memory,
+                "wall": wall,
+            })
+    except Exception as e:
+        wall = time.perf_counter() - start
+        results.append({"name": p["name"], "error": str(e)[:200], "wall": wall})
+
+    # Flush a progress indicator so the parent knows we're still alive
+    print(f"DONE:{p['name']}", flush=True)
+
+print("RESULTS_JSON:" + json.dumps(results), flush=True)
+'''
+
+    env = {**os.environ, "BENCH_CONFIG": prompt_data}
+
+    print(f"    Loading MLX model {model_cfg['name']}...", flush=True)
+
+    try:
+        proc = subprocess.Popen(
             [sys.executable, "-c", script],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=600,
             env=env,
         )
-        result.wall_time_sec = time.perf_counter() - start
 
-        if proc.returncode != 0:
-            result.error = f"Exit code {proc.returncode}: {proc.stderr[-500:]}"
-            return result
-
-        # Find the JSON line in stdout (ignore any other output)
-        for line in proc.stdout.strip().split("\n"):
+        # Read stdout line by line for progress
+        json_line = None
+        for line in proc.stdout:
             line = line.strip()
-            if line.startswith("{"):
-                data = json.loads(line)
-                break
-        else:
-            result.error = f"No JSON in output: {proc.stdout[-200:]}"
-            return result
+            if line == "MODEL_READY":
+                print(f"    Model loaded. Running {len(prompts)} prompts...", flush=True)
+            elif line.startswith("DONE:"):
+                prompt_name = line[5:]
+                print(f"      Completed: {prompt_name}", flush=True)
+            elif line.startswith("RESULTS_JSON:"):
+                json_line = line[13:]
 
-        if "error" in data:
-            result.error = data["error"]
-            return result
+        proc.wait(timeout=60)
 
-        result.output = data["output"]
-        result.prompt_tokens = data["prompt_tokens"]
-        result.generation_tokens = data["generation_tokens"]
-        result.prompt_tps = data["prompt_tps"]
-        result.generation_tps = data["generation_tps"]
-        result.peak_memory_gb = data["peak_memory_gb"]
+        if json_line is None:
+            stderr = proc.stderr.read()
+            for prompt_cfg in prompts:
+                results.append(BenchmarkResult(
+                    model=model_cfg["name"], runtime="mlx",
+                    prompt_name=prompt_cfg["name"],
+                    error=f"No results from MLX subprocess: {stderr[-200:]}",
+                ))
+            return results
+
+        data_list = json.loads(json_line)
+        for d in data_list:
+            r = BenchmarkResult(
+                model=model_cfg["name"],
+                runtime="mlx",
+                prompt_name=d["name"],
+            )
+            if "error" in d:
+                r.error = d["error"]
+                r.wall_time_sec = d.get("wall", 0.0)
+            else:
+                r.output = d["output"]
+                r.prompt_tokens = d["prompt_tokens"]
+                r.generation_tokens = d["generation_tokens"]
+                r.prompt_tps = d["prompt_tps"]
+                r.generation_tps = d["generation_tps"]
+                r.peak_memory_gb = d["peak_memory_gb"]
+                r.wall_time_sec = d["wall"]
+            results.append(r)
 
     except subprocess.TimeoutExpired:
-        result.wall_time_sec = time.perf_counter() - start
-        result.error = "Timeout (600s)"
+        proc.kill()
+        for prompt_cfg in prompts:
+            results.append(BenchmarkResult(
+                model=model_cfg["name"], runtime="mlx",
+                prompt_name=prompt_cfg["name"],
+                error="MLX subprocess timed out",
+            ))
     except Exception as e:
-        result.wall_time_sec = time.perf_counter() - start
-        result.error = str(e)
+        for prompt_cfg in prompts:
+            results.append(BenchmarkResult(
+                model=model_cfg["name"], runtime="mlx",
+                prompt_name=prompt_cfg["name"],
+                error=str(e)[:200],
+            ))
 
-    return result
+    return results
 
 
 # ── Model downloading ──────────────────────────────────────────────────────
@@ -1368,28 +1437,28 @@ def main():
     print()
 
     results: list[BenchmarkResult] = []
+    prompt_lookup = {p["name"]: p for p in prompts}
 
     for model_cfg in models:
-        for prompt_cfg in prompts:
-            print_header(f"{model_cfg['name']} — {prompt_cfg['name']}")
+        for runtime in runtimes:
+            # Check if model is cached
+            if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
+                print(f"\n  Skipping {model_cfg['name']} / llama.cpp: model not downloaded. Run with --download first.")
+                continue
+            if runtime == "mlx" and not is_mlx_cached(model_cfg):
+                print(f"\n  Skipping {model_cfg['name']} / mlx: model not downloaded. Run with --download first.")
+                continue
 
-            for runtime in runtimes:
-                # Check if model is cached — don't try to download during benchmark runs
-                if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
-                    print(f"\n  Skipping {runtime}: model not downloaded. Run with --download first.")
-                    continue
-                if runtime == "mlx" and not is_mlx_cached(model_cfg):
-                    print(f"\n  Skipping {runtime}: model not downloaded. Run with --download first.")
-                    continue
+            print_header(f"{model_cfg['name']} — {runtime}")
 
-                print(f"\n  Running {runtime}...", flush=True)
+            if runtime == "llamacpp":
+                batch_results = run_llamacpp_batch(model_cfg, prompts, args.max_tokens)
+            elif runtime == "mlx":
+                batch_results = run_mlx_batch(model_cfg, prompts, args.max_tokens)
 
-                if runtime == "llamacpp":
-                    r = run_llamacpp(model_cfg, prompt_cfg, args.max_tokens)
-                elif runtime == "mlx":
-                    r = run_mlx(model_cfg, prompt_cfg, args.max_tokens)
-
-                score_result(r, prompt_cfg)
+            for r in batch_results:
+                pcfg = prompt_lookup.get(r.prompt_name, {})
+                score_result(r, pcfg)
                 print_result_summary(r)
                 results.append(r)
 
