@@ -65,6 +65,62 @@ MODELS = [
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "mlx-community/Qwen2.5-72B-Instruct-4bit",
     },
+    {
+        "name": "Qwen 2.5 Coder 32B Instruct",
+        "size_class": "small",
+        "llamacpp_hf": "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+    },
+    {
+        "name": "QwQ 32B",
+        "size_class": "small",
+        "llamacpp_hf": "Qwen/QwQ-32B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/QwQ-32B-4bit",
+    },
+    {
+        "name": "Qwen 3 32B",
+        "size_class": "small",
+        "llamacpp_hf": "Qwen/Qwen3-32B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen3-32B-4bit",
+    },
+    {
+        "name": "Qwen 3.5 9B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/Qwen3.5-9B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen3.5-9B-4bit",
+    },
+    {
+        "name": "Qwen 3.5 27B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/Qwen3.5-27B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen3.5-27B-4bit",
+    },
+    {
+        "name": "Qwen 3.5 35B-A3B (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/Qwen3.5-35B-A3B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen3.5-35B-A3B-4bit",
+    },
+    {
+        "name": "Qwen 3 Coder 30B-A3B Instruct (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit",
+    },
+    {
+        "name": "Qwen 3 Coder Next 80B-A3B (MoE)",
+        "size_class": "large",
+        "llamacpp_hf": "Qwen/Qwen3-Coder-Next-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Qwen3-Coder-Next-4bit",
+    },
     # {
     #     "name": "Command-R+ 104B",
     #     "size_class": "xlarge",
@@ -87,11 +143,39 @@ MODELS = [
         "mlx_model": "zachlandes/Mistral-Large-Instruct-2411-Q4-MLX",
     },
     {
-        "name": "Qwen 3 235B-A22B (MoE, 3-bit)",
+        "name": "Mistral Small 4 119B (MoE)",
         "size_class": "xlarge",
-        "llamacpp_hf": "Qwen/Qwen3-235B-A22B-GGUF",
-        "llamacpp_quant": "Q3_K_M",
-        "mlx_model": "mlx-community/Qwen3-235B-A22B-3bit",
+        "llamacpp_hf": "unsloth/Mistral-Small-4-119B-2603-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": None,  # No MLX conversion available yet (released Mar 2026)
+    },
+    {
+        "name": "Devstral 2 123B",
+        "size_class": "xlarge",
+        "llamacpp_hf": "unsloth/Devstral-2-123B-Instruct-2512-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Devstral-2-123B-Instruct-2512-4bit",
+    },
+    {
+        "name": "Mistral Small 3.2 24B",
+        "size_class": "small",
+        "llamacpp_hf": "bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit",
+    },
+    {
+        "name": "Magistral Small 1.2 24B",
+        "size_class": "small",
+        "llamacpp_hf": "mistralai/Magistral-Small-2509-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "lmstudio-community/Magistral-Small-2509-MLX-4bit",
+    },
+    {
+        "name": "Devstral Small 2 24B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit",
     },
     {
         "name": "Llama 3.1 8B Instruct",
@@ -101,11 +185,46 @@ MODELS = [
         "mlx_model": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
     },
     {
+        "name": "DeepSeek R1 Distill Qwen 7B",
+        "size_class": "small",
+        "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+    },
+    {
+        "name": "DeepSeek R1 Distill Qwen 14B",
+        "size_class": "small",
+        "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
+    },
+    {
         "name": "DeepSeek R1 Distill Qwen 32B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF",
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit",
+    },
+    {
+        "name": "DeepSeek R1-0528 Qwen3 8B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit",
+    },
+    {
+        "name": "DeepSeek Coder V2 Lite 16B (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit",
+    },
+    {
+        "name": "DeepSeek Coder 33B Instruct",
+        "size_class": "small",
+        "llamacpp_hf": "bartowski/deepseek-coder-33b-instruct-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/deepseek-coder-33b-instruct-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Llama 70B",
@@ -316,6 +435,10 @@ class BenchmarkResult:
     output: str = ""
     error: Optional[str] = None
     category: str = ""
+    tier: int = 0
+    style: str = ""
+    prompt_text: str = ""  # the actual prompt sent to the model
+    expected: str = ""  # expected answer (if any)
     score: Optional[float] = None  # 0.0-1.0, None if not scored
     score_details: str = ""  # human-readable scoring breakdown
 
@@ -392,6 +515,10 @@ def run_code_with_tests(code: str, test_code: str, timeout: int = 10) -> tuple[b
 def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
     """Score a benchmark result in-place based on the prompt's scorer type."""
     result.category = prompt_cfg.get("category", "")
+    result.tier = prompt_cfg.get("tier", 0)
+    result.style = prompt_cfg.get("style", "")
+    result.prompt_text = prompt_cfg.get("prompt", "")
+    result.expected = prompt_cfg.get("expected", "")
 
     if result.error or not result.output:
         result.score = 0.0
@@ -480,6 +607,8 @@ def is_llamacpp_cached(model_cfg: dict) -> bool:
 
 def is_mlx_cached(model_cfg: dict) -> bool:
     """Check if an MLX model is already downloaded in the HuggingFace cache."""
+    if not model_cfg.get("mlx_model"):
+        return False
     hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
     if not hf_cache.exists():
         return False
@@ -805,6 +934,9 @@ def download_llamacpp_model(model_cfg: dict) -> bool:
 
 def download_mlx_model(model_cfg: dict) -> bool:
     """Pre-download an MLX model by loading it briefly."""
+    if not model_cfg.get("mlx_model"):
+        print(f"  MLX:       No MLX model available, skipping.")
+        return False
     model_id = model_cfg["mlx_model"]
     print(f"  MLX:       {model_id} ... ", end="", flush=True)
 
@@ -891,7 +1023,7 @@ def print_result_summary(r: BenchmarkResult):
         print(f"{'':>17} | error: {r.error[:80]}")
 
 
-def print_summary_table(results: list[BenchmarkResult]):
+def print_summary_table(results: list[BenchmarkResult], file=sys.stdout):
     """Print one row per model+runtime with aggregate stats."""
     summary: dict[tuple[str, str], dict] = {}
     for r in results:
@@ -906,32 +1038,32 @@ def print_summary_table(results: list[BenchmarkResult]):
         if r.generation_tps > 0:
             s["gen_tps"].append(r.generation_tps)
 
-    print(f"\n{'─' * 85}")
-    print(f"{'Model':<30} {'Runtime':<12} {'Avg Score':>10} {'Tokens':>8} {'Wall Time':>10} {'Gen t/s':>8}")
-    print(f"{'─' * 85}")
+    print(f"\n{'─' * 85}", file=file)
+    print(f"{'Model':<30} {'Runtime':<12} {'Avg Score':>10} {'Tokens':>8} {'Wall Time':>10} {'Gen t/s':>8}", file=file)
+    print(f"{'─' * 85}", file=file)
     for (model, runtime), s in sorted(summary.items()):
         avg_score = sum(s["scores"]) / len(s["scores"]) if s["scores"] else 0
         avg_gen = sum(s["gen_tps"]) / len(s["gen_tps"]) if s["gen_tps"] else 0
-        print(f"{model:<30} {runtime:<12} {avg_score:>9.0%} {s['tokens']:>8} {s['wall']:>9.1f}s {avg_gen:>7.1f}")
-    print(f"{'─' * 85}")
+        print(f"{model:<30} {runtime:<12} {avg_score:>9.0%} {s['tokens']:>8} {s['wall']:>9.1f}s {avg_gen:>7.1f}", file=file)
+    print(f"{'─' * 85}", file=file)
 
 
-def print_comparison_table(results: list[BenchmarkResult]):
+def print_comparison_table(results: list[BenchmarkResult], file=sys.stdout):
     """Print a summary table comparing all results."""
-    print(f"\n{'─' * 100}")
+    print(f"\n{'─' * 100}", file=file)
     print(f"{'Model':<30} {'Runtime':<12} {'Prompt':<22} "
-          f"{'PP t/s':>8} {'Gen t/s':>8} {'Wall':>7} {'Score':>6}")
-    print(f"{'─' * 100}")
+          f"{'PP t/s':>8} {'Gen t/s':>8} {'Wall':>7} {'Score':>6}", file=file)
+    print(f"{'─' * 100}", file=file)
     for r in results:
         score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
         err = " *" if r.error else ""
         print(f"{r.model:<30} {r.runtime:<12} {r.prompt_name:<22} "
               f"{r.prompt_tps:>8.1f} {r.generation_tps:>8.1f} "
-              f"{r.wall_time_sec:>6.1f}s {score_str:>5}{err}")
-    print(f"{'─' * 100}")
+              f"{r.wall_time_sec:>6.1f}s {score_str:>5}{err}", file=file)
+    print(f"{'─' * 100}", file=file)
 
 
-def print_score_summary(results: list[BenchmarkResult]):
+def print_score_summary(results: list[BenchmarkResult], file=sys.stdout):
     """Print aggregate scores per model/runtime grouped by category."""
     # Group by (model, runtime)
     from collections import defaultdict
@@ -949,13 +1081,13 @@ def print_score_summary(results: list[BenchmarkResult]):
     # Collect all categories
     all_cats = sorted({cat for scores in groups.values() for cat in scores if cat != "_overall"})
 
-    print(f"\n{'─' * (42 + 10 * len(all_cats) + 10)}")
+    print(f"\n{'─' * (42 + 10 * len(all_cats) + 10)}", file=file)
     header = f"{'Model':<30} {'Runtime':<12}"
     for cat in all_cats:
         header += f" {cat:>8}"
     header += f" {'OVERALL':>8}"
-    print(header)
-    print(f"{'─' * (42 + 10 * len(all_cats) + 10)}")
+    print(header, file=file)
+    print(f"{'─' * (42 + 10 * len(all_cats) + 10)}", file=file)
 
     for (model, runtime), scores in sorted(groups.items()):
         line = f"{model:<30} {runtime:<12}"
@@ -967,9 +1099,9 @@ def print_score_summary(results: list[BenchmarkResult]):
                 line += f" {'n/a':>7}"
         overall = sum(scores["_overall"]) / len(scores["_overall"])
         line += f" {overall:>7.0%}"
-        print(line)
+        print(line, file=file)
 
-    print(f"{'─' * (42 + 10 * len(all_cats) + 10)}")
+    print(f"{'─' * (42 + 10 * len(all_cats) + 10)}", file=file)
 
 
 def print_output_comparison(results: list[BenchmarkResult], prompt_name: str):
@@ -988,134 +1120,70 @@ def print_output_comparison(results: list[BenchmarkResult], prompt_name: str):
         print(output)
 
 
-def save_results(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
-    """Save results to JSON and markdown."""
-    from collections import defaultdict
+def print_detailed_results(results: list[BenchmarkResult], prompts: list[dict], file=sys.stdout):
+    """Print detailed results for each prompt."""
+    # Use prompt ordering but pull display data from results
+    for prompt_cfg in prompts:
+        key = prompt_cfg["_key"]
+        prompt_results = [r for r in results if r.prompt_name == key]
+        if not prompt_results:
+            continue
 
+        # Pull metadata from first result (same for all results with this key)
+        first = prompt_results[0]
+        truncated_prompt = first.prompt_text[:120] + ("..." if len(first.prompt_text) > 120 else "")
+
+        print(f"\n  ── {prompt_cfg['name']} (tier {first.tier}, {first.style}, {first.category}) ──", file=file)
+        if first.prompt_text:
+            print(f"  Prompt: {truncated_prompt}", file=file)
+        if first.expected:
+            print(f"  Expected: {first.expected}", file=file)
+
+        for r in prompt_results:
+            score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
+            icon = "pass" if r.score and r.score >= 1.0 else "FAIL" if r.score is not None else "    "
+            output = r.output[:200] + ("..." if len(r.output) > 200 else "") if r.output else "(no output)"
+            output_oneline = output.replace("\n", "\\n")
+
+            print(f"    [{icon}] {r.model:<30} {r.runtime:<10} {score_str:>5}  | {r.score_details}", file=file)
+            print(f"           Output: {output_oneline[:120]}", file=file)
+
+
+def save_results(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
+    """Save results to JSONL and markdown."""
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-    # JSON (full data)
-    json_path = output_dir / f"benchmark-{timestamp}.json"
-    with open(json_path, "w") as f:
-        json.dump([asdict(r) for r in results], f, indent=2)
-
-    # Build prompt lookup
-    prompt_lookup = {p["name"]: p for p in prompts}
+    # JSONL (one result per line, no indentation)
+    jsonl_path = output_dir / f"benchmark-{timestamp}.jsonl"
+    with open(jsonl_path, "w") as f:
+        for r in results:
+            f.write(json.dumps(asdict(r)) + "\n")
 
     # Markdown summary
     md_path = output_dir / f"benchmark-{timestamp}.md"
     with open(md_path, "w") as f:
         f.write(f"# Benchmark Results — {time.strftime('%Y-%m-%d %H:%M')}\n\n")
 
-        # ── SUMMARY (one row per model+runtime) ──
         f.write("# SUMMARY\n\n")
-        from collections import defaultdict
-        summary: dict[tuple[str, str], dict] = {}
-        for r in results:
-            key = (r.model, r.runtime)
-            if key not in summary:
-                summary[key] = {"scores": [], "tokens": 0, "wall": 0.0, "gen_tps": []}
-            s = summary[key]
-            if r.score is not None:
-                s["scores"].append(r.score)
-            s["tokens"] += r.generation_tokens
-            s["wall"] += r.wall_time_sec
-            if r.generation_tps > 0:
-                s["gen_tps"].append(r.generation_tps)
+        print_summary_table(results, file=f)
 
-        f.write(f"{'─' * 85}\n")
-        f.write(f"{'Model':<30} {'Runtime':<12} {'Avg Score':>10} {'Tokens':>8} {'Wall Time':>10} {'Gen t/s':>8}\n")
-        f.write(f"{'─' * 85}\n")
-        for (model, runtime), s in sorted(summary.items()):
-            avg_score = sum(s["scores"]) / len(s["scores"]) if s["scores"] else 0
-            avg_gen = sum(s["gen_tps"]) / len(s["gen_tps"]) if s["gen_tps"] else 0
-            f.write(f"{model:<30} {runtime:<12} {avg_score:>9.0%} {s['tokens']:>8} {s['wall']:>9.1f}s {avg_gen:>7.1f}\n")
-        f.write(f"{'─' * 85}\n\n")
+        f.write("\n# PERFORMANCE\n\n")
+        print_comparison_table(results, file=f)
 
-        # ── PERFORMANCE (fixed-width table, same as print_comparison_table) ──
-        f.write("# PERFORMANCE\n\n")
-        f.write(f"{'─' * 100}\n")
-        f.write(f"{'Model':<30} {'Runtime':<12} {'Prompt':<22} "
-                f"{'PP t/s':>8} {'Gen t/s':>8} {'Wall':>7} {'Score':>6}\n")
-        f.write(f"{'─' * 100}\n")
-        for r in results:
-            score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
-            err = " *" if r.error else ""
-            f.write(f"{r.model:<30} {r.runtime:<12} {r.prompt_name:<22} "
-                    f"{r.prompt_tps:>8.1f} {r.generation_tps:>8.1f} "
-                    f"{r.wall_time_sec:>6.1f}s {score_str:>5}{err}\n")
-        f.write(f"{'─' * 100}\n")
-
-        # ── Scores by Category (fixed-width, same as print_score_summary) ──
         f.write("\n## Scores by Category\n\n")
-        groups: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-        for r in results:
-            if r.score is not None:
-                key = (r.model, r.runtime)
-                groups[key][r.category].append(r.score)
-                groups[key]["_overall"].append(r.score)
+        print_score_summary(results, file=f)
 
-        if groups:
-            all_cats = sorted({cat for scores in groups.values() for cat in scores if cat != "_overall"})
-            sep_width = 42 + 10 * len(all_cats) + 10
-            f.write(f"{'─' * sep_width}\n")
-            header = f"{'Model':<30} {'Runtime':<12}"
-            for cat in all_cats:
-                header += f" {cat:>8}"
-            header += f" {'OVERALL':>8}"
-            f.write(header + "\n")
-            f.write(f"{'─' * sep_width}\n")
-            for (model, runtime), scores in sorted(groups.items()):
-                line = f"{model:<30} {runtime:<12}"
-                for cat in all_cats:
-                    if cat in scores:
-                        avg = sum(scores[cat]) / len(scores[cat])
-                        line += f" {avg:>7.0%}"
-                    else:
-                        line += f" {'n/a':>7}"
-                overall = sum(scores["_overall"]) / len(scores["_overall"])
-                line += f" {overall:>7.0%}"
-                f.write(line + "\n")
-            f.write(f"{'─' * sep_width}\n")
-
-        # ── Detailed Results ──
         f.write("\n## Detailed Results\n\n")
-        for prompt_cfg in prompts:
-            prompt_results = [r for r in results if r.prompt_name == prompt_cfg["name"]]
-            if not prompt_results:
-                continue
-
-            expected = prompt_cfg.get("expected", "")
-            prompt_text = prompt_cfg["prompt"]
-            truncated_prompt = prompt_text[:120] + ("..." if len(prompt_text) > 120 else "")
-
-            f.write(f"  ── {prompt_cfg['name']} ({prompt_cfg.get('category', '')}) ──\n")
-            f.write(f"  Prompt: {truncated_prompt}\n")
-            if expected:
-                f.write(f"  Expected: {expected}\n")
-
-            for r in prompt_results:
-                score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
-                icon = "pass" if r.score and r.score >= 1.0 else "FAIL" if r.score is not None else "    "
-                output = r.output if r.output else "(no output)"
-                output_oneline = output.replace("\n", "\\n")
-                output_oneline = output_oneline[:120] + ("..." if len(output_oneline) > 120 else "")
-
-                f.write(f"    [{icon}] {r.model:<30} {r.runtime:<10} {score_str:>5}  | {r.score_details}\n")
-                f.write(f"           Output: {output_oneline}\n")
-
-            f.write("\n")
+        print_detailed_results(results, prompts, file=f)
 
         # ── Full Outputs ──
         f.write("\n## Full Outputs\n\n")
         for r in results:
             f.write(f"### {r.model} / {r.runtime} / {r.prompt_name}\n\n")
 
-            prompt_cfg = prompt_lookup.get(r.prompt_name, {})
-            expected = prompt_cfg.get("expected", "")
-            if expected:
-                f.write(f"Expected: {expected}\n")
+            if r.expected:
+                f.write(f"Expected: {r.expected}\n")
 
             score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
             icon = "pass" if r.score and r.score >= 1.0 else "FAIL" if r.score is not None else "    "
@@ -1125,7 +1193,7 @@ def save_results(results: list[BenchmarkResult], output_dir: Path, prompts: list
             f.write(f"```\n{output}\n```\n\n")
 
     print(f"\nResults saved to:")
-    print(f"  {json_path}")
+    print(f"  {jsonl_path}")
     print(f"  {md_path}")
 
 
@@ -1310,7 +1378,22 @@ def main():
                             scores = cat_scores.get(cat, [])
                             if scores and (sum(scores) / len(scores)) < TIER_1_GATE:
                                 skipped_cats.add(cat)
-                                print(f"\n    Skipping tier 2 {cat}: pass rate {sum(scores)/len(scores):.0%} < {TIER_1_GATE:.0%}")
+                                gate = TIER_1_GATE
+                                print(f"\n    Skipping tier 2 {cat}: pass rate {sum(scores)/len(scores):.0%} < {gate:.0%}")
+                                for p in [p for p in tier_prompts if p.get("category", "") == cat]:
+                                    skip_result = BenchmarkResult(
+                                        model=model_cfg["name"],
+                                        runtime=runtime,
+                                        prompt_name=p["_key"],
+                                        category=cat,
+                                        tier=tier_num,
+                                        style=p.get("style", ""),
+                                        prompt_text=p.get("prompt", ""),
+                                        expected=p.get("expected", ""),
+                                        score=None,
+                                        score_details=f"skipped: tier {tier_num} gated (pass rate {sum(scores)/len(scores):.0%} < {gate:.0%})",
+                                    )
+                                    results.append(skip_result)
                     elif tier_num == 3:
                         for cat in categories:
                             if cat in skipped_cats:
@@ -1318,7 +1401,22 @@ def main():
                             scores = cat_scores.get(cat, [])
                             if scores and (sum(scores) / len(scores)) < TIER_2_GATE:
                                 skipped_cats.add(cat)
-                                print(f"\n    Skipping tier 3 {cat}: pass rate {sum(scores)/len(scores):.0%} < {TIER_2_GATE:.0%}")
+                                gate = TIER_2_GATE
+                                print(f"\n    Skipping tier 3 {cat}: pass rate {sum(scores)/len(scores):.0%} < {gate:.0%}")
+                                for p in [p for p in tier_prompts if p.get("category", "") == cat]:
+                                    skip_result = BenchmarkResult(
+                                        model=model_cfg["name"],
+                                        runtime=runtime,
+                                        prompt_name=p["_key"],
+                                        category=cat,
+                                        tier=tier_num,
+                                        style=p.get("style", ""),
+                                        prompt_text=p.get("prompt", ""),
+                                        expected=p.get("expected", ""),
+                                        score=None,
+                                        score_details=f"skipped: tier {tier_num} gated (pass rate {sum(scores)/len(scores):.0%} < {gate:.0%})",
+                                    )
+                                    results.append(skip_result)
 
                     # Filter to non-skipped prompts for this tier
                     active_prompts = [p for p in tier_prompts if p.get("category", "") not in skipped_cats]
@@ -1361,29 +1459,7 @@ def main():
 
     # Show detailed results for each prompt
     print_header("DETAILED RESULTS")
-    for prompt_cfg in prompts:
-        key = prompt_cfg["_key"]
-        prompt_results = [r for r in results if r.prompt_name == key]
-        if not prompt_results:
-            continue
-
-        tier = prompt_cfg.get("tier", "?")
-        style = prompt_cfg.get("style", "?")
-        expected = prompt_cfg.get("expected", "")
-
-        print(f"\n  ── {prompt_cfg['name']} (tier {tier}, {style}, {prompt_cfg.get('category', '')}) ──")
-        print(f"  Prompt: {prompt_cfg['prompt'][:120]}{'...' if len(prompt_cfg['prompt']) > 120 else ''}")
-        if expected:
-            print(f"  Expected: {expected}")
-
-        for r in prompt_results:
-            score_str = f"{r.score:.0%}" if r.score is not None else "n/a"
-            icon = "pass" if r.score and r.score >= 1.0 else "FAIL" if r.score is not None else "    "
-            output = r.output[:200] + ("..." if len(r.output) > 200 else "") if r.output else "(no output)"
-            output_oneline = output.replace("\n", "\\n")
-
-            print(f"    [{icon}] {r.model:<30} {r.runtime:<10} {score_str:>5}  | {r.score_details}")
-            print(f"           Output: {output_oneline[:120]}")
+    print_detailed_results(results, prompts)
 
     # Save
     if not args.no_save:
