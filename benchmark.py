@@ -1793,8 +1793,6 @@ def main():
                         if cached and cached.challenge_hash == challenge_hash:
                             print(f"  [cached] {pcfg['_key']}")
                             results.append(cached)
-                            if cached.score is not None:
-                                cat_scores[pcfg.get("category", "")].append(cached.score)
                             continue
 
                         # Run single prompt against the already-loaded model
