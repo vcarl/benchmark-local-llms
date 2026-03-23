@@ -274,10 +274,6 @@ SYSTEM_PROMPTS = {
     ),
 }
 
-# Tier gate thresholds — minimum pass rate to advance to next tier
-TIER_1_GATE = 0.70  # need 70% on tier 1 to attempt tier 2
-TIER_2_GATE = 0.50  # need 50% cumulative on tier 1+2 to attempt tier 3
-
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # ── Constraint DSL evaluator ────────────────────────────────────────────────
@@ -1748,8 +1744,6 @@ def main():
         tiers[p.get("tier", 1)].append(p)
     tier_order = sorted(tiers.keys())
 
-    categories = sorted(set(p.get("category", "") for p in prompts))
-
     interrupted = False
     for model_cfg in models:
         if interrupted:
@@ -1785,77 +1779,14 @@ def main():
                 # Load cached results for this model+runtime
                 existing = load_existing_results(model_cfg["name"], runtime)
 
-                # Track per-category pass rates for tier gating
-                cat_scores: dict[str, list[float]] = defaultdict(list)
-                skipped_cats: set[str] = set()
-
                 for tier_num in tier_order:
                     tier_prompts = tiers[tier_num]
-
-                    # Gate check: skip categories that failed previous tier
-                    if tier_num == 2:
-                        for cat in categories:
-                            scores = cat_scores.get(cat, [])
-                            if scores and (sum(scores) / len(scores)) < TIER_1_GATE:
-                                skipped_cats.add(cat)
-                                gate = TIER_1_GATE
-                                print(f"\n    Skipping tier 2 {cat}: pass rate {sum(scores)/len(scores):.0%} < {gate:.0%}")
-                                for p in [p for p in tier_prompts if p.get("category", "") == cat]:
-                                    skip_result = BenchmarkResult(
-                                        model=model_cfg["name"],
-                                        runtime=runtime,
-                                        prompt_name=p["_key"],
-                                        category=cat,
-                                        tier=tier_num,
-                                        style=p.get("style", ""),
-                                        prompt_text=p.get("prompt", ""),
-                                        expected=p.get("expected", ""),
-                                        score=None,
-                                        score_details=f"skipped: tier {tier_num} gated (pass rate {sum(scores)/len(scores):.0%} < {gate:.0%})",
-                                    )
-                                    skip_result.challenge_hash = compute_challenge_hash(p)
-                                    results.append(skip_result)
-                                    # Only write if not already cached
-                                    cached = existing.get(p["_key"])
-                                    if not (cached and cached.score_details == skip_result.score_details):
-                                        append_result(skip_result)
-                    elif tier_num == 3:
-                        for cat in categories:
-                            if cat in skipped_cats:
-                                continue
-                            scores = cat_scores.get(cat, [])
-                            if scores and (sum(scores) / len(scores)) < TIER_2_GATE:
-                                skipped_cats.add(cat)
-                                gate = TIER_2_GATE
-                                print(f"\n    Skipping tier 3 {cat}: pass rate {sum(scores)/len(scores):.0%} < {gate:.0%}")
-                                for p in [p for p in tier_prompts if p.get("category", "") == cat]:
-                                    skip_result = BenchmarkResult(
-                                        model=model_cfg["name"],
-                                        runtime=runtime,
-                                        prompt_name=p["_key"],
-                                        category=cat,
-                                        tier=tier_num,
-                                        style=p.get("style", ""),
-                                        prompt_text=p.get("prompt", ""),
-                                        expected=p.get("expected", ""),
-                                        score=None,
-                                        score_details=f"skipped: tier {tier_num} gated (pass rate {sum(scores)/len(scores):.0%} < {gate:.0%})",
-                                    )
-                                    skip_result.challenge_hash = compute_challenge_hash(p)
-                                    results.append(skip_result)
-                                    # Only write if not already cached
-                                    cached = existing.get(p["_key"])
-                                    if not (cached and cached.score_details == skip_result.score_details):
-                                        append_result(skip_result)
-
-                    # Filter to non-skipped prompts for this tier
-                    active_prompts = [p for p in tier_prompts if p.get("category", "") not in skipped_cats]
-                    if not active_prompts:
+                    if not tier_prompts:
                         continue
 
-                    print(f"\n  ── Tier {tier_num} ({len(active_prompts)} prompts) ──", flush=True)
+                    print(f"\n  ── Tier {tier_num} ({len(tier_prompts)} prompts) ──", flush=True)
 
-                    for pcfg in active_prompts:
+                    for pcfg in tier_prompts:
                         # Check cache before running
                         challenge_hash = compute_challenge_hash(pcfg)
                         cached = existing.get(pcfg["_key"])
@@ -1878,9 +1809,6 @@ def main():
                         print_result_summary(r)
                         results.append(r)
                         append_result(r)
-
-                        if r.score is not None:
-                            cat_scores[pcfg.get("category", "")].append(r.score)
 
             except KeyboardInterrupt:
                 print(f"\n\n  Interrupted! Saving completed results...", flush=True)
