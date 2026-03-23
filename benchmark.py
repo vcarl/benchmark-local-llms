@@ -1390,8 +1390,13 @@ def main():
 
     categories = sorted(set(p.get("category", "") for p in prompts))
 
+    interrupted = False
     for model_cfg in models:
+        if interrupted:
+            break
         for runtime in runtimes:
+            if interrupted:
+                break
             # Check if model is cached
             if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
                 print(f"\n  Skipping {model_cfg['name']} / llama.cpp: not downloaded. Run with --download first.")
@@ -1416,7 +1421,7 @@ def main():
                     print(f"    Failed to start MLX, skipping.", flush=True)
                     continue
 
-            try:
+            try:  # noqa: SIM105 — finally ensures server shutdown
                 # Load cached results for this model+runtime
                 existing = load_existing_results(model_cfg["name"], runtime)
 
@@ -1517,6 +1522,9 @@ def main():
                         if r.score is not None:
                             cat_scores[pcfg.get("category", "")].append(r.score)
 
+            except KeyboardInterrupt:
+                print(f"\n\n  Interrupted! Saving completed results...", flush=True)
+                interrupted = True
             finally:
                 # Shut down the model
                 if server_proc:
