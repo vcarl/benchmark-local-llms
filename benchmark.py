@@ -36,7 +36,8 @@ LLAMA_CPP_DIR = Path(__file__).parent / "llama.cpp" / "llama-b8400"
 LLAMA_CLI = LLAMA_CPP_DIR / "llama-cli"
 LLAMA_SERVER = LLAMA_CPP_DIR / "llama-server"
 LLAMA_CACHE_DIR = Path.home() / "Library" / "Caches" / "llama.cpp"
-RESULTS_DIR = Path(__file__).parent / "benchmark-results"
+EXECUTION_DIR = Path(__file__).parent / "benchmark-execution"  # per-model cached results
+RESULTS_DIR = Path(__file__).parent / "benchmark-results"  # generated reports (markdown)
 
 # Models to benchmark. Each entry has:
 #   - name: display name
@@ -469,7 +470,7 @@ def model_slug(name: str) -> str:
     return slug
 
 
-def results_file_path(model_name: str, runtime: str, output_dir: Path = RESULTS_DIR) -> Path:
+def results_file_path(model_name: str, runtime: str, output_dir: Path = EXECUTION_DIR) -> Path:
     """Get the JSONL file path for a model+runtime combination."""
     output_dir.mkdir(parents=True, exist_ok=True)
     # Normalize runtime (historical data uses "llama.cpp", code uses "llamacpp")
