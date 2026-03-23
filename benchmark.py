@@ -495,6 +495,23 @@ def load_existing_results(model_name: str, runtime: str) -> dict[str, BenchmarkR
     return results
 
 
+def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResult]:
+    """Load all cached results from all JSONL files in the execution directory."""
+    all_results = []
+    if not execution_dir.exists():
+        return all_results
+    for f in sorted(execution_dir.glob("*.jsonl")):
+        with open(f) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                d = json.loads(line)
+                r = BenchmarkResult(**{k: v for k, v in d.items() if k in BenchmarkResult.__dataclass_fields__})
+                all_results.append(r)
+    return all_results
+
+
 def append_result(result: BenchmarkResult) -> None:
     """Append a single result to its model+runtime JSONL file."""
     path = results_file_path(result.model, result.runtime)
@@ -1892,7 +1909,9 @@ def main():
     # Save
     if not args.no_save:
         save_markdown_report(results, RESULTS_DIR, prompts)
-        save_html_report(results, RESULTS_DIR, prompts)
+        # HTML report uses all cached execution data, not just this run
+        all_cached = load_all_results()
+        save_html_report(all_cached, RESULTS_DIR, prompts)
 
 
 if __name__ == "__main__":
