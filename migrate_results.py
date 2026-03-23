@@ -39,11 +39,22 @@ def prompt_key(p: dict) -> str:
 
 
 def build_prompt_lookup() -> dict[str, dict]:
-    """Build a lookup from prompt _key to prompt config."""
+    """Build a lookup from prompt _key to prompt config.
+    Also builds a secondary lookup by bare name for tier-1 prompts."""
     lookup = {}
     for p in PROMPTS:
         key = prompt_key(p)
         lookup[key] = p
+    return lookup
+
+
+def build_bare_name_lookup() -> dict[str, dict]:
+    """Build a lookup from bare prompt name to tier-1 prompt config.
+    Used for old-format results that don't have __t{tier}_{style} suffix."""
+    lookup = {}
+    for p in PROMPTS:
+        if p.get("tier", 1) == 1:
+            lookup[p["name"]] = p
     return lookup
 
 
@@ -94,7 +105,7 @@ def _load_records(filepath: Path) -> list[dict]:
     return records
 
 
-def load_and_backfill(json_files: list[Path], prompt_lookup: dict[str, dict]) -> list[dict]:
+def load_and_backfill(json_files: list[Path], prompt_lookup: dict[str, dict], bare_lookup: dict[str, dict]) -> list[dict]:
     """Load all historical files and backfill missing fields.
 
     Returns list of (result_dict, source_file_index) tuples.
@@ -120,16 +131,28 @@ def load_and_backfill(json_files: list[Path], prompt_lookup: dict[str, dict]) ->
                 rec.setdefault("tier", tier)
                 rec.setdefault("style", style)
 
-                # Try to match against current PROMPTS
+                # Try to match against current PROMPTS by _key first
                 pcfg = prompt_lookup.get(prompt_name)
+                # Fallback: bare name match (old format without __t{tier}_{style})
+                if not pcfg and "__t" not in prompt_name:
+                    pcfg = bare_lookup.get(prompt_name)
+                    if pcfg:
+                        # Old-format names are tier 1 / direct
+                        rec["tier"] = 1
+                        rec["style"] = pcfg.get("style", "direct")
+                        rec.setdefault("category", pcfg.get("category", ""))
                 if pcfg:
-                    rec.setdefault("prompt_text", pcfg.get("prompt", ""))
-                    rec.setdefault("expected", pcfg.get("expected", ""))
-                    rec.setdefault("challenge_hash", compute_challenge_hash(pcfg))
+                    if not rec.get("prompt_text"):
+                        rec["prompt_text"] = pcfg.get("prompt", "")
+                    if not rec.get("expected"):
+                        rec["expected"] = pcfg.get("expected", "")
+                    if not rec.get("challenge_hash"):
+                        rec["challenge_hash"] = compute_challenge_hash(pcfg)
+                    if not rec.get("category"):
+                        rec["category"] = pcfg.get("category", "")
                 else:
-                    rec.setdefault("prompt_text", "")
-                    rec.setdefault("expected", "")
-                    rec.setdefault("challenge_hash", "")
+                    # No matching prompt config — skip this result entirely
+                    continue
 
             # Ensure all BenchmarkResult fields have defaults
             rec.setdefault("category", "")
@@ -196,12 +219,13 @@ def main():
 
     print(f"Found {len(json_files)} historical JSON files")
 
-    # Build prompt lookup
+    # Build prompt lookups
     prompt_lookup = build_prompt_lookup()
-    print(f"Loaded {len(prompt_lookup)} prompt configs from YAML")
+    bare_lookup = build_bare_name_lookup()
+    print(f"Loaded {len(prompt_lookup)} prompt configs from YAML ({len(bare_lookup)} tier-1 bare names)")
 
     # Step 2: Load and backfill
-    results_with_idx = load_and_backfill(json_files, prompt_lookup)
+    results_with_idx = load_and_backfill(json_files, prompt_lookup, bare_lookup)
     total_results = len(results_with_idx)
     print(f"Loaded {total_results} total results across all files")
 

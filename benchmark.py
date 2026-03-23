@@ -1249,6 +1249,349 @@ def save_markdown_report(results: list[BenchmarkResult], output_dir: Path, promp
     print(f"  {md_path}")
 
 
+def save_html_report(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
+    """Save results to a self-contained HTML analysis page with interactive heatmaps."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    date_display = time.strftime("%Y-%m-%d %H:%M")
+
+    # Filter out results where score is None (skip sentinels)
+    scored_results = [r for r in results if r.score is not None]
+
+    # Serialize to JSON with only the fields we need
+    data_records = []
+    for r in scored_results:
+        data_records.append({
+            "model": r.model,
+            "runtime": r.runtime,
+            "prompt_name": r.prompt_name,
+            "category": r.category,
+            "tier": r.tier,
+            "style": r.style,
+            "score": r.score,
+            "score_details": r.score_details,
+            "prompt_tps": r.prompt_tps,
+            "generation_tps": r.generation_tps,
+            "wall_time_sec": r.wall_time_sec,
+            "output": r.output,
+            "prompt_text": r.prompt_text,
+        })
+
+    data_json = json.dumps(data_records, default=str)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benchmark Analysis — {date_display}</title>
+<style>
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9fafb; color: #111827; }}
+.header {{ background: #1f2937; color: #fff; padding: 16px 24px; font-size: 20px; font-weight: 600; }}
+.controls {{ padding: 16px 24px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }}
+.runtime-toggle {{ display: flex; gap: 0; }}
+.runtime-btn {{ padding: 6px 16px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 14px; font-weight: 500; }}
+.runtime-btn:first-child {{ border-radius: 6px 0 0 6px; }}
+.runtime-btn:last-child {{ border-radius: 0 6px 6px 0; }}
+.runtime-btn.active {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
+.model-selector {{ display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }}
+.model-selector label {{ font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: #f3f4f6; }}
+.model-selector label:hover {{ background: #e5e7eb; }}
+.model-selector a {{ font-size: 12px; color: #2563eb; cursor: pointer; text-decoration: underline; margin-right: 8px; }}
+.content {{ padding: 24px; }}
+.tier-section {{ margin-bottom: 32px; }}
+.tier-title {{ font-size: 18px; font-weight: 600; margin-bottom: 8px; }}
+.heatmap {{ border-collapse: collapse; font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; font-size: 12px; }}
+.heatmap th {{ padding: 4px 8px; text-align: center; font-weight: 500; background: #f9fafb; border: 1px solid #e5e7eb; font-size: 11px; white-space: nowrap; }}
+.heatmap td {{ width: 60px; min-width: 60px; height: 30px; text-align: center; border: 1px solid #e5e7eb; cursor: pointer; font-size: 12px; font-weight: 600; }}
+.heatmap td:hover {{ outline: 2px solid #2563eb; outline-offset: -2px; }}
+.heatmap td.model-name {{ width: 250px; min-width: 250px; max-width: 250px; text-align: left; cursor: default; font-weight: 500; background: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.heatmap td.model-name:hover {{ outline: none; }}
+.heatmap td.no-data {{ background: #e5e7eb; color: #9ca3af; cursor: default; }}
+.heatmap td.no-data:hover {{ outline: none; }}
+.heatmap tr.greyed-out td {{ opacity: 0.35; }}
+.heatmap tr.greyed-out td.model-name {{ opacity: 0.5; }}
+.heatmap td.tier-label {{ width: 40px; min-width: 40px; text-align: center; cursor: default; background: #f9fafb; font-weight: 500; font-size: 11px; color: #6b7280; }}
+.heatmap td.tier-label:hover {{ outline: none; }}
+.heatmap tr.model-separator {{ height: 4px; }}
+.heatmap tr.model-separator td {{ border: none; padding: 0; }}
+.detail-panel {{ background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 16px; }}
+.detail-title {{ font-size: 16px; font-weight: 600; margin-bottom: 16px; }}
+.detail-placeholder {{ color: #9ca3af; font-style: italic; }}
+.bar-chart {{ margin-bottom: 24px; }}
+.bar-row {{ display: flex; align-items: center; margin-bottom: 6px; }}
+.bar-label {{ width: 120px; font-size: 13px; font-family: 'SF Mono', 'Consolas', monospace; text-align: right; padding-right: 12px; flex-shrink: 0; }}
+.bar-track {{ flex: 1; height: 24px; background: #f3f4f6; border-radius: 4px; overflow: hidden; position: relative; }}
+.bar-fill {{ height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; font-weight: 600; min-width: fit-content; }}
+.prompt-results {{ margin-top: 16px; }}
+.prompt-results h4 {{ font-size: 14px; font-weight: 600; margin-bottom: 8px; }}
+.prompt-result-row {{ font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #f3f4f6; display: flex; gap: 12px; }}
+.prompt-result-name {{ width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.prompt-result-score {{ width: 60px; font-weight: 600; }}
+.prompt-result-details {{ color: #6b7280; flex: 1; }}
+.prompt-result-prompt {{ margin-top: 4px; padding: 8px; background: #f0f4ff; border: 1px solid #d0d8e8; border-radius: 4px; max-height: 80px; overflow-y: auto; font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; color: #374151; }}
+.prompt-result-output {{ margin-top: 4px; padding: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; max-height: 120px; overflow-y: auto; font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; }}
+</style>
+</head>
+<body>
+<div class="header">Benchmark Analysis &mdash; {date_display}</div>
+
+<div class="controls">
+  <div class="runtime-toggle">
+    <button class="runtime-btn active" onclick="setRuntime('llamacpp')">llamacpp</button>
+    <button class="runtime-btn" onclick="setRuntime('mlx')">mlx</button>
+  </div>
+  <div class="model-selector" id="model-selector">
+    <a onclick="selectAllModels(true)">Select All</a>
+    <a onclick="selectAllModels(false)">Deselect All</a>
+  </div>
+</div>
+
+<div class="content">
+  <div id="heatmaps"></div>
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-placeholder">Click a cell to see details</div>
+  </div>
+</div>
+
+<script>const DATA = {data_json};</script>
+<script>
+(function() {{
+  let currentRuntime = 'llamacpp';
+  let checkedModels = new Set();
+
+  // Extract unique values
+  const allModels = [...new Set(DATA.map(d => d.model))].sort();
+  const allCategories = [...new Set(DATA.map(d => d.category))].sort();
+  const allTiers = [...new Set(DATA.map(d => d.tier))].sort((a, b) => a - b);
+  const runtimesWithData = new Set(DATA.map(d => d.runtime));
+
+  // Models that have data for a given runtime
+  function modelsForRuntime(rt) {{
+    return new Set(DATA.filter(d => d.runtime === rt).map(d => d.model));
+  }}
+
+  // Init checked models
+  allModels.forEach(m => checkedModels.add(m));
+
+  // Build model checkboxes
+  const selEl = document.getElementById('model-selector');
+  allModels.forEach(m => {{
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.dataset.model = m;
+    cb.addEventListener('change', () => {{
+      if (cb.checked) checkedModels.add(m); else checkedModels.delete(m);
+      renderHeatmaps(currentRuntime);
+    }});
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + m));
+    selEl.appendChild(lbl);
+  }});
+
+  window.selectAllModels = function(sel) {{
+    document.querySelectorAll('#model-selector input[type=checkbox]').forEach(cb => {{
+      cb.checked = sel;
+      if (sel) checkedModels.add(cb.dataset.model); else checkedModels.delete(cb.dataset.model);
+    }});
+    renderHeatmaps(currentRuntime);
+  }};
+
+  window.setRuntime = function(rt) {{
+    currentRuntime = rt;
+    document.querySelectorAll('.runtime-btn').forEach(btn => {{
+      btn.classList.toggle('active', btn.textContent === rt);
+    }});
+    renderHeatmaps(rt);
+  }};
+
+  function scoreColor(pct) {{
+    if (pct >= 90) return '#22c55e';
+    if (pct >= 70) return '#86efac';
+    if (pct >= 50) return '#facc15';
+    if (pct >= 30) return '#fb923c';
+    return '#ef4444';
+  }}
+
+  function textColor(pct) {{
+    if (pct >= 90) return '#fff';
+    if (pct >= 70) return '#111827';
+    if (pct >= 50) return '#111827';
+    if (pct >= 30) return '#111827';
+    return '#fff';
+  }}
+
+  function renderHeatmaps(runtime) {{
+    const container = document.getElementById('heatmaps');
+    container.innerHTML = '';
+    const rtModels = modelsForRuntime(runtime);
+
+    // All categories across all tiers
+    const allCats = [...new Set(DATA.map(d => d.category))].sort();
+    if (allCats.length === 0) return;
+
+    const table = document.createElement('table');
+    table.className = 'heatmap';
+
+    // Header row: Model | Tier | cat1 | cat2 | ...
+    const thead = document.createElement('thead');
+    const hrow = document.createElement('tr');
+    const modelTh = document.createElement('th');
+    modelTh.textContent = 'Model';
+    modelTh.style.textAlign = 'left';
+    modelTh.style.width = '250px';
+    hrow.appendChild(modelTh);
+    const tierTh = document.createElement('th');
+    tierTh.textContent = 'Tier';
+    tierTh.style.width = '40px';
+    hrow.appendChild(tierTh);
+    allCats.forEach(cat => {{
+      const th = document.createElement('th');
+      th.textContent = cat;
+      hrow.appendChild(th);
+    }});
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    allModels.forEach(model => {{
+      if (!checkedModels.has(model)) return;
+      const hasData = rtModels.has(model);
+
+      allTiers.forEach((tier, tierIdx) => {{
+        const row = document.createElement('tr');
+        if (!hasData) row.className = 'greyed-out';
+
+        // Model name only on first tier row
+        const nameTd = document.createElement('td');
+        nameTd.className = 'model-name';
+        if (tierIdx === 0) {{
+          nameTd.textContent = model;
+          nameTd.rowSpan = allTiers.length;
+          nameTd.style.verticalAlign = 'middle';
+          row.appendChild(nameTd);
+        }}
+
+        // Tier label
+        const tierTd = document.createElement('td');
+        tierTd.className = 'tier-label';
+        tierTd.textContent = tier;
+        row.appendChild(tierTd);
+
+        allCats.forEach(cat => {{
+          const td = document.createElement('td');
+          const matches = DATA.filter(d => d.model === model && d.runtime === runtime && d.tier === tier && d.category === cat);
+          if (matches.length === 0) {{
+            td.className = 'no-data';
+            td.textContent = '\u2014';
+          }} else {{
+            const avg = matches.reduce((s, d) => s + d.score, 0) / matches.length;
+            const pct = Math.round(avg * 100);
+            td.textContent = pct + '%';
+            td.style.background = scoreColor(pct);
+            td.style.color = textColor(pct);
+            td.addEventListener('click', () => showDetail(model, cat, tier, runtime));
+          }}
+          row.appendChild(td);
+        }});
+
+        tbody.appendChild(row);
+
+        // Add separator after last tier row for each model
+        if (tierIdx === allTiers.length - 1) {{
+          const sep = document.createElement('tr');
+          sep.className = 'model-separator';
+          tbody.appendChild(sep);
+        }}
+      }});
+    }});
+    table.appendChild(tbody);
+
+    const section = document.createElement('div');
+    section.className = 'tier-section';
+    section.appendChild(table);
+    container.appendChild(section);
+  }}
+
+  function showDetail(model, category, tier, runtime) {{
+    const panel = document.getElementById('detail-panel');
+    const matches = DATA.filter(d => d.model === model && d.runtime === runtime && d.tier === tier && d.category === category);
+    if (matches.length === 0) {{
+      panel.innerHTML = '<div class="detail-placeholder">No data for this combination</div>';
+      return;
+    }}
+
+    // Group by style
+    const byStyle = {{}};
+    matches.forEach(d => {{
+      if (!byStyle[d.style]) byStyle[d.style] = [];
+      byStyle[d.style].push(d);
+    }});
+    const styles = Object.keys(byStyle).sort();
+
+    let html = '<div class="detail-title">' + model + ' &mdash; ' + category + ' &mdash; Tier ' + tier + '</div>';
+
+    // Bar chart by style
+    html += '<div class="bar-chart">';
+    styles.forEach(style => {{
+      const items = byStyle[style];
+      const avg = items.reduce((s, d) => s + d.score, 0) / items.length;
+      const pct = Math.round(avg * 100);
+      const bg = scoreColor(pct);
+      const fg = textColor(pct);
+      html += '<div class="bar-row">';
+      html += '<div class="bar-label">' + (style || 'default') + '</div>';
+      html += '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(pct, 2) + '%;background:' + bg + ';color:' + fg + ';">' + pct + '%</div></div>';
+      html += '</div>';
+    }});
+    html += '</div>';
+
+    // Individual prompt results
+    html += '<div class="prompt-results"><h4>Individual Results</h4>';
+    matches.forEach(d => {{
+      const pct = Math.round(d.score * 100);
+      html += '<div class="prompt-result-row">';
+      html += '<div class="prompt-result-name">' + escapeHtml(d.prompt_name) + '</div>';
+      html += '<div class="prompt-result-score" style="color:' + scoreColor(pct) + '">' + pct + '%</div>';
+      html += '<div class="prompt-result-details">' + escapeHtml(d.score_details) + '</div>';
+      html += '</div>';
+      if (d.prompt_text) {{
+        html += '<div class="prompt-result-prompt">' + escapeHtml(d.prompt_text) + '</div>';
+      }}
+      if (d.output) {{
+        html += '<div class="prompt-result-output">' + escapeHtml(d.output) + '</div>';
+      }}
+    }});
+    html += '</div>';
+
+    panel.innerHTML = html;
+  }}
+
+  function escapeHtml(s) {{
+    const div = document.createElement('div');
+    div.textContent = s || '';
+    return div.innerHTML;
+  }}
+
+  // Initial render
+  renderHeatmaps(currentRuntime);
+}})();
+</script>
+</body>
+</html>"""
+
+    html_path = output_dir / f"benchmark-{timestamp}.html"
+    with open(html_path, "w") as f:
+        f.write(html)
+
+    print(f"  {html_path}")
+
+    return html_path
+
+
 # ── Main ───────────────────────────────────────────────────────────────────
 
 def main():
@@ -1549,6 +1892,7 @@ def main():
     # Save
     if not args.no_save:
         save_markdown_report(results, RESULTS_DIR, prompts)
+        save_html_report(results, RESULTS_DIR, prompts)
 
 
 if __name__ == "__main__":
