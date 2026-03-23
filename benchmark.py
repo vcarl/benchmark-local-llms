@@ -439,16 +439,26 @@ class BenchmarkResult:
     expected: str = ""  # expected answer (if any)
     score: Optional[float] = None  # 0.0-1.0, None if not scored
     score_details: str = ""  # human-readable scoring breakdown
-    challenge_hash: str = ""  # hash of challenge-defining fields for cache validation
+    challenge_hash: str = ""  # legacy combined hash (kept for migration compat)
+    prompt_hash: str = ""  # hash of prompt + system (determines if we need to re-run)
+    eval_hash: str = ""  # hash of scoring criteria (determines if we need to re-score)
 
 
 # ── Challenge hashing and result caching ───────────────────────────────────
 
-def compute_challenge_hash(prompt_cfg: dict) -> str:
-    """Compute a SHA256 hex digest (first 12 chars) of challenge-defining fields."""
+def compute_prompt_hash(prompt_cfg: dict) -> str:
+    """Hash of what gets sent to the model — if this changes, we need to re-run."""
     parts = [
         prompt_cfg["prompt"],
         prompt_cfg["system"],
+    ]
+    blob = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def compute_eval_hash(prompt_cfg: dict) -> str:
+    """Hash of scoring criteria — if this changes, we can re-score cached output."""
+    parts = [
         prompt_cfg.get("expected", ""),
         prompt_cfg.get("scorer", ""),
         prompt_cfg.get("test_code", ""),
@@ -456,6 +466,11 @@ def compute_challenge_hash(prompt_cfg: dict) -> str:
     ]
     blob = "|".join(parts).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def compute_challenge_hash(prompt_cfg: dict) -> str:
+    """Combined hash for backwards compatibility."""
+    return compute_prompt_hash(prompt_cfg) + compute_eval_hash(prompt_cfg)
 
 
 def model_slug(name: str) -> str:
@@ -1788,14 +1803,31 @@ def main():
 
                     for pcfg in tier_prompts:
                         # Check cache before running
-                        challenge_hash = compute_challenge_hash(pcfg)
+                        p_hash = compute_prompt_hash(pcfg)
+                        e_hash = compute_eval_hash(pcfg)
                         cached = existing.get(pcfg["_key"])
-                        if cached and cached.challenge_hash == challenge_hash:
-                            print(f"  [cached] {pcfg['_key']}")
-                            results.append(cached)
-                            continue
 
-                        # Run single prompt against the already-loaded model
+                        if cached and cached.prompt_hash == p_hash:
+                            if cached.eval_hash == e_hash:
+                                # Fully cached — prompt and eval unchanged
+                                print(f"  [cached] {pcfg['_key']}")
+                                results.append(cached)
+                                continue
+                            else:
+                                # Prompt unchanged, eval criteria changed — re-score existing output
+                                print(f"  [re-scoring] {pcfg['_key']}")
+                                r = cached
+                                r.score = None
+                                r.score_details = ""
+                                score_result(r, pcfg)
+                                r.eval_hash = e_hash
+                                r.challenge_hash = compute_challenge_hash(pcfg)
+                                print_result_summary(r)
+                                results.append(r)
+                                append_result(r)
+                                continue
+
+                        # Prompt changed or no cache — run the model
                         if runtime == "llamacpp":
                             r = run_llamacpp_prompt(model_cfg, pcfg, args.max_tokens)
                         elif runtime == "mlx":
@@ -1803,7 +1835,9 @@ def main():
 
                         r.prompt_name = pcfg["_key"]
                         score_result(r, pcfg)
-                        r.challenge_hash = challenge_hash
+                        r.prompt_hash = p_hash
+                        r.eval_hash = e_hash
+                        r.challenge_hash = compute_challenge_hash(pcfg)
                         print_result_summary(r)
                         results.append(r)
                         append_result(r)

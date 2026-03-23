@@ -25,6 +25,8 @@ from benchmark import (
     BenchmarkResult,
     PROMPTS,
     compute_challenge_hash,
+    compute_prompt_hash,
+    compute_eval_hash,
     model_slug,
     results_file_path,
     SYSTEM_PROMPTS,
@@ -148,6 +150,10 @@ def load_and_backfill(json_files: list[Path], prompt_lookup: dict[str, dict], ba
                         rec["expected"] = pcfg.get("expected", "")
                     if not rec.get("challenge_hash"):
                         rec["challenge_hash"] = compute_challenge_hash(pcfg)
+                    if not rec.get("prompt_hash"):
+                        rec["prompt_hash"] = compute_prompt_hash(pcfg)
+                    if not rec.get("eval_hash"):
+                        rec["eval_hash"] = compute_eval_hash(pcfg)
                     if not rec.get("category"):
                         rec["category"] = pcfg.get("category", "")
                 else:
@@ -163,6 +169,8 @@ def load_and_backfill(json_files: list[Path], prompt_lookup: dict[str, dict], ba
             rec.setdefault("score", None)
             rec.setdefault("score_details", "")
             rec.setdefault("challenge_hash", "")
+            rec.setdefault("prompt_hash", "")
+            rec.setdefault("eval_hash", "")
 
             all_results.append((rec, file_idx))
 
