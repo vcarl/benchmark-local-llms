@@ -59,32 +59,56 @@ def parse_prompt_name(prompt_name: str) -> tuple[int, str]:
 
 
 def find_historical_files() -> list[Path]:
-    """Find all benchmark-*.json files, sorted by filename (timestamp order)."""
-    pattern = str(RESULTS_DIR / "benchmark-*.json")
-    files = sorted(glob.glob(pattern))
-    return [Path(f) for f in files]
+    """Find all benchmark-*.json and benchmark-*.jsonl batch files, sorted by filename."""
+    json_files = sorted(glob.glob(str(RESULTS_DIR / "benchmark-*.json")))
+    jsonl_files = sorted(glob.glob(str(RESULTS_DIR / "benchmark-*.jsonl")))
+    # Interleave by name so timestamp ordering is preserved
+    all_files = sorted(set(json_files + jsonl_files))
+    return [Path(f) for f in all_files]
+
+
+def _load_records(filepath: Path) -> list[dict]:
+    """Load records from a JSON array file or a JSONL file."""
+    records = []
+    if filepath.suffix == ".jsonl":
+        with open(filepath) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    else:
+        with open(filepath) as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                print(f"  WARNING: Could not parse {filepath.name}, skipping")
+                return []
+            if not isinstance(data, list):
+                print(f"  WARNING: {filepath.name} is not a JSON array, skipping")
+                return []
+            records = data
+    return records
 
 
 def load_and_backfill(json_files: list[Path], prompt_lookup: dict[str, dict]) -> list[dict]:
-    """Load all JSON files and backfill missing fields.
+    """Load all historical files and backfill missing fields.
 
     Returns list of (result_dict, source_file_index) tuples.
     """
     all_results = []
 
     for file_idx, json_file in enumerate(json_files):
-        with open(json_file) as f:
-            try:
-                records = json.load(f)
-            except json.JSONDecodeError:
-                print(f"  WARNING: Could not parse {json_file.name}, skipping")
-                continue
-
-        if not isinstance(records, list):
-            print(f"  WARNING: {json_file.name} is not a JSON array, skipping")
-            continue
+        records = _load_records(json_file)
 
         for rec in records:
+            # Normalize runtime (historical data uses "llama.cpp", new code uses "llamacpp")
+            if "runtime" in rec:
+                rec["runtime"] = rec["runtime"].replace(".", "")
+
             prompt_name = rec.get("prompt_name", "")
 
             # Check if this result already has the new fields

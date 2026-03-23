@@ -759,7 +759,7 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
     """Run a single prompt against an already-running llama-server."""
     result = BenchmarkResult(
         model=model_cfg["name"],
-        runtime="llama.cpp",
+        runtime="llamacpp",
         prompt_name=prompt_cfg["name"],
     )
 
