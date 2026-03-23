@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -441,6 +442,63 @@ class BenchmarkResult:
     expected: str = ""  # expected answer (if any)
     score: Optional[float] = None  # 0.0-1.0, None if not scored
     score_details: str = ""  # human-readable scoring breakdown
+    challenge_hash: str = ""  # hash of challenge-defining fields for cache validation
+
+
+# ── Challenge hashing and result caching ───────────────────────────────────
+
+def compute_challenge_hash(prompt_cfg: dict) -> str:
+    """Compute a SHA256 hex digest (first 12 chars) of challenge-defining fields."""
+    parts = [
+        prompt_cfg["prompt"],
+        prompt_cfg["system"],
+        prompt_cfg.get("expected", ""),
+        prompt_cfg.get("scorer", ""),
+        prompt_cfg.get("test_code", ""),
+        str([c[0] for c in prompt_cfg.get("constraints", [])]),
+    ]
+    blob = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def model_slug(name: str) -> str:
+    """Convert model name to filesystem-safe slug."""
+    slug = name.lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    slug = slug.strip('-')
+    return slug
+
+
+def results_file_path(model_name: str, runtime: str, output_dir: Path = RESULTS_DIR) -> Path:
+    """Get the JSONL file path for a model+runtime combination."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    # Normalize runtime (historical data uses "llama.cpp", code uses "llamacpp")
+    runtime_slug = runtime.replace(".", "")
+    return output_dir / f"{model_slug(model_name)}__{runtime_slug}.jsonl"
+
+
+def load_existing_results(model_name: str, runtime: str) -> dict[str, BenchmarkResult]:
+    """Load existing results from JSONL, keyed by prompt_name.
+    Returns dict mapping prompt_name -> BenchmarkResult (latest entry wins)."""
+    path = results_file_path(model_name, runtime)
+    results = {}
+    if path.exists():
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                d = json.loads(line)
+                r = BenchmarkResult(**{k: v for k, v in d.items() if k in BenchmarkResult.__dataclass_fields__})
+                results[r.prompt_name] = r
+    return results
+
+
+def append_result(result: BenchmarkResult) -> None:
+    """Append a single result to its model+runtime JSONL file."""
+    path = results_file_path(result.model, result.runtime)
+    with open(path, "a") as f:
+        f.write(json.dumps(asdict(result)) + "\n")
 
 
 # ── Code extraction and execution ──────────────────────────────────────────
@@ -1149,16 +1207,10 @@ def print_detailed_results(results: list[BenchmarkResult], prompts: list[dict], 
             print(f"           Output: {output_oneline[:120]}", file=file)
 
 
-def save_results(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
-    """Save results to JSONL and markdown."""
+def save_markdown_report(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
+    """Save results to a markdown report."""
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-
-    # JSONL (one result per line, no indentation)
-    jsonl_path = output_dir / f"benchmark-{timestamp}.jsonl"
-    with open(jsonl_path, "w") as f:
-        for r in results:
-            f.write(json.dumps(asdict(r)) + "\n")
 
     # Markdown summary
     md_path = output_dir / f"benchmark-{timestamp}.md"
@@ -1193,7 +1245,6 @@ def save_results(results: list[BenchmarkResult], output_dir: Path, prompts: list
             f.write(f"```\n{output}\n```\n\n")
 
     print(f"\nResults saved to:")
-    print(f"  {jsonl_path}")
     print(f"  {md_path}")
 
 
@@ -1365,6 +1416,9 @@ def main():
                     continue
 
             try:
+                # Load cached results for this model+runtime
+                existing = load_existing_results(model_cfg["name"], runtime)
+
                 # Track per-category pass rates for tier gating
                 cat_scores: dict[str, list[float]] = defaultdict(list)
                 skipped_cats: set[str] = set()
@@ -1393,7 +1447,12 @@ def main():
                                         score=None,
                                         score_details=f"skipped: tier {tier_num} gated (pass rate {sum(scores)/len(scores):.0%} < {gate:.0%})",
                                     )
+                                    skip_result.challenge_hash = compute_challenge_hash(p)
                                     results.append(skip_result)
+                                    # Only write if not already cached
+                                    cached = existing.get(p["_key"])
+                                    if not (cached and cached.score_details == skip_result.score_details):
+                                        append_result(skip_result)
                     elif tier_num == 3:
                         for cat in categories:
                             if cat in skipped_cats:
@@ -1416,7 +1475,12 @@ def main():
                                         score=None,
                                         score_details=f"skipped: tier {tier_num} gated (pass rate {sum(scores)/len(scores):.0%} < {gate:.0%})",
                                     )
+                                    skip_result.challenge_hash = compute_challenge_hash(p)
                                     results.append(skip_result)
+                                    # Only write if not already cached
+                                    cached = existing.get(p["_key"])
+                                    if not (cached and cached.score_details == skip_result.score_details):
+                                        append_result(skip_result)
 
                     # Filter to non-skipped prompts for this tier
                     active_prompts = [p for p in tier_prompts if p.get("category", "") not in skipped_cats]
@@ -1426,6 +1490,16 @@ def main():
                     print(f"\n  ── Tier {tier_num} ({len(active_prompts)} prompts) ──", flush=True)
 
                     for pcfg in active_prompts:
+                        # Check cache before running
+                        challenge_hash = compute_challenge_hash(pcfg)
+                        cached = existing.get(pcfg["_key"])
+                        if cached and cached.challenge_hash == challenge_hash:
+                            print(f"  [cached] {pcfg['_key']}")
+                            results.append(cached)
+                            if cached.score is not None:
+                                cat_scores[pcfg.get("category", "")].append(cached.score)
+                            continue
+
                         # Run single prompt against the already-loaded model
                         if runtime == "llamacpp":
                             r = run_llamacpp_prompt(model_cfg, pcfg, args.max_tokens)
@@ -1434,8 +1508,10 @@ def main():
 
                         r.prompt_name = pcfg["_key"]
                         score_result(r, pcfg)
+                        r.challenge_hash = challenge_hash
                         print_result_summary(r)
                         results.append(r)
+                        append_result(r)
 
                         if r.score is not None:
                             cat_scores[pcfg.get("category", "")].append(r.score)
@@ -1463,7 +1539,7 @@ def main():
 
     # Save
     if not args.no_save:
-        save_results(results, RESULTS_DIR, prompts)
+        save_markdown_report(results, RESULTS_DIR, prompts)
 
 
 if __name__ == "__main__":
