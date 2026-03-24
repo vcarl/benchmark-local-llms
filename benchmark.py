@@ -212,6 +212,39 @@ def main():
                 print(f"\n  Skipping {model_cfg['name']} / mlx: not downloaded. Run with --download first.")
                 continue
 
+            # Check if all prompts are already cached before starting the model
+            existing = load_existing_results(model_cfg["name"], runtime)
+            all_cached = True
+            for tier_num in tier_order:
+                for pcfg in tiers[tier_num]:
+                    p_hash = compute_prompt_hash(pcfg)
+                    cached = existing.get(pcfg["_key"])
+                    if not (cached and cached.prompt_hash == p_hash and cached.score is not None):
+                        all_cached = False
+                        break
+                if not all_cached:
+                    break
+
+            if all_cached:
+                print(f"\n  {model_cfg['name']} / {runtime}: all {len(prompts)} prompts cached, skipping model load")
+                # Still collect the cached results
+                for tier_num in tier_order:
+                    for pcfg in tiers[tier_num]:
+                        cached = existing[pcfg["_key"]]
+                        p_hash = compute_prompt_hash(pcfg)
+                        e_hash = compute_eval_hash(pcfg)
+                        if cached.eval_hash == e_hash:
+                            results.append(cached)
+                        else:
+                            cached.score = None
+                            cached.score_details = ""
+                            score_result(cached, pcfg)
+                            cached.eval_hash = e_hash
+                            cached.challenge_hash = compute_challenge_hash(pcfg)
+                            results.append(cached)
+                            append_result(cached)
+                continue
+
             print_header(f"{model_cfg['name']} — {runtime}")
 
             # Start the model once
@@ -229,9 +262,6 @@ def main():
                     continue
 
             try:  # noqa: SIM105 — finally ensures server shutdown
-                # Load cached results for this model+runtime
-                existing = load_existing_results(model_cfg["name"], runtime)
-
                 for tier_num in tier_order:
                     tier_prompts = tiers[tier_num]
                     if not tier_prompts:
@@ -245,7 +275,7 @@ def main():
                         e_hash = compute_eval_hash(pcfg)
                         cached = existing.get(pcfg["_key"])
 
-                        if cached and cached.prompt_hash == p_hash:
+                        if cached and cached.prompt_hash == p_hash and cached.score is not None:
                             if cached.eval_hash == e_hash:
                                 # Fully cached — prompt and eval unchanged
                                 print(f"  [cached] {pcfg['_key']}")
