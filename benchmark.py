@@ -15,11 +15,9 @@ Usage:
 """
 
 import argparse
-import json
 import subprocess
 import sys
-import time
-from pathlib import Path
+from collections import defaultdict
 
 from common import (
     LLAMA_CLI,
@@ -194,7 +192,6 @@ def main():
     prompt_lookup = {p["_key"]: p for p in prompts}
 
     # Group prompts by tier and category
-    from collections import defaultdict
     tiers: dict[int, list[dict]] = defaultdict(list)
     for p in prompts:
         tiers[p.get("tier", 1)].append(p)

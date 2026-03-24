@@ -219,8 +219,9 @@ _HTML_TEMPLATE = string.Template("""\
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9fafb; color: #111827; }
 .header { background: #1f2937; color: #fff; padding: 16px 24px; font-size: 20px; font-weight: 600; }
 .controls { padding: 16px 24px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
-.heatmaps-row { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
-.heatmap-panel { flex: 1; min-width: 0; }
+.heatmaps-scroll { overflow-x: auto; }
+.heatmaps-row { display: inline-flex; gap: 32px; align-items: flex-start; }
+.heatmap-panel { flex: 0 0 auto; }
 .heatmap-panel h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #374151; }
 .model-selector { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .model-selector label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: #f3f4f6; }
@@ -442,7 +443,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       row.appendChild(panel);
     });
 
-    container.appendChild(row);
+    const scroll = document.createElement('div');
+    scroll.className = 'heatmaps-scroll';
+    scroll.appendChild(row);
+    container.appendChild(scroll);
   }
 
   function showDetail(model, category, tier, runtime) {
