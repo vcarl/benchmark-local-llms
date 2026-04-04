@@ -91,7 +91,15 @@ def run_code_with_tests(code: str, test_code: str, timeout: int = 10) -> tuple[b
         return False, f"execution error: {str(e)[:120]}"
 
 
+_THINK_RE = re.compile(r"^.*?</think>\s*", re.DOTALL)
+
+
 # ── Scoring ────────────────────────────────────────────────────────────────
+
+def _strip_thinking_tags(text: str) -> str:
+    """Remove <think>...</think> blocks produced by reasoning models (e.g. DeepSeek R1)."""
+    return _THINK_RE.sub("", text)
+
 
 def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
     """Score a benchmark result in-place based on the prompt's scorer type."""
@@ -110,26 +118,38 @@ def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
     if not scorer:
         return  # no scoring defined
 
+    # Strip thinking tokens for scoring without mutating the stored output
+    clean_output = _strip_thinking_tags(result.output)
+
     if scorer == "exact_match":
-        _score_exact_match(result, prompt_cfg)
+        _score_exact_match(result, prompt_cfg, clean_output)
     elif scorer == "constraint":
-        _score_constraints(result, prompt_cfg)
+        _score_constraints(result, prompt_cfg, clean_output)
     elif scorer == "code_exec":
-        _score_code_exec(result, prompt_cfg)
+        _score_code_exec(result, prompt_cfg, clean_output)
 
 
-def _score_exact_match(result: BenchmarkResult, prompt_cfg: dict) -> None:
+def score_results(results: list[BenchmarkResult], prompts: list[dict]) -> None:
+    """Score all results in-place using current prompt configs."""
+    prompt_lookup = {p["_key"]: p for p in prompts}
+    for r in results:
+        pcfg = prompt_lookup.get(r.prompt_name)
+        if pcfg:
+            score_result(r, pcfg)
+
+
+def _score_exact_match(result: BenchmarkResult, prompt_cfg: dict, output: str) -> None:
     expected = prompt_cfg["expected"]
     pattern = prompt_cfg["extract"]
-    output = result.output
 
-    match = re.search(pattern, output)
-    if not match:
+    matches = re.findall(pattern, output)
+    if not matches:
         result.score = 0.0
         result.score_details = f"no match for pattern in output"
         return
 
-    extracted = match.group(1).replace(",", "")  # strip commas from numbers
+    # Use the last match — models often show work before the final answer
+    extracted = matches[-1].replace(",", "")  # strip commas from numbers
     if extracted == expected:
         result.score = 1.0
         result.score_details = f"correct: {extracted}"
@@ -138,14 +158,14 @@ def _score_exact_match(result: BenchmarkResult, prompt_cfg: dict) -> None:
         result.score_details = f"expected {expected}, got {extracted}"
 
 
-def _score_constraints(result: BenchmarkResult, prompt_cfg: dict) -> None:
+def _score_constraints(result: BenchmarkResult, prompt_cfg: dict, output: str) -> None:
     constraints = prompt_cfg["constraints"]
     passed = []
     failed = []
 
     for name, check_fn in constraints:
         try:
-            if check_fn(result.output):
+            if check_fn(output):
                 passed.append(name)
             else:
                 failed.append(name)
@@ -160,8 +180,8 @@ def _score_constraints(result: BenchmarkResult, prompt_cfg: dict) -> None:
         result.score_details = f"{len(passed)}/{total}: all passed"
 
 
-def _score_code_exec(result: BenchmarkResult, prompt_cfg: dict) -> None:
-    code = extract_code(result.output)
+def _score_code_exec(result: BenchmarkResult, prompt_cfg: dict, output: str) -> None:
+    code = extract_code(output)
     test_code = prompt_cfg["test_code"]
     passed, details = run_code_with_tests(code, test_code)
     result.score = 1.0 if passed else 0.0
