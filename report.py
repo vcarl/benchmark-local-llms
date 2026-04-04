@@ -627,6 +627,86 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     return card;
   }
 
+  function renderLeaderboard() {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.innerHTML = '<h3>Model Leaderboard</h3><div class="chart-subtitle">Ranked by avg score. Width = duration. Height = peak memory.</div>';
+
+    // Aggregate per model: avg score, wall time per runtime, max memory
+    const agg = {};
+    DATA.filter(d => checkedModels.has(d.model)).forEach(d => {
+      if (!agg[d.model]) agg[d.model] = { model: d.model, scores: [], wall: {}, mem: [] };
+      agg[d.model].scores.push(d.score);
+      if (!agg[d.model].wall[d.runtime]) agg[d.model].wall[d.runtime] = 0;
+      agg[d.model].wall[d.runtime] += d.wall_time_sec;
+      if (d.peak_memory_gb > 0) agg[d.model].mem.push(d.peak_memory_gb);
+    });
+
+    const models = Object.values(agg).map(a => ({
+      model: a.model,
+      score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
+      wallLlama: a.wall.llamacpp || 0,
+      wallMlx: a.wall.mlx || 0,
+      wallTotal: (a.wall.llamacpp || 0) + (a.wall.mlx || 0),
+      mem: a.mem.length ? Math.max(...a.mem) : 0,
+    })).sort((a, b) => b.score - a.score);
+
+    if (models.length === 0) return card;
+
+    const maxWall = Math.max(...models.map(m => m.wallTotal));
+    const maxMem = Math.max(...models.map(m => m.mem), 1);
+    const minBarH = 10, maxBarH = 40;
+
+    const container = document.createElement('div');
+    models.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'leaderboard-row';
+
+      const name = document.createElement('div');
+      name.className = 'leaderboard-name';
+      name.textContent = m.model;
+      name.title = m.model;
+      row.appendChild(name);
+
+      const bars = document.createElement('div');
+      bars.className = 'leaderboard-bars';
+
+      const barH = m.mem > 0 ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH)) : minBarH;
+      const widthPct = maxWall > 0 ? (m.wallTotal / maxWall * 90) : 0;
+      const llamaPct = m.wallTotal > 0 ? (m.wallLlama / m.wallTotal) : 0.5;
+
+      if (m.wallLlama > 0) {
+        const llamaBar = document.createElement('div');
+        llamaBar.style.cssText = 'height:' + barH + 'px;width:' + (widthPct * llamaPct).toFixed(1) + '%;background:#3b82f6;border-radius:3px 0 0 3px;';
+        bars.appendChild(llamaBar);
+      }
+      if (m.wallMlx > 0) {
+        const mlxBar = document.createElement('div');
+        const hasLlama = m.wallLlama > 0;
+        mlxBar.style.cssText = 'height:' + barH + 'px;width:' + (widthPct * (1 - llamaPct)).toFixed(1) + '%;background:#22c55e;border-radius:' + (hasLlama ? '0 3px 3px 0' : '3px') + ';';
+        bars.appendChild(mlxBar);
+      }
+      row.appendChild(bars);
+
+      const stats = document.createElement('div');
+      stats.className = 'leaderboard-stats';
+      const pct = Math.round(m.score * 100);
+      const totalSec = Math.round(m.wallTotal);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      const timeStr = min > 0 ? min + 'm ' + sec + 's' : sec + 's';
+      const memStr = m.mem > 0 ? m.mem.toFixed(0) + 'G' : '';
+      stats.innerHTML = '<div class="score" style="color:' + scoreColor(pct) + '">' + pct + '%</div>'
+        + '<div class="meta">' + timeStr + (memStr ? ' \u00b7 ' + memStr : '') + '</div>';
+      row.appendChild(stats);
+
+      container.appendChild(row);
+    });
+
+    card.appendChild(container);
+    return card;
+  }
+
   // Initial render
   renderScatterPlot();
   renderAllHeatmaps();
