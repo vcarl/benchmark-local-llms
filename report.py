@@ -460,6 +460,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     scroll.className = 'heatmaps-scroll';
     scroll.appendChild(row);
     container.appendChild(scroll);
+    renderSummaryCharts();
   }
 
   function showDetail(model, category, tier, runtime) {
@@ -707,8 +708,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     return card;
   }
 
+  function renderSummaryCharts() {
+    const container = document.getElementById('summary-charts');
+    container.innerHTML = '';
+    container.appendChild(renderScatterPlot());
+    container.appendChild(renderLeaderboard());
+  }
+
   // Initial render
-  renderScatterPlot();
   renderAllHeatmaps();
 })();
 </script>
