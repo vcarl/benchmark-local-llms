@@ -182,13 +182,6 @@ def main():
 
     results: list[BenchmarkResult] = []
 
-    # Build a unique key for each prompt (name alone is not unique across tiers/styles)
-    def prompt_key(p: dict) -> str:
-        return f"{p['name']}__t{p.get('tier', 0)}_{p.get('style', 'default')}"
-
-    # Tag each prompt with its key for result matching
-    for p in prompts:
-        p["_key"] = prompt_key(p)
     prompt_lookup = {p["_key"]: p for p in prompts}
 
     # Group prompts by tier and category

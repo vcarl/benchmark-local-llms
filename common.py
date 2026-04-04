@@ -347,6 +347,11 @@ def evaluate_constraint(output: str, constraint: dict) -> bool:
 
 # ── YAML prompt loader ────────────────────────────────────────────────────
 
+def prompt_key(p: dict) -> str:
+    """Build a unique key for a prompt config: name__tTIER_STYLE."""
+    return f"{p['name']}__t{p.get('tier', 0)}_{p.get('style', 'default')}"
+
+
 def load_prompts(prompts_dir: Path = PROMPTS_DIR) -> list[dict]:
     """Load all prompt YAML files from the prompts directory."""
     import yaml
@@ -369,6 +374,7 @@ def load_prompts(prompts_dir: Path = PROMPTS_DIR) -> list[dict]:
                     (c["name"], lambda o, c=c: evaluate_constraint(o, c))
                     for c in p["constraints"]
                 ]
+            p["_key"] = prompt_key(p)
             prompts.append(p)
     return prompts
 
@@ -430,9 +436,13 @@ def compute_prompt_hash(prompt_cfg: dict) -> str:
     return hashlib.sha256(blob).hexdigest()[:12]
 
 
+_EVAL_VERSION = "3"  # bump to force re-scoring when scoring logic changes
+
+
 def compute_eval_hash(prompt_cfg: dict) -> str:
     """Hash of scoring criteria — if this changes, we can re-score cached output."""
     parts = [
+        _EVAL_VERSION,
         prompt_cfg.get("expected", ""),
         prompt_cfg.get("scorer", ""),
         prompt_cfg.get("test_code", ""),
