@@ -25,12 +25,13 @@ from common import (
     MODELS, PROMPTS,
     BenchmarkResult,
     load_prompts,
-    compute_prompt_hash, compute_eval_hash, compute_challenge_hash,
+    compute_prompt_hash,
     load_existing_results, load_all_results,
     append_result,
 )
 from runner import (
     score_result,
+    score_results,
     is_llamacpp_cached, is_mlx_cached,
     start_llamacpp_server, stop_llamacpp_server, run_llamacpp_prompt,
     start_mlx_subprocess, stop_mlx_subprocess, run_mlx_prompt,
@@ -94,6 +95,7 @@ def main():
     if args.report_only:
         prompts = load_prompts()
         all_cached = load_all_results()
+        score_results(all_cached, prompts)
         save_html_report(all_cached, RESULTS_DIR, prompts)
         return
 
@@ -207,35 +209,19 @@ def main():
 
             # Check if all prompts are already cached before starting the model
             existing = load_existing_results(model_cfg["name"], runtime)
-            all_cached = True
-            for tier_num in tier_order:
-                for pcfg in tiers[tier_num]:
-                    p_hash = compute_prompt_hash(pcfg)
-                    cached = existing.get(pcfg["_key"])
-                    if not (cached and cached.prompt_hash == p_hash and cached.score is not None):
-                        all_cached = False
-                        break
-                if not all_cached:
-                    break
+            all_cached = all(
+                existing.get(pcfg["_key"]) and existing[pcfg["_key"]].prompt_hash == compute_prompt_hash(pcfg)
+                for tier_num in tier_order
+                for pcfg in tiers[tier_num]
+            )
 
             if all_cached:
                 print(f"\n  {model_cfg['name']} / {runtime}: all {len(prompts)} prompts cached, skipping model load")
-                # Still collect the cached results
                 for tier_num in tier_order:
                     for pcfg in tiers[tier_num]:
                         cached = existing[pcfg["_key"]]
-                        p_hash = compute_prompt_hash(pcfg)
-                        e_hash = compute_eval_hash(pcfg)
-                        if cached.eval_hash == e_hash:
-                            results.append(cached)
-                        else:
-                            cached.score = None
-                            cached.score_details = ""
-                            score_result(cached, pcfg)
-                            cached.eval_hash = e_hash
-                            cached.challenge_hash = compute_challenge_hash(pcfg)
-                            results.append(cached)
-                            append_result(cached)
+                        score_result(cached, pcfg)
+                        results.append(cached)
                 continue
 
             print_header(f"{model_cfg['name']} — {runtime}")
@@ -263,42 +249,25 @@ def main():
                     print(f"\n  ── Tier {tier_num} ({len(tier_prompts)} prompts) ──", flush=True)
 
                     for pcfg in tier_prompts:
-                        # Check cache before running
                         p_hash = compute_prompt_hash(pcfg)
-                        e_hash = compute_eval_hash(pcfg)
                         cached = existing.get(pcfg["_key"])
 
-                        if cached and cached.prompt_hash == p_hash and cached.score is not None:
-                            if cached.eval_hash == e_hash:
-                                # Fully cached — prompt and eval unchanged
-                                print(f"  [cached] {pcfg['_key']}")
-                                results.append(cached)
-                                continue
-                            else:
-                                # Prompt unchanged, eval criteria changed — re-score existing output
-                                print(f"  [re-scoring] {pcfg['_key']}")
-                                r = cached
-                                r.score = None
-                                r.score_details = ""
-                                score_result(r, pcfg)
-                                r.eval_hash = e_hash
-                                r.challenge_hash = compute_challenge_hash(pcfg)
-                                print_result_summary(r)
-                                results.append(r)
-                                append_result(r)
-                                continue
+                        if cached and cached.prompt_hash == p_hash:
+                            print(f"  [cached] {pcfg['_key']}")
+                            score_result(cached, pcfg)
+                            print_result_summary(cached)
+                            results.append(cached)
+                            continue
 
-                        # Prompt changed or no cache — run the model
+                        # Run the model
                         if runtime == "llamacpp":
                             r = run_llamacpp_prompt(model_cfg, pcfg, args.max_tokens)
                         elif runtime == "mlx":
                             r = run_mlx_prompt(mlx_proc, model_cfg, pcfg, args.max_tokens)
 
                         r.prompt_name = pcfg["_key"]
-                        score_result(r, pcfg)
                         r.prompt_hash = p_hash
-                        r.eval_hash = e_hash
-                        r.challenge_hash = compute_challenge_hash(pcfg)
+                        score_result(r, pcfg)
                         print_result_summary(r)
                         results.append(r)
                         append_result(r)
@@ -330,8 +299,9 @@ def main():
     # Save
     if not args.no_save:
         save_markdown_report(results, RESULTS_DIR, prompts)
-        # HTML report uses all cached execution data, not just this run
+        # HTML report uses all cached execution data, scored fresh
         all_cached = load_all_results()
+        score_results(all_cached, prompts)
         save_html_report(all_cached, RESULTS_DIR, prompts)
 
 
