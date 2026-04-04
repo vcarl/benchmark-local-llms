@@ -97,7 +97,7 @@
     Alice is twice as old as Bob. In 10 years, Alice will be 1.5 times as old as Bob.
     How old is Bob now? Think step by step, then write ANSWER: followed by the number.
   scorer: exact_match
-  expected: "20"
+  expected: "10"
   extract: 'ANSWER:\s*(\d+)'
 
 - name: logic_sequence
