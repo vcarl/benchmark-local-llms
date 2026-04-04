@@ -510,8 +510,22 @@ def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResul
     return list(by_key.values())
 
 
+# Fields persisted to JSONL — execution data only, no scoring
+_EXECUTION_FIELDS = {
+    "model", "runtime", "prompt_name",
+    "prompt_tokens", "generation_tokens", "prompt_tps", "generation_tps",
+    "peak_memory_gb", "wall_time_sec",
+    "output", "error",
+    "prompt_hash",
+}
+
+
 def append_result(result: BenchmarkResult) -> None:
-    """Append a single result to its model+runtime JSONL file."""
+    """Append execution data to the model+runtime JSONL file.
+
+    Only writes execution fields — scoring is done at report time.
+    """
     path = results_file_path(result.model, result.runtime)
+    record = {k: v for k, v in asdict(result).items() if k in _EXECUTION_FIELDS}
     with open(path, "a") as f:
-        f.write(json.dumps(asdict(result)) + "\n")
+        f.write(json.dumps(record) + "\n")
