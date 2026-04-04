@@ -493,10 +493,11 @@ def load_existing_results(model_name: str, runtime: str) -> dict[str, BenchmarkR
 
 
 def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResult]:
-    """Load all cached results from all JSONL files in the execution directory."""
-    all_results = []
+    """Load deduplicated results from all JSONL files. Latest entry per prompt wins."""
     if not execution_dir.exists():
-        return all_results
+        return []
+    # Deduplicate: (model, runtime, prompt_name) -> BenchmarkResult, latest wins
+    by_key: dict[tuple[str, str, str], BenchmarkResult] = {}
     for f in sorted(execution_dir.glob("*.jsonl")):
         with open(f) as fh:
             for line in fh:
@@ -505,8 +506,8 @@ def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResul
                     continue
                 d = json.loads(line)
                 r = BenchmarkResult(**{k: v for k, v in d.items() if k in BenchmarkResult.__dataclass_fields__})
-                all_results.append(r)
-    return all_results
+                by_key[(r.model, r.runtime, r.prompt_name)] = r
+    return list(by_key.values())
 
 
 def append_result(result: BenchmarkResult) -> None:
