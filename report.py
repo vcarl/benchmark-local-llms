@@ -260,7 +260,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .prompt-result-details { color: #6b7280; flex: 1; }
 .prompt-result-prompt { margin-top: 4px; padding: 8px; background: #f0f4ff; border: 1px solid #d0d8e8; border-radius: 4px; max-height: 80px; overflow-y: auto; font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; color: #374151; }
 .prompt-result-output { margin-top: 4px; padding: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; max-height: 120px; overflow-y: auto; font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; }
+.summary-charts { display: flex; gap: 16px; margin-bottom: 24px; }
+.chart-card { flex: 1; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+.chart-card h3 { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+.chart-card .chart-subtitle { font-size: 11px; color: #6b7280; margin-bottom: 12px; }
+.chart-card svg { width: 100%; }
+.leaderboard-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11px; }
+.leaderboard-name { width: 110px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #374151; font-weight: 500; flex-shrink: 0; }
+.leaderboard-bars { flex: 1; display: flex; gap: 1px; }
+.leaderboard-stats { width: 75px; text-align: right; flex-shrink: 0; }
+.leaderboard-stats .score { font-weight: 600; font-size: 12px; }
+.leaderboard-stats .meta { font-size: 9px; color: #6b7280; }
 </style>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
 <div class="header">Benchmark Analysis &mdash; $date_display</div>
@@ -273,6 +285,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <div class="content">
+  <div class="summary-charts" id="summary-charts"></div>
   <div id="heatmaps"></div>
   <div class="detail-panel" id="detail-panel">
     <div class="detail-placeholder">Click a cell to see details</div>
@@ -541,6 +554,7 @@ def save_html_report(results: list[BenchmarkResult], output_dir: Path, prompts: 
             "prompt_tps": r.prompt_tps,
             "generation_tps": r.generation_tps,
             "wall_time_sec": r.wall_time_sec,
+            "peak_memory_gb": r.peak_memory_gb,
             "output": r.output,
             "prompt_text": r.prompt_text,
         })
