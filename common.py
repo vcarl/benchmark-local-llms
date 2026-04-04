@@ -419,9 +419,7 @@ class BenchmarkResult:
     expected: str = ""  # expected answer (if any)
     score: Optional[float] = None  # 0.0-1.0, None if not scored
     score_details: str = ""  # human-readable scoring breakdown
-    challenge_hash: str = ""  # legacy combined hash (kept for migration compat)
     prompt_hash: str = ""  # hash of prompt + system (determines if we need to re-run)
-    eval_hash: str = ""  # hash of scoring criteria (determines if we need to re-score)
 
 
 # ── Challenge hashing and result caching ───────────────────────────────────
@@ -434,27 +432,6 @@ def compute_prompt_hash(prompt_cfg: dict) -> str:
     ]
     blob = "|".join(parts).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:12]
-
-
-_EVAL_VERSION = "3"  # bump to force re-scoring when scoring logic changes
-
-
-def compute_eval_hash(prompt_cfg: dict) -> str:
-    """Hash of scoring criteria — if this changes, we can re-score cached output."""
-    parts = [
-        _EVAL_VERSION,
-        prompt_cfg.get("expected", ""),
-        prompt_cfg.get("scorer", ""),
-        prompt_cfg.get("test_code", ""),
-        str([c[0] for c in prompt_cfg.get("constraints", [])]),
-    ]
-    blob = "|".join(parts).encode("utf-8")
-    return hashlib.sha256(blob).hexdigest()[:12]
-
-
-def compute_challenge_hash(prompt_cfg: dict) -> str:
-    """Combined hash for backwards compatibility."""
-    return compute_prompt_hash(prompt_cfg) + compute_eval_hash(prompt_cfg)
 
 
 # ── File utilities ─────────────────────────────────────────────────────────
