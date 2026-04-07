@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.claude/
+.superpowers/
+llama.cpp/
+models/
+*-backup*/
+.pytest_cache/
