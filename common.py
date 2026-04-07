@@ -8,6 +8,7 @@ used by both the runner and report modules.
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -21,6 +22,34 @@ LLAMA_SERVER = LLAMA_CPP_DIR / "llama-server"
 LLAMA_CACHE_DIR = Path.home() / "Library" / "Caches" / "llama.cpp"
 EXECUTION_DIR = Path(__file__).parent / "benchmark-execution"  # per-model cached results
 RESULTS_DIR = Path(__file__).parent / "benchmark-results"  # generated reports (markdown)
+
+# ── External tool paths (gameserver / commander) ───────────────────────────
+
+# Override via env vars for CI / alternate checkouts.
+GAMESERVER_BINARY = Path(os.environ.get(
+    "TESTBENCH_GAMESERVER_BINARY",
+    str(Path.home() / "workspace" / "sm-plans" / "bin" / "spacemolt-server"),
+))
+COMMANDER_DIR = Path(os.environ.get(
+    "TESTBENCH_COMMANDER_DIR",
+    str(Path.home() / "workspace" / "commander"),
+))
+
+# Commander pi-ai provider config — investigation result from
+# ~/workspace/commander/src/model.ts (resolveModel, lines 24-31, 87-111):
+#   provider: "ollama" — listed in CUSTOM_BASE_URLS, so apiKey is auto-set to
+#       "local" and the model is built by cloning a groq model and overriding
+#       baseUrl. The base URL is read from OLLAMA_BASE_URL (line 24), default
+#       http://localhost:11434/v1. Setting OLLAMA_BASE_URL=http://127.0.0.1:18080/v1
+#       points commander at testbench's llama-server (also OpenAI-compatible).
+#   base url env var: "OLLAMA_BASE_URL"
+#   model string format: "ollama/<model-id>" (e.g. "ollama/qwen2.5-7b-instruct").
+#       parseModelString splits on the first "/"; the modelId is forwarded as-is
+#       to the OpenAI /v1/chat/completions endpoint, where llama-server ignores
+#       it (it serves whatever model it was launched with).
+#   api key required: no — auto-set to "local" for ollama (line 95).
+COMMANDER_LOCAL_PROVIDER = "ollama"
+COMMANDER_LOCAL_BASE_URL_ENV = "OLLAMA_BASE_URL"
 
 # Models to benchmark. Each entry has:
 #   - name: display name
