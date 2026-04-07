@@ -18,6 +18,7 @@ import argparse
 import subprocess
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 from common import (
     LLAMA_CLI,
@@ -25,9 +26,12 @@ from common import (
     MODELS, PROMPTS,
     BenchmarkResult,
     load_prompts,
+    load_scenarios,
     compute_prompt_hash,
+    compute_scenario_hash,
     load_existing_results, load_all_results,
     append_result,
+    COMMANDER_LOCAL_PROVIDER,
 )
 from runner import (
     score_result,
@@ -35,6 +39,7 @@ from runner import (
     is_llamacpp_cached, is_mlx_cached,
     start_llamacpp_server, stop_llamacpp_server, run_llamacpp_prompt,
     start_mlx_subprocess, stop_mlx_subprocess, run_mlx_prompt,
+    run_game_scenario,
     download_models,
 )
 from report import (
@@ -89,6 +94,15 @@ def main():
     parser.add_argument(
         "--report-only", action="store_true",
         help="Regenerate HTML report from cached results, then exit (no benchmarking)",
+    )
+    parser.add_argument(
+        "--scenarios", type=str, default=None,
+        help="Run game scenarios matching this name (or 'all' for every scenario). Default: no scenarios.",
+    )
+    parser.add_argument(
+        "--scenario-md-dir", type=str,
+        default=str(Path.home() / "workspace" / "smbench" / "scenarios"),
+        help="Directory containing the scenario markdown files commander reads (default: ~/workspace/smbench/scenarios)",
     )
     args = parser.parse_args()
 
@@ -146,6 +160,19 @@ def main():
             sys.exit(1)
     else:
         prompts = PROMPTS
+
+    # Load scenarios if requested
+    scenarios: list = []
+    if args.scenarios:
+        all_scenarios = load_scenarios()
+        if args.scenarios == "all":
+            scenarios = all_scenarios
+        else:
+            scenarios = [s for s in all_scenarios if args.scenarios in s.name]
+        if not scenarios:
+            print(f"No scenarios matching: {args.scenarios}")
+            print(f"Available: {', '.join(s.name for s in all_scenarios)}")
+            sys.exit(1)
 
     # Determine runtimes
     runtimes = []
@@ -267,6 +294,45 @@ def main():
 
                         r.prompt_name = pcfg["_key"]
                         r.prompt_hash = p_hash
+                        score_result(r, pcfg)
+                        print_result_summary(r)
+                        results.append(r)
+                        append_result(r)
+
+                # ── Game scenarios (llama.cpp only — commander needs OpenAI-compat HTTP) ──
+                if scenarios and runtime == "llamacpp":
+                    print(f"\n  ── Game Scenarios ({len(scenarios)}) ──", flush=True)
+                    for scenario in scenarios:
+                        scenario_md_path = str(Path(args.scenario_md_dir) / f"{scenario.fixture}.md")
+
+                        # Cache check using scenario_hash
+                        cached = existing.get(scenario.name)
+                        s_hash = compute_scenario_hash(scenario)
+                        if cached and cached.scenario_hash == s_hash:
+                            print(f"  [cached] scenario:{scenario.name}")
+                            # Cached results don't have a live GameSession; we can't
+                            # rescore via game_scorers without one. The cached score
+                            # was computed at run time and persisted via score_details.
+                            results.append(cached)
+                            continue
+
+                        commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['name']}"
+                        r = run_game_scenario(
+                            model_cfg=model_cfg,
+                            scenario=scenario,
+                            commander_model_string=commander_model_string,
+                            scenario_md_path=scenario_md_path,
+                        )
+                        # Synthesize the scorer dispatch dict expected by score_result
+                        pcfg = {
+                            "scorer": "game",
+                            "game_scorer": scenario.scorer,
+                            "scorer_params": scenario.scorer_params,
+                            "category": "game",
+                            "tier": 0,
+                            "style": "game",
+                        }
+                        r.prompt_name = scenario.name
                         score_result(r, pcfg)
                         print_result_summary(r)
                         results.append(r)
