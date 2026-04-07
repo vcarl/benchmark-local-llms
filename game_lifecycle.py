@@ -4,6 +4,7 @@ Python port of smbench/src/lib/server-lifecycle.ts (gameserver bits only).
 """
 
 import os
+import socket
 import subprocess
 import time
 import urllib.error
@@ -74,3 +75,14 @@ def stop_gameserver(proc: subprocess.Popen, grace_sec: float = 5.0) -> None:
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait()
+
+
+def allocate_port() -> int:
+    """Bind to port 0 to let the OS pick a free high port, then close and return it.
+
+    Inherently racy (the port could be claimed before we use it), but adequate for
+    benchmark runs that immediately spawn the gameserver after allocation.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
