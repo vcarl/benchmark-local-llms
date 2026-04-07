@@ -526,15 +526,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   function renderScatterPlot() {
     const card = document.createElement('div');
     card.className = 'chart-card';
-    card.innerHTML = '<h3>Score vs Speed</h3><div class="chart-subtitle">Dot size = peak memory. Hover for details.</div>';
+    card.innerHTML = '<h3>Score vs Tokens</h3><div class="chart-subtitle">Dot size = peak memory. Hover for details.</div>';
 
-    // Aggregate: avg score, avg gen_tps, max peak_memory per (model, runtime)
+    // Aggregate: avg score, total tokens, max peak_memory per (model, runtime)
     const agg = {};
     DATA.filter(d => checkedModels.has(d.model)).forEach(d => {
       const key = d.model + '|' + d.runtime;
-      if (!agg[key]) agg[key] = { model: d.model, runtime: d.runtime, scores: [], gen_tps: [], mem: [] };
+      if (!agg[key]) agg[key] = { model: d.model, runtime: d.runtime, scores: [], tokens: 0, mem: [] };
       agg[key].scores.push(d.score);
-      if (d.generation_tps > 0) agg[key].gen_tps.push(d.generation_tps);
+      agg[key].tokens += (d.prompt_tokens || 0) + (d.generation_tokens || 0);
       if (d.peak_memory_gb > 0) agg[key].mem.push(d.peak_memory_gb);
     });
 
@@ -542,9 +542,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       model: a.model,
       runtime: a.runtime,
       score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
-      gen_tps: a.gen_tps.length ? a.gen_tps.reduce((s, v) => s + v, 0) / a.gen_tps.length : 0,
+      tokens: a.tokens,
       mem: a.mem.length ? Math.max(...a.mem) : 0,
-    })).filter(p => p.gen_tps > 0);
+    })).filter(p => p.tokens > 0);
 
     // Use MLX memory for both runtimes of same model
     const memByModel = {};
@@ -559,14 +559,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     const svg = d3.create('svg').attr('viewBox', '0 0 ' + width + ' ' + height);
     const g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
-    const xMax = Math.max(10, d3.max(points, d => d.gen_tps) * 1.1);
-    const x = d3.scaleLinear().domain([0, xMax]).range([0, innerW]);
+    const xMin = Math.max(1, d3.min(points, d => d.tokens) * 0.8);
+    const xMax = Math.max(100, d3.max(points, d => d.tokens) * 1.2);
+    const x = d3.scaleLog().domain([xMin, xMax]).range([0, innerW]);
     const y = d3.scaleLinear().domain([0, 1]).range([innerH, 0]);
     const maxMem = d3.max(points, d => d.mem) || 20;
     const rScale = d3.scaleSqrt().domain([0, maxMem]).range([4, 18]);
 
     // Axes
-    g.append('g').attr('transform', 'translate(0,' + innerH + ')').call(d3.axisBottom(x).ticks(5))
+    g.append('g').attr('transform', 'translate(0,' + innerH + ')').call(d3.axisBottom(x).ticks(5).tickFormat(d3.format(',.0f')))
       .selectAll('text').style('font-size', '10px');
     g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d => Math.round(d * 100) + '%'))
       .selectAll('text').style('font-size', '10px');
@@ -578,7 +579,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
     // Axis labels
     svg.append('text').attr('x', margin.left + innerW / 2).attr('y', height - 2)
-      .attr('text-anchor', 'middle').style('font-size', '11px').style('fill', '#6b7280').text('Generation t/s');
+      .attr('text-anchor', 'middle').style('font-size', '11px').style('fill', '#6b7280').text('Total Tokens');
     svg.append('text').attr('transform', 'rotate(-90)')
       .attr('x', -(margin.top + innerH / 2)).attr('y', 12)
       .attr('text-anchor', 'middle').style('font-size', '11px').style('fill', '#6b7280').text('Avg Score');
@@ -594,7 +595,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
     // Dots
     g.selectAll('circle').data(points).join('circle')
-      .attr('cx', d => x(d.gen_tps)).attr('cy', d => y(d.score))
+      .attr('cx', d => x(d.tokens)).attr('cy', d => y(d.score))
       .attr('r', d => rScale(d.mem || 4))
       .attr('fill', d => rtColor[d.runtime] || '#9ca3af')
       .attr('opacity', 0.5)
@@ -605,7 +606,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         tooltip.style('opacity', 1)
           .html(d.model + ' (' + d.runtime + ')<br>'
             + Math.round(d.score * 100) + '% score, '
-            + d.gen_tps.toFixed(1) + ' t/s'
+            + d.tokens.toLocaleString() + ' tokens'
             + (d.mem > 0 ? ', ' + d.mem.toFixed(1) + ' GB' : ''));
       })
       .on('mousemove', function(event) {
@@ -673,7 +674,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       bars.className = 'leaderboard-bars';
 
       const barH = m.mem > 0 ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH)) : minBarH;
-      const widthPct = maxWall > 0 ? (m.wallTotal / maxWall * 90) : 0;
+      const logMin = Math.log(60), logMax = Math.log(5400);
+      const clamped = Math.max(60, Math.min(5400, m.wallTotal));
+      const widthPct = (Math.log(clamped) - logMin) / (logMax - logMin) * 90;
       const llamaPct = m.wallTotal > 0 ? (m.wallLlama / m.wallTotal) : 0.5;
 
       if (m.wallLlama > 0) {
@@ -693,9 +696,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       stats.className = 'leaderboard-stats';
       const pct = Math.round(m.score * 100);
       const totalSec = Math.round(m.wallTotal);
-      const min = Math.floor(totalSec / 60);
+      const hrs = Math.floor(totalSec / 3600);
+      const min = Math.floor((totalSec % 3600) / 60);
       const sec = totalSec % 60;
-      const timeStr = min > 0 ? min + 'm ' + sec + 's' : sec + 's';
+      const timeStr = hrs > 0 ? hrs + 'h ' + min + 'm ' + sec + 's' : min > 0 ? min + 'm ' + sec + 's' : sec + 's';
       const memStr = m.mem > 0 ? m.mem.toFixed(0) + 'G' : '';
       stats.innerHTML = '<div class="score" style="color:' + scoreColor(pct) + '">' + pct + '%</div>'
         + '<div class="meta">' + timeStr + (memStr ? ' \u00b7 ' + memStr : '') + '</div>';
@@ -744,6 +748,8 @@ def save_html_report(results: list[BenchmarkResult], output_dir: Path, prompts: 
             "style": r.style,
             "score": r.score,
             "score_details": r.score_details,
+            "prompt_tokens": r.prompt_tokens,
+            "generation_tokens": r.generation_tokens,
             "prompt_tps": r.prompt_tps,
             "generation_tps": r.generation_tps,
             "wall_time_sec": r.wall_time_sec,
