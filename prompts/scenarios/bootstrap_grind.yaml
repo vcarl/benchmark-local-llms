@@ -1,0 +1,13 @@
+name: bootstrap_grind
+fixture: s1-bootstrap-grind
+players:
+  - id: alice
+    controlled_by: llm
+scorer: bootstrap_grind
+scorer_params: {}
+cutoffs:
+  wall_clock_sec: 900       # 15 min hard ceiling
+  total_tokens: 200000      # ~200k token budget
+  tool_calls: 300           # ~10x typical run
+commander:
+  max_turns: 250            # commander's own guard rail (looser)
