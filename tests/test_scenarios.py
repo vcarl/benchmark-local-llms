@@ -44,3 +44,37 @@ def test_load_scenarios_requires_one_llm_player(tmp_path):
     }))
     with pytest.raises(ValueError, match="exactly one"):
         load_scenarios(tmp_path)
+
+from common import BenchmarkResult, compute_scenario_hash, ScenarioCutoffs, Scenario
+
+
+def test_benchmark_result_has_scenario_fields():
+    r = BenchmarkResult(model="m", runtime="llamacpp", prompt_name="p")
+    assert r.scenario_name is None
+    assert r.termination_reason is None
+    assert r.tool_call_count is None
+    assert r.final_state_summary is None
+
+
+def test_compute_scenario_hash_stable():
+    s = Scenario(
+        name="x",
+        fixture="fix",
+        players=[{"id": "a", "controlled_by": "llm"}],
+        scorer="bootstrap_grind",
+        scorer_params={"target_credits": 1000},
+        cutoffs=ScenarioCutoffs(wall_clock_sec=60, total_tokens=1000, tool_calls=10),
+    )
+    h1 = compute_scenario_hash(s)
+    h2 = compute_scenario_hash(s)
+    assert h1 == h2
+    assert len(h1) == 12
+
+    s2 = Scenario(
+        name="x", fixture="fix",
+        players=[{"id": "a", "controlled_by": "llm"}],
+        scorer="bootstrap_grind",
+        scorer_params={"target_credits": 2000},  # different
+        cutoffs=ScenarioCutoffs(wall_clock_sec=60, total_tokens=1000, tool_calls=10),
+    )
+    assert compute_scenario_hash(s2) != h1

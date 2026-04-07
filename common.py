@@ -420,6 +420,12 @@ class BenchmarkResult:
     score: Optional[float] = None  # 0.0-1.0, None if not scored
     score_details: str = ""  # human-readable scoring breakdown
     prompt_hash: str = ""  # hash of prompt + system (determines if we need to re-run)
+    # ── Game scenario fields (None for prompt-based runs) ──
+    scenario_name: Optional[str] = None
+    termination_reason: Optional[str] = None  # completed | wall_clock | tokens | tool_calls | error
+    tool_call_count: Optional[int] = None
+    final_state_summary: Optional[dict] = None
+    scenario_hash: Optional[str] = None
 
 
 # ── Challenge hashing and result caching ───────────────────────────────────
@@ -429,6 +435,24 @@ def compute_prompt_hash(prompt_cfg: dict) -> str:
     parts = [
         prompt_cfg["prompt"],
         prompt_cfg["system"],
+    ]
+    blob = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def compute_scenario_hash(scenario: "Scenario") -> str:
+    """Hash of the scenario inputs that determine the run.
+
+    Includes fixture, scorer config, cutoffs, and player config. Excludes the
+    name (so renaming a scenario file does not invalidate cache).
+    """
+    parts = [
+        scenario.fixture,
+        scenario.scorer,
+        json.dumps(scenario.scorer_params, sort_keys=True),
+        json.dumps(scenario.players, sort_keys=True),
+        f"{scenario.cutoffs.wall_clock_sec}|{scenario.cutoffs.total_tokens}|{scenario.cutoffs.tool_calls}",
+        str(scenario.commander_max_turns),
     ]
     blob = "|".join(parts).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:12]
@@ -565,6 +589,9 @@ _EXECUTION_FIELDS = {
     "peak_memory_gb", "wall_time_sec",
     "output", "error",
     "prompt_hash",
+    # game scenario fields
+    "scenario_name", "termination_reason", "tool_call_count",
+    "final_state_summary", "scenario_hash",
 }
 
 
