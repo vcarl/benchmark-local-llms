@@ -22,7 +22,11 @@ from typing import Optional
 from common import (
     LLAMA_CLI, LLAMA_SERVER, LLAMA_CACHE_DIR,
     BenchmarkResult,
+    Scenario,
+    compute_scenario_hash,
 )
+from game_session import run_game_session, GameSessionResult
+from game_scorers import score_game, ScorerNotFound
 
 # ── Code extraction and execution ──────────────────────────────────────────
 
@@ -121,6 +125,10 @@ def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
     # Strip thinking tokens for scoring without mutating the stored output
     clean_output = _strip_thinking_tags(result.output)
 
+    if scorer == "game":
+        _score_game(result, prompt_cfg)
+        return
+
     if scorer == "exact_match":
         _score_exact_match(result, prompt_cfg, clean_output)
     elif scorer == "constraint":
@@ -185,6 +193,26 @@ def _score_code_exec(result: BenchmarkResult, prompt_cfg: dict, output: str) -> 
     test_code = prompt_cfg["test_code"]
     passed, details = run_code_with_tests(code, test_code)
     result.score = 1.0 if passed else 0.0
+    result.score_details = details
+
+
+def _score_game(result: BenchmarkResult, prompt_cfg: dict) -> None:
+    session: Optional[GameSessionResult] = getattr(result, "_game_session", None)
+    if session is None:
+        result.score = 0.0
+        result.score_details = "no game session attached"
+        return
+    try:
+        score, details = score_game(
+            prompt_cfg["game_scorer"],
+            session,
+            prompt_cfg.get("scorer_params", {}),
+        )
+    except ScorerNotFound as e:
+        result.score = 0.0
+        result.score_details = str(e)
+        return
+    result.score = score
     result.score_details = details
 
 
@@ -334,6 +362,45 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
         result.wall_time_sec = time.perf_counter() - start
         result.error = str(e)[:200]
 
+    return result
+
+
+def run_game_scenario(
+    model_cfg: dict,
+    scenario: Scenario,
+    commander_model_string: str,
+    scenario_md_path: str,
+) -> BenchmarkResult:
+    """Run a SpaceMolt scenario against the already-running llama-server.
+
+    Returns a BenchmarkResult with both the standard fields and the new
+    scenario-specific fields. The score is NOT computed here — call
+    score_result() afterward, which will dispatch to the game scorer.
+    """
+    result = BenchmarkResult(
+        model=model_cfg["name"],
+        runtime="llamacpp",
+        prompt_name=scenario.name,
+    )
+    result.scenario_name = scenario.name
+    result.scenario_hash = compute_scenario_hash(scenario)
+
+    session = run_game_session(
+        scenario=scenario,
+        model_name=model_cfg["name"],
+        commander_model_string=commander_model_string,
+        scenario_path=scenario_md_path,
+    )
+
+    result.wall_time_sec = session.elapsed_sec
+    result.termination_reason = session.termination_reason
+    result.tool_call_count = session.tool_call_count
+    result.generation_tokens = session.total_tokens
+    result.final_state_summary = session.final_player_stats
+    if session.error:
+        result.error = session.error
+
+    result._game_session = session  # type: ignore[attr-defined]
     return result
 
 
