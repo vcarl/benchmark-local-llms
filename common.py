@@ -434,6 +434,77 @@ def compute_prompt_hash(prompt_cfg: dict) -> str:
     return hashlib.sha256(blob).hexdigest()[:12]
 
 
+# ── Scenario loader (game benchmarks) ──────────────────────────────────────
+
+SCENARIOS_DIR = Path(__file__).parent / "prompts" / "scenarios"
+
+
+@dataclass
+class ScenarioCutoffs:
+    wall_clock_sec: float
+    total_tokens: int
+    tool_calls: int
+
+
+@dataclass
+class Scenario:
+    name: str
+    fixture: str
+    players: list[dict]
+    scorer: str
+    cutoffs: ScenarioCutoffs
+    scorer_params: dict = field(default_factory=dict)
+    commander_max_turns: int = 250
+
+    @property
+    def llm_player_id(self) -> str:
+        return next(p["id"] for p in self.players if p.get("controlled_by") == "llm")
+
+
+def load_scenarios(scenarios_dir: Path = SCENARIOS_DIR) -> list[Scenario]:
+    """Load all scenario YAML files from a directory.
+
+    Each YAML file contains one scenario (one document, not a list — different
+    from prompts which are lists). Files starting with `_` are skipped.
+    """
+    import yaml
+    scenarios: list[Scenario] = []
+    if not scenarios_dir.exists():
+        return scenarios
+    for yaml_file in sorted(scenarios_dir.glob("*.yaml")):
+        if yaml_file.name.startswith("_"):
+            continue
+        with open(yaml_file) as f:
+            data = yaml.safe_load(f)
+        if not data:
+            continue
+
+        llm_players = [p for p in data.get("players", []) if p.get("controlled_by") == "llm"]
+        if len(llm_players) != 1:
+            raise ValueError(
+                f"Scenario {yaml_file.name}: must have exactly one player with "
+                f"controlled_by: llm (found {len(llm_players)})"
+            )
+
+        cutoffs_raw = data.get("cutoffs", {})
+        cutoffs = ScenarioCutoffs(
+            wall_clock_sec=float(cutoffs_raw["wall_clock_sec"]),
+            total_tokens=int(cutoffs_raw["total_tokens"]),
+            tool_calls=int(cutoffs_raw["tool_calls"]),
+        )
+
+        scenarios.append(Scenario(
+            name=data["name"],
+            fixture=data["fixture"],
+            players=data["players"],
+            scorer=data["scorer"],
+            scorer_params=data.get("scorer_params", {}),
+            cutoffs=cutoffs,
+            commander_max_turns=int(data.get("commander", {}).get("max_turns", 250)),
+        ))
+    return scenarios
+
+
 # ── File utilities ─────────────────────────────────────────────────────────
 
 def model_slug(name: str) -> str:
