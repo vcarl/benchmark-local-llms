@@ -73,7 +73,13 @@ def run_game_session(
     try:
         gs_proc = start_gameserver(GAMESERVER_BINARY, port=port, admin_token=admin_token)
         admin = AdminClient(server_url, admin_token)
-        admin.reset(scenario.fixture)
+        # TODO: re-enable once the gameserver exposes /api/admin/benchmark/reset.
+        # Running without fixture reset means scores are only meaningful when the
+        # server happens to be in a known state. See design doc (2026-04-07).
+        try:
+            admin.reset(scenario.fixture)
+        except AdminError as e:
+            print(f"    [warn] reset skipped: {e}", flush=True)
 
         cmd_proc = spawn_commander(
             commander_dir=COMMANDER_DIR,
