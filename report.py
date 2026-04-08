@@ -481,6 +481,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
     let html = '<div class="detail-title">' + model + ' &mdash; ' + category + ' &mdash; Tier ' + tier + ' &mdash; ' + runtime + '</div>';
 
+    // Performance summary (aggregate across matches)
+    const totalWall = matches.reduce((s, d) => s + (d.wall_time_sec || 0), 0);
+    const genTpsVals = matches.map(d => d.generation_tps || 0).filter(v => v > 0);
+    const meanGenTps = genTpsVals.length ? genTpsVals.reduce((s, v) => s + v, 0) / genTpsVals.length : 0;
+    const totalGenTokens = matches.reduce((s, d) => s + (d.generation_tokens || 0), 0);
+    const avgScore = matches.reduce((s, d) => s + (d.score || 0), 0) / matches.length;
+    // Derived: score per 1k generated tokens (efficiency — higher is better)
+    const scorePerKTok = totalGenTokens > 0 ? (avgScore * 1000 / totalGenTokens) : 0;
+    html += '<div style="font-size:11px;color:#6b7280;margin-bottom:14px;line-height:1.5;">'
+      + '<strong style="color:#374151;">Performance:</strong> '
+      + 'total wall ' + totalWall.toFixed(1) + 's '
+      + '\u00b7 mean gen ' + meanGenTps.toFixed(1) + ' t/s '
+      + '\u00b7 ' + totalGenTokens.toLocaleString() + ' gen tokens'
+      + '<br><strong style="color:#374151;">Score / 1k gen tokens:</strong> ' + scorePerKTok.toFixed(3)
+      + ' <span style="opacity:0.7;">(efficiency: avg score per 1000 generated tokens)</span>'
+      + '</div>';
+
     // Bar chart by style
     html += '<div class="bar-chart">';
     styles.forEach(style => {
@@ -523,20 +540,44 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     return div.innerHTML;
   }
 
+  let scatterGroupBy = 'runtime';
+
+  function modelFamily(name) {
+    if (!name) return 'unknown';
+    return name.split(/[-_ /]/)[0].toLowerCase();
+  }
+
   function renderScatterPlot() {
     const card = document.createElement('div');
     card.className = 'chart-card';
     card.innerHTML = '<h3>Score vs Tokens</h3><div class="chart-subtitle">Dot size = peak memory. Hover for details.</div>';
 
+    // Group-by selector
+    const ctrl = document.createElement('div');
+    ctrl.style.cssText = 'margin-bottom:8px;font-size:11px;color:#374151;';
+    ctrl.innerHTML = '<label>Color by: <select id="scatter-groupby" style="font-size:11px;padding:2px 4px;"><option value="runtime">Runtime</option><option value="tier">Tier</option><option value="category">Category</option><option value="family">Model family</option></select></label>';
+    card.appendChild(ctrl);
+    const sel = ctrl.querySelector('select');
+    sel.value = scatterGroupBy;
+    sel.addEventListener('change', () => { scatterGroupBy = sel.value; renderSummaryCharts(); });
+
     // Aggregate: avg score, total tokens, max peak_memory per (model, runtime)
     const agg = {};
     DATA.filter(d => checkedModels.has(d.model)).forEach(d => {
       const key = d.model + '|' + d.runtime;
-      if (!agg[key]) agg[key] = { model: d.model, runtime: d.runtime, scores: [], tokens: 0, mem: [] };
+      if (!agg[key]) agg[key] = { model: d.model, runtime: d.runtime, scores: [], tokens: 0, mem: [], tiers: {}, cats: {} };
       agg[key].scores.push(d.score);
       agg[key].tokens += (d.prompt_tokens || 0) + (d.generation_tokens || 0);
       if (d.peak_memory_gb > 0) agg[key].mem.push(d.peak_memory_gb);
+      agg[key].tiers[d.tier] = (agg[key].tiers[d.tier] || 0) + 1;
+      agg[key].cats[d.category] = (agg[key].cats[d.category] || 0) + 1;
     });
+
+    function topKey(obj) {
+      let best = null, bestN = -1;
+      for (const k in obj) { if (obj[k] > bestN) { best = k; bestN = obj[k]; } }
+      return best;
+    }
 
     const points = Object.values(agg).map(a => ({
       model: a.model,
@@ -544,6 +585,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
       tokens: a.tokens,
       mem: a.mem.length ? Math.max(...a.mem) : 0,
+      tier: topKey(a.tiers),
+      category: topKey(a.cats),
+      family: modelFamily(a.model),
     })).filter(p => p.tokens > 0);
 
     // Use MLX memory for both runtimes of same model
@@ -586,6 +630,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
     const rtColor = { llamacpp: '#3b82f6', mlx: '#22c55e' };
 
+    // Build color scale based on groupBy
+    function groupKeyOf(p) {
+      if (scatterGroupBy === 'runtime') return p.runtime;
+      if (scatterGroupBy === 'tier') return 'Tier ' + p.tier;
+      if (scatterGroupBy === 'category') return p.category;
+      return p.family;
+    }
+    const groupKeys = [...new Set(points.map(groupKeyOf))].sort();
+    let colorOf;
+    if (scatterGroupBy === 'runtime') {
+      colorOf = p => rtColor[p.runtime] || '#9ca3af';
+    } else {
+      const palette = d3.scaleOrdinal(d3.schemeTableau10).domain(groupKeys);
+      colorOf = p => palette(groupKeyOf(p));
+    }
+
     // Tooltip
     const tooltip = d3.select(document.createElement('div'))
       .style('position', 'absolute').style('background', '#1f2937').style('color', '#fff')
@@ -597,9 +657,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     g.selectAll('circle').data(points).join('circle')
       .attr('cx', d => x(d.tokens)).attr('cy', d => y(d.score))
       .attr('r', d => rScale(d.mem || 4))
-      .attr('fill', d => rtColor[d.runtime] || '#9ca3af')
+      .attr('fill', d => colorOf(d))
       .attr('opacity', 0.5)
-      .attr('stroke', d => rtColor[d.runtime] || '#9ca3af')
+      .attr('stroke', d => colorOf(d))
       .attr('stroke-width', 1)
       .on('mouseenter', function(event, d) {
         d3.select(this).attr('opacity', 0.9);
@@ -617,12 +677,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         tooltip.style('opacity', 0);
       });
 
-    // Legend
-    const leg = svg.append('g').attr('transform', 'translate(' + (margin.left + innerW - 120) + ',' + (margin.top + 4) + ')');
-    leg.append('circle').attr('cx', 0).attr('cy', 0).attr('r', 4).attr('fill', '#3b82f6').attr('opacity', 0.6);
-    leg.append('text').attr('x', 8).attr('y', 4).style('font-size', '10px').style('fill', '#6b7280').text('llamacpp');
-    leg.append('circle').attr('cx', 62).attr('cy', 0).attr('r', 4).attr('fill', '#22c55e').attr('opacity', 0.6);
-    leg.append('text').attr('x', 70).attr('y', 4).style('font-size', '10px').style('fill', '#6b7280').text('mlx');
+    // Legend (dynamic by group)
+    const leg = svg.append('g').attr('transform', 'translate(' + (margin.left + 4) + ',' + (margin.top + 4) + ')');
+    groupKeys.forEach((k, i) => {
+      const row = leg.append('g').attr('transform', 'translate(0,' + (i * 12) + ')');
+      const sample = points.find(p => groupKeyOf(p) === k);
+      row.append('circle').attr('cx', 0).attr('cy', 0).attr('r', 4)
+        .attr('fill', sample ? colorOf(sample) : '#9ca3af').attr('opacity', 0.6);
+      row.append('text').attr('x', 8).attr('y', 4).style('font-size', '10px').style('fill', '#6b7280').text(k);
+    });
 
     card.appendChild(svg.node());
     document.body.appendChild(tooltip.node());
@@ -632,83 +695,131 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   function renderLeaderboard() {
     const card = document.createElement('div');
     card.className = 'chart-card';
-    card.innerHTML = '<h3>Model Leaderboard</h3><div class="chart-subtitle">Ranked by avg score. Width = duration. Height = peak memory.</div>';
+    card.innerHTML = '<h3>Model Leaderboard</h3><div class="chart-subtitle">Ranked by avg score. Bar color = best runtime. Marker = peak memory.</div>';
 
-    // Aggregate per model: avg score, wall time per runtime, max memory
+    // Aggregate per model: avg score, wall time, mem, per-runtime score
     const agg = {};
     DATA.filter(d => checkedModels.has(d.model)).forEach(d => {
-      if (!agg[d.model]) agg[d.model] = { model: d.model, scores: [], wall: {}, mem: [] };
+      if (!agg[d.model]) agg[d.model] = { model: d.model, scores: [], wall: 0, mem: [], byRt: {} };
       agg[d.model].scores.push(d.score);
-      if (!agg[d.model].wall[d.runtime]) agg[d.model].wall[d.runtime] = 0;
-      agg[d.model].wall[d.runtime] += d.wall_time_sec;
+      agg[d.model].wall += d.wall_time_sec;
       if (d.peak_memory_gb > 0) agg[d.model].mem.push(d.peak_memory_gb);
+      if (!agg[d.model].byRt[d.runtime]) agg[d.model].byRt[d.runtime] = [];
+      agg[d.model].byRt[d.runtime].push(d.score);
     });
 
-    const models = Object.values(agg).map(a => ({
-      model: a.model,
-      score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
-      wallLlama: a.wall.llamacpp || 0,
-      wallMlx: a.wall.mlx || 0,
-      wallTotal: (a.wall.llamacpp || 0) + (a.wall.mlx || 0),
-      mem: a.mem.length ? Math.max(...a.mem) : 0,
-    })).sort((a, b) => b.score - a.score);
+    const models = Object.values(agg).map(a => {
+      const avgRt = {};
+      for (const rt in a.byRt) {
+        const arr = a.byRt[rt];
+        avgRt[rt] = arr.reduce((s, v) => s + v, 0) / arr.length;
+      }
+      let bestRt = null, bestScore = -1;
+      for (const rt in avgRt) { if (avgRt[rt] > bestScore) { bestScore = avgRt[rt]; bestRt = rt; } }
+      return {
+        model: a.model,
+        score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
+        wall: a.wall,
+        mem: a.mem.length ? Math.max(...a.mem) : 0,
+        bestRt: bestRt,
+      };
+    }).sort((a, b) => b.score - a.score);
 
     if (models.length === 0) return card;
 
-    const maxWall = Math.max(...models.map(m => m.wallTotal));
+    const rtColor = { llamacpp: '#3b82f6', mlx: '#22c55e' };
+    const margin = { top: 10, right: 60, bottom: 25, left: 130 };
+    const rowH = 18;
+    const width = 420;
+    const height = margin.top + margin.bottom + models.length * rowH;
+    const innerW = width - margin.left - margin.right;
+    const innerH = height - margin.top - margin.bottom;
+
+    const svg = d3.create('svg').attr('viewBox', '0 0 ' + width + ' ' + height);
+    const g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+    const x = d3.scaleLinear().domain([0, 1]).range([0, innerW]);
+    const y = d3.scaleBand().domain(models.map(m => m.model)).range([0, innerH]).padding(0.2);
     const maxMem = Math.max(...models.map(m => m.mem), 1);
-    const minBarH = 10, maxBarH = 40;
+    const memR = d3.scaleSqrt().domain([0, maxMem]).range([2, 6]);
 
-    const container = document.createElement('div');
-    models.forEach(m => {
-      const row = document.createElement('div');
-      row.className = 'leaderboard-row';
+    // X axis (score 0-100%)
+    g.append('g').attr('transform', 'translate(0,' + innerH + ')')
+      .call(d3.axisBottom(x).ticks(5).tickFormat(d => Math.round(d * 100) + '%'))
+      .selectAll('text').style('font-size', '9px');
 
-      const name = document.createElement('div');
-      name.className = 'leaderboard-name';
-      name.textContent = m.model;
-      name.title = m.model;
-      row.appendChild(name);
+    // Grid
+    g.append('g').selectAll('line').data(x.ticks(5)).join('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH)
+      .attr('stroke', '#e5e7eb').attr('stroke-width', 0.5);
 
-      const bars = document.createElement('div');
-      bars.className = 'leaderboard-bars';
+    // Y axis labels (model names)
+    g.append('g').selectAll('text').data(models).join('text')
+      .attr('x', -6).attr('y', m => y(m.model) + y.bandwidth() / 2 + 3)
+      .attr('text-anchor', 'end').style('font-size', '10px').style('fill', '#374151')
+      .text(m => m.model.length > 18 ? m.model.slice(0, 17) + '\u2026' : m.model)
+      .append('title').text(m => m.model);
 
-      const barH = m.mem > 0 ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH)) : minBarH;
-      const logMin = Math.log(60), logMax = Math.log(5400);
-      const clamped = Math.max(60, Math.min(5400, m.wallTotal));
-      const widthPct = (Math.log(clamped) - logMin) / (logMax - logMin) * 90;
-      const llamaPct = m.wallTotal > 0 ? (m.wallLlama / m.wallTotal) : 0.5;
+    // Tooltip
+    const tooltip = d3.select(document.createElement('div'))
+      .style('position', 'absolute').style('background', '#1f2937').style('color', '#fff')
+      .style('padding', '6px 10px').style('border-radius', '6px').style('font-size', '11px')
+      .style('pointer-events', 'none').style('opacity', 0).style('white-space', 'nowrap')
+      .style('z-index', 1000);
 
-      if (m.wallLlama > 0) {
-        const llamaBar = document.createElement('div');
-        llamaBar.style.cssText = 'height:' + barH + 'px;width:' + (widthPct * llamaPct).toFixed(1) + '%;background:#3b82f6;border-radius:3px 0 0 3px;';
-        bars.appendChild(llamaBar);
-      }
-      if (m.wallMlx > 0) {
-        const mlxBar = document.createElement('div');
-        const hasLlama = m.wallLlama > 0;
-        mlxBar.style.cssText = 'height:' + barH + 'px;width:' + (widthPct * (1 - llamaPct)).toFixed(1) + '%;background:#22c55e;border-radius:' + (hasLlama ? '0 3px 3px 0' : '3px') + ';';
-        bars.appendChild(mlxBar);
-      }
-      row.appendChild(bars);
+    // Bars
+    g.selectAll('rect.bar').data(models).join('rect')
+      .attr('class', 'bar')
+      .attr('x', 0).attr('y', m => y(m.model))
+      .attr('width', m => x(m.score)).attr('height', y.bandwidth())
+      .attr('fill', m => rtColor[m.bestRt] || '#9ca3af')
+      .attr('opacity', 0.75)
+      .on('mouseenter', function(event, m) {
+        d3.select(this).attr('opacity', 1);
+        tooltip.style('opacity', 1).html(
+          m.model + '<br>'
+          + 'score: ' + Math.round(m.score * 100) + '%<br>'
+          + 'best runtime: ' + (m.bestRt || 'n/a') + '<br>'
+          + 'wall: ' + Math.round(m.wall) + 's'
+          + (m.mem > 0 ? '<br>peak mem: ' + m.mem.toFixed(1) + ' GB' : '')
+        );
+      })
+      .on('mousemove', function(event) {
+        tooltip.style('left', (event.pageX + 12) + 'px').style('top', (event.pageY - 12) + 'px');
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('opacity', 0.75);
+        tooltip.style('opacity', 0);
+      });
 
-      const stats = document.createElement('div');
-      stats.className = 'leaderboard-stats';
-      const pct = Math.round(m.score * 100);
-      const totalSec = Math.round(m.wallTotal);
-      const hrs = Math.floor(totalSec / 3600);
-      const min = Math.floor((totalSec % 3600) / 60);
-      const sec = totalSec % 60;
-      const timeStr = hrs > 0 ? hrs + 'h ' + min + 'm ' + sec + 's' : min > 0 ? min + 'm ' + sec + 's' : sec + 's';
-      const memStr = m.mem > 0 ? m.mem.toFixed(0) + 'G' : '';
-      stats.innerHTML = '<div class="score" style="color:' + scoreColor(pct) + '">' + pct + '%</div>'
-        + '<div class="meta">' + timeStr + (memStr ? ' \u00b7 ' + memStr : '') + '</div>';
-      row.appendChild(stats);
+    // Score labels
+    g.selectAll('text.score').data(models).join('text')
+      .attr('class', 'score')
+      .attr('x', m => x(m.score) + 4)
+      .attr('y', m => y(m.model) + y.bandwidth() / 2 + 3)
+      .style('font-size', '10px').style('font-weight', '600').style('fill', '#374151')
+      .text(m => Math.round(m.score * 100) + '%');
 
-      container.appendChild(row);
-    });
+    // Memory markers (small circles at right edge)
+    g.selectAll('circle.mem').data(models.filter(m => m.mem > 0)).join('circle')
+      .attr('class', 'mem')
+      .attr('cx', innerW + 30)
+      .attr('cy', m => y(m.model) + y.bandwidth() / 2)
+      .attr('r', m => memR(m.mem))
+      .attr('fill', '#6b7280').attr('opacity', 0.6)
+      .append('title').text(m => m.mem.toFixed(1) + ' GB peak memory');
 
-    card.appendChild(container);
+    // Legend
+    const leg = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + (height - 8) + ')');
+    leg.append('circle').attr('cx', 0).attr('cy', 0).attr('r', 4).attr('fill', '#3b82f6').attr('opacity', 0.75);
+    leg.append('text').attr('x', 8).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('llamacpp');
+    leg.append('circle').attr('cx', 62).attr('cy', 0).attr('r', 4).attr('fill', '#22c55e').attr('opacity', 0.75);
+    leg.append('text').attr('x', 70).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('mlx');
+    leg.append('circle').attr('cx', 110).attr('cy', 0).attr('r', 5).attr('fill', '#6b7280').attr('opacity', 0.6);
+    leg.append('text').attr('x', 118).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('peak mem');
+
+    card.appendChild(svg.node());
+    document.body.appendChild(tooltip.node());
     return card;
   }
 

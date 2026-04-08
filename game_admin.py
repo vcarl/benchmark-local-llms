@@ -2,6 +2,7 @@
 
 Python port of smbench/src/lib/admin-client.ts. Stdlib-only to match runner.py.
 """
+from __future__ import annotations
 
 import json
 import urllib.error
