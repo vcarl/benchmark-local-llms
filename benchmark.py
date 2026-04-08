@@ -49,11 +49,6 @@ from runner import (
 from report import (
     print_header,
     print_result_summary,
-    print_summary_table,
-    print_comparison_table,
-    print_score_summary,
-    print_output_comparison,
-    print_detailed_results,
     save_markdown_report,
     save_html_report,
 )
@@ -426,21 +421,9 @@ def main():
                 if mlx_proc:
                     stop_mlx_subprocess(mlx_proc)
 
-    # Final summary
-    print_header("SUMMARY")
-    print_summary_table(results)
-
-    print_header("PERFORMANCE")
-    print_comparison_table(results)
-
-    print_header("SCORES BY CATEGORY")
-    print_score_summary(results)
-
-    # Show detailed results for each prompt
-    print_header("DETAILED RESULTS")
-    print_detailed_results(results, prompts)
-
-    # Save
+    # Save (final summaries are written to the markdown/HTML reports;
+    # per-result lines were already printed during the run, so no extra
+    # stdout dump here)
     if not args.no_save:
         save_markdown_report(results, RESULTS_DIR, prompts)
         # HTML report uses all cached execution data, scored fresh
