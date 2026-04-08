@@ -35,6 +35,7 @@ def test_run_game_scenario_populates_benchmark_result():
             scenario=_scenario(),
             commander_model_string="ollama/qwen2.5-7b",
             scenario_md_path="/fake/s1.md",
+            llm_base_url="http://127.0.0.1:18080/v1",
         )
 
     assert isinstance(r, BenchmarkResult)

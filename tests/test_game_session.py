@@ -48,6 +48,7 @@ def test_run_game_session_completes_normally(monkeypatch):
             model_name="qwen-7b",
             commander_model_string="ollama/qwen-7b",
             scenario_path="/tmp/whatever.yaml",
+            llm_base_url="http://127.0.0.1:18080/v1",
         )
 
     assert isinstance(result, GameSessionResult)
@@ -84,6 +85,7 @@ def test_run_game_session_trips_tool_call_cutoff():
             model_name="qwen-7b",
             commander_model_string="ollama/qwen-7b",
             scenario_path="/tmp/whatever.yaml",
+            llm_base_url="http://127.0.0.1:18080/v1",
         )
 
     assert result.termination_reason == "tool_calls"

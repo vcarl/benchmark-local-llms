@@ -39,8 +39,10 @@ from runner import (
     is_llamacpp_cached, is_mlx_cached,
     start_llamacpp_server, stop_llamacpp_server, run_llamacpp_prompt,
     start_mlx_subprocess, stop_mlx_subprocess, run_mlx_prompt,
+    start_mlx_server, stop_mlx_server,
     run_game_scenario,
     download_models,
+    LLAMACPP_PORT, MLX_SERVER_PORT,
 )
 from report import (
     print_header,
@@ -299,44 +301,71 @@ def main():
                         results.append(r)
                         append_result(r)
 
-                # ── Game scenarios (llama.cpp only — commander needs OpenAI-compat HTTP) ──
-                if scenarios and runtime == "llamacpp":
-                    print(f"\n  ── Game Scenarios ({len(scenarios)}) ──", flush=True)
-                    for scenario in scenarios:
-                        scenario_md_path = str(Path(args.scenario_md_dir) / f"{scenario.fixture}.md")
+                # ── Game scenarios ──
+                if scenarios:
+                    # For MLX, swap the stdin/stdout subprocess for an HTTP server
+                    mlx_http_proc = None
+                    if runtime == "mlx":
+                        if mlx_proc is not None:
+                            stop_mlx_subprocess(mlx_proc)
+                            mlx_proc = None
+                        mlx_http_proc = start_mlx_server(model_cfg)
+                        if mlx_http_proc is None:
+                            print(f"    MLX server failed to start, skipping scenarios.", flush=True)
+                            scenarios_iter = []
+                        else:
+                            scenarios_iter = scenarios
+                    else:
+                        scenarios_iter = scenarios
 
-                        # Cache check using scenario_hash
-                        cached = existing.get(scenario.name)
-                        s_hash = compute_scenario_hash(scenario)
-                        if cached and cached.scenario_hash == s_hash:
-                            print(f"  [cached] scenario:{scenario.name}")
-                            # Cached results don't have a live GameSession; we can't
-                            # rescore via game_scorers without one. The cached score
-                            # was computed at run time and persisted via score_details.
-                            results.append(cached)
-                            continue
+                    if runtime == "llamacpp":
+                        scenario_base_url = f"http://127.0.0.1:{LLAMACPP_PORT}/v1"
+                    else:
+                        scenario_base_url = f"http://127.0.0.1:{MLX_SERVER_PORT}/v1"
 
-                        commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['name']}"
-                        r = run_game_scenario(
-                            model_cfg=model_cfg,
-                            scenario=scenario,
-                            commander_model_string=commander_model_string,
-                            scenario_md_path=scenario_md_path,
-                        )
-                        # Synthesize the scorer dispatch dict expected by score_result
-                        pcfg = {
-                            "scorer": "game",
-                            "game_scorer": scenario.scorer,
-                            "scorer_params": scenario.scorer_params,
-                            "category": "game",
-                            "tier": 0,
-                            "style": "game",
-                        }
-                        r.prompt_name = scenario.name
-                        score_result(r, pcfg)
-                        print_result_summary(r)
-                        results.append(r)
-                        append_result(r)
+                    if scenarios_iter:
+                        print(f"\n  ── Game Scenarios ({len(scenarios_iter)}) ──", flush=True)
+                    try:
+                        for scenario in scenarios_iter:
+                            scenario_md_path = str(Path(args.scenario_md_dir) / f"{scenario.fixture}.md")
+
+                            # Cache check using scenario_hash
+                            cached = existing.get(scenario.name)
+                            s_hash = compute_scenario_hash(scenario)
+                            if cached and cached.scenario_hash == s_hash:
+                                print(f"  [cached] scenario:{scenario.name}")
+                                results.append(cached)
+                                continue
+
+                            if runtime == "mlx":
+                                commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['mlx_model']}"
+                            else:
+                                commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['name']}"
+                            r = run_game_scenario(
+                                model_cfg=model_cfg,
+                                scenario=scenario,
+                                commander_model_string=commander_model_string,
+                                scenario_md_path=scenario_md_path,
+                                llm_base_url=scenario_base_url,
+                                runtime=runtime,
+                            )
+                            # Synthesize the scorer dispatch dict expected by score_result
+                            pcfg = {
+                                "scorer": "game",
+                                "game_scorer": scenario.scorer,
+                                "scorer_params": scenario.scorer_params,
+                                "category": "game",
+                                "tier": 0,
+                                "style": "game",
+                            }
+                            r.prompt_name = scenario.name
+                            score_result(r, pcfg)
+                            print_result_summary(r)
+                            results.append(r)
+                            append_result(r)
+                    finally:
+                        if mlx_http_proc is not None:
+                            stop_mlx_server(mlx_http_proc)
 
             except KeyboardInterrupt:
                 print(f"\n\n  Interrupted! Saving completed results...", flush=True)

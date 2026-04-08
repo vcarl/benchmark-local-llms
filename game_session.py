@@ -45,6 +45,7 @@ def run_game_session(
     model_name: str,
     commander_model_string: str,
     scenario_path: str,
+    llm_base_url: str = LLAMACPP_BASE_URL,
 ) -> GameSessionResult:
     """Run one scenario × model game session end to end.
 
@@ -88,7 +89,7 @@ def run_game_session(
             server_url=server_url,
             session=session_id,
             llm_base_url_env=COMMANDER_LOCAL_BASE_URL_ENV,
-            llm_base_url=LLAMACPP_BASE_URL,
+            llm_base_url=llm_base_url,
         )
 
         for event in iter_events(cmd_proc):

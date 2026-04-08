@@ -370,6 +370,8 @@ def run_game_scenario(
     scenario: Scenario,
     commander_model_string: str,
     scenario_md_path: str,
+    llm_base_url: str,
+    runtime: str = "llamacpp",
 ) -> BenchmarkResult:
     """Run a SpaceMolt scenario against the already-running llama-server.
 
@@ -379,7 +381,7 @@ def run_game_scenario(
     """
     result = BenchmarkResult(
         model=model_cfg["name"],
-        runtime="llamacpp",
+        runtime=runtime,
         prompt_name=scenario.name,
     )
     result.scenario_name = scenario.name
@@ -390,6 +392,7 @@ def run_game_scenario(
         model_name=model_cfg["name"],
         commander_model_string=commander_model_string,
         scenario_path=scenario_md_path,
+        llm_base_url=llm_base_url,
     )
 
     result.wall_time_sec = session.elapsed_sec
@@ -492,6 +495,55 @@ def start_mlx_subprocess(model_cfg: dict) -> Optional[subprocess.Popen]:
     proc.kill()
     proc.wait()
     return None
+
+
+# ── MLX HTTP server (for game scenarios — commander needs HTTP) ────────────
+
+MLX_SERVER_PORT = 18081
+
+
+def start_mlx_server(model_cfg: dict) -> Optional[subprocess.Popen]:
+    """Start `python -m mlx_lm.server` and wait until ready. Returns process or None.
+
+    This is separate from the stdin/stdout MLX subprocess used for prompts.
+    Game scenarios need an HTTP endpoint for commander to talk to.
+    """
+    if not model_cfg.get("mlx_model"):
+        print(f"    No MLX model available for {model_cfg['name']}.", flush=True)
+        return None
+
+    print(f"    Starting mlx_lm.server for {model_cfg['name']}...", flush=True)
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "mlx_lm.server",
+            "--model", model_cfg["mlx_model"],
+            "--host", "127.0.0.1",
+            "--port", str(MLX_SERVER_PORT),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+    if _wait_for_server(MLX_SERVER_PORT, timeout=600):
+        print(f"    MLX server ready.", flush=True)
+        return proc
+    else:
+        stderr = proc.stderr.read().decode() if proc.stderr else ""
+        print(f"    MLX server failed to start: {stderr[-300:]}", flush=True)
+        proc.kill()
+        proc.wait()
+        return None
+
+
+def stop_mlx_server(proc: subprocess.Popen) -> None:
+    """Stop a running mlx_lm.server."""
+    print(f"    Stopping MLX server...", flush=True)
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def stop_mlx_subprocess(proc: subprocess.Popen) -> None:
@@ -636,17 +688,90 @@ print("OK")
         return False
 
 
-def download_models(models: list[dict], runtimes: list[str]):
-    """Download all models for the selected runtimes."""
+def _fetch_llamacpp_files(model_cfg: dict) -> bool:
+    """Pure file fetch for a llama.cpp GGUF (no model load). Returns True on success."""
+    from huggingface_hub import snapshot_download
+    repo = model_cfg["llamacpp_hf"]
+    quant = model_cfg["llamacpp_quant"].lower()
+    try:
+        snapshot_download(
+            repo_id=repo,
+            allow_patterns=[f"*{quant}*.gguf", f"*{quant.upper()}*.gguf"],
+        )
+        return True
+    except Exception as e:
+        print(f"  [fetch fail] llamacpp {repo}: {e}")
+        return False
+
+
+def _fetch_mlx_files(model_cfg: dict) -> bool:
+    """Pure file fetch for an MLX repo (no model load). Returns True on success."""
+    from huggingface_hub import snapshot_download
+    model_id = model_cfg.get("mlx_model")
+    if not model_id:
+        return False
+    try:
+        snapshot_download(repo_id=model_id)
+        return True
+    except Exception as e:
+        print(f"  [fetch fail] mlx {model_id}: {e}")
+        return False
+
+
+def download_models(models: list[dict], runtimes: list[str], max_workers: int = 4):
+    """Two-pass download: parallel file fetches, then serial verify-by-load.
+
+    Pass 1 uses huggingface_hub.snapshot_download in a thread pool — pure network,
+    no model load, so we don't blow up RAM. Pass 2 runs the existing
+    download_llamacpp_model / download_mlx_model entry points which actually
+    instantiate the model to confirm it's usable.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Build list of (model_cfg, runtime) pairs that need fetching
+    to_fetch: list[tuple[dict, str]] = []
+    for model_cfg in models:
+        for runtime in runtimes:
+            if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
+                to_fetch.append((model_cfg, runtime))
+            elif runtime == "mlx" and model_cfg.get("mlx_model") and not is_mlx_cached(model_cfg):
+                to_fetch.append((model_cfg, runtime))
+
     total = len(models) * len(runtimes)
+
+    if to_fetch:
+        print(f"Pass 1: fetching {len(to_fetch)} model(s) in parallel (max {max_workers} workers)...\n")
+        fetch_failed: set[tuple[str, str]] = set()
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {}
+            for model_cfg, runtime in to_fetch:
+                fn = _fetch_llamacpp_files if runtime == "llamacpp" else _fetch_mlx_files
+                fut = ex.submit(fn, model_cfg)
+                futures[fut] = (model_cfg, runtime)
+                print(f"  queued: {model_cfg['name']} / {runtime}")
+            for fut in as_completed(futures):
+                model_cfg, runtime = futures[fut]
+                ok = fut.result()
+                tag = "OK" if ok else "FAIL"
+                print(f"  [{tag}] {model_cfg['name']} / {runtime}")
+                if not ok:
+                    fetch_failed.add((model_cfg["name"], runtime))
+        print()
+    else:
+        print("Pass 1: all models already cached, skipping fetch.\n")
+        fetch_failed = set()
+
+    # Pass 2: serial verify (load model briefly to confirm it works)
+    print("Pass 2: verifying models (serial load)...\n")
     succeeded = 0
     failed = 0
-
-    print(f"Downloading {len(models)} models for {len(runtimes)} runtime(s)...\n")
-
     for model_cfg in models:
         print(f"{model_cfg['name']}:")
         for runtime in runtimes:
+            if (model_cfg["name"], runtime) in fetch_failed:
+                print(f"  {runtime}: skipped (fetch failed)")
+                failed += 1
+                continue
             if runtime == "llamacpp":
                 ok = download_llamacpp_model(model_cfg)
             elif runtime == "mlx":
