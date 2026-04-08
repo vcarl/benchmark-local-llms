@@ -47,6 +47,9 @@ def start_gameserver(
         "PORT": str(port),
         "ADMIN_API_TOKEN": admin_token,
         "TICK_RATE": str(tick_rate),
+        # Tells the gameserver to relax registration-code checks so the
+        # benchmark agent can register without a Clerk-issued code.
+        "BENCHMARK_MODE": "1",
     }
     print(f"    Starting gameserver on port {port}...", flush=True)
     proc = subprocess.Popen(

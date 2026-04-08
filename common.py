@@ -25,11 +25,10 @@ RESULTS_DIR = Path(__file__).parent / "benchmark-results"  # generated reports (
 
 # ── External tool paths (gameserver / commander) ───────────────────────────
 
-# Override via env vars for CI / alternate checkouts.
-GAMESERVER_BINARY = Path(os.environ.get(
-    "TESTBENCH_GAMESERVER_BINARY",
-    str(Path.home() / "workspace" / "sm-plans" / "bin" / "spacemolt-server"),
-))
+# Configured via env vars — no hardcoded defaults. Validated at startup
+# by benchmark.py when scenarios are going to run.
+_GAMESERVER_BINARY_ENV = os.environ.get("TESTBENCH_GAMESERVER_BINARY")
+GAMESERVER_BINARY = Path(_GAMESERVER_BINARY_ENV) if _GAMESERVER_BINARY_ENV else None
 COMMANDER_DIR = Path(os.environ.get(
     "TESTBENCH_COMMANDER_DIR",
     str(Path.home() / "workspace" / "commander"),
@@ -43,13 +42,20 @@ COMMANDER_DIR = Path(os.environ.get(
 #       http://localhost:11434/v1. Setting OLLAMA_BASE_URL=http://127.0.0.1:18080/v1
 #       points commander at testbench's llama-server (also OpenAI-compatible).
 #   base url env var: "OLLAMA_BASE_URL"
-#   model string format: "ollama/<model-id>" (e.g. "ollama/qwen2.5-7b-instruct").
-#       parseModelString splits on the first "/"; the modelId is forwarded as-is
-#       to the OpenAI /v1/chat/completions endpoint, where llama-server ignores
-#       it (it serves whatever model it was launched with).
-#   api key required: no — auto-set to "local" for ollama (line 95).
-COMMANDER_LOCAL_PROVIDER = "ollama"
-COMMANDER_LOCAL_BASE_URL_ENV = "OLLAMA_BASE_URL"
+# We intentionally use a provider name that is NOT in pi-ai's built-in known-
+# providers list ("ollama", "lmstudio", "vllm", etc. are all known). For known
+# providers, commander's resolveModel() clones a registered model and ignores
+# the *_BASE_URL env var, so OLLAMA_BASE_URL=... is silently dropped and
+# commander tries to hit the default localhost:11434, producing zero GPU
+# activity. Using an unknown provider name forces resolveModel() into its
+# custom branch (commander/src/model.ts:90+), which honors
+# OPENAI_COMPAT_BASE_URL / OPENAI_COMPAT_API_KEY.
+#
+#   model string format: "testbench/<model-id>"
+#   api key: set to "local" by commander when OPENAI_COMPAT_API_KEY is unset,
+#            but we pass "local" explicitly to be safe.
+COMMANDER_LOCAL_PROVIDER = "testbench"
+COMMANDER_LOCAL_BASE_URL_ENV = "OPENAI_COMPAT_BASE_URL"
 
 # Models to benchmark. Each entry has:
 #   - name: display name
@@ -238,7 +244,7 @@ MODELS = [
         "size_class": "small",
         "llamacpp_hf": "bartowski/deepseek-coder-33b-instruct-GGUF",
         "llamacpp_quant": "Q4_K_M",
-        "mlx_model": "mlx-community/deepseek-coder-33b-instruct-4bit",
+        "mlx_model": "mlx-community/deepseek-coder-33b-instruct-hf-4bit-mlx",
     },
     {
         "name": "DeepSeek R1 Distill Llama 70B",
@@ -246,6 +252,48 @@ MODELS = [
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF",
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit",
+    },
+    {
+        "name": "GPT-OSS 20B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gpt-oss-20b-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/gpt-oss-20b-MXFP4-Q4",
+    },
+    {
+        "name": "Gemma 4 E4B Instruct",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gemma-4-E4B-it-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/gemma-4-e4b-it-4bit",
+    },
+    {
+        "name": "Gemma 4 26B-A4B Instruct (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gemma-4-26B-A4B-it-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/gemma-4-26b-a4b-it-4bit",
+    },
+    {
+        "name": "Gemma 4 31B Instruct",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gemma-4-31B-it-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/gemma-4-31b-it-4bit",
+    },
+    {
+        "name": "GLM 4.7 Flash 31B-A3B (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/GLM-4.7-Flash-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/GLM-4.7-Flash-4bit",
+    },
+    {
+        "name": "Phi-4 14B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/phi-4-GGUF",
+        "llamacpp_quant": "Q4_K_M",
+        "mlx_model": "mlx-community/phi-4-4bit",
     },
     # {
     #     "name": "DeepSeek R1 671B (MoE, 1.58-bit)",
@@ -508,6 +556,11 @@ class Scenario:
     cutoffs: ScenarioCutoffs
     scorer_params: dict = field(default_factory=dict)
     commander_max_turns: int = 250
+    # Difficulty tier, parallel to the prompt tier system:
+    #   1 = basic functionality  (expected attainable by all local models)
+    #   2 = advanced behaviors   (expected attainable by stronger local models)
+    #   3 = complex strategy     (likely requires a richer harness than Commander)
+    tier: int = 1
 
     @property
     def llm_player_id(self) -> str:
@@ -554,6 +607,7 @@ def load_scenarios(scenarios_dir: Path = SCENARIOS_DIR) -> list[Scenario]:
             scorer_params=data.get("scorer_params", {}),
             cutoffs=cutoffs,
             commander_max_turns=int(data.get("commander", {}).get("max_turns", 250)),
+            tier=int(data.get("tier", 1)),
         ))
     return scenarios
 

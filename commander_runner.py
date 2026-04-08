@@ -8,9 +8,10 @@ cutoffs and decides when to terminate the process.
 import json
 import os
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator, Optional, TextIO
 
 
 @dataclass
@@ -46,6 +47,29 @@ def iter_events(proc: subprocess.Popen) -> Iterator[CommanderEvent]:
         )
 
 
+def drain_stderr(proc: subprocess.Popen, sink: TextIO) -> threading.Thread:
+    """Continuously copy `proc.stderr` to `sink` on a background thread.
+
+    Required because commander can log heavily to stderr; if we don't drain
+    the PIPE the OS pipe buffer (~64KB) fills and commander blocks on write,
+    which looks like "commander is running but doing nothing" from the
+    watchdog's perspective.
+    """
+    def _pump():
+        if proc.stderr is None:
+            return
+        try:
+            for line in proc.stderr:
+                sink.write(line)
+                sink.flush()
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_pump, daemon=True)
+    t.start()
+    return t
+
+
 def spawn_commander(
     commander_dir: Path,
     model: str,
@@ -67,6 +91,9 @@ def spawn_commander(
     """
     env = {**os.environ}
     env[llm_base_url_env] = llm_base_url
+    # Commander's custom-provider branch also reads OPENAI_COMPAT_API_KEY;
+    # llama.cpp doesn't check it but the branch errors out if it's missing.
+    env.setdefault("OPENAI_COMPAT_API_KEY", "local")
     if extra_env:
         env.update(extra_env)
     if "PATH" not in env:

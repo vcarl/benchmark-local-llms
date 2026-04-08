@@ -21,6 +21,8 @@ from game_session import run_game_session
 
 @pytest.mark.integration
 def test_bootstrap_grind_smoke():
+    if GAMESERVER_BINARY is None:
+        pytest.skip("TESTBENCH_GAMESERVER_BINARY not set")
     if not GAMESERVER_BINARY.exists():
         pytest.skip(f"gameserver binary not at {GAMESERVER_BINARY}")
     if not COMMANDER_DIR.exists():

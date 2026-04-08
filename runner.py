@@ -96,13 +96,29 @@ def run_code_with_tests(code: str, test_code: str, timeout: int = 10) -> tuple[b
 
 
 _THINK_RE = re.compile(r"^.*?</think>\s*", re.DOTALL)
+_HARMONY_FINAL_RE = re.compile(
+    r"<\|channel\|>\s*final\s*<\|message\|>(.*?)(?:<\|end\|>|<\|return\|>|\Z)",
+    re.DOTALL,
+)
+_HARMONY_TOKEN_RE = re.compile(r"<\|[^|]*\|>")
 
 
 # ── Scoring ────────────────────────────────────────────────────────────────
 
 def _strip_thinking_tags(text: str) -> str:
-    """Remove <think>...</think> blocks produced by reasoning models (e.g. DeepSeek R1)."""
-    return _THINK_RE.sub("", text)
+    """Strip reasoning/meta tokens so scorers see only the final answer.
+
+    Handles:
+      - <think>...</think> blocks (DeepSeek R1 style)
+      - gpt-oss harmony channels: extracts content inside
+        <|channel|>final<|message|>...<|end|>, then removes any stray
+        <|...|> control tokens.
+    """
+    m = _HARMONY_FINAL_RE.search(text)
+    if m:
+        text = m.group(1)
+    text = _HARMONY_TOKEN_RE.sub("", text)
+    return _THINK_RE.sub("", text).strip()
 
 
 def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
@@ -290,25 +306,36 @@ def _chat_completion(port: int, system: str, user: str, max_tokens: int,
 
 
 def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
-    """Start llama-server and wait until ready. Returns the process or None on failure."""
+    """Start llama-server and wait until ready. Returns the process or None on failure.
+
+    Server output is tee'd to /tmp/testbench-llamacpp.log so we can inspect
+    request-level errors (e.g. 400s from malformed bodies) after the fact.
+    """
     hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
     server_cmd = [
         str(LLAMA_SERVER),
         "-hf", hf_spec,
         "--host", "127.0.0.1",
         "--port", str(LLAMACPP_PORT),
-        "--log-disable",
+        "--verbose",  # log request bodies/headers to diagnose 400s from commander
     ]
 
-    print(f"    Starting llama-server for {model_cfg['name']}...", flush=True)
-    proc = subprocess.Popen(server_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    log_path = Path("/tmp/testbench-llamacpp.log")
+    print(f"    Starting llama-server for {model_cfg['name']}... (logs: {log_path})", flush=True)
+    log_fh = open(log_path, "w")
+    proc = subprocess.Popen(server_cmd, stdout=log_fh, stderr=subprocess.STDOUT)
+    proc._log_fh = log_fh  # keep handle alive; closed by stop_llamacpp_server
 
     if _wait_for_server(LLAMACPP_PORT):
         print(f"    Server ready.", flush=True)
         return proc
     else:
-        stderr = proc.stderr.read().decode() if proc.stderr else ""
-        print(f"    Server failed to start: {stderr[-200:]}", flush=True)
+        try:
+            with open(log_path) as f:
+                tail = f.read()[-400:]
+        except OSError:
+            tail = ""
+        print(f"    Server failed to start. Tail of {log_path}:\n{tail}", flush=True)
         proc.kill()
         proc.wait()
         return None
@@ -323,6 +350,12 @@ def stop_llamacpp_server(proc: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait()
+    log_fh = getattr(proc, "_log_fh", None)
+    if log_fh is not None:
+        try:
+            log_fh.close()
+        except Exception:
+            pass
 
 
 def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,

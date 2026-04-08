@@ -479,16 +479,107 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     });
     const styles = Object.keys(byStyle).sort();
 
-    let html = '<div class="detail-title">' + model + ' &mdash; ' + category + ' &mdash; Tier ' + tier + ' &mdash; ' + runtime + '</div>';
-
-    // Performance summary (aggregate across matches)
+    // Aggregate stats used by both rendering branches
     const totalWall = matches.reduce((s, d) => s + (d.wall_time_sec || 0), 0);
     const genTpsVals = matches.map(d => d.generation_tps || 0).filter(v => v > 0);
     const meanGenTps = genTpsVals.length ? genTpsVals.reduce((s, v) => s + v, 0) / genTpsVals.length : 0;
     const totalGenTokens = matches.reduce((s, d) => s + (d.generation_tokens || 0), 0);
     const avgScore = matches.reduce((s, d) => s + (d.score || 0), 0) / matches.length;
-    // Derived: score per 1k generated tokens (efficiency — higher is better)
     const scorePerKTok = totalGenTokens > 0 ? (avgScore * 1000 / totalGenTokens) : 0;
+
+    // Scenario branch: game category OR any match has a scenario_name
+    const isScenario = category === 'game' || matches.some(d => d.scenario_name);
+
+    if (isScenario) {
+      const firstScenario = (matches.find(d => d.scenario_name) || {}).scenario_name || category;
+      let html = '<div class="detail-title">' + escapeHtml(model) + ' &mdash; ' + escapeHtml(firstScenario) + ' &mdash; Tier ' + tier + ' &mdash; ' + escapeHtml(runtime) + '</div>';
+
+      const totalToolCalls = matches.reduce((s, d) => s + (d.tool_call_count || 0), 0);
+      const tokensPerToolCall = totalToolCalls > 0 ? (totalGenTokens / totalToolCalls) : 0;
+
+      // Best (lowest) leaderboard rank across this model's runs. Smaller is
+      // better; omit if the gameserver didn't provide one.
+      const ranks = matches
+        .map(d => (d.final_state_summary && d.final_state_summary.leaderboard_rank) || null)
+        .filter(r => r != null && r > 0);
+      const bestRank = ranks.length ? Math.min(...ranks) : null;
+
+      html += '<div style="font-size:11px;color:#6b7280;margin-bottom:14px;line-height:1.5;">'
+        + '<strong style="color:#374151;">Performance:</strong> '
+        + 'total wall ' + totalWall.toFixed(1) + 's '
+        + '\u00b7 mean gen ' + meanGenTps.toFixed(1) + ' t/s '
+        + '\u00b7 ' + totalGenTokens.toLocaleString() + ' gen tokens'
+        + (bestRank != null
+            ? '<br><strong style="color:#374151;">Best leaderboard rank:</strong> <span style="color:#3b82f6;font-weight:600;">#' + bestRank + '</span> <span style="opacity:0.7;">(by total wealth, lower is better)</span>'
+            : '')
+        + '<br><strong style="color:#374151;">Tokens / tool call:</strong> ' + (totalToolCalls > 0 ? tokensPerToolCall.toFixed(1) : 'n/a')
+        + ' <span style="opacity:0.7;">(verbosity per action across ' + totalToolCalls + ' tool calls)</span>'
+        + '<br><strong style="color:#374151;">Score / 1k gen tokens:</strong> ' + scorePerKTok.toFixed(3)
+        + ' <span style="opacity:0.7;">(efficiency: avg score per 1000 generated tokens)</span>'
+        + '</div>';
+
+      html += '<div class="prompt-results"><h4>Scenario Runs</h4>';
+      matches.forEach(d => {
+        const pct = Math.round((d.score || 0) * 100);
+        const reason = d.termination_reason || 'unknown';
+        const isCutoff = reason === 'wall_clock' || reason === 'tokens' || reason === 'tool_calls' || reason === 'error';
+        const badgeBg = isCutoff ? '#dc2626' : '#22c55e';
+        html += '<div class="prompt-result-row" style="flex-wrap:wrap;">';
+        html += '<div class="prompt-result-name">' + escapeHtml(d.scenario_name || d.prompt_name || '') + '</div>';
+        html += '<div class="prompt-result-score" style="color:' + scoreColor(pct) + '">' + pct + '%</div>';
+        html += '<div class="prompt-result-details">' + escapeHtml(d.score_details || '') + '</div>';
+        html += '</div>';
+        html += '<div style="font-size:11px;color:#6b7280;margin:4px 0 8px 0;line-height:1.6;">';
+        html += '<span style="display:inline-block;padding:2px 6px;border-radius:3px;background:' + badgeBg + ';color:#fff;font-weight:600;margin-right:6px;">' + escapeHtml(reason) + '</span>';
+        const rank = (d.final_state_summary && d.final_state_summary.leaderboard_rank) || null;
+        html += 'tool calls: <strong style="color:#374151;">' + (d.tool_call_count != null ? d.tool_call_count : 'n/a') + '</strong> '
+          + '\u00b7 wall: <strong style="color:#374151;">' + (d.wall_time_sec || 0).toFixed(1) + 's</strong> '
+          + '\u00b7 gen tokens: <strong style="color:#374151;">' + (d.generation_tokens || 0).toLocaleString() + '</strong> '
+          + '\u00b7 peak mem: <strong style="color:#374151;">' + (d.peak_memory_gb != null ? d.peak_memory_gb.toFixed(2) + ' GB' : 'n/a') + '</strong>'
+          + (rank != null && rank > 0 ? ' \u00b7 rank: <strong style="color:#3b82f6;">#' + rank + '</strong>' : '');
+        html += '</div>';
+
+        // Final state summary as key/value list
+        html += '<div style="font-size:11px;margin:0 0 8px 0;">';
+        html += '<div style="color:#374151;font-weight:600;margin-bottom:4px;">Final state:</div>';
+        const fss = d.final_state_summary;
+        if (fss == null) {
+          html += '<div style="color:#6b7280;">n/a</div>';
+        } else if (typeof fss === 'object') {
+          const keys = Object.keys(fss);
+          if (keys.length === 0) {
+            html += '<div style="color:#6b7280;">(empty)</div>';
+          } else {
+            html += '<ul style="list-style:none;padding:0;margin:0;">';
+            keys.forEach(k => {
+              const v = fss[k];
+              if (v !== null && typeof v === 'object') {
+                html += '<li style="margin:2px 0;"><span style="color:#3b82f6;font-weight:600;">' + escapeHtml(k) + ':</span> <pre style="display:block;background:#f3f4f6;padding:6px;border-radius:3px;margin:2px 0;white-space:pre-wrap;font-size:10px;">' + escapeHtml(JSON.stringify(v, null, 2)) + '</pre></li>';
+              } else {
+                html += '<li style="margin:2px 0;"><span style="color:#3b82f6;font-weight:600;">' + escapeHtml(k) + ':</span> <span style="color:#374151;">' + escapeHtml(String(v)) + '</span></li>';
+              }
+            });
+            html += '</ul>';
+          }
+        } else {
+          html += '<div style="color:#374151;">' + escapeHtml(String(fss)) + '</div>';
+        }
+        html += '</div>';
+
+        if (d.output) {
+          html += '<details style="margin-bottom:12px;"><summary style="cursor:pointer;font-size:11px;color:#3b82f6;">Model output</summary>';
+          html += '<div class="prompt-result-output">' + escapeHtml(d.output) + '</div>';
+          html += '</details>';
+        }
+      });
+      html += '</div>';
+
+      panel.innerHTML = html;
+      return;
+    }
+
+    let html = '<div class="detail-title">' + model + ' &mdash; ' + category + ' &mdash; Tier ' + tier + ' &mdash; ' + runtime + '</div>';
+
     html += '<div style="font-size:11px;color:#6b7280;margin-bottom:14px;line-height:1.5;">'
       + '<strong style="color:#374151;">Performance:</strong> '
       + 'total wall ' + totalWall.toFixed(1) + 's '
@@ -695,14 +786,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   function renderLeaderboard() {
     const card = document.createElement('div');
     card.className = 'chart-card';
-    card.innerHTML = '<h3>Model Leaderboard</h3><div class="chart-subtitle">Ranked by avg score. Bar color = best runtime. Marker = peak memory.</div>';
+    card.innerHTML = '<h3>Model Leaderboard</h3><div class="chart-subtitle">Ranked by avg score. Bar width = total wall time, height = peak memory, opacity = total tokens, color = best runtime.</div>';
 
-    // Aggregate per model: avg score, wall time, mem, per-runtime score
+    // Aggregate per model: avg score, wall time, mem, tokens, per-runtime score
     const agg = {};
     DATA.filter(d => checkedModels.has(d.model)).forEach(d => {
-      if (!agg[d.model]) agg[d.model] = { model: d.model, scores: [], wall: 0, mem: [], byRt: {} };
+      if (!agg[d.model]) agg[d.model] = { model: d.model, scores: [], wall: 0, mem: [], tokens: 0, byRt: {} };
       agg[d.model].scores.push(d.score);
       agg[d.model].wall += d.wall_time_sec;
+      agg[d.model].tokens += (d.prompt_tokens || 0) + (d.generation_tokens || 0);
       if (d.peak_memory_gb > 0) agg[d.model].mem.push(d.peak_memory_gb);
       if (!agg[d.model].byRt[d.runtime]) agg[d.model].byRt[d.runtime] = [];
       agg[d.model].byRt[d.runtime].push(d.score);
@@ -721,6 +813,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
         wall: a.wall,
         mem: a.mem.length ? Math.max(...a.mem) : 0,
+        tokens: a.tokens,
         bestRt: bestRt,
       };
     }).sort((a, b) => b.score - a.score);
@@ -728,8 +821,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     if (models.length === 0) return card;
 
     const rtColor = { llamacpp: '#3b82f6', mlx: '#22c55e' };
-    const margin = { top: 10, right: 60, bottom: 25, left: 130 };
-    const rowH = 18;
+    const margin = { top: 4, right: 60, bottom: 20, left: 130 };
+    const minBarH = 8;
+    const maxBarH = 32;
+    const rowGap = 2;
+    const rowH = maxBarH + rowGap;
     const width = 420;
     const height = margin.top + margin.bottom + models.length * rowH;
     const innerW = width - margin.left - margin.right;
@@ -738,14 +834,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     const svg = d3.create('svg').attr('viewBox', '0 0 ' + width + ' ' + height);
     const g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
-    const x = d3.scaleLinear().domain([0, 1]).range([0, innerW]);
-    const y = d3.scaleBand().domain(models.map(m => m.model)).range([0, innerH]).padding(0.2);
+    const maxWall = Math.max(...models.map(m => m.wall), 1);
+    const minWall = Math.min(...models.map(m => m.wall).filter(v => v > 0), maxWall);
+    const xMax = 9000; // 2.5h cap
+    const x = d3.scaleLog().domain([20, xMax]).range([0, innerW]).clamp(true);
+    const y = d3.scaleBand().domain(models.map(m => m.model)).range([0, innerH]).padding(0);
     const maxMem = Math.max(...models.map(m => m.mem), 1);
-    const memR = d3.scaleSqrt().domain([0, maxMem]).range([2, 6]);
+    const barH = d3.scaleSqrt().domain([0, maxMem]).range([minBarH, maxBarH]);
+    const barHeightFor = m => (m.mem > 0 ? barH(m.mem) : minBarH);
 
-    // X axis (score 0-100%)
+    const minTok = Math.min(...models.map(m => m.tokens));
+    const maxTok = Math.max(...models.map(m => m.tokens), 1);
+    const opacityScale = d3.scaleLinear().domain([minTok, maxTok]).range([0.2, 1.0]).clamp(true);
+    const opacityFor = m => (maxTok === minTok ? 1.0 : opacityScale(m.tokens));
+
+    const fmtDuration = s => {
+      s = Math.round(s);
+      if (s < 60) return s + 's';
+      if (s < 3600) return Math.floor(s / 60) + 'm' + (s % 60) + 's';
+      return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
+    };
+
+    // X axis (duration)
     g.append('g').attr('transform', 'translate(0,' + innerH + ')')
-      .call(d3.axisBottom(x).ticks(5).tickFormat(d => Math.round(d * 100) + '%'))
+      .call(d3.axisBottom(x).ticks(5).tickFormat(fmtDuration))
       .selectAll('text').style('font-size', '9px');
 
     // Grid
@@ -770,53 +882,47 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     // Bars
     g.selectAll('rect.bar').data(models).join('rect')
       .attr('class', 'bar')
-      .attr('x', 0).attr('y', m => y(m.model))
-      .attr('width', m => x(m.score)).attr('height', y.bandwidth())
+      .attr('x', 0).attr('y', m => y(m.model) + (y.bandwidth() - barHeightFor(m)) / 2)
+      .attr('width', m => x(m.wall)).attr('height', m => barHeightFor(m))
       .attr('fill', m => rtColor[m.bestRt] || '#9ca3af')
-      .attr('opacity', 0.75)
+      .attr('fill-opacity', m => opacityFor(m))
+      .attr('stroke', m => m.wall > xMax ? '#dc2626' : '#1f2937')
+      .attr('stroke-width', m => m.wall > xMax ? 1.5 : 0.5)
+      .attr('stroke-dasharray', m => m.wall > xMax ? '3,2' : null)
+      .attr('stroke-opacity', 1)
       .on('mouseenter', function(event, m) {
-        d3.select(this).attr('opacity', 1);
+        d3.select(this).attr('fill-opacity', 1);
         tooltip.style('opacity', 1).html(
           m.model + '<br>'
           + 'score: ' + Math.round(m.score * 100) + '%<br>'
-          + 'best runtime: ' + (m.bestRt || 'n/a') + '<br>'
-          + 'wall: ' + Math.round(m.wall) + 's'
-          + (m.mem > 0 ? '<br>peak mem: ' + m.mem.toFixed(1) + ' GB' : '')
+          + 'total wall: ' + fmtDuration(m.wall) + '<br>'
+          + 'peak mem: ' + (m.mem > 0 ? m.mem.toFixed(1) + ' GB' : 'n/a') + '<br>'
+          + 'total tokens: ' + m.tokens.toLocaleString()
         );
       })
       .on('mousemove', function(event) {
         tooltip.style('left', (event.pageX + 12) + 'px').style('top', (event.pageY - 12) + 'px');
       })
-      .on('mouseleave', function() {
-        d3.select(this).attr('opacity', 0.75);
+      .on('mouseleave', function(event, m) {
+        d3.select(this).attr('fill-opacity', opacityFor(m));
         tooltip.style('opacity', 0);
       });
 
     // Score labels
     g.selectAll('text.score').data(models).join('text')
       .attr('class', 'score')
-      .attr('x', m => x(m.score) + 4)
+      .attr('x', m => x(m.wall) + 4)
       .attr('y', m => y(m.model) + y.bandwidth() / 2 + 3)
       .style('font-size', '10px').style('font-weight', '600').style('fill', '#374151')
       .text(m => Math.round(m.score * 100) + '%');
 
-    // Memory markers (small circles at right edge)
-    g.selectAll('circle.mem').data(models.filter(m => m.mem > 0)).join('circle')
-      .attr('class', 'mem')
-      .attr('cx', innerW + 30)
-      .attr('cy', m => y(m.model) + y.bandwidth() / 2)
-      .attr('r', m => memR(m.mem))
-      .attr('fill', '#6b7280').attr('opacity', 0.6)
-      .append('title').text(m => m.mem.toFixed(1) + ' GB peak memory');
-
     // Legend
     const leg = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + (height - 8) + ')');
-    leg.append('circle').attr('cx', 0).attr('cy', 0).attr('r', 4).attr('fill', '#3b82f6').attr('opacity', 0.75);
+    leg.append('circle').attr('cx', 0).attr('cy', 0).attr('r', 4).attr('fill', '#3b82f6').attr('stroke', '#1f2937').attr('stroke-width', 1);
     leg.append('text').attr('x', 8).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('llamacpp');
-    leg.append('circle').attr('cx', 62).attr('cy', 0).attr('r', 4).attr('fill', '#22c55e').attr('opacity', 0.75);
+    leg.append('circle').attr('cx', 62).attr('cy', 0).attr('r', 4).attr('fill', '#22c55e').attr('stroke', '#1f2937').attr('stroke-width', 1);
     leg.append('text').attr('x', 70).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('mlx');
-    leg.append('circle').attr('cx', 110).attr('cy', 0).attr('r', 5).attr('fill', '#6b7280').attr('opacity', 0.6);
-    leg.append('text').attr('x', 118).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('peak mem');
+    leg.append('text').attr('x', 110).attr('y', 3).style('font-size', '9px').style('fill', '#6b7280').text('width=duration, height=mem, opacity=tokens');
 
     card.appendChild(svg.node());
     document.body.appendChild(tooltip.node());
@@ -867,6 +973,11 @@ def save_html_report(results: list[BenchmarkResult], output_dir: Path, prompts: 
             "peak_memory_gb": r.peak_memory_gb,
             "output": r.output,
             "prompt_text": r.prompt_text,
+            "scenario_name": r.scenario_name,
+            "termination_reason": r.termination_reason,
+            "tool_call_count": r.tool_call_count,
+            "final_state_summary": r.final_state_summary,
+            "scenario_hash": r.scenario_hash,
         })
 
     data_json = json.dumps(data_records, default=str)

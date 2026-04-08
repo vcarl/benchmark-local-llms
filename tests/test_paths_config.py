@@ -7,7 +7,8 @@ from common import (
 
 
 def test_path_constants_are_paths():
-    assert isinstance(GAMESERVER_BINARY, Path)
+    # GAMESERVER_BINARY is None unless TESTBENCH_GAMESERVER_BINARY is set
+    assert GAMESERVER_BINARY is None or isinstance(GAMESERVER_BINARY, Path)
     assert isinstance(COMMANDER_DIR, Path)
 
 

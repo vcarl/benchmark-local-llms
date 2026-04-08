@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from collections import defaultdict
@@ -25,6 +26,7 @@ from common import (
     EXECUTION_DIR, RESULTS_DIR,
     MODELS, PROMPTS,
     BenchmarkResult,
+    GAMESERVER_BINARY,
     load_prompts,
     load_scenarios,
     compute_prompt_hash,
@@ -66,8 +68,8 @@ def main():
         help="Which runtime to benchmark (default: all)",
     )
     parser.add_argument(
-        "--models", choices=["small", "large", "xlarge", "all"], default="small",
-        help="Model size class to test: small (<= 32B), large (72B), xlarge (100B+), all (default: small)",
+        "--models", choices=["small", "large", "xlarge", "all"], default="all",
+        help="Model size class to test: small (<= 32B), large (72B), xlarge (100B+), all (default: all, ordered smallest→largest)",
     )
     parser.add_argument(
         "--model-name", type=str, default=None,
@@ -98,8 +100,8 @@ def main():
         help="Regenerate HTML report from cached results, then exit (no benchmarking)",
     )
     parser.add_argument(
-        "--scenarios", type=str, default=None,
-        help="Run game scenarios matching this name (or 'all' for every scenario). Default: no scenarios.",
+        "--scenarios", type=str, default="all",
+        help="Run game scenarios matching this name, or 'all' for every scenario, or 'none' to skip. Default: all.",
     )
     parser.add_argument(
         "--scenario-md-dir", type=str,
@@ -120,9 +122,13 @@ def main():
 
     # Filter models — each tier runs only its own models, "all" runs everything
     if args.models == "all":
-        models = MODELS
+        models = list(MODELS)
     else:
         models = [m for m in MODELS if m["size_class"] == args.models]
+
+    # Order smallest → largest so runs progress from cheap to expensive
+    _size_order = {"small": 0, "large": 1, "xlarge": 2}
+    models.sort(key=lambda m: _size_order.get(m["size_class"], 99))
 
     # Further filter by name substring if specified
     if args.model_name:
@@ -163,9 +169,9 @@ def main():
     else:
         prompts = PROMPTS
 
-    # Load scenarios if requested
+    # Load scenarios if requested ("none" disables)
     scenarios: list = []
-    if args.scenarios:
+    if args.scenarios and args.scenarios != "none":
         all_scenarios = load_scenarios()
         if args.scenarios == "all":
             scenarios = all_scenarios
@@ -174,6 +180,22 @@ def main():
         if not scenarios:
             print(f"No scenarios matching: {args.scenarios}")
             print(f"Available: {', '.join(s.name for s in all_scenarios)}")
+            sys.exit(1)
+
+        # Validate gameserver binary is configured and exists before doing any work
+        if GAMESERVER_BINARY is None:
+            print(
+                "ERROR: TESTBENCH_GAMESERVER_BINARY is not set.\n"
+                "  Set it to the path of the spacemolt-server binary, e.g.\n"
+                "    export TESTBENCH_GAMESERVER_BINARY=/path/to/spacemolt-server\n"
+                "  Or pass --scenarios none to skip game scenarios."
+            )
+            sys.exit(1)
+        if not GAMESERVER_BINARY.exists():
+            print(
+                f"ERROR: gameserver binary not found at {GAMESERVER_BINARY}\n"
+                f"  (from TESTBENCH_GAMESERVER_BINARY). Check the path or pass --scenarios none."
+            )
             sys.exit(1)
 
     # Determine runtimes
@@ -236,21 +258,37 @@ def main():
                 print(f"\n  Skipping {model_cfg['name']} / mlx: not downloaded. Run with --download first.")
                 continue
 
-            # Check if all prompts are already cached before starting the model
+            # Check if all prompts AND scenarios are already cached before starting the model
             existing = load_existing_results(model_cfg["name"], runtime)
-            all_cached = all(
+            prompts_all_cached = all(
                 existing.get(pcfg["_key"]) and existing[pcfg["_key"]].prompt_hash == compute_prompt_hash(pcfg)
                 for tier_num in tier_order
                 for pcfg in tiers[tier_num]
             )
+            scenarios_all_cached = all(
+                existing.get(s.name) and existing[s.name].scenario_hash == compute_scenario_hash(s)
+                for s in scenarios
+            )
 
-            if all_cached:
-                print(f"\n  {model_cfg['name']} / {runtime}: all {len(prompts)} prompts cached, skipping model load")
+            if prompts_all_cached and scenarios_all_cached:
+                print(f"\n  {model_cfg['name']} / {runtime}: all {len(prompts)} prompts and {len(scenarios)} scenarios cached, skipping model load")
                 for tier_num in tier_order:
                     for pcfg in tiers[tier_num]:
                         cached = existing[pcfg["_key"]]
                         score_result(cached, pcfg)
                         results.append(cached)
+                for s in scenarios:
+                    cached = existing[s.name]
+                    pcfg = {
+                        "scorer": "game",
+                        "game_scorer": s.scorer,
+                        "scorer_params": s.scorer_params,
+                        "category": "game",
+                        "tier": s.tier,
+                        "style": "game",
+                    }
+                    score_result(cached, pcfg)
+                    results.append(cached)
                 continue
 
             print_header(f"{model_cfg['name']} — {runtime}")
@@ -318,7 +356,13 @@ def main():
                     else:
                         scenarios_iter = scenarios
 
-                    if runtime == "llamacpp":
+                    # TESTBENCH_SCENARIO_BASE_URL lets you interpose a proxy
+                    # (e.g. tcp_tee.py) between commander and the LLM backend
+                    # for debugging — set it to the proxy's URL.
+                    _env_url = os.environ.get("TESTBENCH_SCENARIO_BASE_URL")
+                    if _env_url:
+                        scenario_base_url = _env_url
+                    elif runtime == "llamacpp":
                         scenario_base_url = f"http://127.0.0.1:{LLAMACPP_PORT}/v1"
                     else:
                         scenario_base_url = f"http://127.0.0.1:{MLX_SERVER_PORT}/v1"
@@ -340,7 +384,12 @@ def main():
                             if runtime == "mlx":
                                 commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['mlx_model']}"
                             else:
-                                commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['name']}"
+                                # Use the HF repo id, not the display name. Display
+                                # names contain spaces and parentheses which llama.cpp
+                                # rejects with a bare 400 in the chat-completions
+                                # `model` field. llama-server serves whatever was
+                                # loaded regardless of the value, so any stable id works.
+                                commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['llamacpp_hf']}"
                             r = run_game_scenario(
                                 model_cfg=model_cfg,
                                 scenario=scenario,
@@ -355,7 +404,7 @@ def main():
                                 "game_scorer": scenario.scorer,
                                 "scorer_params": scenario.scorer_params,
                                 "category": "game",
-                                "tier": 0,
+                                "tier": scenario.tier,
                                 "style": "game",
                             }
                             r.prompt_name = scenario.name

@@ -5,10 +5,13 @@ into a single entry point. Tests use mocks; the integration smoke test in
 tests/test_game_session_integration.py exercises the real binaries.
 """
 
+import os
 import secrets
 import subprocess
+import sys
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -20,8 +23,12 @@ from common import (
 )
 from game_admin import AdminClient, AdminError
 from game_lifecycle import allocate_port, start_gameserver, stop_gameserver
-from commander_runner import CommanderEvent, iter_events, spawn_commander
+from commander_runner import CommanderEvent, drain_stderr, iter_events, spawn_commander
 from cutoff_watchdog import CutoffWatchdog
+
+
+def _log(msg: str) -> None:
+    print(f"    [game] {msg}", flush=True)
 
 
 LLAMACPP_BASE_URL = "http://127.0.0.1:18080/v1"  # matches runner.LLAMACPP_PORT
@@ -60,7 +67,13 @@ def run_game_session(
     port = allocate_port()
     admin_token = secrets.token_hex(16)
     session_id = uuid.uuid4().hex[:8]
-    server_url = f"http://127.0.0.1:{port}"
+    # AdminClient uses absolute paths (`/api/admin/...`) so it takes the
+    # bare origin. Commander's API lives under `/api/v1/` on the local
+    # gameserver — session creation hits `/api/v1/session`, tool calls hit
+    # `/api/v1/<command>`, and fetchGameCommands() does
+    # `baseUrl + "/openapi.json"` → `/api/v1/openapi.json`.
+    origin_url = f"http://127.0.0.1:{port}"
+    commander_base_url = f"{origin_url}/api/v2"
 
     events: list[CommanderEvent] = []
     watchdog = CutoffWatchdog(scenario.cutoffs)
@@ -73,7 +86,7 @@ def run_game_session(
     cmd_proc = None
     try:
         gs_proc = start_gameserver(GAMESERVER_BINARY, port=port, admin_token=admin_token)
-        admin = AdminClient(server_url, admin_token)
+        admin = AdminClient(origin_url, admin_token)
         # TODO: re-enable once the gameserver exposes /api/admin/benchmark/reset.
         # Running without fixture reset means scores are only meaningful when the
         # server happens to be in a known state. See design doc (2026-04-07).
@@ -82,21 +95,51 @@ def run_game_session(
         except AdminError as e:
             print(f"    [warn] reset skipped: {e}", flush=True)
 
+        _log(f"spawning commander: model={commander_model_string} "
+             f"{COMMANDER_LOCAL_BASE_URL_ENV}={llm_base_url}")
+        _log(f"scenario_path={scenario_path} commander_base_url={commander_base_url}")
+
         cmd_proc = spawn_commander(
             commander_dir=COMMANDER_DIR,
             model=commander_model_string,
             scenario_path=Path(scenario_path),
-            server_url=server_url,
+            server_url=commander_base_url,
             session=session_id,
             llm_base_url_env=COMMANDER_LOCAL_BASE_URL_ENV,
             llm_base_url=llm_base_url,
         )
+        _log(f"commander pid={cmd_proc.pid}")
+        # Drain stderr so commander doesn't block on a full pipe buffer.
+        drain_stderr(cmd_proc, sys.stderr)
+
+        event_counts: Counter = Counter()
+        last_event_ts = time.monotonic()
+        last_heartbeat = time.monotonic()
+        HEARTBEAT_INTERVAL = 15.0  # seconds
+        STALL_WARN = 30.0          # warn if no events for this long
 
         for event in iter_events(cmd_proc):
             events.append(event)
+            event_counts[event.event] += 1
+            now = time.monotonic()
+            gap = now - last_event_ts
+            last_event_ts = now
+
+            # Log first occurrence of each event type and periodic heartbeats.
+            if event_counts[event.event] == 1:
+                _log(f"first '{event.event}' event (tick={event.tick})")
+            if now - last_heartbeat >= HEARTBEAT_INTERVAL:
+                summary = ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items()))
+                _log(f"heartbeat t={watchdog.elapsed_sec:.0f}s "
+                     f"tokens={watchdog.total_tokens} tools={watchdog.tool_call_count} | {summary}")
+                last_heartbeat = now
+            if gap > STALL_WARN:
+                _log(f"WARN: {gap:.0f}s gap between events (last: {event.event})")
+
             watchdog.observe(event)
             if watchdog.tripped() is not None:
                 termination = watchdog.tripped()
+                _log(f"cutoff tripped: {termination}")
                 cmd_proc.terminate()
                 try:
                     cmd_proc.wait(timeout=5)
@@ -105,8 +148,22 @@ def run_game_session(
                 break
         else:
             # Generator exhausted normally — commander exited
+            _log(f"commander stdout closed after {len(events)} events")
             cmd_proc.wait(timeout=10)
             termination = "completed"
+
+        # Final event summary — critical for diagnosing "commander ran but
+        # never hit the LLM" symptoms.
+        summary = ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items())) or "(none)"
+        _log(f"event summary: {summary}")
+        _log(f"totals: tokens={watchdog.total_tokens} "
+             f"tool_calls={watchdog.tool_call_count} "
+             f"elapsed={watchdog.elapsed_sec:.1f}s "
+             f"termination={termination} "
+             f"exit_code={cmd_proc.poll()}")
+        if not events:
+            _log("WARN: commander produced ZERO events — check stderr above, "
+                 "model string, or env vars")
 
         try:
             final_stats = admin.get_player_stats(scenario.llm_player_id)
