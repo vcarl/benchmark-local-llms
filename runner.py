@@ -236,34 +236,15 @@ def _score_game(result: BenchmarkResult, prompt_cfg: dict) -> None:
 # ── Cache checking ─────────────────────────────────────────────────────────
 
 def is_llamacpp_cached(model_cfg: dict) -> bool:
-    """Check if a llama.cpp model is already downloaded in the cache.
-
-    Checks two locations:
-    1. ~/Library/Caches/llama.cpp/ — where llama-server/-cli -hf downloads to
-    2. ~/.cache/huggingface/hub/ — where hf_hub_download() stores files
-    """
+    """Check if a llama.cpp model is already downloaded in the llama.cpp cache."""
     repo = model_cfg["llamacpp_hf"]
+    prefix = repo.replace("/", "_")
     quant = model_cfg["llamacpp_quant"].lower()
-
-    # Location 1: llama.cpp native cache
-    # Files named like: bartowski_DeepSeek-R1-Distill-Qwen-7B-GGUF_<quant>.gguf
-    if LLAMA_CACHE_DIR.exists():
-        prefix = repo.replace("/", "_")
-        for f in LLAMA_CACHE_DIR.iterdir():
-            if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
-                return True
-
-    # Location 2: HuggingFace hub cache (used by hf_hub_download)
-    # Structure: ~/.cache/huggingface/hub/models--{org}--{repo}/snapshots/<hash>/<file>.gguf
-    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
-    if hf_cache.exists():
-        cache_dir_name = "models--" + repo.replace("/", "--")
-        model_cache = hf_cache / cache_dir_name
-        if model_cache.exists():
-            for f in model_cache.rglob("*.gguf"):
-                if quant in f.name.lower():
-                    return True
-
+    if not LLAMA_CACHE_DIR.exists():
+        return False
+    for f in LLAMA_CACHE_DIR.iterdir():
+        if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
+            return True
     return False
 
 
@@ -338,7 +319,7 @@ def start_llamacpp_server(model_cfg: dict, ctx_size_override: Optional[int] = No
         "-hf", hf_spec,
         "--host", "127.0.0.1",
         "--port", str(LLAMACPP_PORT),
-        "--verbose",  # log request bodies/headers to diagnose 400s from commander
+        "--verbose",
         "--cache-type-k", "q8_0",
         "--cache-type-v", "q8_0",
     ]
@@ -751,25 +732,18 @@ print("OK")
 
 
 def _fetch_llamacpp_files(model_cfg: dict) -> bool:
-    """Pure file fetch for a llama.cpp GGUF (no model load). Returns True on success."""
-    from huggingface_hub import list_repo_files, hf_hub_download
-    repo = model_cfg["llamacpp_hf"]
-    quant = model_cfg["llamacpp_quant"].lower()
+    """Download a llama.cpp GGUF into the native llama.cpp cache via llama-cli."""
+    hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
+    print(f"    Downloading {hf_spec}...", flush=True)
     try:
-        all_files = list_repo_files(repo)
-        gguf_files = [f for f in all_files
-                      if f.endswith(".gguf") and quant in f.lower()]
-        if not gguf_files:
-            print(f"    No GGUF files matching quant '{quant}' in {repo}")
-            print(f"    Available: {[f for f in all_files if f.endswith('.gguf')]}")
-            return False
-        print(f"    Downloading {len(gguf_files)} file(s):", flush=True)
-        for i, fname in enumerate(gguf_files, 1):
-            print(f"    [{i}/{len(gguf_files)}] {fname}", flush=True)
-            hf_hub_download(repo_id=repo, filename=fname)
-        return True
+        proc = subprocess.run(
+            [str(LLAMA_CLI), "-hf", hf_spec, "-p", "hi", "-n", "1",
+             "--no-warmup", "--log-disable"],
+            capture_output=True, text=True, timeout=3600,
+        )
+        return proc.returncode == 0 or "model loaded" in proc.stderr.lower()
     except Exception as e:
-        print(f"    [fetch fail] llamacpp {repo}: {e}")
+        print(f"    [fetch fail] {e}")
         return False
 
 
