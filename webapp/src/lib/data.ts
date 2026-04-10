@@ -1,6 +1,7 @@
 export interface BenchmarkResult {
   model: string;
   runtime: string;
+  quant: string;
   prompt_name: string;
   category: string;
   tier: number;
@@ -17,9 +18,21 @@ export interface BenchmarkResult {
   prompt_text: string;
 }
 
-import benchmarkData from "../data/benchmark.json";
+declare global {
+  interface Window {
+    __BENCHMARK_DATA?: BenchmarkResult[];
+  }
+}
 
-export const DATA: BenchmarkResult[] = benchmarkData as BenchmarkResult[];
+// In report builds, data comes from window.__BENCHMARK_DATA (set by data.js).
+// In dev builds, it comes from the JSON import in data-dev.ts.
+// This module is imported by report-entry.tsx; data-dev.ts re-exports with the JSON fallback.
+export let DATA: BenchmarkResult[] =
+  (typeof window !== "undefined" && window.__BENCHMARK_DATA) || [];
+
+export function setData(data: BenchmarkResult[]) {
+  DATA = data;
+}
 
 export function uniqueSorted<K extends keyof BenchmarkResult>(
   data: BenchmarkResult[],
