@@ -1,5 +1,4 @@
-import { useRef, useEffect } from "react";
-import * as d3 from "d3";
+import { useMemo, useState } from "react";
 import type { BenchmarkResult } from "../lib/data";
 import { scoreColor, RUNTIME_COLORS } from "../lib/colors";
 
@@ -9,126 +8,190 @@ interface LeaderboardProps {
 
 interface ModelAgg {
   model: string;
-  score: number;
+  scoreAvg: number;
+  scoreLlama: number;
+  scoreMlx: number;
   wallLlama: number;
   wallMlx: number;
   wallTotal: number;
   mem: number;
 }
 
+type SortKey = "avg" | "llamacpp" | "mlx";
+
 export function Leaderboard({ data }: LeaderboardProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [sortBy, setSortBy] = useState<SortKey>("avg");
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const el = d3.select(containerRef.current);
-    el.selectAll("*").remove();
-
-    // Aggregate per model
+  const models = useMemo(() => {
     const agg: Record<
       string,
       {
         model: string;
         scores: number[];
+        llamaScores: number[];
+        mlxScores: number[];
         wall: Record<string, number>;
         mem: number[];
       }
     > = {};
     data.forEach((d) => {
       if (!agg[d.model])
-        agg[d.model] = { model: d.model, scores: [], wall: {}, mem: [] };
+        agg[d.model] = {
+          model: d.model,
+          scores: [],
+          llamaScores: [],
+          mlxScores: [],
+          wall: {},
+          mem: [],
+        };
       agg[d.model].scores.push(d.score);
+      if (d.runtime === "llamacpp") agg[d.model].llamaScores.push(d.score);
+      if (d.runtime === "mlx") agg[d.model].mlxScores.push(d.score);
       if (!agg[d.model].wall[d.runtime]) agg[d.model].wall[d.runtime] = 0;
       agg[d.model].wall[d.runtime] += d.wall_time_sec;
       if (d.peak_memory_gb > 0) agg[d.model].mem.push(d.peak_memory_gb);
     });
 
-    const models: ModelAgg[] = Object.values(agg)
-      .map((a) => ({
-        model: a.model,
-        score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
-        wallLlama: a.wall.llamacpp || 0,
-        wallMlx: a.wall.mlx || 0,
-        wallTotal: (a.wall.llamacpp || 0) + (a.wall.mlx || 0),
-        mem: a.mem.length ? Math.max(...a.mem) : 0,
-      }))
-      .sort((a, b) => b.score - a.score);
+    const avg = (arr: number[]) =>
+      arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : -1;
 
-    if (models.length === 0) return;
-
-    const maxWall = Math.max(...models.map((m) => m.wallTotal));
-    const maxMem = Math.max(...models.map((m) => m.mem), 1);
-    const minBarH = 10;
-    const maxBarH = 40;
-
-    models.forEach((m) => {
-      const row = el.append("div").attr("class", "leaderboard-row");
-
-      // Name
-      row
-        .append("div")
-        .attr("class", "leaderboard-name")
-        .attr("title", m.model)
-        .text(m.model);
-
-      // Bars
-      const bars = row.append("div").attr("class", "leaderboard-bars");
-      const barH =
-        m.mem > 0
-          ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH))
-          : minBarH;
-      const widthPct = maxWall > 0 ? (m.wallTotal / maxWall) * 90 : 0;
-      const llamaPct = m.wallTotal > 0 ? m.wallLlama / m.wallTotal : 0.5;
-
-      if (m.wallLlama > 0) {
-        bars
-          .append("div")
-          .style("height", barH + "px")
-          .style("width", (widthPct * llamaPct).toFixed(1) + "%")
-          .style("background", RUNTIME_COLORS.llamacpp)
-          .style("border-radius", "3px 0 0 3px");
-      }
-      if (m.wallMlx > 0) {
-        const hasLlama = m.wallLlama > 0;
-        bars
-          .append("div")
-          .style("height", barH + "px")
-          .style("width", (widthPct * (1 - llamaPct)).toFixed(1) + "%")
-          .style("background", RUNTIME_COLORS.mlx)
-          .style(
-            "border-radius",
-            hasLlama ? "0 3px 3px 0" : "3px",
-          );
-      }
-
-      // Stats
-      const pct = Math.round(m.score * 100);
-      const totalSec = Math.round(m.wallTotal);
-      const min = Math.floor(totalSec / 60);
-      const sec = totalSec % 60;
-      const timeStr = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-      const memStr = m.mem > 0 ? `${m.mem.toFixed(0)}G` : "";
-
-      const stats = row.append("div").attr("class", "leaderboard-stats");
-      stats
-        .append("div")
-        .attr("class", "score")
-        .style("color", scoreColor(pct))
-        .text(pct + "%");
-      stats
-        .append("div")
-        .attr("class", "meta")
-        .text(timeStr + (memStr ? ` \u00b7 ${memStr}` : ""));
-    });
+    return Object.values(agg).map((a) => ({
+      model: a.model,
+      scoreAvg: avg(a.scores),
+      scoreLlama: avg(a.llamaScores),
+      scoreMlx: avg(a.mlxScores),
+      wallLlama: a.wall.llamacpp || 0,
+      wallMlx: a.wall.mlx || 0,
+      wallTotal: (a.wall.llamacpp || 0) + (a.wall.mlx || 0),
+      mem: a.mem.length ? Math.max(...a.mem) : 0,
+    }));
   }, [data]);
+
+  const sorted = useMemo(() => {
+    const key =
+      sortBy === "llamacpp"
+        ? "scoreLlama"
+        : sortBy === "mlx"
+          ? "scoreMlx"
+          : "scoreAvg";
+    return [...models].sort((a, b) => b[key] - a[key]);
+  }, [models, sortBy]);
+
+  const maxWall = Math.max(...models.map((m) => m.wallTotal), 1);
+  const maxMem = Math.max(...models.map((m) => m.mem), 1);
+  const minBarH = 10;
+  const maxBarH = 40;
+
+  function formatScore(score: number): string {
+    return score < 0 ? "—" : Math.round(score * 100) + "%";
+  }
+
+  function formatTime(sec: number): string {
+    const total = Math.round(sec);
+    const min = Math.floor(total / 60);
+    const s = total % 60;
+    return min > 0 ? `${min}m ${s}s` : `${s}s`;
+  }
 
   return (
     <div className="chart-card">
       <h3>Model Leaderboard</h3>
-      <div className="chart-subtitle">
-        Ranked by avg score. Width = duration. Height = peak memory.
+      <div
+        className="chart-subtitle"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span>Width = duration. Height = peak memory.</span>
+        <span style={{ fontSize: "11px", color: "#6b7280" }}>
+          Sort:{" "}
+          {(["avg", "llamacpp", "mlx"] as SortKey[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => setSortBy(key)}
+              style={{
+                fontSize: "11px",
+                padding: "1px 6px",
+                marginLeft: "4px",
+                border: "1px solid",
+                borderColor: sortBy === key ? "#3b82f6" : "#d1d5db",
+                borderRadius: "4px",
+                background: sortBy === key ? "#dbeafe" : "transparent",
+                color: sortBy === key ? "#1d4ed8" : "#6b7280",
+                cursor: "pointer",
+              }}
+            >
+              {key === "avg" ? "Avg" : key}
+            </button>
+          ))}
+        </span>
       </div>
-      <div ref={containerRef} />
+      <div>
+        {sorted.map((m) => {
+          const barH =
+            m.mem > 0
+              ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH))
+              : minBarH;
+          const widthPct = maxWall > 0 ? (m.wallTotal / maxWall) * 90 : 0;
+          const llamaPct = m.wallTotal > 0 ? m.wallLlama / m.wallTotal : 0.5;
+
+          return (
+            <div className="leaderboard-row" key={m.model}>
+              <div className="leaderboard-name" title={m.model}>
+                {m.model}
+              </div>
+              <div className="leaderboard-bars">
+                {m.wallLlama > 0 && (
+                  <div
+                    style={{
+                      height: barH,
+                      width: `${(widthPct * llamaPct).toFixed(1)}%`,
+                      background: RUNTIME_COLORS.llamacpp,
+                      borderRadius: m.wallMlx > 0 ? "3px 0 0 3px" : "3px",
+                    }}
+                  />
+                )}
+                {m.wallMlx > 0 && (
+                  <div
+                    style={{
+                      height: barH,
+                      width: `${(widthPct * (1 - llamaPct)).toFixed(1)}%`,
+                      background: RUNTIME_COLORS.mlx,
+                      borderRadius: m.wallLlama > 0 ? "0 3px 3px 0" : "3px",
+                    }}
+                  />
+                )}
+              </div>
+              <div className="leaderboard-stats">
+                <div
+                  className="score"
+                  style={{ color: scoreColor(Math.round(m.scoreAvg * 100)) }}
+                >
+                  {formatScore(m.scoreAvg)}
+                </div>
+                <div className="meta">
+                  <span
+                    style={{ color: RUNTIME_COLORS.llamacpp }}
+                    title="llamacpp"
+                  >
+                    {formatScore(m.scoreLlama)}
+                  </span>
+                  {" / "}
+                  <span style={{ color: RUNTIME_COLORS.mlx }} title="mlx">
+                    {formatScore(m.scoreMlx)}
+                  </span>
+                </div>
+                <div className="meta">
+                  {formatTime(m.wallTotal)}
+                  {m.mem > 0 ? ` · ${m.mem.toFixed(0)}G` : ""}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
