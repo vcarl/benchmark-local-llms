@@ -807,11 +807,10 @@ def _fetch_mlx_files(model_cfg: dict) -> bool:
 
 
 def download_models(models: list[dict], runtimes: list[str], max_workers: int = 4):
-    """Download models serially with clear progress, then verify.
+    """Download models concurrently with up to max_workers parallel downloads."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
 
-    Downloads run one at a time so progress bars don't collide. Each model
-    shows a clear header, download progress, and result before moving on.
-    """
     # Inventory: what needs downloading vs what's already cached
     to_fetch: list[tuple[dict, str]] = []
     cached: list[tuple[str, str]] = []
@@ -832,8 +831,6 @@ def download_models(models: list[dict], runtimes: list[str], max_workers: int = 
                 else:
                     to_fetch.append((model_cfg, runtime))
 
-    total = len(cached) + len(to_fetch) + len(skipped)
-
     print(f"Download plan: {len(to_fetch)} to fetch, {len(cached)} cached, {len(skipped)} skipped (no model)")
     print()
 
@@ -847,23 +844,35 @@ def download_models(models: list[dict], runtimes: list[str], max_workers: int = 
         print("Nothing to download.")
         return
 
-    # Download one at a time — clear output per model
-    print(f"Downloading ({len(to_fetch)}):")
+    print(f"Downloading ({len(to_fetch)}) with {max_workers} parallel workers:")
     print()
-    fetch_failed: set[tuple[str, str]] = set()
-    for i, (model_cfg, runtime) in enumerate(to_fetch, 1):
+
+    print_lock = threading.Lock()
+    completed_count = 0
+
+    def _do_fetch(item: tuple[dict, str]) -> tuple[str, str, bool]:
+        nonlocal completed_count
+        model_cfg, runtime = item
         name = model_cfg["name"]
-        print(f"  [{i}/{len(to_fetch)}] {name} / {runtime}")
+        with print_lock:
+            print(f"  [started] {name} / {runtime}", flush=True)
         fn = _fetch_llamacpp_files if runtime == "llamacpp" else _fetch_mlx_files
         ok = fn(model_cfg)
-        if ok:
-            print(f"  [{i}/{len(to_fetch)}] {name} / {runtime} — OK")
-        else:
-            print(f"  [{i}/{len(to_fetch)}] {name} / {runtime} — FAILED")
-            fetch_failed.add((name, runtime))
-        print()
+        with print_lock:
+            completed_count += 1
+            status = "OK" if ok else "FAILED"
+            print(f"  [{completed_count}/{len(to_fetch)}] {name} / {runtime} — {status}", flush=True)
+        return (name, runtime, ok)
 
-    # Summary
+    fetch_failed: set[tuple[str, str]] = set()
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_do_fetch, item): item for item in to_fetch}
+        for future in as_completed(futures):
+            name, runtime, ok = future.result()
+            if not ok:
+                fetch_failed.add((name, runtime))
+
+    print()
     succeeded = len(to_fetch) - len(fetch_failed)
     print(f"Downloads: {succeeded}/{len(to_fetch)} succeeded", end="")
     if fetch_failed:
