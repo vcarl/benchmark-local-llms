@@ -24,6 +24,7 @@ from common import (
     BenchmarkResult,
     Scenario,
     compute_scenario_hash,
+    get_quant_label,
 )
 from game_session import run_game_session, GameSessionResult
 from game_scorers import score_game, ScorerNotFound
@@ -305,7 +306,7 @@ def _chat_completion(port: int, system: str, user: str, max_tokens: int,
     return json.loads(resp.read())
 
 
-def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
+def start_llamacpp_server(model_cfg: dict, ctx_size: Optional[int] = None) -> Optional[subprocess.Popen]:
     """Start llama-server and wait until ready. Returns the process or None on failure.
 
     Server output is tee'd to /tmp/testbench-llamacpp.log so we can inspect
@@ -318,7 +319,11 @@ def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
         "--host", "127.0.0.1",
         "--port", str(LLAMACPP_PORT),
         "--verbose",  # log request bodies/headers to diagnose 400s from commander
+        "--cache-type-k", "q8_0",
+        "--cache-type-v", "q8_0",
     ]
+    if ctx_size is not None:
+        server_cmd.extend(["-c", str(ctx_size)])
 
     log_path = Path("/tmp/testbench-llamacpp.log")
     print(f"    Starting llama-server for {model_cfg['name']}... (logs: {log_path})", flush=True)
@@ -364,6 +369,7 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
     result = BenchmarkResult(
         model=model_cfg["name"],
         runtime="llamacpp",
+        quant=get_quant_label(model_cfg, "llamacpp"),
         prompt_name=prompt_cfg["name"],
     )
 
@@ -415,6 +421,7 @@ def run_game_scenario(
     result = BenchmarkResult(
         model=model_cfg["name"],
         runtime=runtime,
+        quant=get_quant_label(model_cfg, runtime),
         prompt_name=scenario.name,
     )
     result.scenario_name = scenario.name
@@ -597,6 +604,7 @@ def run_mlx_prompt(proc: subprocess.Popen, model_cfg: dict,
     result = BenchmarkResult(
         model=model_cfg["name"],
         runtime="mlx",
+        quant=get_quant_label(model_cfg, "mlx"),
         prompt_name=prompt_cfg["name"],
     )
 

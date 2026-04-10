@@ -96,6 +96,10 @@ def main():
         help="Regenerate HTML report from cached results, then exit (no benchmarking)",
     )
     parser.add_argument(
+        "--ctx-size", type=int, default=None,
+        help="Context size for llama.cpp server (default: let server choose). Lower values save memory for large models.",
+    )
+    parser.add_argument(
         "--scenarios", type=str, default="all",
         help="Run game scenarios matching this name, or 'all' for every scenario, or 'none' to skip. Default: all.",
     )
@@ -294,7 +298,7 @@ def main():
             server_proc = None
             mlx_proc = None
             if runtime == "llamacpp":
-                server_proc = start_llamacpp_server(model_cfg)
+                server_proc = start_llamacpp_server(model_cfg, ctx_size=args.ctx_size)
                 if not server_proc:
                     print(f"    Failed to start server, skipping.", flush=True)
                     continue
