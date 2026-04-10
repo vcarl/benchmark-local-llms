@@ -1,0 +1,15 @@
+name: storage_management
+fixture: benchmark
+scenario_md: bench-storage-management.md
+players:
+  - id: bench_rookie
+    controlled_by: llm
+scorer: storage_management
+scorer_params: {}
+tier: 1
+cutoffs:
+  wall_clock_sec: 300
+  total_tokens: 100000
+  tool_calls: 100
+commander:
+  max_turns: 100

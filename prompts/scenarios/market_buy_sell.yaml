@@ -1,0 +1,15 @@
+name: market_buy_sell
+fixture: benchmark
+scenario_md: bench-market-buy-sell.md
+players:
+  - id: bench_trader
+    controlled_by: llm
+scorer: market_buy_sell
+scorer_params: {}
+tier: 1
+cutoffs:
+  wall_clock_sec: 300
+  total_tokens: 100000
+  tool_calls: 150
+commander:
+  max_turns: 120
