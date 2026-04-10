@@ -40,8 +40,7 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [groupBy, setGroupBy] = useState<GroupByOption>("runtime");
-  const hoveredModelRef = useRef(hoveredModel);
-  hoveredModelRef.current = hoveredModel;
+  const byModelRef = useRef<Record<string, AggPoint[]>>({});
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -213,6 +212,7 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
       if (!byModel[p.model]) byModel[p.model] = [];
       byModel[p.model].push(p);
     });
+    byModelRef.current = byModel;
     Object.values(byModel).forEach((group) => {
       if (group.length < 2) return;
       for (let i = 0; i < group.length - 1; i++) {
@@ -305,6 +305,7 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
     const g = svg.select("g");
+    const tooltip = d3.select(tooltipRef.current);
 
     const dots = g.selectAll<SVGCircleElement, AggPoint>("circle.dot");
     const links = g.selectAll<SVGLineElement, string>("line.model-link");
@@ -316,9 +317,33 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
       links
         .attr("opacity", (l) => (l === hoveredModel ? 0.8 : 0.1))
         .attr("stroke-width", (l) => (l === hoveredModel ? 1.5 : 1));
+
+      // Show tooltip anchored to the model's first dot
+      const byModel = byModelRef.current;
+      const siblings = byModel[hoveredModel];
+      if (siblings?.length) {
+        const header = `<strong>${hoveredModel}</strong>${siblings[0].mem > 0 ? ` · ${siblings[0].mem.toFixed(1)} GB` : ""}`;
+        const rows = siblings
+          .map(
+            (p) =>
+              `<span style="color:${RUNTIME_COLORS[p.runtime] || "#9ca3af"}">■</span> ${p.runtime}: ${Math.round(p.score * 100)}% · ${p.tokens.toLocaleString()} tok · ${p.wallTime.toFixed(1)}s`,
+          )
+          .join("<br>");
+        tooltip.style("opacity", "1").html(`${header}<br>${rows}`);
+
+        // Position near the first matching dot
+        const matchDot = dots.filter((p) => p.model === hoveredModel).node();
+        if (matchDot) {
+          const rect = matchDot.getBoundingClientRect();
+          tooltip
+            .style("left", rect.right + 12 + "px")
+            .style("top", rect.top - 12 + "px");
+        }
+      }
     } else {
       dots.attr("opacity", 0.5).attr("stroke-width", 1);
       links.attr("opacity", 0.4).attr("stroke-width", 1);
+      tooltip.style("opacity", "0");
     }
   }, [hoveredModel]);
 
