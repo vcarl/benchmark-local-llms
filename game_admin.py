@@ -43,9 +43,16 @@ class AdminClient:
         except urllib.error.URLError as e:
             raise AdminError(f"{method} {path} network error: {e}") from e
 
-    def reset(self, fixture: str) -> None:
-        """Reset the gameserver to a named fixture's starting state."""
-        self._request("POST", "/api/admin/benchmark/reset", body={"fixture": fixture})
+    def reset(self, fixture: str) -> list[dict]:
+        """Reset the gameserver to a benchmark fixture.
+
+        Returns a list of player credential dicts with keys:
+        username, password, empire, player_id.
+        """
+        data = self._request("POST", "/api/admin/benchmark/reset", body={"fixture": fixture})
+        if isinstance(data, dict):
+            return data.get("players", [])
+        return []
 
     def get_player_stats(self, player_id: str) -> dict:
         q = urllib.parse.urlencode({"player_id": player_id})
