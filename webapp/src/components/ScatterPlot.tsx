@@ -13,6 +13,7 @@ interface AggPoint {
   runtime: string;
   score: number;
   tokens: number;
+  wallTime: number;
   mem: number;
   tier: string;
   category: string;
@@ -52,6 +53,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
         runtime: string;
         scores: number[];
         tokens: number;
+        wallTime: number;
         mem: number[];
         tiers: Record<string, number>;
         cats: Record<string, number>;
@@ -65,6 +67,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
           runtime: d.runtime,
           scores: [],
           tokens: 0,
+          wallTime: 0,
           mem: [],
           tiers: {},
           cats: {},
@@ -72,6 +75,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       agg[key].scores.push(d.score);
       agg[key].tokens +=
         (d.prompt_tokens || 0) + (d.generation_tokens || 0);
+      agg[key].wallTime += d.wall_time_sec || 0;
       if (d.peak_memory_gb > 0) agg[key].mem.push(d.peak_memory_gb);
       const tierKey = "Tier " + d.tier;
       agg[key].tiers[tierKey] = (agg[key].tiers[tierKey] || 0) + 1;
@@ -84,6 +88,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
         runtime: a.runtime,
         score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
         tokens: a.tokens,
+        wallTime: a.wallTime,
         mem: a.mem.length ? Math.max(...a.mem) : 0,
         tier: topKey(a.tiers),
         category: topKey(a.cats),
@@ -246,11 +251,16 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
           .filter((l: any) => l === d.model)
           .attr("opacity", 0.8)
           .attr("stroke-width", 1.5);
-        tooltip
-          .style("opacity", "1")
-          .html(
-            `${d.model} (${d.runtime})<br>${Math.round(d.score * 100)}% score, ${d.tokens.toLocaleString()} tokens${d.mem > 0 ? `, ${d.mem.toFixed(1)} GB` : ""}`,
-          );
+        // Build tooltip showing all runtimes for this model
+        const siblings = byModel[d.model] || [d];
+        const header = `<strong>${d.model}</strong>${d.mem > 0 ? ` · ${d.mem.toFixed(1)} GB` : ""}`;
+        const rows = siblings
+          .map(
+            (p) =>
+              `<span style="color:${RUNTIME_COLORS[p.runtime] || "#9ca3af"}">■</span> ${p.runtime}: ${Math.round(p.score * 100)}% · ${p.tokens.toLocaleString()} tok · ${p.wallTime.toFixed(1)}s`,
+          )
+          .join("<br>");
+        tooltip.style("opacity", "1").html(`${header}<br>${rows}`);
       })
       .on("mousemove", function (event) {
         tooltip
