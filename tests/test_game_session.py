@@ -31,7 +31,6 @@ def test_run_game_session_completes_normally(monkeypatch):
 
     fake_admin = MagicMock()
     fake_admin.get_player_stats.return_value = {"credits": 100, "stats": {"credits_earned": 100}}
-    fake_admin.get_event_log.return_value = []
 
     fake_gs_proc = MagicMock()
     fake_gs_proc.poll.return_value = None
@@ -68,7 +67,6 @@ def test_run_game_session_trips_tool_call_cutoff():
 
     fake_admin = MagicMock()
     fake_admin.get_player_stats.return_value = {}
-    fake_admin.get_event_log.return_value = []
     fake_gs_proc = MagicMock()
 
     sc = _scenario(cutoffs=ScenarioCutoffs(wall_clock_sec=600, total_tokens=10000, tool_calls=2))

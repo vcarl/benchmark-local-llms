@@ -14,7 +14,6 @@ def _result(events=None, stats=None, **overrides):
         elapsed_sec=0.0,
         events=events or [],
         final_player_stats=stats or {},
-        final_event_log=[],
     )
     base.update(overrides)
     return GameSessionResult(**base)

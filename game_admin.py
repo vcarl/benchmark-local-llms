@@ -47,10 +47,6 @@ class AdminClient:
         """Reset the gameserver to a named fixture's starting state."""
         self._request("POST", "/api/admin/benchmark/reset", body={"fixture": fixture})
 
-    def get_event_log(self) -> list:
-        data = self._request("GET", "/api/admin/benchmark/event-log")
-        return data if isinstance(data, list) else []
-
     def get_player_stats(self, player_id: str) -> dict:
         q = urllib.parse.urlencode({"player_id": player_id})
         data = self._request("GET", f"/api/admin/benchmark/player-stats?{q}")

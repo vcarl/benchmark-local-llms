@@ -43,7 +43,6 @@ class GameSessionResult:
     elapsed_sec: float
     events: list[CommanderEvent] = field(default_factory=list)
     final_player_stats: dict = field(default_factory=dict)
-    final_event_log: list = field(default_factory=list)
     error: Optional[str] = None
 
 
@@ -80,7 +79,6 @@ def run_game_session(
     termination = "error"
     error: Optional[str] = None
     final_stats: dict = {}
-    final_log: list = []
 
     gs_proc = None
     cmd_proc = None
@@ -167,7 +165,6 @@ def run_game_session(
 
         try:
             final_stats = admin.get_player_stats(scenario.llm_player_id)
-            final_log = admin.get_event_log()
         except AdminError as e:
             # Final-state read failure shouldn't mask the run; record but continue
             error = f"final-state read: {e}"
@@ -193,6 +190,5 @@ def run_game_session(
         elapsed_sec=watchdog.elapsed_sec,
         events=events,
         final_player_stats=final_stats,
-        final_event_log=final_log,
         error=error,
     )
