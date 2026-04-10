@@ -41,6 +41,7 @@ function App() {
 
   const [checkedModels, setCheckedModels] = useState(() => new Set(allModels));
   const [selectedCell, setSelectedCell] = useState<CellSelection | null>(null);
+  const [hoveredModel, setHoveredModel] = useState<string | null>(null);
 
   const handleModelChange = useCallback(
     (model: string, checked: boolean) => {
@@ -87,8 +88,8 @@ function App() {
       />
       <div className="content">
         <div className="summary-charts">
-          <ScatterPlot data={filteredData} />
-          <Leaderboard data={filteredData} />
+          <ScatterPlot data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} />
+          <Leaderboard data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} />
         </div>
         <div className="heatmaps-scroll">
           <div className="heatmaps-row">

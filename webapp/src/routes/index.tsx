@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useMemo } from "react";
-import { DATA, uniqueSorted, modelFamily } from "../lib/data";
+import { DATA, uniqueSorted, modelFamily } from "../lib/data-dev";
 import type { CellSelection } from "../components/HeatmapTable";
 import { FamilyFilter } from "../components/FamilyFilter";
 import { ModelSelector } from "../components/ModelSelector";
@@ -44,6 +44,7 @@ function HomePage() {
 
   const [checkedModels, setCheckedModels] = useState(() => new Set(allModels));
   const [selectedCell, setSelectedCell] = useState<CellSelection | null>(null);
+  const [hoveredModel, setHoveredModel] = useState<string | null>(null);
 
   const handleModelChange = useCallback(
     (model: string, checked: boolean) => {
@@ -90,8 +91,8 @@ function HomePage() {
       />
       <div className="content">
         <div className="summary-charts">
-          <ScatterPlot data={filteredData} />
-          <Leaderboard data={filteredData} />
+          <ScatterPlot data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} />
+          <Leaderboard data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} />
         </div>
         <div className="heatmaps-scroll">
           <div className="heatmaps-row">

@@ -6,6 +6,8 @@ import { RUNTIME_COLORS } from "../lib/colors";
 
 interface ScatterPlotProps {
   data: BenchmarkResult[];
+  hoveredModel: string | null;
+  onHoverModel: (model: string | null) => void;
 }
 
 interface AggPoint {
@@ -34,10 +36,12 @@ function topKey(counts: Record<string, number>): string {
 
 type GroupByOption = "runtime" | "tier" | "category" | "family";
 
-export function ScatterPlot({ data }: ScatterPlotProps) {
+export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [groupBy, setGroupBy] = useState<GroupByOption>("runtime");
+  const hoveredModelRef = useRef(hoveredModel);
+  hoveredModelRef.current = hoveredModel;
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -241,16 +245,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       .attr("stroke", (d) => getColor(d))
       .attr("stroke-width", 1)
       .on("mouseenter", function (event, d) {
-        // Highlight all dots with the same model
-        dots
-          .filter((p) => p.model === d.model)
-          .attr("opacity", 0.9)
-          .attr("stroke-width", 2.5);
-        // Brighten connecting lines
-        g.selectAll("line.model-link")
-          .filter((l: any) => l === d.model)
-          .attr("opacity", 0.8)
-          .attr("stroke-width", 1.5);
+        onHoverModel(d.model);
         // Build tooltip showing all runtimes for this model
         const siblings = byModel[d.model] || [d];
         const header = `<strong>${d.model}</strong>${d.mem > 0 ? ` · ${d.mem.toFixed(1)} GB` : ""}`;
@@ -267,15 +262,8 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
           .style("left", event.pageX + 12 + "px")
           .style("top", event.pageY - 12 + "px");
       })
-      .on("mouseleave", function (event, d) {
-        dots
-          .filter((p) => p.model === d.model)
-          .attr("opacity", 0.5)
-          .attr("stroke-width", 1);
-        g.selectAll("line.model-link")
-          .filter((l: any) => l === d.model)
-          .attr("opacity", 0.4)
-          .attr("stroke-width", 1);
+      .on("mouseleave", function () {
+        onHoverModel(null);
         tooltip.style("opacity", "0");
       });
 
@@ -311,6 +299,28 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       svg.selectAll("*").remove();
     };
   }, [data, groupBy]);
+
+  // React to external hoveredModel changes (from leaderboard)
+  useEffect(() => {
+    if (!svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    const g = svg.select("g");
+
+    const dots = g.selectAll<SVGCircleElement, AggPoint>("circle.dot");
+    const links = g.selectAll<SVGLineElement, string>("line.model-link");
+
+    if (hoveredModel) {
+      dots
+        .attr("opacity", (p) => (p.model === hoveredModel ? 0.9 : 0.2))
+        .attr("stroke-width", (p) => (p.model === hoveredModel ? 2.5 : 1));
+      links
+        .attr("opacity", (l) => (l === hoveredModel ? 0.8 : 0.1))
+        .attr("stroke-width", (l) => (l === hoveredModel ? 1.5 : 1));
+    } else {
+      dots.attr("opacity", 0.5).attr("stroke-width", 1);
+      links.attr("opacity", 0.4).attr("stroke-width", 1);
+    }
+  }, [hoveredModel]);
 
   return (
     <div className="chart-card">

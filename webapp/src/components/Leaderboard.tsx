@@ -4,6 +4,8 @@ import { scoreColor, RUNTIME_COLORS } from "../lib/colors";
 
 interface LeaderboardProps {
   data: BenchmarkResult[];
+  hoveredModel: string | null;
+  onHoverModel: (model: string | null) => void;
 }
 
 interface ModelAgg {
@@ -20,7 +22,7 @@ interface ModelAgg {
 
 type SortKey = "best" | "llamacpp" | "mlx";
 
-export function Leaderboard({ data }: LeaderboardProps) {
+export function Leaderboard({ data, hoveredModel, onHoverModel }: LeaderboardProps) {
   const [sortBy, setSortBy] = useState<SortKey>("best");
 
   const models = useMemo(() => {
@@ -152,7 +154,16 @@ export function Leaderboard({ data }: LeaderboardProps) {
           const tokenOpacity = 0.25 + 0.65 * (m.tokens / maxTokens);
 
           return (
-            <div className="leaderboard-row" key={m.model}>
+            <div
+              className="leaderboard-row"
+              key={m.model}
+              onMouseEnter={() => onHoverModel(m.model)}
+              onMouseLeave={() => onHoverModel(null)}
+              style={{
+                opacity: hoveredModel && hoveredModel !== m.model ? 0.3 : 1,
+                transition: "opacity 0.15s",
+              }}
+            >
               <div className="leaderboard-name" title={m.model}>
                 {m.model}
               </div>
