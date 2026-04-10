@@ -80,10 +80,8 @@ export function Leaderboard({ data }: LeaderboardProps) {
     return [...models].sort((a, b) => b[key] - a[key]);
   }, [models, sortBy]);
 
-  const maxWall = Math.max(...models.map((m) => m.wallTotal), 1);
-  const maxMem = Math.max(...models.map((m) => m.mem), 1);
-  const minBarH = 10;
-  const maxBarH = 40;
+  const maxWallLlama = Math.max(...models.map((m) => m.wallLlama), 1);
+  const maxWallMlx = Math.max(...models.map((m) => m.wallMlx), 1);
 
   function formatScore(score: number): string {
     return score < 0 ? "—" : Math.round(score * 100) + "%";
@@ -133,36 +131,32 @@ export function Leaderboard({ data }: LeaderboardProps) {
       </div>
       <div>
         {sorted.map((m) => {
-          const barH =
-            m.mem > 0
-              ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH))
-              : minBarH;
-          const widthPct = maxWall > 0 ? (m.wallTotal / maxWall) * 90 : 0;
-          const llamaPct = m.wallTotal > 0 ? m.wallLlama / m.wallTotal : 0.5;
+          const llamaW = m.wallLlama > 0 ? (m.wallLlama / maxWallLlama) * 90 : 0;
+          const mlxW = m.wallMlx > 0 ? (m.wallMlx / maxWallMlx) * 90 : 0;
 
           return (
             <div className="leaderboard-row" key={m.model}>
               <div className="leaderboard-name" title={m.model}>
                 {m.model}
               </div>
-              <div className="leaderboard-bars">
+              <div className="leaderboard-bars stacked">
                 {m.wallLlama > 0 && (
                   <div
                     style={{
-                      height: barH,
-                      width: `${(widthPct * llamaPct).toFixed(1)}%`,
+                      height: 8,
+                      width: `${llamaW.toFixed(1)}%`,
                       background: RUNTIME_COLORS.llamacpp,
-                      borderRadius: m.wallMlx > 0 ? "3px 0 0 3px" : "3px",
+                      borderRadius: "3px",
                     }}
                   />
                 )}
                 {m.wallMlx > 0 && (
                   <div
                     style={{
-                      height: barH,
-                      width: `${(widthPct * (1 - llamaPct)).toFixed(1)}%`,
+                      height: 8,
+                      width: `${mlxW.toFixed(1)}%`,
                       background: RUNTIME_COLORS.mlx,
-                      borderRadius: m.wallLlama > 0 ? "0 3px 3px 0" : "3px",
+                      borderRadius: "3px",
                     }}
                   />
                 )}
