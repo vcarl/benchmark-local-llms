@@ -26,8 +26,8 @@ class CutoffWatchdog:
         if event.event == "tool_call":
             self.tool_call_count += 1
         elif event.event == "turn_end":
-            tokens_in = int(event.data.get("total_tokens_in", 0))
-            tokens_out = int(event.data.get("total_tokens_out", 0))
+            tokens_in = int(event.data.get("totalTokensIn", 0))
+            tokens_out = int(event.data.get("totalTokensOut", 0))
             self.total_tokens = tokens_in + tokens_out
 
     def tripped(self) -> Optional[str]:

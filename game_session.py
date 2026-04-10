@@ -153,6 +153,12 @@ def run_game_session(
             gap = now - last_event_ts
             last_event_ts = now
 
+            # Log tool errors so failures aren't silent
+            if event.event == "tool_error":
+                tool = event.data.get("tool", "?")
+                args = event.data.get("args", {})
+                _log(f"tool_error: {tool} args={args}")
+
             # Log first occurrence of each event type and periodic heartbeats.
             if event_counts[event.event] == 1:
                 _log(f"first '{event.event}' event (tick={event.tick})")
