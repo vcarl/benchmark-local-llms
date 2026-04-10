@@ -127,7 +127,7 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
     const x = d3.scaleLog().domain([xMin, xMax]).range([0, innerW]);
     const y = d3.scaleLinear().domain([0, 1]).range([innerH, 0]);
     const maxMem = d3.max(points, (d) => d.mem) || 20;
-    const rScale = d3.scalePow().exponent(2).domain([0, maxMem]).range([3, 24]);
+    const rScale = d3.scaleLinear().domain([0, maxMem]).range([3, 24]);
 
     // Color logic based on groupBy
     const colorScheme = d3.schemeTableau10;
