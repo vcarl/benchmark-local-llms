@@ -5,6 +5,7 @@ into a single entry point. Tests use mocks; the integration smoke test in
 tests/test_game_session_integration.py exercises the real binaries.
 """
 
+import json as _json
 import os
 import secrets
 import subprocess
@@ -29,6 +30,19 @@ from cutoff_watchdog import CutoffWatchdog
 
 def _log(msg: str) -> None:
     print(f"    [game] {msg}", flush=True)
+
+
+def _write_commander_credentials(commander_dir: str, session_id: str, creds: dict) -> None:
+    """Write credentials.json into commander's session directory."""
+    session_dir = Path(commander_dir) / "sessions" / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "username": creds.get("username"),
+        "password": creds.get("password"),
+        "empire": creds.get("empire"),
+        "playerId": creds.get("playerId"),
+    }
+    (session_dir / "credentials.json").write_text(_json.dumps(payload, indent=2))
 
 
 LLAMACPP_BASE_URL = "http://127.0.0.1:18080/v1"  # matches runner.LLAMACPP_PORT
@@ -88,8 +102,18 @@ def run_game_session(
         # TODO: re-enable once the gameserver exposes /api/admin/benchmark/reset.
         # Running without fixture reset means scores are only meaningful when the
         # server happens to be in a known state. See design doc (2026-04-07).
+        player_creds = None
         try:
-            admin.reset(scenario.fixture)
+            all_creds = admin.reset(scenario.fixture)
+            target_username = scenario.llm_player_id
+            for c in all_creds:
+                if c.get("username") == target_username:
+                    player_creds = c
+                    break
+            if player_creds:
+                _write_commander_credentials(COMMANDER_DIR, session_id, player_creds)
+            else:
+                _log(f"[warn] no credentials found for player {target_username}")
         except AdminError as e:
             print(f"    [warn] reset skipped: {e}", flush=True)
 
