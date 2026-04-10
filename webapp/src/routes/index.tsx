@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useMemo } from "react";
-import { DATA, uniqueSorted, modelFamily } from "../lib/data-dev";
+import { DATA, uniqueSorted, modelFamily, bestQuantData, bestQuantMap, quantSummary } from "../lib/data-dev";
 import type { CellSelection } from "../components/HeatmapTable";
 import { FamilyFilter } from "../components/FamilyFilter";
 import { ModelSelector } from "../components/ModelSelector";
@@ -69,9 +69,19 @@ function HomePage() {
     [allModels],
   );
 
+  const bestData = useMemo(() => bestQuantData(DATA), []);
+  const bestQMap = useMemo(() => bestQuantMap(DATA), []);
+  const allQuantSummary = useMemo(() => {
+    const summary: Record<string, Record<string, import("../lib/data").QuantInfo[]>> = {};
+    for (const model of allModels) {
+      summary[model] = quantSummary(DATA, model);
+    }
+    return summary;
+  }, [allModels]);
+
   const filteredData = useMemo(
-    () => DATA.filter((d) => checkedModels.has(d.model)),
-    [checkedModels],
+    () => bestData.filter((d) => checkedModels.has(d.model)),
+    [bestData, checkedModels],
   );
 
   return (
@@ -91,15 +101,15 @@ function HomePage() {
       />
       <div className="content">
         <div className="summary-charts">
-          <ScatterPlot data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} />
-          <Leaderboard data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} />
+          <ScatterPlot data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} bestQuantMap={bestQMap} quantSummary={allQuantSummary} />
+          <Leaderboard data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} bestQuantMap={bestQMap} quantSummary={allQuantSummary} />
         </div>
         <div className="heatmaps-scroll">
           <div className="heatmaps-row">
             {runtimes.map((rt, idx) => (
               <HeatmapTable
                 key={rt}
-                data={DATA}
+                data={bestData}
                 runtime={rt}
                 allModels={allModels}
                 allCategories={allCategories}
@@ -107,6 +117,7 @@ function HomePage() {
                 checkedModels={checkedModels}
                 showModelNames={idx === 0}
                 onCellClick={setSelectedCell}
+                bestQuantMap={bestQMap}
               />
             ))}
           </div>

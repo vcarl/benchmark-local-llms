@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import type { BenchmarkResult } from "../lib/data";
+import type { BenchmarkResult, QuantInfo } from "../lib/data";
 import { scoreColor, RUNTIME_COLORS } from "../lib/colors";
 
 interface LeaderboardProps {
   data: BenchmarkResult[];
   hoveredModel: string | null;
   onHoverModel: (model: string | null) => void;
+  bestQuantMap?: Map<string, string>;
+  quantSummary?: Record<string, Record<string, QuantInfo[]>>;
 }
 
 interface ModelAgg {
@@ -22,7 +24,7 @@ interface ModelAgg {
 
 type SortKey = "best" | "llamacpp" | "mlx";
 
-export function Leaderboard({ data, hoveredModel, onHoverModel }: LeaderboardProps) {
+export function Leaderboard({ data, hoveredModel, onHoverModel, bestQuantMap: bestQMap, quantSummary: qSummary }: LeaderboardProps) {
   const [sortBy, setSortBy] = useState<SortKey>("best");
 
   const models = useMemo(() => {
@@ -166,6 +168,18 @@ export function Leaderboard({ data, hoveredModel, onHoverModel }: LeaderboardPro
             >
               <div className="leaderboard-name" title={m.model}>
                 {m.model}
+                {bestQMap && (() => {
+                  const quants = new Set<string>();
+                  for (const [key, q] of bestQMap) {
+                    if (key.startsWith(m.model + "|") && q) quants.add(q);
+                  }
+                  if (quants.size === 0) return null;
+                  return (
+                    <span style={{ color: "#9ca3af", fontSize: "0.8em", marginLeft: "4px" }}>
+                      {[...quants].join("/")}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="leaderboard-bars stacked">
                 {m.wallLlama > 0 && (

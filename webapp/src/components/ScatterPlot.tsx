@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
-import type { BenchmarkResult } from "../lib/data";
+import type { BenchmarkResult, QuantInfo } from "../lib/data";
 import { modelFamily } from "../lib/data";
 import { RUNTIME_COLORS } from "../lib/colors";
 
@@ -8,6 +8,8 @@ interface ScatterPlotProps {
   data: BenchmarkResult[];
   hoveredModel: string | null;
   onHoverModel: (model: string | null) => void;
+  bestQuantMap?: Map<string, string>;
+  quantSummary?: Record<string, Record<string, QuantInfo[]>>;
 }
 
 interface AggPoint {
@@ -36,11 +38,45 @@ function topKey(counts: Record<string, number>): string {
 
 type GroupByOption = "runtime" | "tier" | "category" | "family";
 
-export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotProps) {
+export function ScatterPlot({ data, hoveredModel, onHoverModel, bestQuantMap: bestQMap, quantSummary: qSummary }: ScatterPlotProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [groupBy, setGroupBy] = useState<GroupByOption>("runtime");
   const byModelRef = useRef<Record<string, AggPoint[]>>({});
+
+  function buildTooltipHtml(model: string, siblings: AggPoint[]): string {
+    const mem = siblings[0]?.mem || 0;
+    const header = `<strong>${model}</strong>${mem > 0 ? ` · ${mem.toFixed(1)} GB` : ""}`;
+    const rows = siblings
+      .map((p) => {
+        const q = bestQMap?.get(p.model + "|" + p.runtime);
+        const qLabel = q ? ` <span style="color:#9ca3af;font-size:10px">(${q})</span>` : "";
+        return `<span style="color:${RUNTIME_COLORS[p.runtime] || "#9ca3af"}">■</span> ${p.runtime}${qLabel}: ${Math.round(p.score * 100)}% · ${p.tokens.toLocaleString()} tok · ${p.wallTime.toFixed(1)}s`;
+      })
+      .join("<br>");
+
+    // Other quants section
+    let otherQuants = "";
+    const qs = qSummary?.[model];
+    if (qs) {
+      const others: string[] = [];
+      for (const [runtime, infos] of Object.entries(qs)) {
+        const bestQ = bestQMap?.get(model + "|" + runtime) || "";
+        for (const info of infos) {
+          if (info.quant === bestQ) continue;
+          if (!info.quant) continue;
+          others.push(
+            `<span style="color:${RUNTIME_COLORS[runtime] || "#9ca3af"}">■</span> ${runtime} ${info.quant}: ${Math.round(info.avgScore * 100)}%`
+          );
+        }
+      }
+      if (others.length > 0) {
+        otherQuants = `<br><span style="color:#9ca3af;font-size:10px">Other quants:</span><br>${others.join("<br>")}`;
+      }
+    }
+
+    return `${header}<br>${rows}${otherQuants}`;
+  }
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -246,16 +282,8 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
       .attr("stroke-width", 1)
       .on("mouseenter", function (event, d) {
         onHoverModel(d.model);
-        // Build tooltip showing all runtimes for this model
         const siblings = byModel[d.model] || [d];
-        const header = `<strong>${d.model}</strong>${d.mem > 0 ? ` · ${d.mem.toFixed(1)} GB` : ""}`;
-        const rows = siblings
-          .map(
-            (p) =>
-              `<span style="color:${RUNTIME_COLORS[p.runtime] || "#9ca3af"}">■</span> ${p.runtime}: ${Math.round(p.score * 100)}% · ${p.tokens.toLocaleString()} tok · ${p.wallTime.toFixed(1)}s`,
-          )
-          .join("<br>");
-        tooltip.style("opacity", "1").html(`${header}<br>${rows}`);
+        tooltip.style("opacity", "1").html(buildTooltipHtml(d.model, siblings));
       })
       .on("mousemove", function (event) {
         tooltip
@@ -298,7 +326,7 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
     return () => {
       svg.selectAll("*").remove();
     };
-  }, [data, groupBy]);
+  }, [data, groupBy, bestQMap, qSummary]);
 
   // React to external hoveredModel changes (from leaderboard)
   useEffect(() => {
@@ -322,14 +350,7 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel }: ScatterPlotPro
       const byModel = byModelRef.current;
       const siblings = byModel[hoveredModel];
       if (siblings?.length) {
-        const header = `<strong>${hoveredModel}</strong>${siblings[0].mem > 0 ? ` · ${siblings[0].mem.toFixed(1)} GB` : ""}`;
-        const rows = siblings
-          .map(
-            (p) =>
-              `<span style="color:${RUNTIME_COLORS[p.runtime] || "#9ca3af"}">■</span> ${p.runtime}: ${Math.round(p.score * 100)}% · ${p.tokens.toLocaleString()} tok · ${p.wallTime.toFixed(1)}s`,
-          )
-          .join("<br>");
-        tooltip.style("opacity", "1").html(`${header}<br>${rows}`);
+        tooltip.style("opacity", "1").html(buildTooltipHtml(hoveredModel, siblings));
 
         // Position near the first matching dot
         const matchDot = dots.filter((p) => p.model === hoveredModel).node();

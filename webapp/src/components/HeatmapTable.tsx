@@ -18,6 +18,7 @@ interface HeatmapTableProps {
   checkedModels: Set<string>;
   showModelNames: boolean;
   onCellClick: (selection: CellSelection) => void;
+  bestQuantMap?: Map<string, string>;
 }
 
 export type { CellSelection };
@@ -31,6 +32,7 @@ export function HeatmapTable({
   checkedModels,
   showModelNames,
   onCellClick,
+  bestQuantMap: bestQMap,
 }: HeatmapTableProps) {
   const rtModels = modelsForRuntime(data, runtime);
 
@@ -67,6 +69,7 @@ export function HeatmapTable({
                   hasData={hasData}
                   showModelNames={showModelNames}
                   onCellClick={onCellClick}
+                  bestQuantMap={bestQMap}
                 />
               ));
             })}
@@ -87,6 +90,7 @@ interface ModelTierRowProps {
   hasData: boolean;
   showModelNames: boolean;
   onCellClick: (selection: CellSelection) => void;
+  bestQuantMap?: Map<string, string>;
 }
 
 function ModelTierRow({
@@ -100,6 +104,7 @@ function ModelTierRow({
   hasData,
   showModelNames,
   onCellClick,
+  bestQuantMap: bestQMap,
 }: ModelTierRowProps) {
   return (
     <>
@@ -111,6 +116,15 @@ function ModelTierRow({
             style={{ verticalAlign: "middle" }}
           >
             {model}
+            {(() => {
+              const q = bestQMap?.get(model + "|" + runtime);
+              if (!q) return null;
+              return (
+                <span style={{ color: "#9ca3af", fontSize: "0.8em", marginLeft: "4px" }}>
+                  {q}
+                </span>
+              );
+            })()}
           </td>
         )}
         <td className="tier-label">{tier}</td>
