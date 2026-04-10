@@ -40,9 +40,11 @@ def _write_commander_credentials(commander_dir: str, session_id: str, creds: dic
         "username": creds.get("username"),
         "password": creds.get("password"),
         "empire": creds.get("empire"),
-        "playerId": creds.get("playerId"),
+        "playerId": creds.get("player_id"),
     }
-    (session_dir / "credentials.json").write_text(_json.dumps(payload, indent=2))
+    creds_path = session_dir / "credentials.json"
+    creds_path.write_text(_json.dumps(payload, indent=2))
+    _log(f"wrote credentials for {payload['username']} → {creds_path}")
 
 
 LLAMACPP_BASE_URL = "http://127.0.0.1:18080/v1"  # matches runner.LLAMACPP_PORT
@@ -99,9 +101,6 @@ def run_game_session(
     try:
         gs_proc = start_gameserver(GAMESERVER_BINARY, port=port, admin_token=admin_token)
         admin = AdminClient(origin_url, admin_token)
-        # TODO: re-enable once the gameserver exposes /api/admin/benchmark/reset.
-        # Running without fixture reset means scores are only meaningful when the
-        # server happens to be in a known state. See design doc (2026-04-07).
         player_creds = None
         try:
             all_creds = admin.reset(scenario.fixture)
