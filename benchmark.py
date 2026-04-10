@@ -47,6 +47,7 @@ from report import (
     print_detailed_results,
     save_markdown_report,
     save_html_report,
+    save_json_data,
 )
 
 
@@ -97,6 +98,7 @@ def main():
         all_cached = load_all_results()
         score_results(all_cached, prompts)
         save_html_report(all_cached, RESULTS_DIR, prompts)
+        save_json_data(all_cached, RESULTS_DIR)
         return
 
     if args.quick and not args.download:
@@ -303,6 +305,7 @@ def main():
         all_cached = load_all_results()
         score_results(all_cached, prompts)
         save_html_report(all_cached, RESULTS_DIR, prompts)
+        save_json_data(all_cached, RESULTS_DIR)
 
 
 if __name__ == "__main__":
