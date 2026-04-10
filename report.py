@@ -239,10 +239,19 @@ def save_json_data(results: list[BenchmarkResult], output_dir: Path) -> Path:
         })
 
     json_path = output_dir / f"benchmark-{timestamp}.json"
+    json_blob = json.dumps(data_records, default=str)
     with open(json_path, "w") as f:
-        json.dump(data_records, f, default=str)
+        f.write(json_blob)
 
-    print(f"  JSON data: {json_path}")
+    # Also write to the webapp's dev data path so it stays fresh
+    webapp_data = Path(__file__).parent / "webapp" / "src" / "data" / "benchmark.json"
+    if webapp_data.parent.exists():
+        with open(webapp_data, "w") as f:
+            f.write(json_blob)
+        print(f"  JSON data: {json_path} (+ {webapp_data})")
+    else:
+        print(f"  JSON data: {json_path}")
+
     return json_path
 
 

@@ -8,3 +8,6 @@ llama.cpp/
 models/
 *-backup*/
 .pytest_cache/
+benchmark-results/
+webapp/src/data/benchmark.json
+webapp/dist-report/
