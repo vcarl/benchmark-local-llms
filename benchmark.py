@@ -275,8 +275,10 @@ def main():
                 for s in scenarios
             )
 
+            quant = model_cfg.get("llamacpp_quant", "") if runtime == "llamacpp" else "4bit"
+
             if prompts_all_cached and scenarios_all_cached:
-                print(f"\n  {model_cfg['name']} / {runtime}: all {len(prompts)} prompts and {len(scenarios)} scenarios cached, skipping model load")
+                print(f"\n  {model_cfg['name']} / {runtime} ({quant}): all {len(prompts)} prompts and {len(scenarios)} scenarios cached, skipping model load")
                 for tier_num in tier_order:
                     for pcfg in tiers[tier_num]:
                         cached = existing[pcfg["_key"]]
@@ -296,7 +298,7 @@ def main():
                     results.append(cached)
                 continue
 
-            print_header(f"{model_cfg['name']} — {runtime}")
+            print_header(f"{model_cfg['name']} — {runtime} ({quant})")
 
             # Start the model once
             server_proc = None
