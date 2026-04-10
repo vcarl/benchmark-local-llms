@@ -162,7 +162,7 @@ MODELS = [
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "zachlandes/Mistral-Large-Instruct-2411-Q4-MLX",
         "ctx_size": 2048,
-        "scenario_ctx_size": 8192,
+        "scenario_ctx_size": 16384,
     },
     {
         "name": "Mistral Small 4 119B (MoE)",
@@ -171,7 +171,7 @@ MODELS = [
         "llamacpp_quant": "UD-Q5_K_M",
         "mlx_model": None,  # No MLX conversion available yet (released Mar 2026)
         "ctx_size": 2048,
-        "scenario_ctx_size": 8192,
+        "scenario_ctx_size": 16384,
     },
     {
         "name": "Devstral 2 123B",
@@ -180,7 +180,7 @@ MODELS = [
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "mlx-community/Devstral-2-123B-Instruct-2512-4bit",
         "ctx_size": 2048,
-        "scenario_ctx_size": 8192,
+        "scenario_ctx_size": 16384,
     },
     {
         "name": "Mistral Small 3.2 24B",
