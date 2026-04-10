@@ -68,77 +68,77 @@ MODELS = [
         "name": "Qwen 2.5 7B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-7B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen2.5-7B-Instruct-4bit",
     },
     {
         "name": "Qwen 2.5 32B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-32B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
     },
     {
         "name": "Qwen 2.5 72B Instruct",
         "size_class": "large",
         "llamacpp_hf": "Qwen/Qwen2.5-72B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/Qwen2.5-72B-Instruct-4bit",
     },
     {
         "name": "Qwen 2.5 Coder 32B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
     },
     {
         "name": "QwQ 32B",
         "size_class": "small",
         "llamacpp_hf": "Qwen/QwQ-32B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/QwQ-32B-4bit",
     },
     {
         "name": "Qwen 3 32B",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen3-32B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Qwen3-32B-4bit",
     },
     {
         "name": "Qwen 3.5 9B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3.5-9B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen3.5-9B-4bit",
     },
     {
         "name": "Qwen 3.5 27B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3.5-27B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Qwen3.5-27B-4bit",
     },
     {
         "name": "Qwen 3.5 35B-A3B (MoE)",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3.5-35B-A3B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen3.5-35B-A3B-4bit",
     },
     {
         "name": "Qwen 3 Coder 30B-A3B Instruct (MoE)",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit",
     },
     {
         "name": "Qwen 3 Coder Next 80B-A3B (MoE)",
         "size_class": "large",
         "llamacpp_hf": "Qwen/Qwen3-Coder-Next-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/Qwen3-Coder-Next-4bit",
     },
     # {
@@ -152,7 +152,7 @@ MODELS = [
         "name": "Qwen 3.5 122B-A10B (MoE)",
         "size_class": "xlarge",
         "llamacpp_hf": "bartowski/Qwen_Qwen3.5-122B-A10B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/Qwen3.5-122B-A10B-4bit",
     },
     {
@@ -161,13 +161,15 @@ MODELS = [
         "llamacpp_hf": "bartowski/Mistral-Large-Instruct-2411-GGUF",
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "zachlandes/Mistral-Large-Instruct-2411-Q4-MLX",
+        "ctx_size": 2048,
     },
     {
         "name": "Mistral Small 4 119B (MoE)",
         "size_class": "xlarge",
         "llamacpp_hf": "unsloth/Mistral-Small-4-119B-2603-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "UD-Q5_K_M",
         "mlx_model": None,  # No MLX conversion available yet (released Mar 2026)
+        "ctx_size": 2048,
     },
     {
         "name": "Devstral 2 123B",
@@ -175,124 +177,125 @@ MODELS = [
         "llamacpp_hf": "unsloth/Devstral-2-123B-Instruct-2512-GGUF",
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "mlx-community/Devstral-2-123B-Instruct-2512-4bit",
+        "ctx_size": 2048,
     },
     {
         "name": "Mistral Small 3.2 24B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit",
     },
     {
         "name": "Magistral Small 1.2 24B",
         "size_class": "small",
         "llamacpp_hf": "mistralai/Magistral-Small-2509-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "lmstudio-community/Magistral-Small-2509-MLX-4bit",
     },
     {
         "name": "Devstral Small 2 24B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit",
     },
     {
         "name": "Llama 3.1 8B Instruct",
         "size_class": "small",
         "llamacpp_hf": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Qwen 7B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Qwen 14B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Qwen 32B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit",
     },
     {
         "name": "DeepSeek R1-0528 Qwen3 8B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit",
     },
     {
         "name": "DeepSeek Coder V2 Lite 16B (MoE)",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit",
     },
     {
         "name": "DeepSeek Coder 33B Instruct",
         "size_class": "small",
-        "llamacpp_hf": "bartowski/deepseek-coder-33b-instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
-        "mlx_model": "mlx-community/deepseek-coder-33b-instruct-hf-4bit-mlx",
+        "llamacpp_hf": "TheBloke/deepseek-coder-33B-instruct-GGUF",
+        "llamacpp_quant": "Q6_K",
+        "mlx_model": "deepseek-ai/deepseek-coder-33b-instruct",
     },
     {
         "name": "DeepSeek R1 Distill Llama 70B",
         "size_class": "large",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit",
     },
     {
         "name": "GPT-OSS 20B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/gpt-oss-20b-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/gpt-oss-20b-MXFP4-Q4",
     },
     {
         "name": "Gemma 4 E4B Instruct",
         "size_class": "small",
         "llamacpp_hf": "unsloth/gemma-4-E4B-it-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/gemma-4-e4b-it-4bit",
     },
     {
         "name": "Gemma 4 26B-A4B Instruct (MoE)",
         "size_class": "small",
         "llamacpp_hf": "unsloth/gemma-4-26B-A4B-it-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/gemma-4-26b-a4b-it-4bit",
     },
     {
         "name": "Gemma 4 31B Instruct",
         "size_class": "small",
         "llamacpp_hf": "unsloth/gemma-4-31B-it-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/gemma-4-31b-it-4bit",
     },
     {
         "name": "GLM 4.7 Flash 31B-A3B (MoE)",
         "size_class": "small",
         "llamacpp_hf": "unsloth/GLM-4.7-Flash-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/GLM-4.7-Flash-4bit",
     },
     {
         "name": "Phi-4 14B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/phi-4-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/phi-4-4bit",
     },
     # {
@@ -474,6 +477,17 @@ def _count_sentences(text):
     return len([s for s in sentences if s.strip()])
 
 
+def get_quant_label(model_cfg: dict, runtime: str) -> str:
+    """Extract quantization label from model config for the given runtime."""
+    if runtime == "llamacpp":
+        return model_cfg.get("llamacpp_quant", "")
+    mlx_id = model_cfg.get("mlx_model", "") or ""
+    for part in mlx_id.split("-"):
+        if part in ("4bit", "3bit", "8bit", "16bit", "fp16", "bf16"):
+            return part
+    return "4bit"  # default for MLX community models
+
+
 # ── BenchmarkResult dataclass ──────────────────────────────────────────────
 
 @dataclass
@@ -481,6 +495,7 @@ class BenchmarkResult:
     model: str
     runtime: str
     prompt_name: str
+    quant: str = ""
     prompt_tokens: int = 0
     generation_tokens: int = 0
     prompt_tps: float = 0.0  # prompt processing tokens/sec
@@ -653,8 +668,8 @@ def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResul
     """Load deduplicated results from all JSONL files. Latest entry per prompt wins."""
     if not execution_dir.exists():
         return []
-    # Deduplicate: (model, runtime, prompt_name) -> BenchmarkResult, latest wins
-    by_key: dict[tuple[str, str, str], BenchmarkResult] = {}
+    # Deduplicate: (model, runtime, quant, prompt_name) -> BenchmarkResult, latest wins
+    by_key: dict[tuple[str, str, str, str], BenchmarkResult] = {}
     for f in sorted(execution_dir.glob("*.jsonl")):
         with open(f) as fh:
             for line in fh:
@@ -663,13 +678,13 @@ def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResul
                     continue
                 d = json.loads(line)
                 r = BenchmarkResult(**{k: v for k, v in d.items() if k in BenchmarkResult.__dataclass_fields__})
-                by_key[(r.model, r.runtime, r.prompt_name)] = r
+                by_key[(r.model, r.runtime, r.quant, r.prompt_name)] = r
     return list(by_key.values())
 
 
 # Fields persisted to JSONL — execution data only, no scoring
 _EXECUTION_FIELDS = {
-    "model", "runtime", "prompt_name",
+    "model", "runtime", "quant", "prompt_name",
     "prompt_tokens", "generation_tokens", "prompt_tps", "generation_tps",
     "peak_memory_gb", "wall_time_sec",
     "output", "error",
