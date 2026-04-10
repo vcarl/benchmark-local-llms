@@ -523,6 +523,23 @@ class BenchmarkResult:
     scenario_hash: Optional[str] = None
 
 
+def result_is_valid(r: BenchmarkResult) -> bool:
+    """Check whether a cached result is usable or should be re-run.
+
+    Invalid results include:
+    - Has an error
+    - No output and no error (empty response)
+    - Zero generation tokens with non-empty output (broken token counting)
+    """
+    if r.error:
+        return False
+    if not r.output:
+        return False
+    if r.generation_tokens == 0 and r.output:
+        return False
+    return True
+
+
 # ── Challenge hashing and result caching ───────────────────────────────────
 
 def compute_prompt_hash(prompt_cfg: dict) -> str:

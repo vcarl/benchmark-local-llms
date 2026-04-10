@@ -32,7 +32,7 @@ from common import (
     compute_prompt_hash,
     compute_scenario_hash,
     load_existing_results, load_all_results,
-    append_result,
+    append_result, result_is_valid,
     COMMANDER_LOCAL_PROVIDER,
 )
 from runner import (
@@ -257,13 +257,21 @@ def main():
 
             # Check if all prompts AND scenarios are already cached before starting the model
             existing = load_existing_results(model_cfg["name"], runtime)
+            def _prompt_cached(pcfg):
+                r = existing.get(pcfg["_key"])
+                return r and r.prompt_hash == compute_prompt_hash(pcfg) and result_is_valid(r)
+
+            def _scenario_cached(s):
+                r = existing.get(s.name)
+                return r and r.scenario_hash == compute_scenario_hash(s) and result_is_valid(r)
+
             prompts_all_cached = all(
-                existing.get(pcfg["_key"]) and existing[pcfg["_key"]].prompt_hash == compute_prompt_hash(pcfg)
+                _prompt_cached(pcfg)
                 for tier_num in tier_order
                 for pcfg in tiers[tier_num]
             )
             scenarios_all_cached = all(
-                existing.get(s.name) and existing[s.name].scenario_hash == compute_scenario_hash(s)
+                _scenario_cached(s)
                 for s in scenarios
             )
 
@@ -316,12 +324,14 @@ def main():
                         p_hash = compute_prompt_hash(pcfg)
                         cached = existing.get(pcfg["_key"])
 
-                        if cached and cached.prompt_hash == p_hash:
+                        if cached and cached.prompt_hash == p_hash and result_is_valid(cached):
                             print(f"  [cached] {pcfg['_key']}")
                             score_result(cached, pcfg)
                             print_result_summary(cached)
                             results.append(cached)
                             continue
+                        elif cached and cached.prompt_hash == p_hash:
+                            print(f"  [invalid] {pcfg['_key']} — re-running")
 
                         # Run the model
                         if runtime == "llamacpp":
@@ -388,10 +398,12 @@ def main():
                             # Cache check using scenario_hash
                             cached = existing.get(scenario.name)
                             s_hash = compute_scenario_hash(scenario)
-                            if cached and cached.scenario_hash == s_hash:
+                            if cached and cached.scenario_hash == s_hash and result_is_valid(cached):
                                 print(f"  [cached] scenario:{scenario.name}")
                                 results.append(cached)
                                 continue
+                            elif cached and cached.scenario_hash == s_hash:
+                                print(f"  [invalid] scenario:{scenario.name} — re-running")
 
                             if runtime == "mlx":
                                 commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['mlx_model']}"
