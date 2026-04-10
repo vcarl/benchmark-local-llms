@@ -235,17 +235,58 @@ def _score_game(result: BenchmarkResult, prompt_cfg: dict) -> None:
 
 # ── Cache checking ─────────────────────────────────────────────────────────
 
-def is_llamacpp_cached(model_cfg: dict) -> bool:
-    """Check if a llama.cpp model is already downloaded in the llama.cpp cache."""
+def resolve_llamacpp_gguf(model_cfg: dict) -> Optional[Path]:
+    """Resolve local GGUF file path for a llama.cpp model, checking both caches.
+
+    Returns the path to the first matching .gguf file, or None if not found.
+    For multi-shard models, returns the first shard (llama-server finds the rest).
+
+    Cache locations checked:
+      1. Native llama.cpp cache (~/Library/Caches/llama.cpp/ on macOS)
+      2. HuggingFace hub cache (~/.cache/huggingface/hub/)
+    """
     repo = model_cfg["llamacpp_hf"]
-    prefix = repo.replace("/", "_")
     quant = model_cfg["llamacpp_quant"].lower()
-    if not LLAMA_CACHE_DIR.exists():
-        return False
-    for f in LLAMA_CACHE_DIR.iterdir():
-        if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
-            return True
-    return False
+
+    # Check native llama.cpp cache
+    if LLAMA_CACHE_DIR.exists():
+        prefix = repo.replace("/", "_")
+        candidates = []
+        has_in_progress = False
+        for f in LLAMA_CACHE_DIR.iterdir():
+            if not f.name.startswith(prefix):
+                continue
+            if quant not in f.name.lower():
+                continue
+            if f.name.endswith(".downloadInProgress"):
+                has_in_progress = True
+                break
+            if f.suffix == ".gguf":
+                candidates.append(f)
+        if not has_in_progress and candidates:
+            # Sort to get the first shard for multi-shard models
+            candidates.sort(key=lambda p: p.name)
+            return candidates[0]
+
+    # Check HuggingFace hub cache
+    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
+    cache_dir_name = "models--" + repo.replace("/", "--")
+    model_cache = hf_cache / cache_dir_name
+    if model_cache.exists():
+        candidates = []
+        for f in model_cache.rglob("*.gguf"):
+            if quant in f.name.lower():
+                candidates.append(f)
+        if candidates:
+            candidates.sort(key=lambda p: p.name)
+            return candidates[0]
+
+    return None
+
+
+def is_llamacpp_cached(model_cfg: dict) -> bool:
+    """Check if a llama.cpp model is already downloaded."""
+    return resolve_llamacpp_gguf(model_cfg) is not None
 
 
 def is_mlx_cached(model_cfg: dict) -> bool:
@@ -313,10 +354,13 @@ def start_llamacpp_server(model_cfg: dict, ctx_size_override: Optional[int] = No
       - ctx_size: context window size (default: server default)
     ctx_size_override takes precedence over model config if provided.
     """
-    hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
+    gguf_path = resolve_llamacpp_gguf(model_cfg)
+    if gguf_path is None:
+        print(f"    GGUF not found locally for {model_cfg['name']}. Run with --download first.", flush=True)
+        return None
     server_cmd = [
         str(LLAMA_SERVER),
-        "-hf", hf_spec,
+        "-m", str(gguf_path),
         "--host", "127.0.0.1",
         "--port", str(LLAMACPP_PORT),
         "--verbose",
