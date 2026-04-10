@@ -15,6 +15,7 @@ interface ModelAgg {
   wallMlx: number;
   wallTotal: number;
   mem: number;
+  tokens: number;
 }
 
 type SortKey = "best" | "llamacpp" | "mlx";
@@ -32,6 +33,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
         mlxScores: number[];
         wall: Record<string, number>;
         mem: number[];
+        tokens: number;
       }
     > = {};
     data.forEach((d) => {
@@ -43,6 +45,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
           mlxScores: [],
           wall: {},
           mem: [],
+          tokens: 0,
         };
       agg[d.model].scores.push(d.score);
       if (d.runtime === "llamacpp") agg[d.model].llamaScores.push(d.score);
@@ -50,6 +53,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
       if (!agg[d.model].wall[d.runtime]) agg[d.model].wall[d.runtime] = 0;
       agg[d.model].wall[d.runtime] += d.wall_time_sec;
       if (d.peak_memory_gb > 0) agg[d.model].mem.push(d.peak_memory_gb);
+      agg[d.model].tokens += (d.prompt_tokens || 0) + (d.generation_tokens || 0);
     });
 
     const avg = (arr: number[]) =>
@@ -67,6 +71,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
       wallMlx: a.wall.mlx || 0,
       wallTotal: (a.wall.llamacpp || 0) + (a.wall.mlx || 0),
       mem: a.mem.length ? Math.max(...a.mem) : 0,
+      tokens: a.tokens,
     };});
   }, [data]);
 
@@ -82,6 +87,10 @@ export function Leaderboard({ data }: LeaderboardProps) {
 
   const maxWallLlama = Math.max(...models.map((m) => m.wallLlama), 1);
   const maxWallMlx = Math.max(...models.map((m) => m.wallMlx), 1);
+  const maxMem = Math.max(...models.map((m) => m.mem), 1);
+  const maxTokens = Math.max(...models.map((m) => m.tokens), 1);
+  const minBarH = 5;
+  const maxBarH = 20;
 
   function formatScore(score: number): string {
     return score < 0 ? "—" : Math.round(score * 100) + "%";
@@ -89,9 +98,12 @@ export function Leaderboard({ data }: LeaderboardProps) {
 
   function formatTime(sec: number): string {
     const total = Math.round(sec);
-    const min = Math.floor(total / 60);
+    const hrs = Math.floor(total / 3600);
+    const min = Math.floor((total % 3600) / 60);
     const s = total % 60;
-    return min > 0 ? `${min}m ${s}s` : `${s}s`;
+    if (hrs > 0) return `${hrs}h ${min}m`;
+    if (min > 0) return `${min}m ${s}s`;
+    return `${s}s`;
   }
 
   return (
@@ -105,7 +117,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
           alignItems: "center",
         }}
       >
-        <span>Width = duration. Height = peak memory.</span>
+        <span>Width = duration. Height = memory. Opacity = tokens.</span>
         <span style={{ fontSize: "11px", color: "#6b7280" }}>
           Sort:{" "}
           {(["best", "llamacpp", "mlx"] as SortKey[]).map((key) => (
@@ -133,6 +145,11 @@ export function Leaderboard({ data }: LeaderboardProps) {
         {sorted.map((m) => {
           const llamaW = m.wallLlama > 0 ? (m.wallLlama / maxWallLlama) * 90 : 0;
           const mlxW = m.wallMlx > 0 ? (m.wallMlx / maxWallMlx) * 90 : 0;
+          const barH =
+            m.mem > 0
+              ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH))
+              : minBarH;
+          const tokenOpacity = 0.25 + 0.65 * (m.tokens / maxTokens);
 
           return (
             <div className="leaderboard-row" key={m.model}>
@@ -143,20 +160,24 @@ export function Leaderboard({ data }: LeaderboardProps) {
                 {m.wallLlama > 0 && (
                   <div
                     style={{
-                      height: 8,
+                      height: barH,
                       width: `${llamaW.toFixed(1)}%`,
                       background: RUNTIME_COLORS.llamacpp,
-                      borderRadius: "3px",
+                      opacity: tokenOpacity,
+                      border: `1px solid ${RUNTIME_COLORS.llamacpp}`,
+                      borderRadius: "3px 3px 0 0",
                     }}
                   />
                 )}
                 {m.wallMlx > 0 && (
                   <div
                     style={{
-                      height: 8,
+                      height: barH,
                       width: `${mlxW.toFixed(1)}%`,
                       background: RUNTIME_COLORS.mlx,
-                      borderRadius: "3px",
+                      opacity: tokenOpacity,
+                      border: `1px solid ${RUNTIME_COLORS.mlx}`,
+                      borderRadius: "0 0 3px 3px",
                     }}
                   />
                 )}
