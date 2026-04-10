@@ -306,7 +306,7 @@ def _chat_completion(port: int, system: str, user: str, max_tokens: int,
     return json.loads(resp.read())
 
 
-def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
+def start_llamacpp_server(model_cfg: dict, ctx_size_override: Optional[int] = None) -> Optional[subprocess.Popen]:
     """Start llama-server and wait until ready. Returns the process or None on failure.
 
     Server output is tee'd to /tmp/testbench-llamacpp.log so we can inspect
@@ -314,6 +314,7 @@ def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
 
     Respects model config keys:
       - ctx_size: context window size (default: server default)
+    ctx_size_override takes precedence over model config if provided.
     """
     hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
     server_cmd = [
@@ -325,7 +326,7 @@ def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
         "--cache-type-k", "q8_0",
         "--cache-type-v", "q8_0",
     ]
-    ctx_size = model_cfg.get("ctx_size")
+    ctx_size = ctx_size_override if ctx_size_override is not None else model_cfg.get("ctx_size")
     if ctx_size is not None:
         server_cmd.extend(["-c", str(ctx_size)])
 

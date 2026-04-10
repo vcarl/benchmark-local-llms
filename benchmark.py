@@ -338,6 +338,21 @@ def main():
 
                 # ── Game scenarios ──
                 if scenarios:
+                    # For llamacpp, restart server with scenario_ctx_size if different
+                    if runtime == "llamacpp":
+                        scenario_ctx = model_cfg.get("scenario_ctx_size")
+                        prompt_ctx = model_cfg.get("ctx_size")
+                        if scenario_ctx is not None and scenario_ctx != prompt_ctx:
+                            stop_llamacpp_server(server_proc)
+                            server_proc = start_llamacpp_server(model_cfg, ctx_size_override=scenario_ctx)
+                            if not server_proc:
+                                print(f"    Failed to restart server for scenarios, skipping.", flush=True)
+                                scenarios_iter = []
+                            else:
+                                scenarios_iter = scenarios
+                        else:
+                            scenarios_iter = scenarios
+
                     # For MLX, swap the stdin/stdout subprocess for an HTTP server
                     mlx_http_proc = None
                     if runtime == "mlx":
@@ -350,7 +365,7 @@ def main():
                             scenarios_iter = []
                         else:
                             scenarios_iter = scenarios
-                    else:
+                    elif runtime != "llamacpp":
                         scenarios_iter = scenarios
 
                     # TESTBENCH_SCENARIO_BASE_URL lets you interpose a proxy
