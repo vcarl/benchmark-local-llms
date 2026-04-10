@@ -684,8 +684,18 @@ def append_result(result: BenchmarkResult) -> None:
     """Append execution data to the model+runtime JSONL file.
 
     Only writes execution fields — scoring is done at report time.
+    For game scenarios (identified by a ``_game_session`` attribute), the
+    session's event list is serialised and stored under an ``events`` key.
     """
     path = results_file_path(result.model, result.runtime)
     record = {k: v for k, v in asdict(result).items() if k in _EXECUTION_FIELDS}
+
+    session = getattr(result, "_game_session", None)
+    if session is not None:
+        record["events"] = [
+            {"event": e.event, "tick": e.tick, "ts": e.ts, "data": e.data}
+            for e in session.events
+        ]
+
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")
