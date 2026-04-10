@@ -1,14 +1,12 @@
-"""Run one SpaceMolt game session: gameserver + commander + cutoff watchdog.
+"""Run one SpaceMolt game session: gameserver + Admiral + cutoff watchdog.
 
-Assembles game_admin, game_lifecycle, commander_runner, and cutoff_watchdog
-into a single entry point. Tests use mocks; the integration smoke test in
-tests/test_game_session_integration.py exercises the real binaries.
+Assembles game_admin, game_lifecycle, admiral_runner, and cutoff_watchdog
+into a single entry point. The Admiral server must already be running
+(started by benchmark.py); this module creates a profile per scenario,
+connects the LLM loop, streams events, and tears down.
 """
 
-import json as _json
-import os
 import secrets
-import subprocess
 import sys
 import time
 import uuid
@@ -18,33 +16,21 @@ from pathlib import Path
 from typing import Optional
 
 from common import (
-    GAMESERVER_BINARY, COMMANDER_DIR,
-    COMMANDER_LOCAL_BASE_URL_ENV,
+    GAMESERVER_BINARY,
     Scenario,
 )
 from game_admin import AdminClient, AdminError
 from game_lifecycle import allocate_port, start_gameserver, stop_gameserver
-from commander_runner import CommanderEvent, drain_stderr, iter_events, spawn_commander
+from admiral_runner import (
+    AgentEvent, AdmiralLogStream,
+    configure_provider, create_profile, connect_profile,
+    disconnect_profile, delete_profile,
+)
 from cutoff_watchdog import CutoffWatchdog
 
 
 def _log(msg: str) -> None:
     print(f"    [game] {msg}", flush=True)
-
-
-def _write_commander_credentials(commander_dir: str, session_id: str, creds: dict) -> None:
-    """Write credentials.json into commander's session directory."""
-    session_dir = Path(commander_dir) / "sessions" / session_id
-    session_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "username": creds.get("username"),
-        "password": creds.get("password"),
-        "empire": creds.get("empire"),
-        "playerId": creds.get("player_id"),
-    }
-    creds_path = session_dir / "credentials.json"
-    creds_path.write_text(_json.dumps(payload, indent=2))
-    _log(f"wrote credentials for {payload['username']} → {creds_path}")
 
 
 LLAMACPP_BASE_URL = "http://127.0.0.1:18080/v1"  # matches runner.LLAMACPP_PORT
@@ -57,7 +43,7 @@ class GameSessionResult:
     tool_call_count: int
     total_tokens: int
     elapsed_sec: float
-    events: list[CommanderEvent] = field(default_factory=list)
+    events: list[AgentEvent] = field(default_factory=list)
     final_player_stats: dict = field(default_factory=dict)
     error: Optional[str] = None
 
@@ -65,42 +51,40 @@ class GameSessionResult:
 def run_game_session(
     scenario: Scenario,
     model_name: str,
-    commander_model_string: str,
+    admiral_model_string: str,
     scenario_path: str,
     llm_base_url: str = LLAMACPP_BASE_URL,
 ) -> GameSessionResult:
-    """Run one scenario × model game session end to end.
+    """Run one scenario x model game session end to end.
 
-    `commander_model_string` is the value passed to commander's `--model` flag,
-    formatted for the local provider (see Task 6 investigation — e.g.
-    "ollama/qwen2.5-7b-instruct").
+    `admiral_model_string` is the model identifier passed to Admiral's
+    profile creation (e.g. the HF repo id). Admiral prefixes it with
+    "custom/" internally.
 
-    `scenario_path` is the path commander reads for scenario goal text. For
-    SpaceMolt this is the markdown scenario file in ~/workspace/smbench/scenarios,
-    NOT the testbench YAML.
+    `scenario_path` is the path to the scenario markdown file whose
+    contents are sent as the Admiral profile's directive.
+
+    The Admiral server must already be running (see admiral_runner.start_admiral_server).
     """
     port = allocate_port()
     admin_token = secrets.token_hex(16)
     session_id = uuid.uuid4().hex[:8]
-    # AdminClient uses absolute paths (`/api/admin/...`) so it takes the
-    # bare origin. Commander's API lives under `/api/v1/` on the local
-    # gameserver — session creation hits `/api/v1/session`, tool calls hit
-    # `/api/v1/<command>`, and fetchGameCommands() does
-    # `baseUrl + "/openapi.json"` → `/api/v1/openapi.json`.
     origin_url = f"http://127.0.0.1:{port}"
-    commander_base_url = f"{origin_url}/api/v2"
 
-    events: list[CommanderEvent] = []
+    events: list[AgentEvent] = []
     watchdog = CutoffWatchdog(scenario.cutoffs)
     termination = "error"
     error: Optional[str] = None
     final_stats: dict = {}
+    profile_id: Optional[str] = None
+    log_stream: Optional[AdmiralLogStream] = None
 
     gs_proc = None
-    cmd_proc = None
     try:
         gs_proc = start_gameserver(GAMESERVER_BINARY, port=port, admin_token=admin_token)
         admin = AdminClient(origin_url, admin_token)
+
+        # Reset game state and get player credentials
         player_creds = None
         try:
             all_creds = admin.reset(scenario.fixture)
@@ -109,63 +93,112 @@ def run_game_session(
                 if c.get("username") == target_username:
                     player_creds = c
                     break
-            if player_creds:
-                _write_commander_credentials(COMMANDER_DIR, session_id, player_creds)
-            else:
+            if not player_creds:
                 _log(f"[warn] no credentials found for player {target_username}")
         except AdminError as e:
             print(f"    [warn] reset skipped: {e}", flush=True)
 
-        # Resolve scenario markdown path for commander
+        # Resolve scenario markdown path and read as directive text
         if scenario.scenario_md:
             smbench_scenarios_dir = Path.home() / "workspace" / "smbench" / "scenarios"
             resolved_scenario_path = str(smbench_scenarios_dir / scenario.scenario_md)
         else:
             resolved_scenario_path = scenario_path
 
-        _log(f"spawning commander: model={commander_model_string} "
-             f"{COMMANDER_LOCAL_BASE_URL_ENV}={llm_base_url}")
-        _log(f"scenario_path={resolved_scenario_path} commander_base_url={commander_base_url}")
+        directive = ""
+        try:
+            directive = Path(resolved_scenario_path).read_text()
+        except FileNotFoundError:
+            _log(f"[warn] scenario file not found: {resolved_scenario_path}")
 
-        cmd_proc = spawn_commander(
-            commander_dir=COMMANDER_DIR,
-            model=commander_model_string,
-            scenario_path=Path(resolved_scenario_path),
-            server_url=commander_base_url,
-            session=session_id,
-            llm_base_url_env=COMMANDER_LOCAL_BASE_URL_ENV,
-            llm_base_url=llm_base_url,
+        # Configure Admiral's LLM provider to point at the local server
+        _log(f"configuring Admiral provider: llm_base_url={llm_base_url}")
+        configure_provider(base_url=llm_base_url, api_key="local")
+
+        # Create Admiral profile with game credentials
+        username = player_creds.get("username", "") if player_creds else ""
+        password = player_creds.get("password", "") if player_creds else ""
+
+        profile_id = create_profile(
+            name=f"bench-{session_id}",
+            username=username,
+            password=password,
+            model=admiral_model_string,
+            server_url=origin_url,
+            directive=directive,
+            connection_mode="http_v2",
         )
-        _log(f"commander pid={cmd_proc.pid}")
-        # Drain stderr so commander doesn't block on a full pipe buffer.
-        drain_stderr(cmd_proc, sys.stderr)
+        _log(f"created Admiral profile {profile_id}")
+
+        # Connect and start the LLM agent loop
+        _log(f"connecting Admiral profile (model={admiral_model_string})")
+        connect_profile(profile_id)
+
+        # Open SSE log stream and monitor events
+        log_stream = AdmiralLogStream(profile_id)
+        log_stream.open()
 
         event_counts: Counter = Counter()
+        tool_counts: Counter = Counter()  # per-tool-name call counts
+        tool_errors: Counter = Counter()  # per-tool-name error counts
         last_event_ts = time.monotonic()
         last_heartbeat = time.monotonic()
+        pending_tool: Optional[str] = None  # track last tool_call for pairing with result
         HEARTBEAT_INTERVAL = 15.0  # seconds
         STALL_WARN = 30.0          # warn if no events for this long
 
-        for event in iter_events(cmd_proc):
+        for event in log_stream:
             events.append(event)
             event_counts[event.event] += 1
             now = time.monotonic()
             gap = now - last_event_ts
             last_event_ts = now
 
-            # Log tool errors so failures aren't silent
-            if event.event == "tool_error":
+            # Log individual tool calls with their name
+            if event.event == "tool_call":
                 tool = event.data.get("tool", "?")
-                args = event.data.get("args", {})
-                _log(f"tool_error: {tool} args={args}")
+                tool_counts[tool] += 1
+                pending_tool = tool
+                _log(f"tool_call: {tool}")
 
-            # Log first occurrence of each event type and periodic heartbeats.
-            if event_counts[event.event] == 1:
+            # Log tool results (success)
+            elif event.event == "tool_result":
+                tool = event.data.get("tool", "") or pending_tool or "?"
+                result_snippet = event.data.get("result", "")
+                if isinstance(result_snippet, str) and len(result_snippet) > 120:
+                    result_snippet = result_snippet[:120] + "..."
+                _log(f"tool_result: {tool} -> ok"
+                     + (f" ({result_snippet})" if result_snippet else ""))
+                pending_tool = None
+
+            # Log tool errors with detail
+            elif event.event == "tool_error":
+                tool = event.data.get("tool", "") or pending_tool or "?"
+                tool_errors[tool] += 1
+                error_msg = event.data.get("error", event.data.get("message", ""))
+                args = event.data.get("args", {})
+                _log(f"tool_error: {tool} args={args}"
+                     + (f" error={error_msg}" if error_msg else ""))
+                pending_tool = None
+
+            # Log turn_end with token deltas
+            elif event.event == "turn_end":
+                tok_in = event.data.get("totalTokensIn", 0)
+                tok_out = event.data.get("totalTokensOut", 0)
+                _log(f"turn_end: tokens_in={tok_in} tokens_out={tok_out}")
+
+            # Log first occurrence of other event types
+            elif event_counts[event.event] == 1:
                 _log(f"first '{event.event}' event (tick={event.tick})")
+
+            # Periodic heartbeat with tool breakdown
             if now - last_heartbeat >= HEARTBEAT_INTERVAL:
-                summary = ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items()))
+                evt_summary = ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items()))
+                tool_summary = ", ".join(f"{k}={v}" for k, v in tool_counts.most_common(5))
                 _log(f"heartbeat t={watchdog.elapsed_sec:.0f}s "
-                     f"tokens={watchdog.total_tokens} tools={watchdog.tool_call_count} | {summary}")
+                     f"tokens={watchdog.total_tokens} tools={watchdog.tool_call_count} | {evt_summary}")
+                if tool_summary:
+                    _log(f"  tools used: {tool_summary}")
                 last_heartbeat = now
             if gap > STALL_WARN:
                 _log(f"WARN: {gap:.0f}s gap between events (last: {event.event})")
@@ -174,47 +207,43 @@ def run_game_session(
             if watchdog.tripped() is not None:
                 termination = watchdog.tripped()
                 _log(f"cutoff tripped: {termination}")
-                cmd_proc.terminate()
-                try:
-                    cmd_proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    cmd_proc.kill()
+                disconnect_profile(profile_id)
                 break
         else:
-            # Generator exhausted normally — commander exited
-            _log(f"commander stdout closed after {len(events)} events")
-            cmd_proc.wait(timeout=10)
+            # SSE stream closed (Admiral shut down or connection lost)
+            _log(f"log stream closed after {len(events)} events")
             termination = "completed"
 
-        # Final event summary — critical for diagnosing "commander ran but
-        # never hit the LLM" symptoms.
-        summary = ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items())) or "(none)"
-        _log(f"event summary: {summary}")
+        # Final event summary
+        evt_summary = ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items())) or "(none)"
+        _log(f"event summary: {evt_summary}")
+        if tool_counts:
+            tool_breakdown = ", ".join(f"{k}={v}" for k, v in tool_counts.most_common())
+            _log(f"tool breakdown: {tool_breakdown}")
+        if tool_errors:
+            err_breakdown = ", ".join(f"{k}={v}" for k, v in tool_errors.most_common())
+            _log(f"tool errors: {err_breakdown}")
         _log(f"totals: tokens={watchdog.total_tokens} "
              f"tool_calls={watchdog.tool_call_count} "
              f"elapsed={watchdog.elapsed_sec:.1f}s "
-             f"termination={termination} "
-             f"exit_code={cmd_proc.poll()}")
+             f"termination={termination}")
         if not events:
-            _log("WARN: commander produced ZERO events — check stderr above, "
-                 "model string, or env vars")
+            _log("WARN: Admiral produced ZERO events — check provider config")
 
         try:
             final_stats = admin.get_player_stats(scenario.llm_player_id)
         except AdminError as e:
-            # Final-state read failure shouldn't mask the run; record but continue
             error = f"final-state read: {e}"
 
     except Exception as e:
         termination = "error"
         error = str(e)[:200]
     finally:
-        if cmd_proc is not None and cmd_proc.poll() is None:
-            cmd_proc.terminate()
-            try:
-                cmd_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                cmd_proc.kill()
+        if log_stream is not None:
+            log_stream.close()
+        if profile_id is not None:
+            disconnect_profile(profile_id)
+            delete_profile(profile_id)
         if gs_proc is not None:
             stop_gameserver(gs_proc)
 

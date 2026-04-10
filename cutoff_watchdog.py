@@ -1,15 +1,15 @@
-"""Cutoff watchdog: pure state machine over CommanderEvents.
+"""Cutoff watchdog: pure state machine over AgentEvents.
 
 Tracks running counts of tool calls and total tokens, plus elapsed wall-clock
 time, and reports the first cutoff to trip. The watchdog is the single source
-of truth for "world limits" per the design doc — commander may have its own
-softer turn limits as guard rails.
+of truth for "world limits" per the design doc — Admiral runs until explicitly
+disconnected, so cutoffs are the only termination mechanism.
 """
 
 import time
 from typing import Callable, Optional
 
-from commander_runner import CommanderEvent
+from admiral_runner import AgentEvent
 from common import ScenarioCutoffs
 
 
@@ -20,11 +20,13 @@ class CutoffWatchdog:
         self._start = now()
         self._tripped: Optional[str] = None
         self.tool_call_count = 0
-        self.total_tokens = 0  # latest turn_end's in+out
+        self.total_tokens = 0  # cumulative in+out from turn_end events
 
-    def observe(self, event: CommanderEvent) -> None:
+    def observe(self, event: AgentEvent) -> None:
         if event.event == "tool_call":
             self.tool_call_count += 1
+        elif event.event == "tool_result":
+            pass  # informational only, no cutoff impact
         elif event.event == "turn_end":
             tokens_in = int(event.data.get("totalTokensIn", 0))
             tokens_out = int(event.data.get("totalTokensOut", 0))
