@@ -208,6 +208,8 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       if (group.length < 2) return;
       for (let i = 0; i < group.length - 1; i++) {
         g.append("line")
+          .attr("class", "model-link")
+          .datum(group[i].model)
           .attr("x1", x(group[i].tokens))
           .attr("y1", y(group[i].score))
           .attr("x2", x(group[i + 1].tokens))
@@ -222,9 +224,10 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
     const tooltip = d3.select(tooltipRef.current);
 
     // Dots
-    g.selectAll("circle")
+    const dots = g.selectAll("circle.dot")
       .data(points)
       .join("circle")
+      .attr("class", "dot")
       .attr("cx", (d) => x(d.tokens))
       .attr("cy", (d) => y(d.score))
       .attr("r", (d) => rScale(d.mem || 4))
@@ -233,7 +236,16 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       .attr("stroke", (d) => getColor(d))
       .attr("stroke-width", 1)
       .on("mouseenter", function (event, d) {
-        d3.select(this).attr("opacity", 0.9);
+        // Highlight all dots with the same model
+        dots
+          .filter((p) => p.model === d.model)
+          .attr("opacity", 0.9)
+          .attr("stroke-width", 2.5);
+        // Brighten connecting lines
+        g.selectAll("line.model-link")
+          .filter((l: any) => l === d.model)
+          .attr("opacity", 0.8)
+          .attr("stroke-width", 1.5);
         tooltip
           .style("opacity", "1")
           .html(
@@ -245,8 +257,15 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
           .style("left", event.pageX + 12 + "px")
           .style("top", event.pageY - 12 + "px");
       })
-      .on("mouseleave", function () {
-        d3.select(this).attr("opacity", 0.5);
+      .on("mouseleave", function (event, d) {
+        dots
+          .filter((p) => p.model === d.model)
+          .attr("opacity", 0.5)
+          .attr("stroke-width", 1);
+        g.selectAll("line.model-link")
+          .filter((l: any) => l === d.model)
+          .attr("opacity", 0.4)
+          .attr("stroke-width", 1);
         tooltip.style("opacity", "0");
       });
 
