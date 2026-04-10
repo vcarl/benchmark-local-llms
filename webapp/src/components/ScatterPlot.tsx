@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 import type { BenchmarkResult } from "../lib/data";
+import { modelFamily } from "../lib/data";
 import { RUNTIME_COLORS } from "../lib/colors";
 
 interface ScatterPlotProps {
@@ -16,19 +17,6 @@ interface AggPoint {
   tier: string;
   category: string;
   family: string;
-}
-
-function modelFamily(name: string): string {
-  const lower = name.toLowerCase();
-  if (lower.includes("qwen")) return "Qwen";
-  if (lower.includes("mistral")) return "Mistral";
-  if (lower.includes("gemma")) return "Gemma";
-  if (lower.includes("llama")) return "Llama";
-  if (lower.includes("phi")) return "Phi";
-  if (lower.includes("deepseek")) return "DeepSeek";
-  if (lower.includes("devstral")) return "Mistral";
-  if (lower.includes("gpt")) return "GPT";
-  return name.split(" ")[0] || "Other";
 }
 
 function topKey(counts: Record<string, number>): string {

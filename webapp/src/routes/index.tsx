@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useMemo } from "react";
-import { DATA, uniqueSorted } from "../lib/data";
+import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import type { CellSelection } from "../components/HeatmapTable";
+import { FamilyFilter } from "../components/FamilyFilter";
 import { ModelSelector } from "../components/ModelSelector";
 import { ScatterPlot } from "../components/ScatterPlot";
 import { Leaderboard } from "../components/Leaderboard";
@@ -27,6 +28,20 @@ function HomePage() {
     [],
   );
 
+  const familyMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    allModels.forEach((m) => {
+      const fam = modelFamily(m);
+      if (!map[fam]) map[fam] = [];
+      map[fam].push(m);
+    });
+    return map;
+  }, [allModels]);
+  const allFamilies = useMemo(
+    () => Object.keys(familyMap).sort(),
+    [familyMap],
+  );
+
   const [checkedModels, setCheckedModels] = useState(() => new Set(allModels));
   const [selectedCell, setSelectedCell] = useState<CellSelection | null>(null);
 
@@ -41,6 +56,10 @@ function HomePage() {
     },
     [],
   );
+
+  const handleFamilyToggle = useCallback((newChecked: Set<string>) => {
+    setCheckedModels(newChecked);
+  }, []);
 
   const handleSelectAll = useCallback(
     (selected: boolean) => {
@@ -57,6 +76,12 @@ function HomePage() {
   return (
     <>
       <div className="header">Benchmark Analysis</div>
+      <FamilyFilter
+        families={allFamilies}
+        familyMap={familyMap}
+        checkedModels={checkedModels}
+        onChange={handleFamilyToggle}
+      />
       <ModelSelector
         allModels={allModels}
         checkedModels={checkedModels}

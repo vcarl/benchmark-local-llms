@@ -41,6 +41,19 @@ export function modelsForRuntime(
   return new Set(data.filter((d) => d.runtime === runtime).map((d) => d.model));
 }
 
+export function modelFamily(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("qwen")) return "Qwen";
+  if (lower.includes("mistral") || lower.includes("devstral")) return "Mistral";
+  if (lower.includes("gemma")) return "Gemma";
+  if (lower.includes("llama")) return "Llama";
+  if (lower.includes("phi")) return "Phi";
+  if (lower.includes("deepseek")) return "DeepSeek";
+  if (lower.includes("gpt")) return "GPT";
+  if (lower.includes("glm")) return "GLM";
+  return name.split(" ")[0] || "Other";
+}
+
 export function groupBy(
   data: BenchmarkResult[],
   keyFn: (d: BenchmarkResult) => string,
