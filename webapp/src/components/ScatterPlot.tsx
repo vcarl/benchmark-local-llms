@@ -180,7 +180,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       .attr("cx", 0)
       .attr("cy", 0)
       .attr("r", 4)
-      .attr("fill", "#3b82f6")
+      .attr("fill", RUNTIME_COLORS.llamacpp)
       .attr("opacity", 0.6);
     leg
       .append("text")
@@ -194,7 +194,7 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       .attr("cx", 62)
       .attr("cy", 0)
       .attr("r", 4)
-      .attr("fill", "#22c55e")
+      .attr("fill", RUNTIME_COLORS.mlx)
       .attr("opacity", 0.6);
     leg
       .append("text")
@@ -203,6 +203,9 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       .style("font-size", "10px")
       .style("fill", "#6b7280")
       .text("mlx");
+    return () => {
+      svg.selectAll("*").remove();
+    };
   }, [data]);
 
   return (

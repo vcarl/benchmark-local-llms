@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { DATA, uniqueSorted } from "../lib/data";
 import type { CellSelection } from "../components/HeatmapTable";
 import { ModelSelector } from "../components/ModelSelector";
@@ -13,12 +13,19 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
-  const allModels = uniqueSorted(DATA, "model") as string[];
-  const allCategories = uniqueSorted(DATA, "category") as string[];
-  const allTiers = (uniqueSorted(DATA, "tier") as number[]).sort(
-    (a, b) => a - b,
+  const allModels = useMemo(() => uniqueSorted(DATA, "model") as string[], []);
+  const allCategories = useMemo(
+    () => uniqueSorted(DATA, "category") as string[],
+    [],
   );
-  const runtimes = ["llamacpp", "mlx"];
+  const allTiers = useMemo(
+    () => (uniqueSorted(DATA, "tier") as number[]).sort((a, b) => a - b),
+    [],
+  );
+  const runtimes = useMemo(
+    () => uniqueSorted(DATA, "runtime") as string[],
+    [],
+  );
 
   const [checkedModels, setCheckedModels] = useState(() => new Set(allModels));
   const [selectedCell, setSelectedCell] = useState<CellSelection | null>(null);
@@ -42,7 +49,10 @@ function HomePage() {
     [allModels],
   );
 
-  const filteredData = DATA.filter((d) => checkedModels.has(d.model));
+  const filteredData = useMemo(
+    () => DATA.filter((d) => checkedModels.has(d.model)),
+    [checkedModels],
+  );
 
   return (
     <>

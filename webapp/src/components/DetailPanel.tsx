@@ -74,10 +74,10 @@ export function DetailPanel({ selection, data }: DetailPanelProps) {
       {/* Individual prompt results */}
       <div className="prompt-results">
         <h4>Individual Results</h4>
-        {matches.map((d, i) => {
+        {matches.map((d) => {
           const pct = Math.round(d.score * 100);
           return (
-            <div key={i}>
+            <div key={d.prompt_name}>
               <div className="prompt-result-row">
                 <div className="prompt-result-name">{d.prompt_name}</div>
                 <div
