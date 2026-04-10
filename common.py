@@ -561,6 +561,7 @@ class Scenario:
     #   2 = advanced behaviors   (expected attainable by stronger local models)
     #   3 = complex strategy     (likely requires a richer harness than Commander)
     tier: int = 1
+    scenario_md: str = ""  # filename of commander instruction markdown
 
     @property
     def llm_player_id(self) -> str:
@@ -608,6 +609,7 @@ def load_scenarios(scenarios_dir: Path = SCENARIOS_DIR) -> list[Scenario]:
             cutoffs=cutoffs,
             commander_max_turns=int(data.get("commander", {}).get("max_turns", 250)),
             tier=int(data.get("tier", 1)),
+            scenario_md=data.get("scenario_md", ""),
         ))
     return scenarios
 

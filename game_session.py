@@ -117,14 +117,21 @@ def run_game_session(
         except AdminError as e:
             print(f"    [warn] reset skipped: {e}", flush=True)
 
+        # Resolve scenario markdown path for commander
+        if scenario.scenario_md:
+            smbench_scenarios_dir = Path.home() / "workspace" / "smbench" / "scenarios"
+            resolved_scenario_path = str(smbench_scenarios_dir / scenario.scenario_md)
+        else:
+            resolved_scenario_path = scenario_path
+
         _log(f"spawning commander: model={commander_model_string} "
              f"{COMMANDER_LOCAL_BASE_URL_ENV}={llm_base_url}")
-        _log(f"scenario_path={scenario_path} commander_base_url={commander_base_url}")
+        _log(f"scenario_path={resolved_scenario_path} commander_base_url={commander_base_url}")
 
         cmd_proc = spawn_commander(
             commander_dir=COMMANDER_DIR,
             model=commander_model_string,
-            scenario_path=Path(scenario_path),
+            scenario_path=Path(resolved_scenario_path),
             server_url=commander_base_url,
             session=session_id,
             llm_base_url_env=COMMANDER_LOCAL_BASE_URL_ENV,
