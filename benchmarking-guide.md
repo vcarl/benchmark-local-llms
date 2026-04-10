@@ -217,7 +217,7 @@ python benchmark.py --models all --max-tokens 512
 
 **"No runtimes available"** — Make sure you activated the right environment (`source ~/llm-env/bin/activate`) and that `llama.cpp/llama-b8400/llama-cli` exists.
 
-**Model download hangs** — First runs download models (several GB each). Check network. llama.cpp models go to `~/Library/Caches/llama.cpp/`, MLX models to `~/.cache/huggingface/`.
+**Model download hangs** — First runs download models (several GB each). Check network. All models (both llama.cpp GGUFs and MLX) are cached in `~/.cache/huggingface/hub/`. Downloads automatically resume if interrupted.
 
 **OOM / killed** — Unlikely with 128GB, but if running 72B with long `--max-tokens`, try adding `--max-tokens 128` or using a smaller model.
 

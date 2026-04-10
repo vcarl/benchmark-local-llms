@@ -9,5 +9,5 @@ models/
 *-backup*/
 .pytest_cache/
 benchmark-results/
-webapp/src/data/benchmark.json
+webapp/src/data/data.js
 webapp/dist-report/

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from common import (
-    LLAMA_CLI, LLAMA_SERVER, LLAMA_CACHE_DIR,
+    LLAMA_CLI, LLAMA_SERVER,
     BenchmarkResult,
     Scenario,
     compute_scenario_hash,
@@ -236,47 +236,21 @@ def _score_game(result: BenchmarkResult, prompt_cfg: dict) -> None:
 # ── Cache checking ─────────────────────────────────────────────────────────
 
 def resolve_llamacpp_gguf(model_cfg: dict) -> Optional[Path]:
-    """Resolve local GGUF file path for a llama.cpp model, checking both caches.
+    """Resolve local GGUF file path for a llama.cpp model in the HuggingFace cache.
 
     Returns the path to the first matching .gguf file, or None if not found.
     For multi-shard models, returns the first shard (llama-server finds the rest).
-
-    Cache locations checked:
-      1. Native llama.cpp cache (~/Library/Caches/llama.cpp/ on macOS)
-      2. HuggingFace hub cache (~/.cache/huggingface/hub/)
     """
     repo = model_cfg["llamacpp_hf"]
-    quant = model_cfg["llamacpp_quant"].lower()
+    quant = model_cfg["llamacpp_quant"]
+    # Strict match: quant preceded by - or . , followed by .gguf or -0 (shard)
+    quant_re = re.compile(rf"(?i)[-\.]{re.escape(quant)}(\.gguf|-\d)")
 
-    # Check native llama.cpp cache
-    if LLAMA_CACHE_DIR.exists():
-        prefix = repo.replace("/", "_")
-        candidates = []
-        has_in_progress = False
-        for f in LLAMA_CACHE_DIR.iterdir():
-            if not f.name.startswith(prefix):
-                continue
-            if quant not in f.name.lower():
-                continue
-            if f.name.endswith(".downloadInProgress"):
-                has_in_progress = True
-                break
-            if f.suffix == ".gguf":
-                candidates.append(f)
-        if not has_in_progress and candidates:
-            # Sort to get the first shard for multi-shard models
-            candidates.sort(key=lambda p: p.name)
-            return candidates[0]
-
-    # Check HuggingFace hub cache
     hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
     cache_dir_name = "models--" + repo.replace("/", "--")
     model_cache = hf_cache / cache_dir_name
     if model_cache.exists():
-        candidates = []
-        for f in model_cache.rglob("*.gguf"):
-            if quant in f.name.lower():
-                candidates.append(f)
+        candidates = [f for f in model_cache.rglob("*.gguf") if quant_re.search(f.name)]
         if candidates:
             candidates.sort(key=lambda p: p.name)
             return candidates[0]
@@ -453,12 +427,12 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
 def run_game_scenario(
     model_cfg: dict,
     scenario: Scenario,
-    commander_model_string: str,
+    admiral_model_string: str,
     scenario_md_path: str,
     llm_base_url: str,
     runtime: str = "llamacpp",
 ) -> BenchmarkResult:
-    """Run a SpaceMolt scenario against the already-running llama-server.
+    """Run a SpaceMolt scenario against the already-running LLM server.
 
     Returns a BenchmarkResult with both the standard fields and the new
     scenario-specific fields. The score is NOT computed here — call
@@ -476,7 +450,7 @@ def run_game_scenario(
     session = run_game_session(
         scenario=scenario,
         model_name=model_cfg["name"],
-        commander_model_string=commander_model_string,
+        admiral_model_string=admiral_model_string,
         scenario_path=scenario_md_path,
         llm_base_url=llm_base_url,
     )
@@ -583,7 +557,7 @@ def start_mlx_subprocess(model_cfg: dict) -> Optional[subprocess.Popen]:
     return None
 
 
-# ── MLX HTTP server (for game scenarios — commander needs HTTP) ────────────
+# ── MLX HTTP server (for game scenarios — Admiral needs HTTP) ─────────────
 
 MLX_SERVER_PORT = 18081
 
@@ -592,7 +566,7 @@ def start_mlx_server(model_cfg: dict) -> Optional[subprocess.Popen]:
     """Start `python -m mlx_lm.server` and wait until ready. Returns process or None.
 
     This is separate from the stdin/stdout MLX subprocess used for prompts.
-    Game scenarios need an HTTP endpoint for commander to talk to.
+    Game scenarios need an HTTP endpoint for Admiral to talk to.
     """
     if not model_cfg.get("mlx_model"):
         print(f"    No MLX model available for {model_cfg['name']}.", flush=True)
@@ -776,16 +750,42 @@ print("OK")
 
 
 def _fetch_llamacpp_files(model_cfg: dict) -> bool:
-    """Download a llama.cpp GGUF into the native llama.cpp cache via llama-cli."""
-    hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
-    print(f"    Downloading {hf_spec}...", flush=True)
+    """Download GGUF file(s) for a llama.cpp model via huggingface_hub.
+
+    Uses snapshot_download with allow_patterns to grab the right quant,
+    supporting both single-file and multi-shard GGUFs. Automatically
+    resumes interrupted downloads.
+    """
+    from huggingface_hub import snapshot_download
+    repo = model_cfg["llamacpp_hf"]
+    quant = model_cfg["llamacpp_quant"]
+    print(f"    Downloading {repo} ({quant})...", flush=True)
     try:
-        proc = subprocess.run(
-            [str(LLAMA_CLI), "-hf", hf_spec, "-p", "hi", "-n", "1",
-             "--no-warmup", "--log-disable"],
-            capture_output=True, text=True, timeout=3600,
+        from huggingface_hub import list_repo_files
+        from huggingface_hub.errors import HfHubHTTPError
+        # Find GGUF files matching the requested quantization.
+        # Naming varies by uploader:
+        #   bartowski/unsloth: Model-Name-Q6_K.gguf  (dash before quant)
+        #   Qwen official:     model-name-q6_k.gguf  (lowercase)
+        #   TheBloke:          model-name.Q6_K.gguf   (dot before quant)
+        #   Multi-shard:       Model-Q6_K/Model-Q6_K-00001-of-00002.gguf
+        all_files = list_repo_files(repo)
+        # Strict match: quant preceded by - or . , followed by .gguf, /, or -0 (shard)
+        quant_re = re.compile(
+            rf"(?i)[-\.]{re.escape(quant)}(\.gguf|/|-\d)"
         )
-        return proc.returncode == 0 or "model loaded" in proc.stderr.lower()
+        matches = [f for f in all_files if f.endswith(".gguf") and quant_re.search(f)]
+        if not matches:
+            print(f"    [fetch fail] No GGUF files matching quant '{quant}' in {repo}")
+            return False
+        snapshot_download(repo_id=repo, allow_patterns=matches)
+        return True
+    except HfHubHTTPError as e:
+        if "429" in str(e):
+            print(f"    [rate limited] {repo} — authenticate with `huggingface-cli login` or set HF_TOKEN")
+        else:
+            print(f"    [fetch fail] {e}")
+        return False
     except Exception as e:
         print(f"    [fetch fail] {e}")
         return False
@@ -809,7 +809,13 @@ def _fetch_mlx_files(model_cfg: dict) -> bool:
 def download_models(models: list[dict], runtimes: list[str], max_workers: int = 4):
     """Download models concurrently with up to max_workers parallel downloads."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from huggingface_hub.utils import get_token
     import threading
+
+    if not get_token():
+        print("WARNING: No HuggingFace token found. Downloads may be rate-limited.")
+        print("  Run `huggingface-cli login` or set HF_TOKEN to authenticate.")
+        print()
 
     # Inventory: what needs downloading vs what's already cached
     to_fetch: list[tuple[dict, str]] = []

@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR"
 if [ $# -ge 1 ]; then
   JSON_FILE="$1"
 else
-  JSON_FILE="$(ls -t ../results/benchmark-*.json 2>/dev/null | head -1)"
+  JSON_FILE="$(ls -t ../benchmark-results/benchmark-*.json 2>/dev/null | head -1)"
   if [ -z "$JSON_FILE" ]; then
     echo "Error: No benchmark JSON found. Run 'python benchmark.py --report-only' first, or pass a path."
     exit 1
@@ -19,8 +19,8 @@ fi
 
 echo "Using data: $JSON_FILE"
 
-# Copy data into the app
-cp "$JSON_FILE" src/data/benchmark.json
+# Write data.js with benchmark data as a global variable (used by both dev and report builds)
+echo "window.__BENCHMARK_DATA = $(cat "$JSON_FILE");" > src/data/data.js
 
 # Extract timestamp from filename for output naming
 BASENAME="$(basename "$JSON_FILE" .json)"
@@ -30,7 +30,7 @@ npm run build
 
 # Rename output
 if [ -d "dist" ]; then
-  OUTPUT_DIR="../results/${BASENAME}-report"
+  OUTPUT_DIR="../benchmark-results/${BASENAME}-report"
   rm -rf "$OUTPUT_DIR"
   mv dist "$OUTPUT_DIR"
   echo "Report built: $OUTPUT_DIR/"

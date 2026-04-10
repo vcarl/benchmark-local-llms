@@ -19,43 +19,19 @@ from typing import Optional
 LLAMA_CPP_DIR = Path(__file__).parent / "llama.cpp" / "llama-b8400"
 LLAMA_CLI = LLAMA_CPP_DIR / "llama-cli"
 LLAMA_SERVER = LLAMA_CPP_DIR / "llama-server"
-LLAMA_CACHE_DIR = Path.home() / "Library" / "Caches" / "llama.cpp"
 EXECUTION_DIR = Path(__file__).parent / "benchmark-execution"  # per-model cached results
 RESULTS_DIR = Path(__file__).parent / "benchmark-results"  # generated reports (markdown)
 
-# ── External tool paths (gameserver / commander) ───────────────────────────
+# ── External tool paths (gameserver / admiral) ────────────────────────────
 
 # Configured via env vars — no hardcoded defaults. Validated at startup
 # by benchmark.py when scenarios are going to run.
 _GAMESERVER_BINARY_ENV = os.environ.get("TESTBENCH_GAMESERVER_BINARY")
 GAMESERVER_BINARY = Path(_GAMESERVER_BINARY_ENV) if _GAMESERVER_BINARY_ENV else None
-COMMANDER_DIR = Path(os.environ.get(
-    "TESTBENCH_COMMANDER_DIR",
-    str(Path.home() / "workspace" / "commander"),
+ADMIRAL_DIR = Path(os.environ.get(
+    "TESTBENCH_ADMIRAL_DIR",
+    str(Path.home() / "workspace" / "admiral"),
 ))
-
-# Commander pi-ai provider config — investigation result from
-# ~/workspace/commander/src/model.ts (resolveModel, lines 24-31, 87-111):
-#   provider: "ollama" — listed in CUSTOM_BASE_URLS, so apiKey is auto-set to
-#       "local" and the model is built by cloning a groq model and overriding
-#       baseUrl. The base URL is read from OLLAMA_BASE_URL (line 24), default
-#       http://localhost:11434/v1. Setting OLLAMA_BASE_URL=http://127.0.0.1:18080/v1
-#       points commander at testbench's llama-server (also OpenAI-compatible).
-#   base url env var: "OLLAMA_BASE_URL"
-# We intentionally use a provider name that is NOT in pi-ai's built-in known-
-# providers list ("ollama", "lmstudio", "vllm", etc. are all known). For known
-# providers, commander's resolveModel() clones a registered model and ignores
-# the *_BASE_URL env var, so OLLAMA_BASE_URL=... is silently dropped and
-# commander tries to hit the default localhost:11434, producing zero GPU
-# activity. Using an unknown provider name forces resolveModel() into its
-# custom branch (commander/src/model.ts:90+), which honors
-# OPENAI_COMPAT_BASE_URL / OPENAI_COMPAT_API_KEY.
-#
-#   model string format: "testbench/<model-id>"
-#   api key: set to "local" by commander when OPENAI_COMPAT_API_KEY is unset,
-#            but we pass "local" explicitly to be safe.
-COMMANDER_LOCAL_PROVIDER = "testbench"
-COMMANDER_LOCAL_BASE_URL_ENV = "OPENAI_COMPAT_BASE_URL"
 
 # Models to benchmark. Each entry has:
 #   - name: display name
@@ -564,7 +540,6 @@ def compute_scenario_hash(scenario: "Scenario") -> str:
         json.dumps(scenario.scorer_params, sort_keys=True),
         json.dumps(scenario.players, sort_keys=True),
         f"{scenario.cutoffs.wall_clock_sec}|{scenario.cutoffs.total_tokens}|{scenario.cutoffs.tool_calls}",
-        str(scenario.commander_max_turns),
     ]
     blob = "|".join(parts).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:12]
@@ -590,13 +565,12 @@ class Scenario:
     scorer: str
     cutoffs: ScenarioCutoffs
     scorer_params: dict = field(default_factory=dict)
-    commander_max_turns: int = 250
     # Difficulty tier, parallel to the prompt tier system:
     #   1 = basic functionality  (expected attainable by all local models)
     #   2 = advanced behaviors   (expected attainable by stronger local models)
-    #   3 = complex strategy     (likely requires a richer harness than Commander)
+    #   3 = complex strategy     (likely requires a richer harness)
     tier: int = 1
-    scenario_md: str = ""  # filename of commander instruction markdown
+    scenario_md: str = ""  # filename of scenario instruction markdown
 
     @property
     def llm_player_id(self) -> str:
@@ -642,7 +616,6 @@ def load_scenarios(scenarios_dir: Path = SCENARIOS_DIR) -> list[Scenario]:
             scorer=data["scorer"],
             scorer_params=data.get("scorer_params", {}),
             cutoffs=cutoffs,
-            commander_max_turns=int(data.get("commander", {}).get("max_turns", 250)),
             tier=int(data.get("tier", 1)),
             scenario_md=data.get("scenario_md", ""),
         ))

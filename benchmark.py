@@ -25,15 +25,13 @@ from common import (
     LLAMA_CLI,
     EXECUTION_DIR, RESULTS_DIR,
     MODELS, PROMPTS,
-    BenchmarkResult,
-    GAMESERVER_BINARY,
+    GAMESERVER_BINARY, ADMIRAL_DIR,
     load_prompts,
     load_scenarios,
     compute_prompt_hash,
     compute_scenario_hash,
     load_existing_results, load_all_results,
     append_result, result_is_valid,
-    COMMANDER_LOCAL_PROVIDER,
 )
 from runner import (
     score_result,
@@ -49,7 +47,6 @@ from runner import (
 from report import (
     print_header,
     print_result_summary,
-    save_markdown_report,
     save_html_report,
     save_json_data,
 )
@@ -102,7 +99,7 @@ def main():
     parser.add_argument(
         "--scenario-md-dir", type=str,
         default=str(Path.home() / "workspace" / "smbench" / "scenarios"),
-        help="Directory containing the scenario markdown files commander reads (default: ~/workspace/smbench/scenarios)",
+        help="Directory containing the scenario markdown files (default: ~/workspace/smbench/scenarios)",
     )
     args = parser.parse_args()
 
@@ -195,6 +192,15 @@ def main():
             )
             sys.exit(1)
 
+        # Validate Admiral directory exists
+        if not ADMIRAL_DIR.exists():
+            print(
+                f"ERROR: Admiral directory not found at {ADMIRAL_DIR}\n"
+                f"  Set TESTBENCH_ADMIRAL_DIR or ensure ~/workspace/admiral exists.\n"
+                f"  Or pass --scenarios none to skip game scenarios."
+            )
+            sys.exit(1)
+
     # Determine runtimes
     runtimes = []
     if args.runtime in ("llamacpp", "all"):
@@ -229,8 +235,6 @@ def main():
     print(f"Runtimes: {', '.join(runtimes)}")
     print(f"Prompts: {', '.join(p['name'] for p in prompts)}")
     print()
-
-    results: list[BenchmarkResult] = []
 
     prompt_lookup = {p["_key"]: p for p in prompts}
 
@@ -279,23 +283,6 @@ def main():
 
             if prompts_all_cached and scenarios_all_cached:
                 print(f"\n  {model_cfg['name']} / {runtime} ({quant}): all {len(prompts)} prompts and {len(scenarios)} scenarios cached, skipping model load")
-                for tier_num in tier_order:
-                    for pcfg in tiers[tier_num]:
-                        cached = existing[pcfg["_key"]]
-                        score_result(cached, pcfg)
-                        results.append(cached)
-                for s in scenarios:
-                    cached = existing[s.name]
-                    pcfg = {
-                        "scorer": "game",
-                        "game_scorer": s.scorer,
-                        "scorer_params": s.scorer_params,
-                        "category": "game",
-                        "tier": s.tier,
-                        "style": "game",
-                    }
-                    score_result(cached, pcfg)
-                    results.append(cached)
                 continue
 
             print_header(f"{model_cfg['name']} — {runtime} ({quant})")
@@ -330,7 +317,6 @@ def main():
                             print(f"  [cached] {pcfg['_key']}")
                             score_result(cached, pcfg)
                             print_result_summary(cached)
-                            results.append(cached)
                             continue
                         elif cached and cached.prompt_hash == p_hash:
                             print(f"  [invalid] {pcfg['_key']} — re-running")
@@ -345,7 +331,6 @@ def main():
                         r.prompt_hash = p_hash
                         score_result(r, pcfg)
                         print_result_summary(r)
-                        results.append(r)
                         append_result(r)
 
                 # ── Game scenarios ──
@@ -381,8 +366,7 @@ def main():
                         scenarios_iter = scenarios
 
                     # TESTBENCH_SCENARIO_BASE_URL lets you interpose a proxy
-                    # (e.g. tcp_tee.py) between commander and the LLM backend
-                    # for debugging — set it to the proxy's URL.
+                    # between Admiral and the LLM backend for debugging.
                     _env_url = os.environ.get("TESTBENCH_SCENARIO_BASE_URL")
                     if _env_url:
                         scenario_base_url = _env_url
@@ -391,8 +375,18 @@ def main():
                     else:
                         scenario_base_url = f"http://127.0.0.1:{MLX_SERVER_PORT}/v1"
 
+                    # Start Admiral server for scenarios (if not already running)
+                    admiral_proc = None
                     if scenarios_iter:
                         print(f"\n  ── Game Scenarios ({len(scenarios_iter)}) ──", flush=True)
+                        from admiral_runner import start_admiral_server, stop_admiral_server
+                        try:
+                            admiral_proc = start_admiral_server(ADMIRAL_DIR)
+                            print(f"    Admiral server started.", flush=True)
+                        except RuntimeError as e:
+                            print(f"    Admiral server failed to start: {e}", flush=True)
+                            scenarios_iter = []
+
                     try:
                         for scenario in scenarios_iter:
                             scenario_md_path = str(Path(args.scenario_md_dir) / f"{scenario.fixture}.md")
@@ -402,24 +396,20 @@ def main():
                             s_hash = compute_scenario_hash(scenario)
                             if cached and cached.scenario_hash == s_hash and result_is_valid(cached):
                                 print(f"  [cached] scenario:{scenario.name}")
-                                results.append(cached)
                                 continue
                             elif cached and cached.scenario_hash == s_hash:
                                 print(f"  [invalid] scenario:{scenario.name} — re-running")
 
+                            # Admiral uses the model ID directly; the "custom/"
+                            # provider prefix is added by create_profile().
                             if runtime == "mlx":
-                                commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['mlx_model']}"
+                                admiral_model_string = model_cfg['mlx_model']
                             else:
-                                # Use the HF repo id, not the display name. Display
-                                # names contain spaces and parentheses which llama.cpp
-                                # rejects with a bare 400 in the chat-completions
-                                # `model` field. llama-server serves whatever was
-                                # loaded regardless of the value, so any stable id works.
-                                commander_model_string = f"{COMMANDER_LOCAL_PROVIDER}/{model_cfg['llamacpp_hf']}"
+                                admiral_model_string = model_cfg['llamacpp_hf']
                             r = run_game_scenario(
                                 model_cfg=model_cfg,
                                 scenario=scenario,
-                                commander_model_string=commander_model_string,
+                                admiral_model_string=admiral_model_string,
                                 scenario_md_path=scenario_md_path,
                                 llm_base_url=scenario_base_url,
                                 runtime=runtime,
@@ -436,11 +426,13 @@ def main():
                             r.prompt_name = scenario.name
                             score_result(r, pcfg)
                             print_result_summary(r)
-                            results.append(r)
                             append_result(r)
                     finally:
                         if mlx_http_proc is not None:
                             stop_mlx_server(mlx_http_proc)
+                        if admiral_proc is not None:
+                            stop_admiral_server(admiral_proc)
+                            print(f"    Admiral server stopped.", flush=True)
 
             except KeyboardInterrupt:
                 print(f"\n\n  Interrupted! Saving completed results...", flush=True)
@@ -452,12 +444,9 @@ def main():
                 if mlx_proc:
                     stop_mlx_subprocess(mlx_proc)
 
-    # Save (final summaries are written to the markdown/HTML reports;
-    # per-result lines were already printed during the run, so no extra
-    # stdout dump here)
+    # Save (HTML report uses all cached execution data, scored fresh;
+    # per-result lines were already printed during the run)
     if not args.no_save:
-        save_markdown_report(results, RESULTS_DIR, prompts)
-        # HTML report uses all cached execution data, scored fresh
         all_cached = load_all_results()
         score_results(all_cached, prompts)
         save_html_report(all_cached, RESULTS_DIR, prompts)

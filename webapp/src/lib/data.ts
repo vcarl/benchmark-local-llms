@@ -56,15 +56,41 @@ export function modelsForRuntime(
 
 export function modelFamily(name: string): string {
   const lower = name.toLowerCase();
-  if (lower.includes("qwen")) return "Qwen";
-  if (lower.includes("mistral") || lower.includes("devstral")) return "Mistral";
+  if (lower.includes("deepseek")) return "DeepSeek";
+  if (lower.includes("qwen") || lower.includes("qwq")) return "Qwen";
+  if (lower.includes("mistral") || lower.includes("devstral") || lower.includes("magistral")) return "Mistral";
   if (lower.includes("gemma")) return "Gemma";
   if (lower.includes("llama")) return "Llama";
   if (lower.includes("phi")) return "Phi";
-  if (lower.includes("deepseek")) return "DeepSeek";
   if (lower.includes("gpt")) return "GPT";
   if (lower.includes("glm")) return "GLM";
   return name.split(" ")[0] || "Other";
+}
+
+export function modelSizeB(name: string): number | null {
+  // Match patterns like "7B", "32B", "122B", "35B-A3B" — take the first (largest) number before B
+  const match = name.match(/(\d+)B\b/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+export interface SizeRange {
+  label: string;
+  min: number;
+  max: number; // exclusive
+}
+
+export const SIZE_RANGES: SizeRange[] = [
+  { label: "Under 10B", min: 0, max: 10 },
+  { label: "10-25B", min: 10, max: 25 },
+  { label: "25-40B", min: 25, max: 40 },
+  { label: "40-80B", min: 40, max: 80 },
+  { label: "80B+", min: 80, max: Infinity },
+];
+
+export function modelSizeRange(name: string): SizeRange | null {
+  const size = modelSizeB(name);
+  if (size === null) return null;
+  return SIZE_RANGES.find((r) => size >= r.min && size < r.max) ?? null;
 }
 
 export function groupBy(
