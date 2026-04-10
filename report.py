@@ -944,6 +944,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </html>""")
 
 
+def save_json_data(results: list[BenchmarkResult], output_dir: Path) -> Path:
+    """Save scored results as a JSON file for the webapp to consume."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    scored_results = [r for r in results if r.score is not None]
+
+    data_records = []
+    for r in scored_results:
+        data_records.append({
+            "model": r.model,
+            "runtime": r.runtime,
+            "prompt_name": r.prompt_name,
+            "category": r.category,
+            "tier": r.tier,
+            "style": r.style,
+            "score": r.score,
+            "score_details": r.score_details,
+            "prompt_tps": round(r.prompt_tps, 2),
+            "generation_tps": round(r.generation_tps, 2),
+            "wall_time_sec": round(r.wall_time_sec, 2),
+            "peak_memory_gb": round(r.peak_memory_gb, 2),
+            "output": r.output,
+            "prompt_text": r.prompt_text,
+        })
+
+    json_path = output_dir / f"benchmark-{timestamp}.json"
+    with open(json_path, "w") as f:
+        json.dump(data_records, f, default=str)
+
+    print(f"  JSON data: {json_path}")
+    return json_path
+
+
 def save_html_report(results: list[BenchmarkResult], output_dir: Path, prompts: list[dict]):
     """Save results to a self-contained HTML analysis page with interactive heatmaps."""
     output_dir.mkdir(parents=True, exist_ok=True)
