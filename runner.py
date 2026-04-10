@@ -236,18 +236,34 @@ def _score_game(result: BenchmarkResult, prompt_cfg: dict) -> None:
 # ── Cache checking ─────────────────────────────────────────────────────────
 
 def is_llamacpp_cached(model_cfg: dict) -> bool:
-    """Check if a llama.cpp model is already downloaded in the cache."""
-    # llama.cpp caches in ~/Library/Caches/llama.cpp/ with filenames like:
-    # Qwen_Qwen2.5-72B-Instruct-GGUF_qwen2.5-72b-instruct-q4_k_m-00001-of-00003.gguf
-    # The prefix is repo with / replaced by _
+    """Check if a llama.cpp model is already downloaded in the cache.
+
+    Checks two locations:
+    1. ~/Library/Caches/llama.cpp/ — where llama-server/-cli -hf downloads to
+    2. ~/.cache/huggingface/hub/ — where hf_hub_download() stores files
+    """
     repo = model_cfg["llamacpp_hf"]
-    prefix = repo.replace("/", "_")
     quant = model_cfg["llamacpp_quant"].lower()
-    if not LLAMA_CACHE_DIR.exists():
-        return False
-    for f in LLAMA_CACHE_DIR.iterdir():
-        if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
-            return True
+
+    # Location 1: llama.cpp native cache
+    # Files named like: bartowski_DeepSeek-R1-Distill-Qwen-7B-GGUF_<quant>.gguf
+    if LLAMA_CACHE_DIR.exists():
+        prefix = repo.replace("/", "_")
+        for f in LLAMA_CACHE_DIR.iterdir():
+            if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
+                return True
+
+    # Location 2: HuggingFace hub cache (used by hf_hub_download)
+    # Structure: ~/.cache/huggingface/hub/models--{org}--{repo}/snapshots/<hash>/<file>.gguf
+    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
+    if hf_cache.exists():
+        cache_dir_name = "models--" + repo.replace("/", "--")
+        model_cache = hf_cache / cache_dir_name
+        if model_cache.exists():
+            for f in model_cache.rglob("*.gguf"):
+                if quant in f.name.lower():
+                    return True
+
     return False
 
 
