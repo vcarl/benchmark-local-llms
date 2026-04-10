@@ -1,0 +1,18 @@
+[
+  {
+    "model": "sample-model",
+    "runtime": "mlx",
+    "prompt_name": "math_add__t1_direct",
+    "category": "math",
+    "tier": 1,
+    "style": "direct",
+    "score": 0.85,
+    "score_details": "correct",
+    "prompt_tps": 120.5,
+    "generation_tps": 45.2,
+    "wall_time_sec": 3.1,
+    "peak_memory_gb": 4.2,
+    "output": "42",
+    "prompt_text": "What is 20 + 22?"
+  }
+]
