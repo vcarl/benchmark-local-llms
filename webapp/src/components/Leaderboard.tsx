@@ -8,7 +8,7 @@ interface LeaderboardProps {
 
 interface ModelAgg {
   model: string;
-  scoreAvg: number;
+  scoreBest: number;
   scoreLlama: number;
   scoreMlx: number;
   wallLlama: number;
@@ -17,10 +17,10 @@ interface ModelAgg {
   mem: number;
 }
 
-type SortKey = "avg" | "llamacpp" | "mlx";
+type SortKey = "best" | "llamacpp" | "mlx";
 
 export function Leaderboard({ data }: LeaderboardProps) {
-  const [sortBy, setSortBy] = useState<SortKey>("avg");
+  const [sortBy, setSortBy] = useState<SortKey>("best");
 
   const models = useMemo(() => {
     const agg: Record<
@@ -55,16 +55,19 @@ export function Leaderboard({ data }: LeaderboardProps) {
     const avg = (arr: number[]) =>
       arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : -1;
 
-    return Object.values(agg).map((a) => ({
+    return Object.values(agg).map((a) => {
+      const ll = avg(a.llamaScores);
+      const ml = avg(a.mlxScores);
+      return {
       model: a.model,
-      scoreAvg: avg(a.scores),
-      scoreLlama: avg(a.llamaScores),
-      scoreMlx: avg(a.mlxScores),
+      scoreBest: Math.max(ll, ml),
+      scoreLlama: ll,
+      scoreMlx: ml,
       wallLlama: a.wall.llamacpp || 0,
       wallMlx: a.wall.mlx || 0,
       wallTotal: (a.wall.llamacpp || 0) + (a.wall.mlx || 0),
       mem: a.mem.length ? Math.max(...a.mem) : 0,
-    }));
+    };});
   }, [data]);
 
   const sorted = useMemo(() => {
@@ -73,7 +76,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
         ? "scoreLlama"
         : sortBy === "mlx"
           ? "scoreMlx"
-          : "scoreAvg";
+          : "scoreBest";
     return [...models].sort((a, b) => b[key] - a[key]);
   }, [models, sortBy]);
 
@@ -107,7 +110,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
         <span>Width = duration. Height = peak memory.</span>
         <span style={{ fontSize: "11px", color: "#6b7280" }}>
           Sort:{" "}
-          {(["avg", "llamacpp", "mlx"] as SortKey[]).map((key) => (
+          {(["best", "llamacpp", "mlx"] as SortKey[]).map((key) => (
             <button
               key={key}
               onClick={() => setSortBy(key)}
@@ -123,7 +126,7 @@ export function Leaderboard({ data }: LeaderboardProps) {
                 cursor: "pointer",
               }}
             >
-              {key === "avg" ? "Avg" : key}
+              {key === "best" ? "Best" : key}
             </button>
           ))}
         </span>
@@ -164,29 +167,34 @@ export function Leaderboard({ data }: LeaderboardProps) {
                   />
                 )}
               </div>
-              <div className="leaderboard-stats">
+              <div className="leaderboard-scores">
                 <div
                   className="score"
-                  style={{ color: scoreColor(Math.round(m.scoreAvg * 100)) }}
+                  style={{ color: scoreColor(Math.round(m.scoreBest * 100)) }}
+                  title="best"
                 >
-                  {formatScore(m.scoreAvg)}
+                  {formatScore(m.scoreBest)}
                 </div>
-                <div className="meta">
-                  <span
-                    style={{ color: RUNTIME_COLORS.llamacpp }}
-                    title="llamacpp"
-                  >
-                    {formatScore(m.scoreLlama)}
-                  </span>
-                  {" / "}
-                  <span style={{ color: RUNTIME_COLORS.mlx }} title="mlx">
-                    {formatScore(m.scoreMlx)}
-                  </span>
+                <div
+                  className="score"
+                  style={{ color: RUNTIME_COLORS.llamacpp }}
+                  title="llamacpp"
+                >
+                  {formatScore(m.scoreLlama)}
                 </div>
-                <div className="meta">
+                <div
+                  className="score"
+                  style={{ color: RUNTIME_COLORS.mlx }}
+                  title="mlx"
+                >
+                  {formatScore(m.scoreMlx)}
+                </div>
+              </div>
+              <div className="leaderboard-meta">
+                <span>
                   {formatTime(m.wallTotal)}
                   {m.mem > 0 ? ` · ${m.mem.toFixed(0)}G` : ""}
-                </div>
+                </span>
               </div>
             </div>
           );
