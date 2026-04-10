@@ -736,17 +736,24 @@ print("OK")
 
 def _fetch_llamacpp_files(model_cfg: dict) -> bool:
     """Pure file fetch for a llama.cpp GGUF (no model load). Returns True on success."""
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import list_repo_files, hf_hub_download
     repo = model_cfg["llamacpp_hf"]
     quant = model_cfg["llamacpp_quant"].lower()
     try:
-        snapshot_download(
-            repo_id=repo,
-            allow_patterns=[f"*{quant}*.gguf", f"*{quant.upper()}*.gguf"],
-        )
+        all_files = list_repo_files(repo)
+        gguf_files = [f for f in all_files
+                      if f.endswith(".gguf") and quant in f.lower()]
+        if not gguf_files:
+            print(f"    No GGUF files matching quant '{quant}' in {repo}")
+            print(f"    Available: {[f for f in all_files if f.endswith('.gguf')]}")
+            return False
+        print(f"    Downloading {len(gguf_files)} file(s):", flush=True)
+        for i, fname in enumerate(gguf_files, 1):
+            print(f"    [{i}/{len(gguf_files)}] {fname}", flush=True)
+            hf_hub_download(repo_id=repo, filename=fname)
         return True
     except Exception as e:
-        print(f"  [fetch fail] llamacpp {repo}: {e}")
+        print(f"    [fetch fail] llamacpp {repo}: {e}")
         return False
 
 
@@ -757,10 +764,11 @@ def _fetch_mlx_files(model_cfg: dict) -> bool:
     if not model_id:
         return False
     try:
+        print(f"    Downloading {model_id}...", flush=True)
         snapshot_download(repo_id=model_id)
         return True
     except Exception as e:
-        print(f"  [fetch fail] mlx {model_id}: {e}")
+        print(f"    [fetch fail] mlx {model_id}: {e}")
         return False
 
 
