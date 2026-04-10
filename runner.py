@@ -765,73 +765,68 @@ def _fetch_mlx_files(model_cfg: dict) -> bool:
 
 
 def download_models(models: list[dict], runtimes: list[str], max_workers: int = 4):
-    """Two-pass download: parallel file fetches, then serial verify-by-load.
+    """Download models serially with clear progress, then verify.
 
-    Pass 1 uses huggingface_hub.snapshot_download in a thread pool — pure network,
-    no model load, so we don't blow up RAM. Pass 2 runs the existing
-    download_llamacpp_model / download_mlx_model entry points which actually
-    instantiate the model to confirm it's usable.
+    Downloads run one at a time so progress bars don't collide. Each model
+    shows a clear header, download progress, and result before moving on.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    # Build list of (model_cfg, runtime) pairs that need fetching
+    # Inventory: what needs downloading vs what's already cached
     to_fetch: list[tuple[dict, str]] = []
+    cached: list[tuple[str, str]] = []
+    skipped: list[tuple[str, str]] = []
+
     for model_cfg in models:
         for runtime in runtimes:
-            if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
-                to_fetch.append((model_cfg, runtime))
-            elif runtime == "mlx" and model_cfg.get("mlx_model") and not is_mlx_cached(model_cfg):
-                to_fetch.append((model_cfg, runtime))
-
-    total = len(models) * len(runtimes)
-
-    if to_fetch:
-        print(f"Pass 1: fetching {len(to_fetch)} model(s) in parallel (max {max_workers} workers)...\n")
-        fetch_failed: set[tuple[str, str]] = set()
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            futures = {}
-            for model_cfg, runtime in to_fetch:
-                fn = _fetch_llamacpp_files if runtime == "llamacpp" else _fetch_mlx_files
-                fut = ex.submit(fn, model_cfg)
-                futures[fut] = (model_cfg, runtime)
-                print(f"  queued: {model_cfg['name']} / {runtime}")
-            for fut in as_completed(futures):
-                model_cfg, runtime = futures[fut]
-                ok = fut.result()
-                tag = "OK" if ok else "FAIL"
-                print(f"  [{tag}] {model_cfg['name']} / {runtime}")
-                if not ok:
-                    fetch_failed.add((model_cfg["name"], runtime))
-        print()
-    else:
-        print("Pass 1: all models already cached, skipping fetch.\n")
-        fetch_failed = set()
-
-    # Pass 2: serial verify (load model briefly to confirm it works)
-    print("Pass 2: verifying models (serial load)...\n")
-    succeeded = 0
-    failed = 0
-    for model_cfg in models:
-        print(f"{model_cfg['name']}:")
-        for runtime in runtimes:
-            if (model_cfg["name"], runtime) in fetch_failed:
-                print(f"  {runtime}: skipped (fetch failed)")
-                failed += 1
-                continue
             if runtime == "llamacpp":
-                ok = download_llamacpp_model(model_cfg)
+                if is_llamacpp_cached(model_cfg):
+                    cached.append((model_cfg["name"], runtime))
+                else:
+                    to_fetch.append((model_cfg, runtime))
             elif runtime == "mlx":
-                ok = download_mlx_model(model_cfg)
-            else:
-                continue
-            if ok:
-                succeeded += 1
-            else:
-                failed += 1
+                if not model_cfg.get("mlx_model"):
+                    skipped.append((model_cfg["name"], runtime))
+                elif is_mlx_cached(model_cfg):
+                    cached.append((model_cfg["name"], runtime))
+                else:
+                    to_fetch.append((model_cfg, runtime))
+
+    total = len(cached) + len(to_fetch) + len(skipped)
+
+    print(f"Download plan: {len(to_fetch)} to fetch, {len(cached)} cached, {len(skipped)} skipped (no model)")
+    print()
+
+    if cached:
+        print(f"Already cached ({len(cached)}):")
+        for name, rt in cached:
+            print(f"  [cached] {name} / {rt}")
         print()
 
-    print(f"Done: {succeeded}/{total} succeeded", end="")
-    if failed:
-        print(f", {failed} failed")
+    if not to_fetch:
+        print("Nothing to download.")
+        return
+
+    # Download one at a time — clear output per model
+    print(f"Downloading ({len(to_fetch)}):")
+    print()
+    fetch_failed: set[tuple[str, str]] = set()
+    for i, (model_cfg, runtime) in enumerate(to_fetch, 1):
+        name = model_cfg["name"]
+        print(f"  [{i}/{len(to_fetch)}] {name} / {runtime}")
+        fn = _fetch_llamacpp_files if runtime == "llamacpp" else _fetch_mlx_files
+        ok = fn(model_cfg)
+        if ok:
+            print(f"  [{i}/{len(to_fetch)}] {name} / {runtime} — OK")
+        else:
+            print(f"  [{i}/{len(to_fetch)}] {name} / {runtime} — FAILED")
+            fetch_failed.add((name, runtime))
+        print()
+
+    # Summary
+    succeeded = len(to_fetch) - len(fetch_failed)
+    print(f"Downloads: {succeeded}/{len(to_fetch)} succeeded", end="")
+    if fetch_failed:
+        print(f", {len(fetch_failed)} failed:")
+        for name, rt in sorted(fetch_failed):
+            print(f"  {name} / {rt}")
     else:
         print()
