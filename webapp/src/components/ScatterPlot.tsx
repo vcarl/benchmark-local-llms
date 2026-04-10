@@ -198,6 +198,27 @@ export function ScatterPlot({ data }: ScatterPlotProps) {
       .style("fill", "#6b7280")
       .text("Avg Score");
 
+    // Dotted lines connecting same-model points across runtimes
+    const byModel: Record<string, AggPoint[]> = {};
+    points.forEach((p) => {
+      if (!byModel[p.model]) byModel[p.model] = [];
+      byModel[p.model].push(p);
+    });
+    Object.values(byModel).forEach((group) => {
+      if (group.length < 2) return;
+      for (let i = 0; i < group.length - 1; i++) {
+        g.append("line")
+          .attr("x1", x(group[i].tokens))
+          .attr("y1", y(group[i].score))
+          .attr("x2", x(group[i + 1].tokens))
+          .attr("y2", y(group[i + 1].score))
+          .attr("stroke", "#9ca3af")
+          .attr("stroke-width", 1)
+          .attr("stroke-dasharray", "3,3")
+          .attr("opacity", 0.4);
+      }
+    });
+
     const tooltip = d3.select(tooltipRef.current);
 
     // Dots
