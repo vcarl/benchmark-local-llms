@@ -91,8 +91,8 @@ export function Leaderboard({ data, hoveredModel, onHoverModel }: LeaderboardPro
   const maxWallMlx = Math.max(...models.map((m) => m.wallMlx), 1);
   const maxMem = Math.max(...models.map((m) => m.mem), 1);
   const maxTokens = Math.max(...models.map((m) => m.tokens), 1);
-  const minBarH = 5;
-  const maxBarH = 20;
+  const minBarH = 4;
+  const maxBarH = 32;
 
   function formatScore(score: number): string {
     return score < 0 ? "—" : Math.round(score * 100) + "%";
@@ -149,7 +149,7 @@ export function Leaderboard({ data, hoveredModel, onHoverModel }: LeaderboardPro
           const mlxW = m.wallMlx > 0 ? (m.wallMlx / maxWallMlx) * 90 : 0;
           const barH =
             m.mem > 0
-              ? Math.round(minBarH + (m.mem / maxMem) * (maxBarH - minBarH))
+              ? Math.round(minBarH + Math.pow(m.mem / maxMem, 2) * (maxBarH - minBarH))
               : minBarH;
           const tokenOpacity = 0.25 + 0.65 * (m.tokens / maxTokens);
 
