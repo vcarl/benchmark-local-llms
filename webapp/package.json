@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build"
+    "build": "vite build",
+    "build:report": "./build.sh"
   },
   "dependencies": {
     "@tanstack/react-router": "^1",
