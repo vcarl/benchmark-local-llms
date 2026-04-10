@@ -964,6 +964,8 @@ def save_json_data(results: list[BenchmarkResult], output_dir: Path) -> Path:
             "score_details": r.score_details,
             "prompt_tps": round(r.prompt_tps, 2),
             "generation_tps": round(r.generation_tps, 2),
+            "prompt_tokens": r.prompt_tokens,
+            "generation_tokens": r.generation_tokens,
             "wall_time_sec": round(r.wall_time_sec, 2),
             "peak_memory_gb": round(r.peak_memory_gb, 2),
             "output": r.output,

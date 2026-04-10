@@ -9,6 +9,8 @@ export interface BenchmarkResult {
   score_details: string;
   prompt_tps: number;
   generation_tps: number;
+  prompt_tokens: number;
+  generation_tokens: number;
   wall_time_sec: number;
   peak_memory_gb: number;
   output: string;
