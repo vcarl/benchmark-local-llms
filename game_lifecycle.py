@@ -50,6 +50,9 @@ def start_gameserver(
         # Tells the gameserver to relax registration-code checks so the
         # benchmark agent can register without a Clerk-issued code.
         "BENCHMARK_MODE": "1",
+        # DATA_DIR must point to the gameserver's data directory so YAML
+        # files (ships, items, etc.) are found regardless of CWD.
+        "DATA_DIR": str(binary_path.parent / "data"),
     }
     print(f"    Starting gameserver on port {port}...", flush=True)
     proc = subprocess.Popen(
