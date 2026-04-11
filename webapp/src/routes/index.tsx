@@ -3,6 +3,7 @@ import { useState, useCallback, useMemo } from "react";
 import { DATA, uniqueSorted, modelFamily, bestQuantData, bestQuantMap, quantSummary } from "../lib/data-dev";
 import type { CellSelection } from "../components/HeatmapTable";
 import { FamilyFilter } from "../components/FamilyFilter";
+import { SizeFilter } from "../components/SizeFilter";
 import { ModelSelector } from "../components/ModelSelector";
 import { ScatterPlot } from "../components/ScatterPlot";
 import { Leaderboard } from "../components/Leaderboard";
@@ -90,6 +91,11 @@ function HomePage() {
       <FamilyFilter
         families={allFamilies}
         familyMap={familyMap}
+        checkedModels={checkedModels}
+        onChange={handleFamilyToggle}
+      />
+      <SizeFilter
+        allModels={allModels}
         checkedModels={checkedModels}
         onChange={handleFamilyToggle}
       />

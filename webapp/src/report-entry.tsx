@@ -5,6 +5,7 @@ import { DATA, uniqueSorted, modelFamily, bestQuantData, bestQuantMap, quantSumm
 import type { QuantInfo } from "./lib/data";
 import type { CellSelection } from "./components/HeatmapTable";
 import { FamilyFilter } from "./components/FamilyFilter";
+import { SizeFilter } from "./components/SizeFilter";
 import { ModelSelector } from "./components/ModelSelector";
 import { ScatterPlot } from "./components/ScatterPlot";
 import { Leaderboard } from "./components/Leaderboard";
@@ -88,6 +89,11 @@ function App() {
       <FamilyFilter
         families={allFamilies}
         familyMap={familyMap}
+        checkedModels={checkedModels}
+        onChange={handleFamilyToggle}
+      />
+      <SizeFilter
+        allModels={allModels}
         checkedModels={checkedModels}
         onChange={handleFamilyToggle}
       />

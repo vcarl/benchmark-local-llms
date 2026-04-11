@@ -7,6 +7,7 @@ interface CellSelection {
   category: string;
   tier: number;
   runtime: string;
+  quant: string;
 }
 
 interface HeatmapTableProps {
@@ -152,7 +153,7 @@ function ModelTierRow({
                 background: scoreColor(pct),
                 color: textColor(pct),
               }}
-              onClick={() => onCellClick({ model, category: cat, tier, runtime })}
+              onClick={() => onCellClick({ model, category: cat, tier, runtime, quant: bestQMap?.get(model + "|" + runtime) || "" })}
             >
               {pct + "%"}
             </td>

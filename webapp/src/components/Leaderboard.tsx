@@ -28,13 +28,25 @@ export function Leaderboard({ data, hoveredModel, onHoverModel, bestQuantMap: be
   const [sortBy, setSortBy] = useState<SortKey>("best");
 
   const models = useMemo(() => {
+    // Find expected prompt count per runtime (max any model has)
+    const runtimeCounts: Record<string, Record<string, number>> = {};
+    data.forEach((d) => {
+      if (!runtimeCounts[d.runtime]) runtimeCounts[d.runtime] = {};
+      runtimeCounts[d.runtime][d.model] = (runtimeCounts[d.runtime][d.model] || 0) + 1;
+    });
+    const expectedPerRuntime: Record<string, number> = {};
+    for (const [rt, counts] of Object.entries(runtimeCounts)) {
+      expectedPerRuntime[rt] = Math.max(...Object.values(counts));
+    }
+
     const agg: Record<
       string,
       {
         model: string;
-        scores: number[];
-        llamaScores: number[];
-        mlxScores: number[];
+        llamaSum: number;
+        llamaCount: number;
+        mlxSum: number;
+        mlxCount: number;
         wall: Record<string, number>;
         mem: number[];
         tokens: number;
@@ -44,28 +56,35 @@ export function Leaderboard({ data, hoveredModel, onHoverModel, bestQuantMap: be
       if (!agg[d.model])
         agg[d.model] = {
           model: d.model,
-          scores: [],
-          llamaScores: [],
-          mlxScores: [],
+          llamaSum: 0,
+          llamaCount: 0,
+          mlxSum: 0,
+          mlxCount: 0,
           wall: {},
           mem: [],
           tokens: 0,
         };
-      agg[d.model].scores.push(d.score);
-      if (d.runtime === "llamacpp") agg[d.model].llamaScores.push(d.score);
-      if (d.runtime === "mlx") agg[d.model].mlxScores.push(d.score);
+      if (d.runtime === "llamacpp") {
+        agg[d.model].llamaSum += d.score;
+        agg[d.model].llamaCount++;
+      }
+      if (d.runtime === "mlx") {
+        agg[d.model].mlxSum += d.score;
+        agg[d.model].mlxCount++;
+      }
       if (!agg[d.model].wall[d.runtime]) agg[d.model].wall[d.runtime] = 0;
       agg[d.model].wall[d.runtime] += d.wall_time_sec;
       if (d.peak_memory_gb > 0) agg[d.model].mem.push(d.peak_memory_gb);
       agg[d.model].tokens += (d.prompt_tokens || 0) + (d.generation_tokens || 0);
     });
 
-    const avg = (arr: number[]) =>
-      arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : -1;
+    // Divide score sums by expected count, treating missing prompts as 0
+    const avg = (sum: number, count: number, expected: number) =>
+      expected > 0 ? sum / expected : count > 0 ? sum / count : -1;
 
     return Object.values(agg).map((a) => {
-      const ll = avg(a.llamaScores);
-      const ml = avg(a.mlxScores);
+      const ll = avg(a.llamaSum, a.llamaCount, expectedPerRuntime["llamacpp"] || 0);
+      const ml = avg(a.mlxSum, a.mlxCount, expectedPerRuntime["mlx"] || 0);
       return {
       model: a.model,
       scoreBest: Math.max(ll, ml),

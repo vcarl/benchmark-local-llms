@@ -121,11 +121,22 @@ export function ScatterPlot({ data, hoveredModel, onHoverModel, bestQuantMap: be
       agg[key].cats[d.category] = (agg[key].cats[d.category] || 0) + 1;
     });
 
+    // Expected prompt count per runtime (max any model has)
+    const runtimeCounts: Record<string, Record<string, number>> = {};
+    data.forEach((d) => {
+      if (!runtimeCounts[d.runtime]) runtimeCounts[d.runtime] = {};
+      runtimeCounts[d.runtime][d.model] = (runtimeCounts[d.runtime][d.model] || 0) + 1;
+    });
+    const expectedPerRuntime: Record<string, number> = {};
+    for (const [rt, counts] of Object.entries(runtimeCounts)) {
+      expectedPerRuntime[rt] = Math.max(...Object.values(counts));
+    }
+
     const points: AggPoint[] = Object.values(agg)
       .map((a) => ({
         model: a.model,
         runtime: a.runtime,
-        score: a.scores.reduce((s, v) => s + v, 0) / a.scores.length,
+        score: a.scores.reduce((s, v) => s + v, 0) / (expectedPerRuntime[a.runtime] || a.scores.length),
         tokens: a.tokens,
         wallTime: a.wallTime,
         mem: a.mem.length ? Math.max(...a.mem) : 0,

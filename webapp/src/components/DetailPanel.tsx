@@ -22,7 +22,8 @@ export function DetailPanel({ selection, data }: DetailPanelProps) {
       d.model === selection.model &&
       d.runtime === selection.runtime &&
       d.tier === selection.tier &&
-      d.category === selection.category,
+      d.category === selection.category &&
+      (!selection.quant || (d.quant || "") === selection.quant),
   );
 
   if (matches.length === 0) {
@@ -43,6 +44,7 @@ export function DetailPanel({ selection, data }: DetailPanelProps) {
       <div className="detail-title">
         {selection.model} &mdash; {selection.category} &mdash; Tier{" "}
         {selection.tier} &mdash; {selection.runtime}
+        {matches[0]?.quant && <> &mdash; {matches[0].quant}</>}
       </div>
 
       {/* Bar chart by style */}
