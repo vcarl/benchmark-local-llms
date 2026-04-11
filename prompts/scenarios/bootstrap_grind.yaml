@@ -1,7 +1,7 @@
 name: bootstrap_grind
-fixture: s1-bootstrap-grind
+fixture: benchmark
 players:
-  - id: alice
+  - id: bench_rookie
     controlled_by: llm
 scorer: bootstrap_grind
 scorer_params: {}
