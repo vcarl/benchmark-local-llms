@@ -1,12 +1,12 @@
 import pytest
 
-from commander_runner import CommanderEvent
+from admiral_runner import AgentEvent
 from common import ScenarioCutoffs
 from cutoff_watchdog import CutoffWatchdog
 
 
-def _ev(name: str, **data) -> CommanderEvent:
-    return CommanderEvent(event=name, tick=0, ts="t", data=data)
+def _ev(name: str, **data) -> AgentEvent:
+    return AgentEvent(event=name, tick=0, ts="t", data=data)
 
 
 def cutoffs(**overrides):
@@ -18,7 +18,7 @@ def cutoffs(**overrides):
 def test_no_cutoff_when_under_limits():
     w = CutoffWatchdog(cutoffs(), now=lambda: 0.0)
     w.observe(_ev("tool_call", tool="scan"))
-    w.observe(_ev("turn_end", total_tokens_in=10, total_tokens_out=20))
+    w.observe(_ev("turn_end", totalTokensIn=10, totalTokensOut=20))
     assert w.tripped() is None
 
 
@@ -33,9 +33,9 @@ def test_tool_calls_cutoff():
 
 def test_token_cutoff_uses_latest_turn_end():
     w = CutoffWatchdog(cutoffs(total_tokens=100), now=lambda: 0.0)
-    w.observe(_ev("turn_end", total_tokens_in=40, total_tokens_out=40))
+    w.observe(_ev("turn_end", totalTokensIn=40, totalTokensOut=40))
     assert w.tripped() is None
-    w.observe(_ev("turn_end", total_tokens_in=60, total_tokens_out=60))
+    w.observe(_ev("turn_end", totalTokensIn=60, totalTokensOut=60))
     assert w.tripped() == "tokens"
 
 
@@ -62,6 +62,6 @@ def test_token_count_and_tool_count_exposed():
     w = CutoffWatchdog(cutoffs(), now=lambda: 0.0)
     w.observe(_ev("tool_call"))
     w.observe(_ev("tool_call"))
-    w.observe(_ev("turn_end", total_tokens_in=30, total_tokens_out=70))
+    w.observe(_ev("turn_end", totalTokensIn=30, totalTokensOut=70))
     assert w.tool_call_count == 2
     assert w.total_tokens == 100

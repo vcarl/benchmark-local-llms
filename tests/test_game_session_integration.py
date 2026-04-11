@@ -1,8 +1,8 @@
-"""End-to-end smoke test: real gameserver + real commander + real llama.cpp.
+"""End-to-end smoke test: real gameserver + real Admiral + real llama.cpp.
 
 Gated behind RUN_INTEGRATION=1. Requires:
   - Gameserver binary at $TESTBENCH_GAMESERVER_BINARY (or default)
-  - Commander checkout at $TESTBENCH_COMMANDER_DIR (or default)
+  - Admiral checkout at $TESTBENCH_ADMIRAL_DIR (or default ~/workspace/admiral)
   - Llama.cpp server running on :18080 with a small model loaded
     (run `python benchmark.py --quick --model-name 'qwen 2.5 7b'` in another shell first)
   - ~/workspace/smbench/scenarios/s1-bootstrap-grind.md present
@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 
 from common import (
-    Scenario, ScenarioCutoffs, GAMESERVER_BINARY, COMMANDER_DIR,
-    COMMANDER_LOCAL_PROVIDER,
+    Scenario, ScenarioCutoffs, GAMESERVER_BINARY, ADMIRAL_DIR,
 )
+from admiral_runner import start_admiral_server, stop_admiral_server
 from game_session import run_game_session
 
 
@@ -25,8 +25,8 @@ def test_bootstrap_grind_smoke():
         pytest.skip("TESTBENCH_GAMESERVER_BINARY not set")
     if not GAMESERVER_BINARY.exists():
         pytest.skip(f"gameserver binary not at {GAMESERVER_BINARY}")
-    if not COMMANDER_DIR.exists():
-        pytest.skip(f"commander dir not at {COMMANDER_DIR}")
+    if not ADMIRAL_DIR.exists():
+        pytest.skip(f"admiral dir not at {ADMIRAL_DIR}")
 
     scenario_md = Path.home() / "workspace" / "smbench" / "scenarios" / "s1-bootstrap-grind.md"
     if not scenario_md.exists():
@@ -40,15 +40,19 @@ def test_bootstrap_grind_smoke():
         scorer="bootstrap_grind",
         scorer_params={},
         cutoffs=ScenarioCutoffs(wall_clock_sec=120, total_tokens=20000, tool_calls=20),
-        commander_max_turns=50,
     )
 
-    result = run_game_session(
-        scenario=scenario,
-        model_name="Qwen 2.5 7B Instruct",
-        commander_model_string=f"{COMMANDER_LOCAL_PROVIDER}/qwen2.5-7b-instruct",
-        scenario_path=str(scenario_md),
-    )
+    # Start Admiral server for the test
+    admiral_proc = start_admiral_server(ADMIRAL_DIR)
+    try:
+        result = run_game_session(
+            scenario=scenario,
+            model_name="Qwen 2.5 7B Instruct",
+            admiral_model_string="Qwen/Qwen2.5-7B-Instruct-GGUF",
+            scenario_path=str(scenario_md),
+        )
+    finally:
+        stop_admiral_server(admiral_proc)
 
     # We don't assert success — only that the pipeline runs end-to-end without
     # exception and produces a recognizable termination reason.

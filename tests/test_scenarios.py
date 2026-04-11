@@ -15,7 +15,6 @@ def test_load_scenarios_parses_yaml(tmp_path):
         "scorer": "bootstrap_grind",
         "scorer_params": {"target_credits": 1000},
         "cutoffs": {"wall_clock_sec": 600, "total_tokens": 100000, "tool_calls": 200},
-        "commander": {"max_turns": 250},
     }))
 
     scenarios = load_scenarios(tmp_path)
@@ -30,7 +29,6 @@ def test_load_scenarios_parses_yaml(tmp_path):
     assert s.cutoffs.wall_clock_sec == 600
     assert s.cutoffs.total_tokens == 100000
     assert s.cutoffs.tool_calls == 200
-    assert s.commander_max_turns == 250
 
 
 def test_load_scenarios_requires_one_llm_player(tmp_path):

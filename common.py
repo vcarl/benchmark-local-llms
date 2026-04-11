@@ -39,6 +39,9 @@ ADMIRAL_DIR = Path(os.environ.get(
 #   - llamacpp_hf: HuggingFace repo for llama.cpp -hf flag
 #   - llamacpp_quant: quantization to use (default Q4_K_M)
 #   - mlx_model: MLX model ID from mlx-community
+#   - llamacpp_active / mlx_active (optional, default True): set to False to
+#     mark that runtime as inactive. Inactive runtimes are not downloaded
+#     when --download is given and are skipped during benchmark runs.
 MODELS = [
     {
         "name": "Qwen 2.5 7B Instruct",
@@ -52,6 +55,7 @@ MODELS = [
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-32B-Instruct-GGUF",
         "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
     },
     {
@@ -59,13 +63,16 @@ MODELS = [
         "size_class": "large",
         "llamacpp_hf": "Qwen/Qwen2.5-72B-Instruct-GGUF",
         "llamacpp_quant": "Q5_K_M",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Qwen2.5-72B-Instruct-4bit",
+        "mlx_active": False,
     },
     {
         "name": "Qwen 2.5 Coder 32B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
         "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
     },
     {
@@ -177,6 +184,7 @@ MODELS = [
         "size_class": "small",
         "llamacpp_hf": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
         "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit",
     },
     {
@@ -205,6 +213,7 @@ MODELS = [
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF",
         "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit",
     },
     {
@@ -234,6 +243,7 @@ MODELS = [
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF",
         "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit",
+        "mlx_active": False,
     },
     {
         "name": "GPT-OSS 20B",
@@ -396,7 +406,7 @@ def evaluate_constraint(output: str, constraint: dict) -> bool:
         lines = [l for l in o.strip().splitlines() if l.strip()]
         return len(lines) == constraint["count"]
     elif check == "word_count_exact":
-        return o.lower().split().count(constraint["word"]) == constraint["count"]
+        return len(re.findall(rf'\b{re.escape(constraint["word"])}\b', o.lower())) == constraint["count"]
     elif check == "all_lines_word_count":
         lines = [l for l in o.strip().splitlines() if l.strip()]
         return all(constraint["min"] <= len(l.split()) <= constraint["max"] for l in lines)

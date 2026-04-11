@@ -251,6 +251,11 @@ def main():
         for runtime in runtimes:
             if interrupted:
                 break
+            # Skip runtimes explicitly marked inactive in the config
+            if runtime == "llamacpp" and not model_cfg.get("llamacpp_active", True):
+                continue
+            if runtime == "mlx" and not model_cfg.get("mlx_active", True):
+                continue
             # Check if model is cached
             if runtime == "llamacpp" and not is_llamacpp_cached(model_cfg):
                 print(f"\n  Skipping {model_cfg['name']} / llama.cpp: not downloaded. Run with --download first.")

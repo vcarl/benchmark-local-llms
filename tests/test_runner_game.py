@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 
 from common import BenchmarkResult, Scenario, ScenarioCutoffs
-from commander_runner import CommanderEvent
+from admiral_runner import AgentEvent
 from game_session import GameSessionResult
 from runner import run_game_scenario, score_result
 
@@ -24,7 +24,7 @@ def test_run_game_scenario_populates_benchmark_result():
         tool_call_count=15,
         total_tokens=2500,
         elapsed_sec=42.0,
-        events=[CommanderEvent("tool_call", i, "t") for i in range(15)],
+        events=[AgentEvent("tool_call", i, "t") for i in range(15)],
         final_player_stats={"credits": 1000, "stats": {"credits_earned": 1000}},
     )
     model_cfg = {"name": "Qwen 2.5 7B Instruct"}
@@ -33,7 +33,7 @@ def test_run_game_scenario_populates_benchmark_result():
         r = run_game_scenario(
             model_cfg=model_cfg,
             scenario=_scenario(),
-            commander_model_string="ollama/qwen2.5-7b",
+            admiral_model_string="Qwen/Qwen2.5-7B-Instruct-GGUF",
             scenario_md_path="/fake/s1.md",
             llm_base_url="http://127.0.0.1:18080/v1",
         )
@@ -61,7 +61,7 @@ def test_score_result_dispatches_to_game_scorer():
         "scorer_params": {},
         "category": "game",
     }
-    from commander_runner import CommanderEvent
+    from admiral_runner import AgentEvent
     from game_session import GameSessionResult
     r._game_session = GameSessionResult(  # type: ignore[attr-defined]
         scenario_name="bootstrap_grind",
@@ -69,7 +69,7 @@ def test_score_result_dispatches_to_game_scorer():
         tool_call_count=30,
         total_tokens=1000,
         elapsed_sec=10.0,
-        events=[CommanderEvent("tool_call", i, "t") for i in range(30)],
+        events=[AgentEvent("tool_call", i, "t") for i in range(30)],
         final_player_stats={"credits": 5000, "stats": {"credits_earned": 5000}},
     )
 

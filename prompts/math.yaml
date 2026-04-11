@@ -151,5 +151,5 @@
     What is (17^3) mod 13?
     Respond with exactly: {"result": <number>}
   scorer: exact_match
-  expected: "4"
+  expected: "12"
   extract: '"result"\s*:\s*(\d+)'
