@@ -340,6 +340,10 @@ def start_llamacpp_server(model_cfg: dict, ctx_size_override: Optional[int] = No
         "--verbose",
         "--cache-type-k", "q8_0",
         "--cache-type-v", "q8_0",
+        # Keep reasoning tokens inline in message.content so a run that hits
+        # max_tokens still has a visible output. Scoring's _strip_thinking_tags
+        # removes <think> blocks before grading.
+        "--reasoning-format", "none",
     ]
     ctx_size = ctx_size_override if ctx_size_override is not None else model_cfg.get("ctx_size")
     if ctx_size is not None:
@@ -404,7 +408,16 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
         result.wall_time_sec = time.perf_counter() - start
 
         choice = data["choices"][0]
-        result.output = choice["message"]["content"].strip()
+        message = choice["message"]
+        content = (message.get("content") or "").strip()
+        # Some llama-server builds split reasoning into a separate field;
+        # if content is empty, wrap reasoning_content so scoring's thinking-tag
+        # stripper still works and so we can see what the model produced.
+        if not content:
+            reasoning = (message.get("reasoning_content") or "").strip()
+            if reasoning:
+                content = f"<think>{reasoning}</think>"
+        result.output = content
 
         usage = data.get("usage", {})
         result.prompt_tokens = usage.get("prompt_tokens", 0)
@@ -825,20 +838,27 @@ def download_models(models: list[dict], runtimes: list[str], max_workers: int = 
     for model_cfg in models:
         for runtime in runtimes:
             if runtime == "llamacpp":
-                if is_llamacpp_cached(model_cfg):
+                if not model_cfg.get("llamacpp_active", True):
+                    skipped.append((model_cfg["name"], runtime))
+                elif is_llamacpp_cached(model_cfg):
                     cached.append((model_cfg["name"], runtime))
                 else:
                     to_fetch.append((model_cfg, runtime))
             elif runtime == "mlx":
-                if not model_cfg.get("mlx_model"):
+                if not model_cfg.get("mlx_model") or not model_cfg.get("mlx_active", True):
                     skipped.append((model_cfg["name"], runtime))
                 elif is_mlx_cached(model_cfg):
                     cached.append((model_cfg["name"], runtime))
                 else:
                     to_fetch.append((model_cfg, runtime))
 
-    print(f"Download plan: {len(to_fetch)} to fetch, {len(cached)} cached, {len(skipped)} skipped (no model)")
+    print(f"Download plan: {len(to_fetch)} to fetch, {len(cached)} cached, {len(skipped)} skipped (inactive or no model)")
     print()
+
+    if skipped:
+        for name, rt in skipped:
+            print(f"  [skipped] {name} / {rt}")
+        print()
 
     if cached:
         print(f"Already cached ({len(cached)}):")
