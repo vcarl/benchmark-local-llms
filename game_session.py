@@ -89,12 +89,15 @@ def run_game_session(
         try:
             all_creds = admin.reset(scenario.fixture)
             target_username = scenario.llm_player_id
+            _log(f"reset returned {len(all_creds)} players, looking for '{target_username}'")
             for c in all_creds:
-                if c.get("username") == target_username:
+                _log(f"  player: username={c.get('username')!r} player_id={c.get('player_id')!r}")
+                if c.get("username") == target_username or c.get("player_id") == target_username:
                     player_creds = c
                     break
             if not player_creds:
-                _log(f"[warn] no credentials found for player {target_username}")
+                _log(f"[warn] no credentials matched '{target_username}' by username or player_id "
+                     f"— available: {[(c.get('username'), c.get('player_id')) for c in all_creds]}")
         except AdminError as e:
             print(f"    [warn] reset skipped: {e}", flush=True)
 
@@ -118,6 +121,10 @@ def run_game_session(
         # Create Admiral profile with game credentials
         username = player_creds.get("username", "") if player_creds else ""
         password = player_creds.get("password", "") if player_creds else ""
+        if username and password:
+            _log(f"credentials: username={username!r} (password={'*' * len(password)})")
+        else:
+            _log(f"[warn] empty credentials — username={username!r} password={'set' if password else 'empty'}")
 
         profile_id = create_profile(
             name=f"bench-{session_id}",
