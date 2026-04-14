@@ -1,0 +1,16 @@
+name: math_multiply_few_shot
+category: math
+tier: 2
+system: few_shot
+prompt: |-
+  Q: What is 23 * 17?
+  A: 391
+
+  Q: What is 56 * 34?
+  A: 1904
+
+  Q: What is 47 * 89?
+  A:
+scorer: exact_match
+expected: '4183'
+extract: (\d[\d,]*)

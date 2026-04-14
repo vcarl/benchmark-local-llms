@@ -1,0 +1,8 @@
+name: logic_sequence_direct
+category: logic
+tier: 3
+system: direct
+prompt: 'What is the next number in this sequence: 1, 1, 2, 3, 5, 8, 13, 21, __? Reply with just the number.'
+scorer: exact_match
+expected: '34'
+extract: (\d+)

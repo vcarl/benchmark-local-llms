@@ -1,6 +1,6 @@
 name: storage_management
 fixture: benchmark
-scenario_md: bench-storage-management.md
+scenarioMd: storage_management.md
 players:
   - id: bench_rookie
     controlled_by: llm

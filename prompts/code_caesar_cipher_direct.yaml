@@ -1,0 +1,13 @@
+name: code_caesar_cipher_direct
+category: code
+tier: 1
+system: code_direct
+prompt: 'Write a Python function `caesar_cipher(text: str, shift: int) -> str` that applies a Caesar cipher. Only shift a-z and A-Z, leave other characters unchanged. Support negative shifts.'
+scorer: code_exec
+test_code: |
+  assert caesar_cipher("abc", 1) == "bcd"
+  assert caesar_cipher("xyz", 3) == "abc"
+  assert caesar_cipher("Hello, World!", 13) == "Uryyb, Jbeyq!"
+  assert caesar_cipher("Uryyb, Jbeyq!", -13) == "Hello, World!"
+  assert caesar_cipher("ABC", 26) == "ABC"
+  assert caesar_cipher("abc", 0) == "abc"

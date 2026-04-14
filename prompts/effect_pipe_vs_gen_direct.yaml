@@ -1,0 +1,16 @@
+name: effect_pipe_vs_gen_direct
+category: effect-ts
+tier: 3
+system: direct
+prompt: In Effect-TS, when would you use `.pipe()` with combinators like Effect.map/Effect.flatMap versus `Effect.gen` with yield*? Reply in 2-3 sentences.
+scorer: constraint
+constraints:
+- name: mentions pipe for simple transformations
+  check: regex
+  pattern: (?i)(pipe|combinator).*(simple|chain|transform|short|linear)
+- name: mentions gen for complex/sequential logic
+  check: regex
+  pattern: (?i)(gen|generator).*(complex|sequential|multiple|step|imperative|readable)
+- name: is substantive
+  check: min_length
+  length: 60

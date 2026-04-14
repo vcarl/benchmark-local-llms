@@ -1,0 +1,12 @@
+name: math_word_problem_structured
+category: math
+tier: 2
+system: structured
+prompt: |-
+  A baker makes 4 batches of cookies. Each batch has 36 cookies.
+  She gives away 1/3 of all the cookies. How many does she have left?
+
+  Respond with exactly this JSON: {"answer": <number>}
+scorer: exact_match
+expected: '96'
+extract: '"answer"\s*:\s*(\d+)'

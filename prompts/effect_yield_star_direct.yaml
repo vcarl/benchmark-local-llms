@@ -1,0 +1,13 @@
+name: effect_yield_star_direct
+category: effect-ts
+tier: 1
+system: direct
+prompt: In Effect-TS, what does `yield*` do inside an `Effect.gen(function* () { ... })` block? Explain in one sentence.
+scorer: constraint
+constraints:
+- name: mentions unwrapping/extracting the value or delegation/composition
+  check: regex
+  pattern: (?i)(unwrap|extract|get.*value|like.*await|resolv|run.*effect|delegat|compos)
+- name: is a sentence
+  check: min_length
+  length: 20

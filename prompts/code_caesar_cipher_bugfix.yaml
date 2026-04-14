@@ -1,0 +1,26 @@
+name: code_caesar_cipher_bugfix
+category: code
+tier: 2
+system: code_bugfix
+prompt: |-
+  This Caesar cipher function has bugs. Fix it:
+
+  ```python
+  def caesar_cipher(text: str, shift: int) -> str:
+      result = ''
+      for char in text:
+          if char.isalpha():
+              base = ord('a')  # BUG: doesn't handle uppercase
+              result += chr((ord(char) - base + shift) % 26 + base)
+          else:
+              result += char
+      return result
+  ```
+scorer: code_exec
+test_code: |
+  assert caesar_cipher("abc", 1) == "bcd"
+  assert caesar_cipher("xyz", 3) == "abc"
+  assert caesar_cipher("Hello, World!", 13) == "Uryyb, Jbeyq!"
+  assert caesar_cipher("Uryyb, Jbeyq!", -13) == "Hello, World!"
+  assert caesar_cipher("ABC", 26) == "ABC"
+  assert caesar_cipher("abc", 0) == "abc"

@@ -1,6 +1,6 @@
 name: combat_pirate
 fixture: benchmark
-scenario_md: bench-combat-pirate.md
+scenarioMd: combat_pirate.md
 players:
   - id: bench_fighter
     controlled_by: llm

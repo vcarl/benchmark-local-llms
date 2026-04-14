@@ -1,0 +1,13 @@
+name: effect_option_either_direct
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, what are the two main modules for representing optional values and values that can be one of two types? Reply with just the two module names, one per line.
+scorer: constraint
+constraints:
+- name: mentions Option
+  check: contains_exact
+  value: Option
+- name: mentions Either
+  check: contains_exact
+  value: Either

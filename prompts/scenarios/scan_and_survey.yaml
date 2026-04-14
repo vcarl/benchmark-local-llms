@@ -1,6 +1,6 @@
 name: scan_and_survey
 fixture: benchmark
-scenario_md: bench-scan-and-survey.md
+scenarioMd: scan_and_survey.md
 players:
   - id: bench_explorer
     controlled_by: llm

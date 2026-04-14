@@ -1,0 +1,16 @@
+name: logic_door_structured
+category: logic
+tier: 3
+system: structured
+prompt: |-
+  There are 3 doors. Behind one is a prize. You pick door 1.
+  The host (who knows what's behind each door) opens door 3, showing no prize.
+  Should you switch to door 2 or stay with door 1?
+  Reply as: {"action": "switch" or "stay", "reason": "one sentence"}
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: says switch
+  check: contains
+  value: switch

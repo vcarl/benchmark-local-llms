@@ -1,0 +1,10 @@
+name: code_matrix_rotate_direct
+category: code
+tier: 3
+system: code_direct
+prompt: 'Write a Python function `rotate_90(matrix: list[list[int]]) -> list[list[int]]` that rotates a square matrix 90 degrees clockwise. Do not modify the input.'
+scorer: code_exec
+test_code: |
+  assert rotate_90([[1,2],[3,4]]) == [[3,1],[4,2]]
+  assert rotate_90([[1,2,3],[4,5,6],[7,8,9]]) == [[7,4,1],[8,5,2],[9,6,3]]
+  assert rotate_90([[1]]) == [[1]]

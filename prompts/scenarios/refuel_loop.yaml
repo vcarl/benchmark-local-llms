@@ -1,6 +1,6 @@
 name: refuel_loop
 fixture: benchmark
-scenario_md: bench-refuel-loop.md
+scenarioMd: refuel_loop.md
 players:
   - id: bench_rookie
     controlled_by: llm

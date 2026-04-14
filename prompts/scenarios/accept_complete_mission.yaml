@@ -1,6 +1,6 @@
 name: accept_complete_mission
 fixture: benchmark
-scenario_md: bench-accept-complete-mission.md
+scenarioMd: accept_complete_mission.md
 players:
   - id: bench_adventurer
     controlled_by: llm

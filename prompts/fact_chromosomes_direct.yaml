@@ -1,0 +1,8 @@
+name: fact_chromosomes_direct
+category: factual
+tier: 1
+system: direct
+prompt: How many chromosomes do humans have? Reply with just the number.
+scorer: exact_match
+expected: '46'
+extract: (\d+)

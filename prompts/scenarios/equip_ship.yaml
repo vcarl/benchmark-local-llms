@@ -1,6 +1,6 @@
 name: equip_ship
 fixture: benchmark
-scenario_md: bench-equip-ship.md
+scenarioMd: equip_ship.md
 players:
   - id: bench_fighter
     controlled_by: llm

@@ -1,0 +1,10 @@
+name: effect_catch_specific_direct
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, you have tagged errors. What function do you use to catch a specific error by its tag, leaving other error types unhandled? Reply with just the function name like `Effect.xxx`.
+scorer: constraint
+constraints:
+- name: says Effect.catchTag
+  check: contains_exact
+  value: Effect.catchTag

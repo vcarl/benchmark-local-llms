@@ -1,6 +1,6 @@
 name: dock_and_sell
 fixture: benchmark
-scenario_md: bench-dock-and-sell.md
+scenarioMd: dock_and_sell.md
 players:
   - id: bench_rookie
     controlled_by: llm

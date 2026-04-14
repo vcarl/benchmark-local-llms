@@ -1,0 +1,15 @@
+name: fact_elements_structured
+category: factual
+tier: 3
+system: structured
+prompt: 'What element has atomic number 79? Reply as: {"element": "<name>", "symbol": "<symbol>"}'
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: says gold
+  check: contains
+  value: gold
+- name: symbol Au
+  check: contains_exact
+  value: Au

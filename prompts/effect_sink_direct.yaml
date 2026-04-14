@@ -1,0 +1,16 @@
+name: effect_sink_direct
+category: effect-ts
+tier: 3
+system: direct
+prompt: In Effect-TS, what is a `Sink` and what module is it in? What function collects all elements from a Stream into an array? Reply in 1-2 sentences.
+scorer: constraint
+constraints:
+- name: mentions Sink module
+  check: contains_exact
+  value: Sink
+- name: mentions collectAll or collect
+  check: regex
+  pattern: (?i)(collectAll|collect)
+- name: mentions consuming/processing a stream
+  check: regex
+  pattern: (?i)(consum|process|receiv|terminal|fold|accumulat|run)

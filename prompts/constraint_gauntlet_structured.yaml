@@ -1,0 +1,24 @@
+name: constraint_gauntlet_structured
+category: constraint
+tier: 3
+system: structured
+prompt: |-
+  Write a 4-line poem about the moon. Requirements:
+  - Exactly 4 lines
+  - Lines 1 and 3 must rhyme
+  - Lines 2 and 4 must rhyme
+  - Each line must be between 5 and 12 words
+  - The word 'moon' must appear exactly once
+scorer: constraint
+constraints:
+- name: exactly 4 lines
+  check: line_count
+  count: 4
+- name: moon appears once
+  check: word_count_exact
+  word: moon
+  count: 1
+- name: lines have 5-12 words
+  check: all_lines_word_count
+  min: 5
+  max: 12

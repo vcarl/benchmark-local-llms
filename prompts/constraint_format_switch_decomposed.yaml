@@ -1,0 +1,20 @@
+name: constraint_format_switch_decomposed
+category: constraint
+tier: 2
+system: structured
+prompt: |-
+  Do these two things in order:
+  1. List 3 European countries, as a JSON array of strings.
+  2. For each country, write its capital on a new line in the format 'Country: Capital'.
+
+  Output both parts with a blank line between them.
+scorer: constraint
+constraints:
+- name: has JSON array
+  check: regex
+  pattern: \[.*".*".*\]
+  dotall: true
+- name: has colon-separated pairs
+  check: regex_count_min
+  pattern: \w+:\s*\w+
+  min: 3

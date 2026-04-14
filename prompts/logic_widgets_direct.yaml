@@ -1,0 +1,8 @@
+name: logic_widgets_direct
+category: logic
+tier: 1
+system: direct
+prompt: If it takes 5 machines 5 minutes to make 5 widgets, how many minutes does it take 100 machines to make 100 widgets? Reply with just the number.
+scorer: exact_match
+expected: '5'
+extract: (\d+)

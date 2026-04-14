@@ -1,0 +1,20 @@
+name: effect_stream_pipeline_structured
+category: effect-ts
+tier: 3
+system: structured
+prompt: |-
+  In Effect-TS, you want to create a Stream from an array, transform each
+  element with an effectful function, then collect all results into an array.
+  Name the three functions you'd chain together.
+  Reply as JSON: {"create": "Stream.xxx", "transform": "Stream.xxx", "collect": "xxx"}
+scorer: constraint
+constraints:
+- name: create is fromIterable or from
+  check: regex
+  pattern: (?i)"create"\s*:\s*"Stream\.(fromIterable|from)"
+- name: transform is mapEffect
+  check: regex
+  pattern: (?i)"transform"\s*:\s*"Stream\.mapEffect"
+- name: collect uses Sink or run
+  check: regex
+  pattern: (?i)(Sink\.collectAll|Stream\.run|runCollect)
