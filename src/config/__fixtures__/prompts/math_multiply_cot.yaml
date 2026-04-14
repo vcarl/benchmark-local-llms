@@ -1,0 +1,8 @@
+name: math_multiply_cot
+category: math
+tier: 2
+system: cot
+prompt: "What is 47 * 89? Think step by step, ending with ANSWER: <n>."
+scorer: exact_match
+expected: "4183"
+extract: 'ANSWER:\s*(\d[\d,]*)'
