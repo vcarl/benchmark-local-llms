@@ -3,13 +3,13 @@ fixture: benchmark
 scenarioMd: scan_and_survey.md
 players:
   - id: bench_explorer
-    controlled_by: llm
+    controlledBy: llm
 scorer: scan_and_survey
-scorer_params: {}
+scorerParams: {}
 tier: 2
 cutoffs:
-  wall_clock_sec: 300
-  total_tokens: 100000
-  tool_calls: 100
+  wallClockSec: 300
+  totalTokens: 100000
+  toolCalls: 100
 commander:
   max_turns: 100

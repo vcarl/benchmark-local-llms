@@ -3,13 +3,13 @@ fixture: benchmark
 scenarioMd: accept_complete_mission.md
 players:
   - id: bench_adventurer
-    controlled_by: llm
+    controlledBy: llm
 scorer: generic
-scorer_params: {}
+scorerParams: {}
 tier: 2
 cutoffs:
-  wall_clock_sec: 600
-  total_tokens: 150000
-  tool_calls: 200
+  wallClockSec: 600
+  totalTokens: 150000
+  toolCalls: 200
 commander:
   max_turns: 150
