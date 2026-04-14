@@ -11,5 +11,3 @@ cutoffs:
   wallClockSec: 600
   totalTokens: 150000
   toolCalls: 200
-commander:
-  max_turns: 150

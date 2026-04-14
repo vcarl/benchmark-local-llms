@@ -10,5 +10,3 @@ cutoffs:
   wallClockSec: 900       # 15 min hard ceiling
   totalTokens: 200000      # ~200k token budget
   toolCalls: 300           # ~10x typical run
-commander:
-  max_turns: 250            # commander's own guard rail (looser)
