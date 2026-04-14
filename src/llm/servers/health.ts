@@ -36,14 +36,12 @@ export const waitForHealthy = (
 
     const schedule = Schedule.spaced(Duration.millis(pollIntervalMs));
 
-    const retried = Effect.retry(probe, {
-      schedule,
-      // Retry every failure — connection refused, 5xx, 4xx during warmup.
-      while: () => true,
-    });
+    // Retry every failure — connection refused, 5xx, 4xx during warmup. The
+    // only way out is the outer timeout below.
+    const retried = Effect.retry(probe, { schedule });
 
-    const raced = yield* Effect.timeout(retried, Duration.seconds(options.timeoutSec)).pipe(
-      Effect.catchTag("TimeoutException", () =>
+    yield* Effect.timeout(retried, Duration.seconds(options.timeoutSec)).pipe(
+      Effect.catchAll(() =>
         Effect.fail(
           new HealthCheckTimeout({
             url: options.url,
@@ -52,5 +50,4 @@ export const waitForHealthy = (
         ),
       ),
     );
-    return raced;
   });
