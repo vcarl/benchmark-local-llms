@@ -87,16 +87,22 @@ describe("game scorers — zero-input baseline", () => {
   };
   it.each(Object.keys(GAME_SCORERS))("%s produces the expected baseline score", (name) => {
     const fn = GAME_SCORERS[name];
-    if (!fn) throw new Error("scorer missing");
+    expect(fn).toBeDefined();
+    if (fn === undefined) return;
     const out = fn(baseResult, {});
     expect(out.score).toBeCloseTo(survivorBonus[name] ?? 0, 5);
   });
 });
 
+const run = (key: string, r: ExecutionResult): { score: number; details: string } => {
+  const fn = GAME_SCORERS[key];
+  return fn ? fn(r, {}) : { score: -1, details: `missing scorer: ${key}` };
+};
+
 describe("game scorers — formula correctness", () => {
   it("bootstrap_grind: full credit at thresholds", () => {
     const r = withEvents(30, 0, { credits_earned: 5000 });
-    const out = GAME_SCORERS["bootstrap_grind"]!(r, {});
+    const out = run("bootstrap_grind", r);
     // creditScore=40 + efficiencyScore=20 + activityScore=20 + ratioScore=min((5000/30)/30,1)*20=20 → raw=100 → 1.0
     expect(out.score).toBeCloseTo(1.0, 5);
     expect(out.details).toContain("credits_earned=5000");
@@ -105,16 +111,13 @@ describe("game scorers — formula correctness", () => {
   it("combat_pirate: survival bonus differs for zero vs nonzero deaths", () => {
     const noDeaths = withStats({ pirates_destroyed: 1, battles_started: 1 });
     const withDeaths = withStats({ pirates_destroyed: 1, battles_started: 1, deaths_by_pirate: 1 });
-    // No events → accuracy=0. Pirate 40 + Battle 20 + Survival 20 + Accuracy 0 = 80 → 0.80
-    expect(GAME_SCORERS["combat_pirate"]!(noDeaths, {}).score).toBeCloseTo(0.8, 5);
-    // With a death: 40 + 20 + 6 + 0 = 66 → 0.66
-    expect(GAME_SCORERS["combat_pirate"]!(withDeaths, {}).score).toBeCloseTo(0.66, 5);
+    expect(run("combat_pirate", noDeaths).score).toBeCloseTo(0.8, 5);
+    expect(run("combat_pirate", withDeaths).score).toBeCloseTo(0.66, 5);
   });
 
   it("generic: accuracy and activity drive score equally", () => {
-    // 10 calls, 10 errors → accuracy 0.5, activity=20/30*50=33.33... no wait totalTools=20
     const r = withEvents(10, 10);
-    const out = GAME_SCORERS["generic"]!(r, {});
+    const out = run("generic", r);
     // accuracy=0.5 → efficiency=25; totalTools=20 → activity=clamp(20/30,1)*50=33.33
     expect(out.score).toBeCloseTo(0.25 + 0.3333333, 4);
   });
@@ -124,7 +127,7 @@ describe("game scorers — formula correctness", () => {
       ...baseResult,
       finalPlayerStats: { credits: 15000, stats: { credits_earned: 20000 } },
     };
-    const out = GAME_SCORERS["trading"]!(r, {});
+    const out = run("trading", r);
     // credit=40 + earned=30 + efficiency=0 + activity=0 = 70 → 0.70
     expect(out.score).toBeCloseTo(0.7, 5);
   });
@@ -133,7 +136,7 @@ describe("game scorers — formula correctness", () => {
     const base = { times_docked: 3, jumps_completed: 2 };
     const alive = withStats(base);
     const dead = withStats({ ...base, deaths_by_self_destruct: 1 });
-    expect(GAME_SCORERS["refuel_loop"]!(alive, {}).score).toBeCloseTo(0.8, 5);
-    expect(GAME_SCORERS["refuel_loop"]!(dead, {}).score).toBeCloseTo(0.6, 5);
+    expect(run("refuel_loop", alive).score).toBeCloseTo(0.8, 5);
+    expect(run("refuel_loop", dead).score).toBeCloseTo(0.6, 5);
   });
 });

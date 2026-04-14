@@ -36,7 +36,8 @@
       "complexity": {
         "noBannedTypes": "error",
         "noUselessTypeConstraint": "error",
-        "noForEach": "error"
+        "noForEach": "error",
+        "useLiteralKeys": "off"
       },
       "style": {
         "noNonNullAssertion": "error",

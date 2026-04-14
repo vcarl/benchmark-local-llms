@@ -50,7 +50,8 @@ while True:
   });
 
   it("extracts code from markdown fences in the output", async () => {
-    const generated = "Some explanation.\n```python\ndef mul(a, b):\n    return a * b\n```\nThat's it.";
+    const generated =
+      "Some explanation.\n```python\ndef mul(a, b):\n    return a * b\n```\nThat's it.";
     const test = `assert mul(3, 4) == 12\n`;
     const out = await Effect.runPromise(
       scoreCodeExec(generated, test).pipe(Effect.provide(NodeContext.layer)),

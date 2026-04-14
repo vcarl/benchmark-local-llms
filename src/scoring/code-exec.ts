@@ -10,7 +10,7 @@
  * bubble up as typed errors; the run loop decides whether they're fatal
  * or produce a 0 score with an error note.
  */
-import { Command, CommandExecutor } from "@effect/platform";
+import { Command, type CommandExecutor } from "@effect/platform";
 import { Effect, Stream } from "effect";
 import { CodeExecFailed, CodeExecTimeout } from "../errors/index.js";
 import { extractCode } from "./extract-code.js";
@@ -67,10 +67,9 @@ export const scoreCodeExec = (
         const stderrP = Stream.runCollect(process.stderr).pipe(
           Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
         );
-        const [stdout, stderr, exitCode] = yield* Effect.all(
-          [stdoutP, stderrP, process.exitCode],
-          { concurrency: "unbounded" },
-        );
+        const [stdout, stderr, exitCode] = yield* Effect.all([stdoutP, stderrP, process.exitCode], {
+          concurrency: "unbounded",
+        });
         return { stdout, stderr, exitCode };
       }),
     );
