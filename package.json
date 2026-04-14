@@ -5,9 +5,9 @@
   "type": "module",
   "description": "LLM benchmarking system (Effect-TS rewrite)",
   "scripts": {
-    "lint": "biome check . && bash scripts/lint-strict.sh",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
+    "lint": "biome check src/ && bash scripts/lint-strict.sh",
+    "lint:fix": "biome check --write src/",
+    "format": "biome format --write src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
