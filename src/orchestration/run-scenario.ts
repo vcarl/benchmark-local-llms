@@ -13,11 +13,12 @@
  * the scenario result is the handoff).
  */
 import type { HttpClient } from "@effect/platform";
-import type { Effect } from "effect";
+import type { Effect, Stream } from "effect";
+import type { SseConnectionError, SseIdleTimeout, SseParseError } from "../errors/index.js";
 import type { AdmiralClient } from "../game/admiral/client.js";
 import type { GameAdminClient } from "../game/server/admin-client.js";
 import { runSession } from "../game/session/run-session.js";
-import type { ExecutionResult } from "../schema/execution.js";
+import type { AgentEvent, ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { ScenarioCorpusEntry } from "../schema/scenario.js";
 
@@ -30,6 +31,15 @@ export interface RunScenarioInput {
   readonly gameServerBaseUrl: string;
   readonly llmBaseUrl: string;
   readonly sseIdleSec?: number;
+  /**
+   * Test override — if set, canned events are fed to the watchdog instead
+   * of opening a real SSE connection to Admiral. Production wiring leaves
+   * this undefined.
+   */
+  readonly sseOverride?: Stream.Stream<
+    AgentEvent,
+    SseConnectionError | SseParseError | SseIdleTimeout
+  >;
 }
 
 export interface RunScenarioDeps {
@@ -57,6 +67,7 @@ export const runScenario = (
       gameServerBaseUrl: input.gameServerBaseUrl,
       llmBaseUrl: input.llmBaseUrl,
       ...(input.sseIdleSec !== undefined ? { sseIdleSec: input.sseIdleSec } : {}),
+      ...(input.sseOverride !== undefined ? { sseOverride: input.sseOverride } : {}),
     },
     deps,
   );

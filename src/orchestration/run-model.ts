@@ -30,12 +30,18 @@
  * success, failure, and interruption — `Scope.addFinalizer` guarantees it.
  */
 import { FileSystem, type HttpClient, type Path } from "@effect/platform";
-import { Clock, Effect, Option, Ref, type Scope } from "effect";
+import { Clock, Effect, Option, Ref, type Scope, type Stream } from "effect";
 import { appendResult, writeManifestHeader } from "../archive/writer.js";
-import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
+import type {
+  FileIOError,
+  JsonlCorruptLine,
+  SseConnectionError,
+  SseIdleTimeout,
+  SseParseError,
+} from "../errors/index.js";
 import type { AdmiralClient } from "../game/admiral/client.js";
 import type { ServerHandle } from "../llm/servers/supervisor.js";
-import type { ExecutionResult } from "../schema/execution.js";
+import type { AgentEvent, ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
 import type { RunManifest, RunStats } from "../schema/run-manifest.js";
@@ -73,6 +79,15 @@ export type AdmiralFactory = () => Effect.Effect<
 /** Per-scenario gameserver acquisition. */
 export interface GameSessionDeps extends RunScenarioDeps {
   readonly gameServerBaseUrl: string;
+  /**
+   * Test override — if set, the scenario's SSE stream is supplied directly
+   * instead of opening a real connection. Production factories leave this
+   * undefined; test factories fill it with canned events.
+   */
+  readonly sseOverride?: Stream.Stream<
+    AgentEvent,
+    SseConnectionError | SseParseError | SseIdleTimeout
+  >;
 }
 
 export type GameSessionFactory = (
@@ -323,6 +338,7 @@ const runScenarioPhase = (
               gameServerBaseUrl: game.gameServerBaseUrl,
               llmBaseUrl,
               ...(input.idleTimeoutSec !== undefined ? { sseIdleSec: input.idleTimeoutSec } : {}),
+              ...(game.sseOverride !== undefined ? { sseOverride: game.sseOverride } : {}),
             },
             { admiral: admiral.client, admin: game.admin },
           );
