@@ -4,9 +4,4 @@ tier: 1
 system: code_direct
 prompt: 'Write a Python function `fibonacci(n: int) -> int` that returns the nth Fibonacci number, where fibonacci(0) = 0, fibonacci(1) = 1.'
 scorer: code_exec
-test_code: |
-  assert fibonacci(0) == 0
-  assert fibonacci(1) == 1
-  assert fibonacci(2) == 1
-  assert fibonacci(10) == 55
-  assert fibonacci(20) == 6765
+testFile: code_fibonacci.test.py
