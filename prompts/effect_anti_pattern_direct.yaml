@@ -1,0 +1,10 @@
+name: effect_anti_pattern_direct
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, why is it wrong to call `Effect.runPromise` inside an `Effect.gen` block? Reply in one or two sentences.
+scorer: constraint
+constraints:
+- name: mentions breaking the chain or losing types
+  check: regex
+  pattern: (?i)(break|lose|bypass|escape).*(chain|type|error|composition|context|pur[ei]|transparenc)

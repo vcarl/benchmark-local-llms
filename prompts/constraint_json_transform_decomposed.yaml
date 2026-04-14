@@ -1,0 +1,28 @@
+name: constraint_json_transform_decomposed
+category: constraint
+tier: 3
+system: structured
+prompt: |-
+  Given this input: {"items": ["apple", "banana", "cherry"]}
+
+  Transform it to: {"items": [{"name": "<item>", "length": <char_count>}], "count": <total>}
+
+  Output only the transformed JSON.
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: has count=3
+  check: json_field_equals
+  key: count
+  value: 3
+- name: has items array
+  check: json_field_is_list
+  key: items
+- name: apple length=5
+  check: json_list_item_has
+  listKey: items
+  matchField: name
+  matchValue: apple
+  checkField: length
+  checkValue: 5

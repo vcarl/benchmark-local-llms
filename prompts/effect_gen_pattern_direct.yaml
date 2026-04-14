@@ -1,0 +1,10 @@
+name: effect_gen_pattern_direct
+category: effect-ts
+tier: 1
+system: direct
+prompt: In Effect-TS, what is the function used to create an Effect from a generator function? Reply with just the function call, e.g. `SomeModule.someFunction`.
+scorer: constraint
+constraints:
+- name: says Effect.gen
+  check: contains_exact
+  value: Effect.gen

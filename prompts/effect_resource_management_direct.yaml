@@ -1,0 +1,10 @@
+name: effect_resource_management_direct
+category: effect-ts
+tier: 3
+system: direct
+prompt: In Effect-TS, what function provides a safe acquire/use/release pattern for resource management? Reply with just the function name like `Effect.xxx`.
+scorer: constraint
+constraints:
+- name: says acquireUseRelease or acquireRelease
+  check: regex
+  pattern: (?i)Effect\.(acquireUseRelease|acquireRelease)

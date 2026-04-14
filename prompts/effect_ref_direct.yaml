@@ -1,0 +1,16 @@
+name: effect_ref_direct
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, the `Ref` module provides mutable references. What are the three main operations on a Ref? Reply with the function names, one per line, like `Ref.xxx`.
+scorer: constraint
+constraints:
+- name: mentions Ref.make
+  check: contains_exact
+  value: Ref.make
+- name: mentions Ref.get
+  check: contains_exact
+  value: Ref.get
+- name: mentions Ref.set or Ref.update
+  check: regex
+  pattern: Ref\.(set|update)

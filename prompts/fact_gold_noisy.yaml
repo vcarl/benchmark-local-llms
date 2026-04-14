@@ -1,0 +1,8 @@
+name: fact_gold_noisy
+category: factual
+tier: 2
+system: noisy
+prompt: I'm working on a chemistry homework assignment about transition metals. The periodic table is so confusing with all those symbols! Anyway, what's the chemical symbol for gold? Just the symbol please.
+scorer: exact_match
+expected: Au
+extract: \b([A-Z][a-z]?)\b

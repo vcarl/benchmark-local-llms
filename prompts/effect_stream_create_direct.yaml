@@ -1,0 +1,10 @@
+name: effect_stream_create_direct
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, how do you create a Stream from an array? Reply with just the function call, like `Module.functionName`.
+scorer: constraint
+constraints:
+- name: says Stream.fromIterable
+  check: regex
+  pattern: (?i)Stream\.(fromIterable|from)

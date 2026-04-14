@@ -1,0 +1,16 @@
+name: logic_sheep_few_shot
+category: logic
+tier: 2
+system: few_shot
+prompt: |-
+  Q: A classroom has 30 students. All but 12 go home. How many are left?
+  A: 12
+
+  Q: A parking lot has 50 cars. All but 23 drive away. How many remain?
+  A: 23
+
+  Q: A farmer has 17 sheep. All but 9 die. How many are left?
+  A:
+scorer: exact_match
+expected: '9'
+extract: (\d+)

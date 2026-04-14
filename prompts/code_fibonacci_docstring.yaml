@@ -1,0 +1,23 @@
+name: code_fibonacci_docstring
+category: code
+tier: 2
+system: code_docstring
+prompt: |-
+  Complete this function:
+
+  ```python
+  def fibonacci(n: int) -> int:
+      """Return the nth Fibonacci number.
+
+      fibonacci(0) = 0
+      fibonacci(1) = 1
+      fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)
+      """
+  ```
+scorer: code_exec
+test_code: |
+  assert fibonacci(0) == 0
+  assert fibonacci(1) == 1
+  assert fibonacci(2) == 1
+  assert fibonacci(10) == 55
+  assert fibonacci(20) == 6765

@@ -1,0 +1,13 @@
+name: code_two_sum_direct
+category: code
+tier: 1
+system: code_direct
+prompt: 'Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution.'
+scorer: code_exec
+test_code: |
+  result = two_sum([2, 7, 11, 15], 9)
+  assert sorted(result) == [0, 1]
+  result = two_sum([3, 2, 4], 6)
+  assert sorted(result) == [1, 2]
+  result = two_sum([3, 3], 6)
+  assert sorted(result) == [0, 1]

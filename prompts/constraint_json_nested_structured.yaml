@@ -1,0 +1,20 @@
+name: constraint_json_nested_structured
+category: constraint
+tier: 2
+system: structured
+prompt: 'Output a JSON object representing a person with: "name" (string), "age" (number), "address" (object with "street", "city", "zip"). Use realistic values. Output only valid JSON.'
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: has name
+  check: json_has_keys
+  keys:
+  - name
+- name: has nested address
+  check: json_nested_is_object
+  key: address
+- name: address has city
+  check: json_nested_has_key
+  parent: address
+  key: city

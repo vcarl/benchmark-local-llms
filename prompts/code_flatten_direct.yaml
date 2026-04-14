@@ -1,0 +1,12 @@
+name: code_flatten_direct
+category: code
+tier: 3
+system: code_direct
+prompt: 'Write a Python function `flatten(lst: list) -> list` that recursively flattens a nested list of arbitrary depth.'
+scorer: code_exec
+test_code: |
+  assert flatten([1, [2, 3], [4, [5, 6]]]) == [1, 2, 3, 4, 5, 6]
+  assert flatten([]) == []
+  assert flatten([1, 2, 3]) == [1, 2, 3]
+  assert flatten([[[[1]]]]) == [1]
+  assert flatten([1, [2, [3, [4, [5]]]]]) == [1, 2, 3, 4, 5]

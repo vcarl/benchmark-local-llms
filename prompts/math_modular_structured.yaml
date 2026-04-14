@@ -1,0 +1,10 @@
+name: math_modular_structured
+category: math
+tier: 3
+system: structured
+prompt: |-
+  What is (17^3) mod 13?
+  Respond with exactly: {"result": <number>}
+scorer: exact_match
+expected: '12'
+extract: '"result"\s*:\s*(\d+)'
