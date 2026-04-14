@@ -1,5 +1,6 @@
 name: bootstrap_grind
 fixture: benchmark
+scenarioMd: bootstrap_grind.md
 players:
   - id: bench_rookie
     controlled_by: llm

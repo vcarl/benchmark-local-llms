@@ -1,6 +1,6 @@
 name: craft_item
 fixture: benchmark
-scenario_md: bench-craft-item.md
+scenarioMd: craft_item.md
 players:
   - id: bench_crafter
     controlled_by: llm
