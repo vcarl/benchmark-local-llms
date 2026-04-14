@@ -1,4 +1,4 @@
-name: code_lru_cache_direct
+name: code_lru_cache
 category: code
 tier: 3
 system: code_direct

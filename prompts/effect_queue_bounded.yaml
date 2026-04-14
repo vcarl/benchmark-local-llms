@@ -1,4 +1,4 @@
-name: effect_queue_bounded_direct
+name: effect_queue_bounded
 category: effect-ts
 tier: 2
 system: direct
