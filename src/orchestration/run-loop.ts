@@ -140,6 +140,7 @@ export const runLoop = (
 ): Effect.Effect<
   RunLoopOutcome,
   FileIOError | JsonlCorruptLine,
+  | import("@effect/platform").CommandExecutor.CommandExecutor
   | FileSystem.FileSystem
   | Path.Path
   | import("@effect/platform").HttpClient.HttpClient

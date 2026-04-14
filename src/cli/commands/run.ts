@@ -36,6 +36,7 @@ import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { runLoop } from "../../orchestration/run-loop.js";
 import { buildRunLoopConfig, parseTemperatures, type RunFlags } from "../config/build.js";
 import { makeRunDeps } from "../deps.js";
+import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 import { runOptions } from "./run-options.js";
 
 type RunOptionsParsed = {
@@ -86,9 +87,6 @@ export const normalizeRunOptions = (
 };
 
 // ── Handler ────────────────────────────────────────────────────────────────
-
-const systemPromptsPath = (promptsDir: string) => `${promptsDir}/system-prompts.yaml`;
-const scenariosSubdir = (promptsDir: string) => `${promptsDir}/scenarios`;
 
 const registryLayer = (promptsDir: string) =>
   Layer.effect(SystemPromptRegistry, loadSystemPrompts(systemPromptsPath(promptsDir)));

@@ -1,26 +1,22 @@
 /**
- * `report` subcommand — shell that calls the top-level report generator
- * (task D2) once it lands on the shared branch.
+ * `report` subcommand — loads archives, scores results, emits the webapp's
+ * `data.js` file. Delegates to `runReport` (D2) in `src/report/`.
  *
- * As of this commit `src/report/` is being built in a sibling worktree; the
- * import is stubbed via an indirection so this file compiles against the
- * current base branch. At merge time the stub entry point is replaced by
- * whatever D2 exports (e.g. `generateReport(args) => Effect<void, …>`).
- * Flag surface mirrors requirements §8.3 plus a default archive-dir.
+ * `--scoring=as-run` uses each archive's embedded corpus (self-contained
+ * re-score). `--scoring=current` loads `prompts/` fresh via B1 and scores
+ * against that — useful when the scoring logic or corpus has changed since
+ * the archive was written.
  */
+import path from "node:path";
 import { Command, Options } from "@effect/cli";
 import { Effect } from "effect";
-import { generateReport } from "../stubs/report-stub.js";
-
-const archiveGlob = Options.text("archive").pipe(
-  Options.withDescription(
-    "Path or glob of archive JSONL files to include (default all in archive-dir)",
-  ),
-  Options.optional,
-);
+import { loadPromptCorpus } from "../../config/prompt-corpus.js";
+import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
+import { runReport } from "../../report/index.js";
+import { scenariosSubdir } from "../paths.js";
 
 const archiveDir = Options.directory("archive-dir").pipe(
-  Options.withDescription("Archive directory to scan when --archive is not set"),
+  Options.withDescription("Archive directory to scan"),
   Options.withDefault("./benchmark-archive"),
 );
 
@@ -30,7 +26,7 @@ const scoring = Options.choice("scoring", ["as-run", "current"] as const).pipe(
 );
 
 const output = Options.directory("output").pipe(
-  Options.withDescription("Output directory for report (e.g. webapp/src/data)"),
+  Options.withDescription("Output directory for data.js (e.g. webapp/src/data)"),
   Options.withDefault("./webapp/src/data"),
 );
 
@@ -41,15 +37,32 @@ const promptsDir = Options.directory("prompts-dir").pipe(
 
 export const reportCommand = Command.make(
   "report",
-  { archiveGlob, archiveDir, scoring, output, promptsDir },
+  { archiveDir, scoring, output, promptsDir },
   (args) =>
     Effect.gen(function* () {
-      yield* generateReport({
-        archiveGlob: args.archiveGlob._tag === "Some" ? args.archiveGlob.value : undefined,
+      const outputPath = path.join(args.output, "data.js");
+      const useCurrent = args.scoring === "current";
+      const currentPromptCorpus = useCurrent ? yield* loadPromptCorpus(args.promptsDir) : undefined;
+      const currentScenarioCorpus = useCurrent
+        ? yield* loadScenarioCorpus(scenariosSubdir(args.promptsDir))
+        : undefined;
+
+      const summary = yield* runReport({
         archiveDir: args.archiveDir,
-        scoring: args.scoring,
-        output: args.output,
-        promptsDir: args.promptsDir,
+        outputPath,
+        scoringMode: args.scoring,
+        ...(currentPromptCorpus !== undefined ? { currentPromptCorpus } : {}),
+        ...(currentScenarioCorpus !== undefined ? { currentScenarioCorpus } : {}),
       });
+
+      yield* Effect.logInfo(
+        `report: wrote ${summary.recordCount} records from ${summary.archivesLoaded} archives → ${summary.outputPath}`,
+      );
+      if (summary.loadIssues.length > 0) {
+        yield* Effect.logWarning(`report: ${summary.loadIssues.length} archive load issue(s)`);
+      }
+      if (summary.unmatched.length > 0) {
+        yield* Effect.logWarning(`report: ${summary.unmatched.length} unmatched prompt(s)`);
+      }
     }),
 ).pipe(Command.withDescription("Generate webapp report data from archive files"));

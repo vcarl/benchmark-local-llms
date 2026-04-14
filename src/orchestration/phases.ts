@@ -7,7 +7,7 @@
  * `run-model.ts`) and a `statsRef` + `archivePath` for append-side-effects.
  * They assume the archive's header has already been written by the caller.
  */
-import type { FileSystem, HttpClient, Path } from "@effect/platform";
+import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
 import { Effect, Option, Ref, type Scope } from "effect";
 import { appendResult } from "../archive/writer.js";
 import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
@@ -139,7 +139,11 @@ export const runScenarioPhase = (
 ): Effect.Effect<
   void,
   FileIOError | JsonlCorruptLine,
-  FileSystem.FileSystem | Path.Path | HttpClient.HttpClient | Scope.Scope
+  | CommandExecutor.CommandExecutor
+  | FileSystem.FileSystem
+  | Path.Path
+  | HttpClient.HttpClient
+  | Scope.Scope
 > =>
   Effect.gen(function* () {
     if (input.scenarios.length === 0) return;

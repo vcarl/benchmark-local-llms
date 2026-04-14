@@ -15,20 +15,15 @@
  * configured.
  */
 import { randomBytes } from "node:crypto";
-import type { HttpClient } from "@effect/platform";
-import type { Effect, Scope } from "effect";
-import { Effect as EffectModule } from "effect";
+import { Effect } from "effect";
 import { makeAdmiralClient } from "../game/admiral/client.js";
 import { admiralServer } from "../game/admiral/server.js";
 import { makeGameAdminClient } from "../game/server/admin-client.js";
 import { gameServer } from "../game/server/game-server.js";
 import { llamacppServer } from "../llm/servers/llamacpp.js";
 import { mlxServer } from "../llm/servers/mlx.js";
-import type { ServerHandle } from "../llm/servers/supervisor.js";
 import type {
   AdmiralFactory,
-  AdmiralHandle,
-  GameSessionDeps,
   GameSessionFactory,
   LlmServerFactory,
   RunModelDeps,
@@ -48,41 +43,23 @@ export interface MakeRunDepsInput {
   readonly scenarioLlmBaseUrl?: string | undefined;
 }
 
-/**
- * Dispatch llmServer factory on `model.runtime`. Returns a fresh ServerHandle
- * acquired inside the caller's scope.
- *
- * Note on the cast: the orchestration factory signature narrows `R` to
- * `HttpClient | Scope`, but the concrete supervisors also require a
- * `CommandExecutor` (to spawn the subprocess). `CommandExecutor` is supplied
- * by `NodeContext.layer` at the CLI boundary, so the service is present at
- * runtime; the narrowing is a structural under-specification in the factory
- * type. Flagged in the deliverable notes for a follow-up patch that widens
- * the factory type to include `CommandExecutor`.
- */
-export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) => {
-  const eff =
-    model.runtime === "llamacpp"
-      ? llamacppServer({
-          artifactPath: model.artifact,
-          ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
-        })
-      : mlxServer({ artifactPath: model.artifact });
-  return eff as unknown as Effect.Effect<
-    ServerHandle,
-    unknown,
-    HttpClient.HttpClient | Scope.Scope
-  >;
-};
+/** Dispatch llmServer factory on `model.runtime`. */
+export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) =>
+  model.runtime === "llamacpp"
+    ? llamacppServer({
+        artifactPath: model.artifact,
+        ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
+      })
+    : mlxServer({ artifactPath: model.artifact });
 
 const newAdminToken = (): string => randomBytes(16).toString("hex");
 
 export const makeAdmiralFactory =
   (admiralDir: string | undefined): AdmiralFactory =>
-  () => {
-    const eff = EffectModule.gen(function* () {
+  () =>
+    Effect.gen(function* () {
       if (admiralDir === undefined) {
-        return yield* EffectModule.die(
+        return yield* Effect.die(
           new Error(
             "admiral-dir is required when running scenarios. Pass --admiral-dir or set --scenarios none.",
           ),
@@ -92,19 +69,13 @@ export const makeAdmiralFactory =
       const client = yield* makeAdmiralClient({ baseUrl: handle.baseUrl });
       return { baseUrl: handle.baseUrl, client };
     });
-    return eff as unknown as Effect.Effect<
-      AdmiralHandle,
-      unknown,
-      HttpClient.HttpClient | Scope.Scope
-    >;
-  };
 
 export const makeGameSessionFactory =
   (gameServerBinary: string | undefined): GameSessionFactory =>
-  (_scenario, admiral) => {
-    const eff = EffectModule.gen(function* () {
+  (_scenario, admiral) =>
+    Effect.gen(function* () {
       if (gameServerBinary === undefined) {
-        return yield* EffectModule.die(
+        return yield* Effect.die(
           new Error(
             "game-server-binary is required when running scenarios. Pass --game-server-binary or set --scenarios none.",
           ),
@@ -122,12 +93,6 @@ export const makeGameSessionFactory =
         admin,
       };
     });
-    return eff as unknown as Effect.Effect<
-      GameSessionDeps,
-      unknown,
-      HttpClient.HttpClient | Scope.Scope
-    >;
-  };
 
 export const makeRunDeps = (input: MakeRunDepsInput): RunModelDeps => ({
   llmServer: makeLlmServerFactory(),

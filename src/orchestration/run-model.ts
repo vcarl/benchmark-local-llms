@@ -33,7 +33,7 @@
  * The prompt/scenario loops themselves live in `phases.ts` to keep this
  * module focused on the scope plumbing.
  */
-import type { FileSystem, HttpClient, Path } from "@effect/platform";
+import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
 import { Clock, Effect, Ref, type Scope, type Stream } from "effect";
 import { writeManifestHeader } from "../archive/writer.js";
 import type {
@@ -67,7 +67,11 @@ import type { RunScenarioDeps } from "./run-scenario.js";
  */
 export type LlmServerFactory = (
   model: ModelConfig,
-) => Effect.Effect<ServerHandle, unknown, HttpClient.HttpClient | Scope.Scope>;
+) => Effect.Effect<
+  ServerHandle,
+  unknown,
+  CommandExecutor.CommandExecutor | HttpClient.HttpClient | Scope.Scope
+>;
 
 /** Admiral acquisition result — baseUrl plus a ready-to-use client. */
 export interface AdmiralHandle {
@@ -78,7 +82,7 @@ export interface AdmiralHandle {
 export type AdmiralFactory = () => Effect.Effect<
   AdmiralHandle,
   unknown,
-  HttpClient.HttpClient | Scope.Scope
+  CommandExecutor.CommandExecutor | HttpClient.HttpClient | Scope.Scope
 >;
 
 /** Per-scenario gameserver acquisition. */
@@ -98,7 +102,11 @@ export interface GameSessionDeps extends RunScenarioDeps {
 export type GameSessionFactory = (
   scenario: ScenarioCorpusEntry,
   admiral: AdmiralHandle,
-) => Effect.Effect<GameSessionDeps, unknown, HttpClient.HttpClient | Scope.Scope>;
+) => Effect.Effect<
+  GameSessionDeps,
+  unknown,
+  CommandExecutor.CommandExecutor | HttpClient.HttpClient | Scope.Scope
+>;
 
 // ── Public inputs ──────────────────────────────────────────────────────────
 
@@ -175,7 +183,11 @@ export const runModel = (
 ): Effect.Effect<
   RunModelOutcome,
   FileIOError | JsonlCorruptLine,
-  FileSystem.FileSystem | Path.Path | HttpClient.HttpClient | ChatCompletion
+  | CommandExecutor.CommandExecutor
+  | FileSystem.FileSystem
+  | Path.Path
+  | HttpClient.HttpClient
+  | ChatCompletion
 > =>
   Effect.scoped(
     Effect.gen(function* () {
