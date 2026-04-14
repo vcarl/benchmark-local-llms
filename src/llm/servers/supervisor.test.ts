@@ -1,0 +1,244 @@
+import { Command } from "@effect/platform";
+import { Deferred, Effect, Exit, Layer } from "effect";
+import { afterEach, describe, expect, it } from "vitest";
+import { superviseServer } from "./supervisor.js";
+import {
+  httpClientLayer,
+  makeFailingExecutor,
+  makeMockExecutor,
+  startHealthyServer,
+  startUnhealthyServer,
+  type TestHttpServer,
+} from "./test-mocks.js";
+
+describe("superviseServer", () => {
+  let ts: TestHttpServer | null = null;
+
+  afterEach(async () => {
+    if (ts) {
+      await ts.close();
+      ts = null;
+    }
+  });
+
+  it("spawns, waits for health, and returns a handle with pid + port", async () => {
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive", pid: 123 });
+
+    const acquired = await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin", "--model", "x"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(acquired.port).toBe(ts.port);
+    expect(acquired.pid).toBe(123);
+    expect(acquired.runtime).toBe("llamacpp");
+    expect(mock.runs.length).toBe(1);
+    const run = mock.runs[0];
+    expect(run).toBeDefined();
+    if (run) {
+      expect(run.log.command).toBe("fake-bin");
+      expect(run.log.args).toEqual(["--model", "x"]);
+    }
+  });
+
+  it("sends SIGTERM to the process when the scope closes", async () => {
+    ts = await startHealthyServer();
+    const port = ts.port;
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* superviseServer({
+            runtime: "llamacpp",
+            port,
+            command: Command.make("fake-bin"),
+            healthUrl: `http://127.0.0.1:${port}/health`,
+            healthTimeoutSec: 2,
+            healthPollMs: 25,
+          });
+          // Scope closes here once this effect returns.
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    const run = mock.runs[0];
+    expect(run).toBeDefined();
+    if (run) {
+      expect(run.log.signalsReceived).toContain("SIGTERM");
+    }
+  });
+
+  it("fails with ServerSpawnError when the executor cannot start the process", async () => {
+    ts = await startHealthyServer();
+    const failing = makeFailingExecutor("ENOENT: llama-server not found");
+
+    const exit = await Effect.runPromiseExit(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("missing-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(failing, httpClientLayer))),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      expect(JSON.stringify(exit.cause)).toContain("ServerSpawnError");
+    }
+  });
+
+  it("fails with HealthCheckTimeout when /health never becomes ready", async () => {
+    ts = await startUnhealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    const exit = await Effect.runPromiseExit(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 1,
+          healthPollMs: 25,
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      expect(JSON.stringify(exit.cause)).toContain("HealthCheckTimeout");
+    }
+    // Should have still attempted SIGTERM cleanup.
+    const run = mock.runs[0];
+    expect(run).toBeDefined();
+    if (run) {
+      expect(run.log.signalsReceived).toContain("SIGTERM");
+    }
+  });
+
+  it("fails fast with ServerSpawnError when the process exits during boot", async () => {
+    ts = await startUnhealthyServer();
+    const mock = makeMockExecutor({ behaviour: { exitAfterMs: 150, code: 1 } });
+
+    const started = Date.now();
+    const exit = await Effect.runPromiseExit(
+      Effect.scoped(
+        superviseServer({
+          runtime: "mlx",
+          port: ts.port,
+          command: Command.make("python3"),
+          // Very long health budget — if the race works, we fail in ~150ms.
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 30,
+          healthPollMs: 25,
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+    const elapsed = Date.now() - started;
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      expect(JSON.stringify(exit.cause)).toContain("ServerSpawnError");
+    }
+    expect(elapsed).toBeLessThan(5000);
+  });
+
+  it("exposes an isAlive probe that flips false after unexpected exit", async () => {
+    ts = await startHealthyServer();
+    const port = ts.port;
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const handle = yield* superviseServer({
+            runtime: "llamacpp",
+            port,
+            command: Command.make("fake-bin"),
+            healthUrl: `http://127.0.0.1:${port}/health`,
+            healthTimeoutSec: 2,
+            healthPollMs: 25,
+          });
+          const aliveBefore = yield* handle.monitor.isAlive;
+          // Force unexpected exit via the test handle.
+          const run = mock.runs[0];
+          if (!run) {
+            return yield* Effect.die("no run recorded");
+          }
+          yield* run.forceExit(1);
+          // Wait for the watcher fiber to observe the exit.
+          const exitErr = yield* Deferred.await(handle.monitor.exited).pipe(
+            Effect.catchAll((e) => Effect.succeed(e)),
+          );
+          const aliveAfter = yield* handle.monitor.isAlive;
+          return { aliveBefore, aliveAfter, exitErr };
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(result.aliveBefore).toBe(true);
+    expect(result.aliveAfter).toBe(false);
+    expect(JSON.stringify(result.exitErr)).toContain("ServerSpawnError");
+    expect(JSON.stringify(result.exitErr)).toContain("server exited unexpectedly");
+  });
+
+  it("allows callers to race in-flight work against the process-exit deferred", async () => {
+    ts = await startHealthyServer();
+    const port = ts.port;
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    const outcome = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const handle = yield* superviseServer({
+            runtime: "llamacpp",
+            port,
+            command: Command.make("fake-bin"),
+            healthUrl: `http://127.0.0.1:${port}/health`,
+            healthTimeoutSec: 2,
+            healthPollMs: 25,
+          });
+
+          // Simulate a request that would sleep for a while.
+          const fakeRequest = Effect.sleep(2_000).pipe(Effect.as("done" as const));
+
+          // Kick the server over before the request would have finished.
+          const run = mock.runs[0];
+          if (!run) {
+            return yield* Effect.die("no run recorded");
+          }
+          yield* run.forceExit(1);
+          // Let the watcher fiber observe the exit and fail the Deferred.
+          yield* Effect.sleep(30);
+
+          // `raceFirst` surfaces whichever result (success OR failure)
+          // lands first, which is exactly what the request path wants:
+          // "fail immediately when the server dies".
+          const raced = yield* Effect.exit(
+            Effect.raceFirst(fakeRequest, Deferred.await(handle.monitor.exited)),
+          );
+          return raced;
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(Exit.isFailure(outcome)).toBe(true);
+    if (Exit.isFailure(outcome)) {
+      expect(JSON.stringify(outcome.cause)).toContain("ServerSpawnError");
+    }
+  });
+});
