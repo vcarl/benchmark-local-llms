@@ -1,19 +1,26 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
   "files": {
-    "ignore": [
-      "node_modules",
-      "dist",
-      "webapp",
-      "benchmark-archive",
-      "benchmark-execution",
-      "benchmark-results",
-      "**/*.py"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/webapp",
+      "!**/benchmark-archive",
+      "!**/benchmark-execution",
+      "!**/benchmark-results",
+      "!**/.venv",
+      "!**/.superpowers",
+      "!**/.claude",
+      "!**/.husky",
+      "!**/.pytest_cache",
+      "!**/__pycache__",
+      "!**/tests",
+      "!**/prompts",
+      "!**/*.py"
     ]
   },
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
@@ -23,7 +30,8 @@
         "noConfusingVoidType": "error",
         "noFallthroughSwitchClause": "error",
         "noImplicitAnyLet": "error",
-        "noAssignInExpressions": "error"
+        "noAssignInExpressions": "error",
+        "noVar": "error"
       },
       "complexity": {
         "noBannedTypes": "error",
@@ -32,8 +40,7 @@
       },
       "style": {
         "noNonNullAssertion": "error",
-        "useConst": "error",
-        "noVar": "error"
+        "useConst": "error"
       },
       "correctness": {
         "noUnusedVariables": "error",

@@ -11,3 +11,9 @@ models/
 benchmark-results/
 webapp/src/data/data.js
 webapp/dist-report/
+
+# TypeScript / Node
+node_modules/
+dist/
+*.tsbuildinfo
+
