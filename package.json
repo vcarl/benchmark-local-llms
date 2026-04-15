@@ -4,17 +4,7 @@
   "private": true,
   "type": "module",
   "description": "LLM benchmarking system (Effect-TS rewrite)",
-  "bin": {
-    "llm-bench": "src/cli/main.ts"
-  },
   "scripts": {
-    "bench": "tsx src/cli/main.ts",
-    "run:bench": "tsx src/cli/main.ts run",
-    "report": "tsx src/cli/main.ts report",
-    "score": "tsx src/cli/main.ts score",
-    "list-models": "tsx src/cli/main.ts list-models",
-    "list-prompts": "tsx src/cli/main.ts list-prompts",
-    "migrate": "tsx src/cli/main.ts migrate",
     "lint": "biome check src/ && bash scripts/lint-strict.sh",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
