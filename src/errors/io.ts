@@ -18,10 +18,12 @@ export class JsonlCorruptLine extends Data.TaggedError("JsonlCorruptLine")<{
 
 /**
  * A filesystem operation failed (read, write, stat, etc). `operation` is a
- * free-form label; `cause` is a stringified upstream error (e.g. ENOENT).
+ * free-form label; `cause` carries the original upstream error (tagged
+ * error, PlatformError, or whatever the source surfaced) so the CLI / test
+ * layer can inspect or format it however it wants.
  */
 export class FileIOError extends Data.TaggedError("FileIOError")<{
   readonly path: string;
   readonly operation: string;
-  readonly cause: string;
+  readonly cause: unknown;
 }> {}

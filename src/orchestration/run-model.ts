@@ -162,7 +162,7 @@ const toFileIO =
       _tag: "FileIOError",
       path,
       operation,
-      cause: String(cause),
+      cause,
     }) as FileIOError;
 
 // ── Main entry ─────────────────────────────────────────────────────────────

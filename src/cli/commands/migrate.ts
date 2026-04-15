@@ -4,11 +4,12 @@
  * `src/migrate/`. Destructive-safe: source files are never modified.
  */
 import { Command, Options } from "@effect/cli";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
+import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { runMigrate } from "../../migrate/index.js";
-import { scenariosSubdir } from "../paths.js";
+import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 
 const inputDir = Options.directory("input").pipe(
   Options.withDescription("Directory of prototype .jsonl files to migrate"),
@@ -35,7 +36,13 @@ export const migrateCommand = Command.make(
   { inputDir, outputDir, promptsDir, dryRun },
   (args) =>
     Effect.gen(function* () {
-      const currentPromptCorpus = yield* loadPromptCorpus(args.promptsDir);
+      const registry = Layer.effect(
+        SystemPromptRegistry,
+        loadSystemPrompts(systemPromptsPath(args.promptsDir)),
+      );
+      const currentPromptCorpus = yield* loadPromptCorpus(args.promptsDir).pipe(
+        Effect.provide(registry),
+      );
       const currentScenarioCorpus = yield* loadScenarioCorpus(scenariosSubdir(args.promptsDir));
 
       const summary = yield* runMigrate({

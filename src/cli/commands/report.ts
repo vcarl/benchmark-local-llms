@@ -9,11 +9,12 @@
  */
 import path from "node:path";
 import { Command, Options } from "@effect/cli";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
+import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { runReport } from "../../report/index.js";
-import { scenariosSubdir } from "../paths.js";
+import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 
 const archiveDir = Options.directory("archive-dir").pipe(
   Options.withDescription("Archive directory to scan"),
@@ -42,7 +43,13 @@ export const reportCommand = Command.make(
     Effect.gen(function* () {
       const outputPath = path.join(args.output, "data.js");
       const useCurrent = args.scoring === "current";
-      const currentPromptCorpus = useCurrent ? yield* loadPromptCorpus(args.promptsDir) : undefined;
+      const registry = Layer.effect(
+        SystemPromptRegistry,
+        loadSystemPrompts(systemPromptsPath(args.promptsDir)),
+      );
+      const currentPromptCorpus = useCurrent
+        ? yield* loadPromptCorpus(args.promptsDir).pipe(Effect.provide(registry))
+        : undefined;
       const currentScenarioCorpus = useCurrent
         ? yield* loadScenarioCorpus(scenariosSubdir(args.promptsDir))
         : undefined;

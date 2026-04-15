@@ -22,6 +22,7 @@ import { makeGameAdminClient } from "../game/server/admin-client.js";
 import { gameServer } from "../game/server/game-server.js";
 import { llamacppServer } from "../llm/servers/llamacpp.js";
 import { mlxServer } from "../llm/servers/mlx.js";
+import { resolveLlamacppGguf } from "../llm/servers/resolve-gguf.js";
 import type {
   AdmiralFactory,
   GameSessionFactory,
@@ -43,14 +44,33 @@ export interface MakeRunDepsInput {
   readonly scenarioLlmBaseUrl?: string | undefined;
 }
 
-/** Dispatch llmServer factory on `model.runtime`. */
-export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) =>
-  model.runtime === "llamacpp"
-    ? llamacppServer({
-        artifactPath: model.artifact,
+/**
+ * Dispatch llmServer factory on `model.runtime`.
+ *
+ * llamacpp: resolve the HuggingFace artifact string + quant to a local .gguf
+ * file (mirrors runner.py:238 `resolve_llamacpp_gguf`). `llama-server -m`
+ * expects a filesystem path, not a HF repo.
+ *
+ * mlx: `mlx_lm.server --model` accepts HF repo strings directly and
+ * auto-downloads on first use; no resolver needed.
+ */
+export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) => {
+  if (model.runtime === "llamacpp") {
+    return Effect.gen(function* () {
+      if (model.quant === undefined) {
+        return yield* Effect.die(
+          new Error(`llamacpp model ${model.artifact} is missing required 'quant' field`),
+        );
+      }
+      const artifactPath = yield* resolveLlamacppGguf(model.artifact, model.quant);
+      return yield* llamacppServer({
+        artifactPath,
         ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
-      })
-    : mlxServer({ artifactPath: model.artifact });
+      });
+    });
+  }
+  return mlxServer({ artifactPath: model.artifact });
+};
 
 const newAdminToken = (): string => randomBytes(16).toString("hex");
 
