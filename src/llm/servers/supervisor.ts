@@ -85,18 +85,26 @@ export const superviseServer = (
         const running = yield* proc.isRunning.pipe(Effect.orElseSucceed(() => false));
         if (!running) return;
 
-        yield* proc.kill("SIGTERM").pipe(Effect.ignore);
-        const waitExit = Effect.ignore(proc.exitCode);
+        // `proc.kill(sig)` in @effect/platform-node-shared sends the signal
+        // AND awaits process exit in the same effect. If the process ignores
+        // SIGTERM, the await blocks forever. Wrap with a timeout so the
+        // escalation path is actually reachable.
         const graceful = yield* Effect.timeout(
-          waitExit,
+          proc.kill("SIGTERM").pipe(Effect.ignore),
           Duration.seconds(gracefulShutdownSec),
         ).pipe(
           Effect.map(() => true as const),
           Effect.catchTag("TimeoutException", () => Effect.succeed(false as const)),
         );
         if (!graceful) {
-          yield* proc.kill("SIGKILL").pipe(Effect.ignore);
-          yield* Effect.ignore(proc.exitCode);
+          // Same shape for SIGKILL: bound the whole thing (signal + wait) with
+          // a short timeout so the overall finalizer can't stall indefinitely
+          // on a truly unkillable process (defensive; SIGKILL should complete
+          // within ms once the kernel delivers it).
+          yield* Effect.timeout(
+            proc.kill("SIGKILL").pipe(Effect.ignore),
+            Duration.seconds(gracefulShutdownSec),
+          ).pipe(Effect.ignore);
         }
       }),
     );
