@@ -98,6 +98,25 @@ describe("runLoop", () => {
     expect(outcome.perModel[0]?.manifest.model).toBe("Qwen 3 32B");
   });
 
+  it("modelNameFilter also matches against the artifact string", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "Qwen 3.5 9B", artifact: "unsloth/Qwen3.5-9B-GGUF" }),
+        sampleModel({ name: "Qwen 3.5 9B", artifact: "mlx-community/Qwen3.5-9B-4bit" }),
+      ],
+      modelNameFilter: "unsloth",
+    });
+    const outcome = await Effect.runPromise(
+      runLoop(config, fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+      ),
+    );
+    expect(outcome.perModel.length).toBe(1);
+    expect(outcome.perModel[0]?.manifest.artifact).toBe("unsloth/Qwen3.5-9B-GGUF");
+  });
+
   it("empty models → empty outcome, no archive files", async () => {
     const { layer } = makeChatCompletionMock({});
     const outcome = await Effect.runPromise(

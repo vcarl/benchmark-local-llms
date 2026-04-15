@@ -69,8 +69,13 @@ const isActive = (m: ModelConfig): boolean => m.active !== false;
 const matchesName = (m: ModelConfig, filter?: string): boolean => {
   if (filter === undefined || filter.length === 0) return true;
   const needle = filter.toLowerCase();
-  const haystack = (m.name ?? m.artifact).toLowerCase();
-  return haystack.includes(needle);
+  const displayName = (m.name ?? m.artifact).toLowerCase();
+  if (displayName.includes(needle)) return true;
+  // Also match against the artifact string so callers can disambiguate
+  // multi-runtime entries that share a display name (e.g. `unsloth/...`
+  // selects only the llamacpp Qwen 3.5 9B; `mlx-community/...` selects only
+  // the mlx variant).
+  return m.artifact.toLowerCase().includes(needle);
 };
 
 const filterModels = (config: RunLoopConfig): ReadonlyArray<ModelConfig> =>
