@@ -32,7 +32,11 @@ const dryRun = Options.boolean("dry-run").pipe(
   Options.withDefault(false),
 );
 
-const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+const verbose = Options.boolean("verbose").pipe(
+  Options.withAlias("v"),
+  Options.withDefault(false),
+  Options.withDescription("Enable debug-level log output (intra-call detail)"),
+);
 
 export const migrateCommand = Command.make(
   "migrate",

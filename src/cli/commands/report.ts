@@ -37,7 +37,11 @@ const promptsDir = Options.directory("prompts-dir").pipe(
   Options.withDefault("prompts"),
 );
 
-const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+const verbose = Options.boolean("verbose").pipe(
+  Options.withAlias("v"),
+  Options.withDefault(false),
+  Options.withDescription("Enable debug-level log output (intra-call detail)"),
+);
 
 export const reportCommand = Command.make(
   "report",

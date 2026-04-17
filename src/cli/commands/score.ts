@@ -26,7 +26,11 @@ const archivePathOpt = Options.file("archive").pipe(
   Options.withDescription("Path to the archive JSONL file to re-score"),
 );
 
-const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+const verbose = Options.boolean("verbose").pipe(
+  Options.withAlias("v"),
+  Options.withDefault(false),
+  Options.withDescription("Enable debug-level log output (intra-call detail)"),
+);
 
 /**
  * Look up the corpus entry that matches an `ExecutionResult`. Prompt results

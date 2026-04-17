@@ -88,7 +88,11 @@ const printLine = (line: string): Effect.Effect<void> =>
     console.log(line);
   });
 
-const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+const verbose = Options.boolean("verbose").pipe(
+  Options.withAlias("v"),
+  Options.withDefault(false),
+  Options.withDescription("Enable debug-level log output (intra-call detail)"),
+);
 
 export const listModelsCommand = Command.make(
   "list-models",

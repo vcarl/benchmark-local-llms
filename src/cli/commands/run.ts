@@ -93,9 +93,9 @@ export const normalizeRunOptions = (
 const registryLayer = (promptsDir: string) =>
   Layer.effect(SystemPromptRegistry, loadSystemPrompts(systemPromptsPath(promptsDir)));
 
-export const runCommand = Command.make("run", runOptions, (raw) =>
-  Effect.gen(function* () {
-    const parsed = raw as unknown as RunOptionsParsed;
+export const runCommand = Command.make("run", runOptions, (raw) => {
+  const parsed = raw as unknown as RunOptionsParsed;
+  return Effect.gen(function* () {
     const normalized = normalizeRunOptions(parsed);
     if (!normalized.ok) {
       yield* Effect.logError(normalized.error);
@@ -143,6 +143,6 @@ export const runCommand = Command.make("run", runOptions, (raw) =>
   }).pipe(
     Effect.provide(ChatCompletionLive),
     Effect.provide(FetchHttpClient.layer),
-    Effect.provide(makeLoggerLayer((raw as unknown as RunOptionsParsed).verbose)),
-  ),
-).pipe(Command.withDescription("Run the benchmark suite against configured models"));
+    Effect.provide(makeLoggerLayer(parsed.verbose)),
+  );
+}).pipe(Command.withDescription("Run the benchmark suite against configured models"));
