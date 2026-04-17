@@ -54,7 +54,7 @@ import type { ScenarioCorpusEntry } from "../schema/scenario.js";
 import { finalizeArchive } from "./finalize-archive.js";
 import { runPromptPhase, runScenarioPhase } from "./phases.js";
 import type { RunScenarioDeps } from "./run-scenario.js";
-import { emptyAggregate, type ModelAggregate } from "./summary.js";
+import { emptyAggregate, formatModelBlock, type ModelAggregate } from "./summary.js";
 
 // ── Dependency seams ───────────────────────────────────────────────────────
 
@@ -136,6 +136,7 @@ export interface RunModelOutcome {
   readonly manifest: RunManifest;
   readonly stats: RunStats;
   readonly interrupted: boolean;
+  readonly aggregate: ModelAggregate;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -238,6 +239,7 @@ export const runModel = (
 
       yield* Ref.set(interruptedRef, false);
 
+      const finalAggregate = yield* Ref.get(aggRef);
       const finalStats = yield* Ref.get(statsRef);
       const endedMs = yield* Clock.currentTimeMillis;
       const finalizedManifest: RunManifest = {
@@ -246,10 +248,24 @@ export const runModel = (
         stats: finalStats,
         finishedAt: new Date(endedMs).toISOString(),
       };
+
+      yield* Effect.logInfo(
+        `\n${formatModelBlock({
+          modelDisplayName: input.manifest.model,
+          runtime: input.manifest.runtime,
+          quant: input.manifest.quant,
+          archivePath: input.archivePath,
+          totalWallTimeSec: finalStats.totalWallTimeSec,
+          interrupted: false,
+          aggregate: finalAggregate,
+        })}`,
+      ).pipe(Effect.annotateLogs("scope", "run-model"));
+
       return {
         manifest: finalizedManifest,
         stats: finalStats,
         interrupted: false,
+        aggregate: finalAggregate,
       } satisfies RunModelOutcome;
     }),
   );

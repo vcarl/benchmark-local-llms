@@ -184,6 +184,13 @@ export interface ModelRollupInput {
   readonly totalWallTimeSec: number;
 }
 
+export const toRollupInput = (agg: ModelAggregate, totalWallTimeSec: number): ModelRollupInput => ({
+  completed: agg.promptStats.completed + agg.scenarioStats.completed,
+  cached: agg.promptStats.cached + agg.scenarioStats.cached,
+  errors: agg.promptStats.errors + agg.scenarioStats.errors,
+  totalWallTimeSec,
+});
+
 export const formatCrossModelRollup = (rows: ReadonlyArray<ModelRollupInput>): string => {
   const totals = rows.reduce(
     (acc, r) => ({

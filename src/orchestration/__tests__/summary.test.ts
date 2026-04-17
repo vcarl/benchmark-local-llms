@@ -9,6 +9,7 @@ import {
   recordPrompt,
   recordScenario,
   slowest3,
+  toRollupInput,
 } from "../summary.js";
 
 const baseResult: ExecutionResult = {
@@ -243,5 +244,21 @@ describe("aggregator", () => {
     ]);
     expect(line).toContain("2 models · 51 completed · 3 cached · 1 errors");
     expect(line).toContain("5.9 min total");
+  });
+
+  it("derives rollup-input from an aggregate", () => {
+    let agg = emptyAggregate();
+    agg = recordPrompt(agg, { ...baseResult, wallTimeSec: 5 }, false);
+    agg = recordScenario(
+      agg,
+      { ...baseResult, scenarioName: "s", wallTimeSec: 10, terminationReason: "completed" },
+      false,
+    );
+    expect(toRollupInput(agg, 15)).toEqual({
+      completed: 2,
+      cached: 0,
+      errors: 0,
+      totalWallTimeSec: 15,
+    });
   });
 });
