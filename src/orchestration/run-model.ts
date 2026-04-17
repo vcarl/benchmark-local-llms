@@ -137,6 +137,7 @@ export interface RunModelOutcome {
   readonly stats: RunStats;
   readonly interrupted: boolean;
   readonly aggregate: ModelAggregate;
+  readonly archivePath: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -266,6 +267,7 @@ export const runModel = (
         stats: finalStats,
         interrupted: false,
         aggregate: finalAggregate,
+        archivePath: input.archivePath,
       } satisfies RunModelOutcome;
     }),
   );

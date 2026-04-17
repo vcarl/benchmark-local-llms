@@ -34,11 +34,46 @@ import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { runLoop } from "../../orchestration/run-loop.js";
+import { averageGenTps } from "../../orchestration/summary.js";
 import { buildRunLoopConfig, parseTemperatures, type RunFlags } from "../config/build.js";
 import { makeRunDeps } from "../deps.js";
 import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 import { runOptions } from "./run-options.js";
+
+/**
+ * Extended per-model stdout record (one per model) — see stdout-observability
+ * spec. Stdout is machine-readable; human-readable logs go to stderr via the
+ * logger. Downstream shell glue parses by splitting on `\t` and reading
+ * `key=value` pairs after the fixed-order `<model>\t<runtime>\t<quant>`
+ * header columns.
+ */
+export interface RunRecordInput {
+  readonly model: string;
+  readonly runtime: string;
+  readonly quant: string;
+  readonly completed: number;
+  readonly cached: number;
+  readonly errors: number;
+  readonly totalWallTimeSec: number;
+  readonly genTps: number;
+  readonly interrupted: boolean;
+  readonly archivePath: string;
+}
+
+export const formatRunRecord = (r: RunRecordInput): string =>
+  [
+    r.model,
+    r.runtime,
+    r.quant,
+    `completed=${r.completed}`,
+    `cached=${r.cached}`,
+    `errors=${r.errors}`,
+    `wall=${r.totalWallTimeSec.toFixed(1)}`,
+    `genTps=${r.genTps.toFixed(1)}`,
+    `interrupted=${r.interrupted}`,
+    `archive=${r.archivePath}`,
+  ].join("\t");
 
 type RunOptionsParsed = {
   readonly modelName: Option.Option<string>;
@@ -134,10 +169,19 @@ export const runCommand = Command.make("run", runOptions, (raw) => {
 
     // Print a per-model summary line --------------------------------------
     for (const m of outcome.perModel) {
-      const label = m.manifest.model;
-      const stats = m.stats;
       console.log(
-        `${label}\tcompleted=${stats.completed}\tskippedCached=${stats.skippedCached}\terrors=${stats.errors}\tinterrupted=${m.interrupted}`,
+        formatRunRecord({
+          model: m.manifest.model,
+          runtime: m.manifest.runtime,
+          quant: m.manifest.quant,
+          completed: m.stats.completed,
+          cached: m.stats.skippedCached,
+          errors: m.stats.errors,
+          totalWallTimeSec: m.stats.totalWallTimeSec,
+          genTps: averageGenTps(m.aggregate),
+          interrupted: m.interrupted,
+          archivePath: m.archivePath,
+        }),
       );
     }
   }).pipe(
