@@ -80,7 +80,6 @@ describe("runModel — summary block emission", () => {
     expect(blockLine).toContain(" run-model | ");
 
     // Outcome carries the terminal aggregate.
-    expect(outcome.aggregate.promptStats.completed).toBeGreaterThanOrEqual(0);
     expect(outcome.aggregate.promptStats.completed).toBe(1);
   });
 });
