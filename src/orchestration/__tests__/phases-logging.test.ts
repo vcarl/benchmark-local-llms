@@ -6,9 +6,17 @@ import type { ChatCompletionService } from "../../llm/chat-completion.js";
 import { ChatCompletion } from "../../llm/chat-completion.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
 import type { RunStats } from "../../schema/run-manifest.js";
-import { runPromptPhase } from "../phases.js";
+import { runPromptPhase, runScenarioPhase } from "../phases.js";
 import type { RunModelInput } from "../run-model.js";
 import { emptyAggregate, type ModelAggregate } from "../summary.js";
+import {
+  agentEvent,
+  fakeAdmiralClient,
+  fakeGameSessionFactory,
+  fakeServerHandle,
+  inertHttpClientLayer,
+  sampleScenario,
+} from "./fixtures.js";
 
 const fakeChat = (): ChatCompletionService => ({
   complete: () =>
@@ -117,5 +125,59 @@ describe("prompt phase logging", () => {
     const line = sink.find((l) => l.includes("prompt 1/1") && l.includes("ERROR:"));
     expect(line).toBeDefined();
     expect(line).toContain(`ERROR: ${"A".repeat(200)}`);
+  });
+});
+
+describe("scenario phase logging", () => {
+  it("emits an INF line with scenario name, termination reason, ticks, tool calls, wall time", async () => {
+    // 12 events total, 5 of which are tool_call; natural stream completion
+    // → terminationReason: "completed", toolCallCount: 5, events.length: 12.
+    const events = [
+      agentEvent("tool_call", { name: "build" }),
+      agentEvent("tool_result", {}),
+      agentEvent("tool_call", { name: "run" }),
+      agentEvent("tool_result", {}),
+      agentEvent("tool_call", { name: "inspect" }),
+      agentEvent("tool_result", {}),
+      agentEvent("tool_call", { name: "grow" }),
+      agentEvent("tool_result", {}),
+      agentEvent("tool_call", { name: "harvest" }),
+      agentEvent("tool_result", {}),
+      agentEvent("turn_end", { totalTokensIn: 100, totalTokensOut: 200 }),
+      agentEvent("turn_end", { totalTokensIn: 150, totalTokensOut: 300 }),
+    ];
+    const scenario = sampleScenario({ name: "bootstrap_grind" });
+    const input: RunModelInput = {
+      ...baseInput(),
+      scenarios: [scenario],
+    };
+    const sink: string[] = [];
+    const statsRef = await Effect.runPromise(Ref.make<RunStats>(input.manifest.stats));
+    const aggRef = await Effect.runPromise(Ref.make<ModelAggregate>(emptyAggregate()));
+    const admiral = {
+      baseUrl: "http://127.0.0.1:3031",
+      client: fakeAdmiralClient,
+    };
+    const llmHandle = await Effect.runPromise(fakeServerHandle(18081));
+    await Effect.runPromise(
+      runScenarioPhase(
+        input,
+        fakeGameSessionFactory({ events }),
+        admiral,
+        llmHandle,
+        statsRef,
+        aggRef,
+      ).pipe(
+        Effect.scoped,
+        Effect.provide(Layer.merge(captureLogs(sink, LogLevel.Info), inertHttpClientLayer)),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    const line = sink.find((l) => l.includes("scenario 1/1 bootstrap_grind"));
+    expect(line).toBeDefined();
+    expect(line).toContain("\u2014 completed");
+    expect(line).toContain("ticks=12");
+    expect(line).toContain("toolCalls=5");
+    expect(line).toMatch(/\d+\.\ds/);
   });
 });

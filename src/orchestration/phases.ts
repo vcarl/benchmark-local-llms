@@ -20,7 +20,7 @@ import { lookupCache } from "./cache.js";
 import type { AdmiralHandle, GameSessionFactory, RunModelInput } from "./run-model.js";
 import { runPrompt } from "./run-prompt.js";
 import { runScenario } from "./run-scenario.js";
-import { type ModelAggregate, recordPrompt } from "./summary.js";
+import { type ModelAggregate, recordPrompt, recordScenario } from "./summary.js";
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
@@ -155,6 +155,7 @@ export const runScenarioPhase = (
   admiral: AdmiralHandle,
   llmHandle: ServerHandle,
   statsRef: Ref.Ref<RunStats>,
+  aggRef: Ref.Ref<ModelAggregate>,
 ): Effect.Effect<
   void,
   FileIOError | JsonlCorruptLine,
@@ -172,8 +173,11 @@ export const runScenarioPhase = (
 
     const llmBaseUrl = llmBaseUrlFor(llmHandle);
     const model = modelFromManifest(input.manifest);
+    const total = input.scenarios.length;
+    let scenarioIndex = 0;
 
     for (const scenario of input.scenarios) {
+      scenarioIndex += 1;
       const cached = yield* lookupCache({
         archiveDir: input.archiveDir,
         artifact: input.manifest.artifact,
@@ -190,6 +194,10 @@ export const runScenarioPhase = (
         };
         yield* appendIfSaving(carried, input.archivePath, input.noSave);
         yield* Ref.update(statsRef, (s) => tallySkipped(s, carried));
+        yield* Ref.update(aggRef, (a) => recordScenario(a, carried, true));
+        yield* Effect.logInfo(
+          `scenario ${scenarioIndex}/${total} ${scenario.name} — cache hit (runId=${carried.runId}, executedAt=${carried.executedAt})`,
+        ).pipe(Effect.annotateLogs("scope", "scenario"));
         continue;
       }
 
@@ -218,5 +226,15 @@ export const runScenarioPhase = (
 
       yield* appendIfSaving(result, input.archivePath, input.noSave);
       yield* Ref.update(statsRef, (s) => tallyResult(s, result));
+      yield* Ref.update(aggRef, (a) => recordScenario(a, result, false));
+      if (result.error !== null) {
+        yield* Effect.logInfo(
+          `scenario ${scenarioIndex}/${total} ${scenario.name} — ${result.terminationReason ?? "error"}: ${result.error}, ticks=${result.events?.length ?? 0}, toolCalls=${result.toolCallCount ?? 0}, ${result.wallTimeSec.toFixed(1)}s`,
+        ).pipe(Effect.annotateLogs("scope", "scenario"));
+      } else {
+        yield* Effect.logInfo(
+          `scenario ${scenarioIndex}/${total} ${scenario.name} — ${result.terminationReason ?? "completed"}, ticks=${result.events?.length ?? 0}, toolCalls=${result.toolCallCount ?? 0}, ${result.wallTimeSec.toFixed(1)}s`,
+        ).pipe(Effect.annotateLogs("scope", "scenario"));
+      }
     }
   }).pipe(Effect.annotateLogs("phase", "scenario"));

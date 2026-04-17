@@ -233,7 +233,7 @@ export const runModel = (
           deps.admiral(),
           toFileIO("<admiral>", "acquire-admiral"),
         );
-        yield* runScenarioPhase(input, deps.gameSession, admiral, llmHandle, statsRef);
+        yield* runScenarioPhase(input, deps.gameSession, admiral, llmHandle, statsRef, aggRef);
       }
 
       yield* Ref.set(interruptedRef, false);
