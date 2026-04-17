@@ -133,6 +133,56 @@ export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
   };
 };
 
+export interface UnresponsiveMockExecutorHandle {
+  readonly layer: Layer.Layer<CommandExecutor.CommandExecutor>;
+  readonly pid: number;
+}
+
+/**
+ * Like `makeMockExecutor({ behaviour: "alive" })` but `kill("SIGTERM")`
+ * returns `Effect.never` — the process ignores SIGTERM forever. Useful for
+ * testing supervisor escalation paths (SIGTERM grace-period timeout →
+ * SIGKILL).
+ *
+ * `kill("SIGKILL")` resolves normally and marks the process exited.
+ */
+export const makeUnresponsiveMockExecutor = (pid = 9999): UnresponsiveMockExecutorHandle => {
+  const executor = CommandExecutor.makeExecutor(() =>
+    Effect.gen(function* () {
+      const exited = yield* Deferred.make<number, never>();
+      const proc: CommandExecutor.Process = {
+        [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
+        pid: CommandExecutor.ProcessId(pid),
+        exitCode: Effect.map(Deferred.await(exited), (c) => CommandExecutor.ExitCode(c)),
+        isRunning: Effect.map(Deferred.isDone(exited), (done) => !done),
+        kill: (signal) => {
+          if (signal === "SIGKILL") {
+            return Effect.sync(() => {
+              Deferred.unsafeDone(exited, Effect.succeed(137));
+            });
+          }
+          // SIGTERM: never resolves — simulates an unresponsive process
+          return Effect.never;
+        },
+        stderr: Stream.empty,
+        stdin: Sink.drain,
+        stdout: Stream.empty,
+        toJSON() {
+          return { _tag: "MockProcess", pid };
+        },
+        [Inspectable.NodeInspectSymbol]() {
+          return { _tag: "MockProcess", pid };
+        },
+      };
+      return proc;
+    }),
+  );
+  return {
+    layer: Layer.succeed(CommandExecutor.CommandExecutor, executor),
+    pid,
+  };
+};
+
 /**
  * Build a mock `CommandExecutor` layer whose `start` always fails — used
  * to exercise the `ServerSpawnError` path without needing a missing

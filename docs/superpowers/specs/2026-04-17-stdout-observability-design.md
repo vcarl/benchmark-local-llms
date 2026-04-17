@@ -137,7 +137,8 @@ Same format, extra detail:
 - `session | tool_call name=<tool> args=<truncated-100-chars>` per tool event.
 
 **`llm-server` supervisor extras:**
-- `llm-server | proc.isRunning=<bool> before SIGTERM` / `llm-server | exit code=<n> after <s>s`.
+- `llm-server | proc.isRunning=<bool> before SIGTERM`.
+- `llm-server | exit finalizer completed in <s>s (graceful=<bool>)`.
 
 ### Stdout record (machine-readable, extended)
 

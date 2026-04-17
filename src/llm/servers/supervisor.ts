@@ -132,9 +132,9 @@ export const superviseServer = (
 
         const finalizerEndMs = yield* Clock.currentTimeMillis;
         const exitElapsed = ((finalizerEndMs - finalizerStartMs) / 1000).toFixed(1);
-        yield* Effect.logDebug(`exit (SIGTERM→SIGKILL path) completed in ${exitElapsed}s`).pipe(
-          Effect.annotateLogs("scope", "llm-server"),
-        );
+        yield* Effect.logDebug(
+          `exit finalizer completed in ${exitElapsed}s (graceful=${graceful})`,
+        ).pipe(Effect.annotateLogs("scope", "llm-server"));
       }),
     );
 

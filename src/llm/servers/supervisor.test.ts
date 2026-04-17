@@ -1,5 +1,5 @@
-import { Command, CommandExecutor } from "@effect/platform";
-import { Deferred, Effect, Exit, Inspectable, Layer, LogLevel, Sink, Stream } from "effect";
+import { Command } from "@effect/platform";
+import { Deferred, Effect, Exit, Layer, LogLevel } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureLogs } from "../../cli/__tests__/log-capture.js";
 import { superviseServer } from "./supervisor.js";
@@ -7,6 +7,7 @@ import {
   httpClientLayer,
   makeFailingExecutor,
   makeMockExecutor,
+  makeUnresponsiveMockExecutor,
   startHealthyServer,
   startUnhealthyServer,
   type TestHttpServer,
@@ -269,37 +270,7 @@ describe("superviseServer", () => {
   it("logs 'stopping' + 'escalating to SIGKILL' when graceful shutdown does not bring down the process", async () => {
     ts = await startHealthyServer();
     const sink: string[] = [];
-
-    // Build a mock executor whose kill("SIGTERM") never resolves — forces
-    // the graceful-timeout path so escalation fires. SIGKILL resolves
-    // immediately so the finalizer can complete within the test budget.
-    const exitedDeferred = Deferred.unsafeMake<number, never>(undefined as never);
-    const neverTermProc: CommandExecutor.Process = {
-      [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
-      pid: CommandExecutor.ProcessId(9999),
-      exitCode: Effect.map(Deferred.await(exitedDeferred), (c) => CommandExecutor.ExitCode(c)),
-      isRunning: Effect.map(Deferred.isDone(exitedDeferred), (done) => !done),
-      kill: (signal) => {
-        if (signal === "SIGKILL") {
-          return Effect.sync(() => {
-            Deferred.unsafeDone(exitedDeferred, Effect.succeed(137));
-          });
-        }
-        // SIGTERM: never resolves — simulates an unresponsive process
-        return Effect.never;
-      },
-      stderr: Stream.empty,
-      stdin: Sink.drain,
-      stdout: Stream.empty,
-      toJSON() {
-        return { _tag: "MockProcess", pid: 9999 };
-      },
-      [Inspectable.NodeInspectSymbol]() {
-        return { _tag: "MockProcess", pid: 9999 };
-      },
-    };
-    const executor = CommandExecutor.makeExecutor(() => Effect.succeed(neverTermProc));
-    const neverTermLayer = Layer.succeed(CommandExecutor.CommandExecutor, executor);
+    const mock = makeUnresponsiveMockExecutor();
 
     await Effect.runPromise(
       Effect.scoped(
@@ -313,7 +284,7 @@ describe("superviseServer", () => {
           gracefulShutdownSec: 1,
         }),
       ).pipe(
-        Effect.provide(Layer.mergeAll(neverTermLayer, httpClientLayer)),
+        Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer)),
         Effect.provide(captureLogs(sink, LogLevel.Info)),
       ),
     );
@@ -343,6 +314,8 @@ describe("superviseServer", () => {
       ),
     );
     expect(sink.some((l) => l.includes("proc.isRunning=true before SIGTERM"))).toBe(true);
-    expect(sink.some((l) => l.match(/exit \(SIGTERM→SIGKILL path\) completed in \d/))).toBe(true);
+    expect(sink.some((l) => l.match(/exit finalizer completed in \d.*\(graceful=true\)/))).toBe(
+      true,
+    );
   });
 });
