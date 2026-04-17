@@ -50,9 +50,9 @@ describe("annotation boundaries", () => {
     );
     const entry = sink.find((l) => l.includes("model 1/1"));
     expect(entry).toBeDefined();
-    expect(entry).toContain("model=");
+    expect(entry).toContain(`model="Test Model"`);
     expect(entry).toContain("runtime=mlx");
-    expect(entry).toContain("quant=");
+    expect(entry).toContain("quant=4bit");
     expect(entry).toMatch(/runId=[^ ]+/);
   });
 
@@ -72,7 +72,10 @@ describe("annotation boundaries", () => {
         Effect.provide(captureLogs(sink, LogLevel.Info)),
       ),
     );
-    expect(sink.some((l) => l.includes("skipping inactive model: Inactive"))).toBe(true);
+    const skip = sink.find((l) => l.includes("skipping inactive model: Inactive"));
+    expect(skip).toBeDefined();
+    expect(skip).toContain("model=Inactive");
+    expect(skip).toContain("runtime=mlx");
   });
 
   it("logs skipped filter-missed models", async () => {
@@ -89,6 +92,9 @@ describe("annotation boundaries", () => {
         Effect.provide(captureLogs(sink, LogLevel.Info)),
       ),
     );
-    expect(sink.some((l) => l.includes("skipping (filter miss): Beta"))).toBe(true);
+    const skip = sink.find((l) => l.includes("skipping (filter miss): Beta"));
+    expect(skip).toBeDefined();
+    expect(skip).toContain("model=Beta");
+    expect(skip).toContain("runtime=mlx");
   });
 });

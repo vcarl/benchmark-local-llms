@@ -157,13 +157,23 @@ export const runLoop = (
     for (const m of config.models) {
       if (!isActive(m)) {
         yield* Effect.logInfo(`skipping inactive model: ${m.name ?? m.artifact}`).pipe(
-          Effect.annotateLogs("scope", "run-loop"),
+          Effect.annotateLogs({
+            scope: "run-loop",
+            model: m.name ?? m.artifact,
+            runtime: m.runtime,
+            quant: m.quant ?? "",
+          }),
         );
         continue;
       }
       if (!matchesName(m, config.modelNameFilter)) {
         yield* Effect.logInfo(`skipping (filter miss): ${m.name ?? m.artifact}`).pipe(
-          Effect.annotateLogs("scope", "run-loop"),
+          Effect.annotateLogs({
+            scope: "run-loop",
+            model: m.name ?? m.artifact,
+            runtime: m.runtime,
+            quant: m.quant ?? "",
+          }),
         );
         continue;
       }
