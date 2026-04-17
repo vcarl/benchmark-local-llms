@@ -25,7 +25,7 @@
  */
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "@effect/platform";
 import type { HttpClientError } from "@effect/platform/HttpClientError";
-import { Context, Effect, Layer, Schema } from "effect";
+import { Clock, Context, Effect, Layer, Schema } from "effect";
 import type { ParseError } from "effect/ParseResult";
 import {
   LlmEmptyResponse,
@@ -181,6 +181,11 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
       const url = endpointUrl(params.runtime);
       const body = buildBody(params);
 
+      const startMs = yield* Clock.currentTimeMillis;
+      yield* Effect.logDebug(
+        `POST ${url} temp=${params.temperature} max_tokens=${params.maxTokens}`,
+      ).pipe(Effect.annotateLogs("scope", "chat"));
+
       // `HttpClientRequest.bodyJson` yields `HttpBody.HttpBodyError` if the
       // body can't be encoded; our body is plain JSON-safe so this is an
       // infallible path in practice, but the type system forces us to handle
@@ -226,7 +231,18 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
               }),
             );
 
-      const response = yield* executed;
+      const response = yield* executed.pipe(
+        Effect.tapError((err) =>
+          Effect.gen(function* () {
+            const endMs = yield* Clock.currentTimeMillis;
+            const elapsed = ((endMs - startMs) / 1000).toFixed(1);
+            const tag = (err as { readonly _tag?: string })._tag ?? "unknown";
+            yield* Effect.logDebug(`error after ${elapsed}s: ${tag}`).pipe(
+              Effect.annotateLogs("scope", "chat"),
+            );
+          }),
+        ),
+      );
 
       // Pull the body as JSON. `.json` fails with a `ResponseError`
       // (`reason: "Decode"`) on non-JSON bodies; we map that to
@@ -262,6 +278,12 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
           }),
         );
       }
+
+      const endMs = yield* Clock.currentTimeMillis;
+      const elapsed = ((endMs - startMs) / 1000).toFixed(1);
+      yield* Effect.logDebug(
+        `response 200 in ${elapsed}s, prompt_tokens=${decoded.usage.prompt_tokens} gen_tokens=${decoded.usage.completion_tokens}`,
+      ).pipe(Effect.annotateLogs("scope", "chat"));
 
       return {
         output,

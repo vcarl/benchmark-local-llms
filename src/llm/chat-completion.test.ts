@@ -1,6 +1,7 @@
 import { HttpClient, type HttpClientRequest, HttpClientResponse } from "@effect/platform";
-import { Effect, Exit, Layer } from "effect";
+import { Effect, Exit, Layer, LogLevel } from "effect";
 import { describe, expect, it } from "vitest";
+import { captureLogs } from "../cli/__tests__/log-capture.js";
 import {
   LlmEmptyResponse,
   LlmMalformedResponse,
@@ -343,5 +344,44 @@ describe("ChatCompletion", () => {
       promptTps: 0,
       generationTps: 0,
     });
+  });
+
+  it("emits DBG lines around a successful request", async () => {
+    const sink: string[] = [];
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() =>
+          jsonResponse({
+            choices: [{ message: { content: "hi" } }],
+            usage: { prompt_tokens: 4, completion_tokens: 2 },
+          }),
+        ),
+      ),
+    );
+    const program = Effect.gen(function* () {
+      const chat = yield* ChatCompletion;
+      return yield* chat.complete(baseParams());
+    });
+    await Effect.runPromise(
+      Effect.provide(program, layer).pipe(Effect.provide(captureLogs(sink, LogLevel.Debug))),
+    );
+    expect(sink.some((l) => /DBG.*chat.*POST http:\/\/127\.0\.0\.1:18080/.test(l))).toBe(true);
+    expect(sink.some((l) => /DBG.*chat.*response 200 in \d/.test(l))).toBe(true);
+    expect(sink.some((l) => /prompt_tokens=4.*gen_tokens=2/.test(l))).toBe(true);
+  });
+
+  it("emits DBG error line on request failure", async () => {
+    const sink: string[] = [];
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(mockClient(() => new Response("nope", { status: 500 }))),
+    );
+    const program = Effect.gen(function* () {
+      const chat = yield* ChatCompletion;
+      return yield* chat.complete(baseParams());
+    });
+    await Effect.runPromiseExit(
+      Effect.provide(program, layer).pipe(Effect.provide(captureLogs(sink, LogLevel.Debug))),
+    );
+    expect(sink.some((l) => /DBG.*chat.*error after \d/.test(l))).toBe(true);
   });
 });
