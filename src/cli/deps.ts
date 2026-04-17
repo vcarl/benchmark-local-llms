@@ -15,6 +15,9 @@
  * configured.
  */
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join as joinPath } from "node:path";
 import { Effect } from "effect";
 import { makeAdmiralClient } from "../game/admiral/client.js";
 import { admiralServer } from "../game/admiral/server.js";
@@ -45,6 +48,31 @@ export interface MakeRunDepsInput {
 }
 
 /**
+ * Resolve the Python interpreter to run `mlx_lm.server` under. `mlx_lm` is
+ * typically installed into a venv, not system Python, so defaulting to
+ * `python3` on PATH will fail on a machine where that is the Homebrew /
+ * system Python without the package. Resolution order:
+ *
+ *   1. `$VIRTUAL_ENV/bin/python3` if `VIRTUAL_ENV` is set (honours an
+ *      activated venv — matches the Python prototype's implicit behaviour,
+ *      which used `sys.executable` and therefore inherited activation).
+ *   2. `~/llm-env/bin/python3` if present (the path `benchmarking-guide.md`
+ *      documents as the canonical venv location).
+ *   3. Fallback to `python3` on PATH — if the user knows what they're doing,
+ *      they can provide `mlx_lm` some other way.
+ */
+const resolveMlxPython = (): string => {
+  const virtualEnv = process.env["VIRTUAL_ENV"];
+  if (virtualEnv !== undefined && virtualEnv.length > 0) {
+    const candidate = joinPath(virtualEnv, "bin", "python3");
+    if (existsSync(candidate)) return candidate;
+  }
+  const convention = joinPath(homedir(), "llm-env", "bin", "python3");
+  if (existsSync(convention)) return convention;
+  return "python3";
+};
+
+/**
  * Dispatch llmServer factory on `model.runtime`.
  *
  * llamacpp: resolve the HuggingFace artifact string + quant to a local .gguf
@@ -52,7 +80,9 @@ export interface MakeRunDepsInput {
  * expects a filesystem path, not a HF repo.
  *
  * mlx: `mlx_lm.server --model` accepts HF repo strings directly and
- * auto-downloads on first use; no resolver needed.
+ * auto-downloads on first use; no resolver needed. The interpreter is
+ * resolved via {@link resolveMlxPython} so an activated or conventionally-
+ * located venv is picked up automatically.
  */
 export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) => {
   if (model.runtime === "llamacpp") {
@@ -69,7 +99,7 @@ export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig)
       });
     });
   }
-  return mlxServer({ artifactPath: model.artifact });
+  return mlxServer({ artifactPath: model.artifact, pythonBin: resolveMlxPython() });
 };
 
 const newAdminToken = (): string => randomBytes(16).toString("hex");
