@@ -239,7 +239,11 @@ describe("ChatCompletion", () => {
     }
   });
 
-  it("maps missing message.content to LlmMalformedResponse", async () => {
+  it("maps an empty message object (no content, no reasoning) to LlmEmptyResponse", async () => {
+    // mlx_lm.server legitimately omits `content` when the whole response was
+    // reasoning, so a missing `content` is no longer a malformed response —
+    // only a missing `message` key would be. If `content`, `reasoning_content`,
+    // and `reasoning` are all absent/empty, the result is an empty response.
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
@@ -259,7 +263,7 @@ describe("ChatCompletion", () => {
     const exit = await Effect.runPromiseExit(Effect.provide(program, layer));
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit) && exit.cause._tag === "Fail") {
-      expect(exit.cause.error).toBeInstanceOf(LlmMalformedResponse);
+      expect(exit.cause.error).toBeInstanceOf(LlmEmptyResponse);
     }
   });
 

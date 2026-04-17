@@ -84,15 +84,24 @@ export class ChatCompletion extends Context.Tag("llm/ChatCompletion")<
 /**
  * Minimal decoder for the OpenAI-compatible chat completion response. We
  * only pull the fields we actually use downstream — extra fields pass through
- * untouched. `reasoning_content` is optional because only some llama-server
- * builds split reasoning out of `content`.
+ * untouched.
+ *
+ * All three text-carrying fields are optional because different backends
+ * split the model output differently:
+ *   - `content`          — classic OpenAI shape, llama.cpp with
+ *                          `--reasoning-format none` puts everything here.
+ *   - `reasoning_content` — some llama.cpp builds split reasoning out here.
+ *   - `reasoning`        — `mlx_lm.server` splits reasoning into this field
+ *                          and omits `content` entirely when the whole
+ *                          response was reasoning (e.g. Qwen chat template).
+ *
+ * At least one must be non-empty — `extractOutput` enforces that; a response
+ * with none populated is surfaced as `LlmEmptyResponse` downstream.
  */
 const MessageSchema = Schema.Struct({
-  // `content` must be present (even if empty or null) for the response to be
-  // considered well-formed. Missing content → LlmMalformedResponse. An empty
-  // string → LlmEmptyResponse (distinguished downstream).
-  content: Schema.NullOr(Schema.String),
+  content: Schema.optional(Schema.NullOr(Schema.String)),
   reasoning_content: Schema.optional(Schema.NullOr(Schema.String)),
+  reasoning: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const ChoiceSchema = Schema.Struct({
@@ -143,8 +152,9 @@ const buildBody = (p: CompletionParams) => ({
 const extractOutput = (
   choices: ReadonlyArray<{
     readonly message: {
-      readonly content: string | null;
+      readonly content?: string | null | undefined;
       readonly reasoning_content?: string | null | undefined;
+      readonly reasoning?: string | null | undefined;
     };
   }>,
 ): string => {
@@ -153,7 +163,12 @@ const extractOutput = (
   if (first === undefined) return "";
   const content = (first.message.content ?? "").trim();
   if (content.length > 0) return content;
-  const reasoning = (first.message.reasoning_content ?? "").trim();
+  // Both reasoning fields get wrapped in <think>…</think> so that the
+  // downstream thinking-tag stripper in `src/scoring/strip-thinking.ts`
+  // removes them uniformly regardless of which runtime produced the output.
+  const reasoningContent = (first.message.reasoning_content ?? "").trim();
+  if (reasoningContent.length > 0) return `<think>${reasoningContent}</think>`;
+  const reasoning = (first.message.reasoning ?? "").trim();
   if (reasoning.length > 0) return `<think>${reasoning}</think>`;
   return "";
 };
