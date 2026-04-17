@@ -54,6 +54,7 @@ import type { ScenarioCorpusEntry } from "../schema/scenario.js";
 import { finalizeArchive } from "./finalize-archive.js";
 import { runPromptPhase, runScenarioPhase } from "./phases.js";
 import type { RunScenarioDeps } from "./run-scenario.js";
+import { emptyAggregate, type ModelAggregate } from "./summary.js";
 
 // ── Dependency seams ───────────────────────────────────────────────────────
 
@@ -195,6 +196,7 @@ export const runModel = (
         ...zeroStats(),
         totalPrompts: input.prompts.length,
       });
+      const aggRef = yield* Ref.make<ModelAggregate>(emptyAggregate());
       // Starts "true"; flipped to false at natural completion. Interrupt
       // leaves it true; the finalizer reads this to set the manifest flag.
       const interruptedRef = yield* Ref.make(true);
@@ -224,7 +226,7 @@ export const runModel = (
         toFileIO(`<llm-server:${input.manifest.runtime}>`, "acquire-llm-server"),
       );
 
-      yield* runPromptPhase(input, statsRef);
+      yield* runPromptPhase(input, statsRef, aggRef);
 
       if (input.scenarios.length > 0) {
         const admiral = yield* Effect.mapError(
