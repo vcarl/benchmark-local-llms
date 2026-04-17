@@ -78,9 +78,6 @@ const matchesName = (m: ModelConfig, filter?: string): boolean => {
   return m.artifact.toLowerCase().includes(needle);
 };
 
-const filterModels = (config: RunLoopConfig): ReadonlyArray<ModelConfig> =>
-  config.models.filter((m) => isActive(m) && matchesName(m, config.modelNameFilter));
-
 // ── Manifest construction ──────────────────────────────────────────────────
 
 const toCorpusRecord = <T extends { readonly name: string }>(
@@ -152,11 +149,30 @@ export const runLoop = (
   | ChatCompletion
 > =>
   Effect.gen(function* () {
-    const models = filterModels(config);
     const pathMod = yield* Path.Path;
     const perModel: RunModelOutcome[] = [];
 
-    for (const model of models) {
+    // Filter with logging.
+    const eligible: ModelConfig[] = [];
+    for (const m of config.models) {
+      if (!isActive(m)) {
+        yield* Effect.logInfo(`skipping inactive model: ${m.name ?? m.artifact}`).pipe(
+          Effect.annotateLogs("scope", "run-loop"),
+        );
+        continue;
+      }
+      if (!matchesName(m, config.modelNameFilter)) {
+        yield* Effect.logInfo(`skipping (filter miss): ${m.name ?? m.artifact}`).pipe(
+          Effect.annotateLogs("scope", "run-loop"),
+        );
+        continue;
+      }
+      eligible.push(m);
+    }
+
+    let modelIndex = 0;
+    for (const model of eligible) {
+      modelIndex += 1;
       const { runId, startedAt } = yield* makeRunId(model);
       const manifest = makeOpenManifest({
         runId,
@@ -168,25 +184,42 @@ export const runLoop = (
         scenarioCorpus: config.scenarioCorpus,
       });
       const archivePath = pathMod.join(config.archiveDir, archiveFileName(runId));
+      const displayName = model.name ?? model.artifact;
+      const quant = model.quant ?? "";
 
-      const outcome = yield* runModel(
-        {
-          manifest,
-          archivePath,
-          prompts: config.promptCorpus,
-          scenarios: config.scenarioCorpus,
-          temperatures: config.temperatures,
-          archiveDir: config.archiveDir,
-          fresh: config.fresh,
-          maxTokens: config.maxTokens,
-          noSave: config.noSave ?? false,
-          ...(config.idleTimeoutSec !== undefined ? { idleTimeoutSec: config.idleTimeoutSec } : {}),
-          ...(config.scenariosOnly !== undefined ? { scenariosOnly: config.scenariosOnly } : {}),
-          ...(config.requestTimeoutSec !== undefined
-            ? { requestTimeoutSec: config.requestTimeoutSec }
-            : {}),
-        },
-        deps,
+      const outcome = yield* Effect.gen(function* () {
+        yield* Effect.logInfo(
+          `model ${modelIndex}/${eligible.length}: ${displayName} (${model.artifact}${quant ? `, ${quant}` : ""})`,
+        ).pipe(Effect.annotateLogs("scope", "run-loop"));
+
+        return yield* runModel(
+          {
+            manifest,
+            archivePath,
+            prompts: config.promptCorpus,
+            scenarios: config.scenarioCorpus,
+            temperatures: config.temperatures,
+            archiveDir: config.archiveDir,
+            fresh: config.fresh,
+            maxTokens: config.maxTokens,
+            noSave: config.noSave ?? false,
+            ...(config.idleTimeoutSec !== undefined
+              ? { idleTimeoutSec: config.idleTimeoutSec }
+              : {}),
+            ...(config.scenariosOnly !== undefined ? { scenariosOnly: config.scenariosOnly } : {}),
+            ...(config.requestTimeoutSec !== undefined
+              ? { requestTimeoutSec: config.requestTimeoutSec }
+              : {}),
+          },
+          deps,
+        );
+      }).pipe(
+        Effect.annotateLogs({
+          model: displayName,
+          runtime: model.runtime,
+          quant,
+          runId,
+        }),
       );
       perModel.push(outcome);
     }

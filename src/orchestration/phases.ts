@@ -121,7 +121,7 @@ export const runPromptPhase = (
         yield* Ref.update(statsRef, (s) => tallyResult(s, result));
       }
     }
-  });
+  }).pipe(Effect.annotateLogs("phase", "prompt"));
 
 // ── Scenario phase ─────────────────────────────────────────────────────────
 
@@ -195,9 +195,9 @@ export const runScenarioPhase = (
             { admiral: admiral.client, admin: game.admin },
           );
         }),
-      );
+      ).pipe(Effect.annotateLogs({ scenario: scenario.name }));
 
       yield* appendIfSaving(result, input.archivePath, input.noSave);
       yield* Ref.update(statsRef, (s) => tallyResult(s, result));
     }
-  });
+  }).pipe(Effect.annotateLogs("phase", "scenario"));
