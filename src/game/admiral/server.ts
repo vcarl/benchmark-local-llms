@@ -15,7 +15,7 @@
  * its own tag.
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
-import { Effect } from "effect";
+import { Clock, Effect } from "effect";
 import type { HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
 import { type ServerHandle, superviseServer } from "../../llm/servers/supervisor.js";
 
@@ -67,6 +67,9 @@ export const admiralServer = (
       Command.env(env),
     );
 
+    const startMs = yield* Clock.currentTimeMillis;
+    yield* Effect.logInfo(`starting on :${port}`).pipe(Effect.annotateLogs("scope", "admiral"));
+
     const handle = yield* superviseServer({
       runtime: "llamacpp",
       port,
@@ -74,6 +77,15 @@ export const admiralServer = (
       healthUrl: `${baseUrl}/api/health`,
       healthTimeoutSec: cfg.healthTimeoutSec ?? 30,
     });
+
+    const endMs = yield* Clock.currentTimeMillis;
+    yield* Effect.logInfo(`healthy in ${((endMs - startMs) / 1000).toFixed(1)}s`).pipe(
+      Effect.annotateLogs("scope", "admiral"),
+    );
+
+    yield* Effect.addFinalizer(() =>
+      Effect.logInfo("stopping").pipe(Effect.annotateLogs("scope", "admiral")),
+    );
 
     return { ...handle, baseUrl };
   });

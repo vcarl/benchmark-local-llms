@@ -3,8 +3,9 @@
  * spawn through a `MockExecutor`, verify the spawned command is shaped
  * correctly, and confirm the supervised handle exposes the base URL.
  */
-import { Effect, Layer } from "effect";
+import { Effect, Layer, LogLevel } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
+import { captureLogs } from "../../cli/__tests__/log-capture.js";
 import {
   httpClientLayer,
   makeMockExecutor,
@@ -63,5 +64,29 @@ describe("admiralServer", () => {
 
     const run = mock.runs[0];
     expect(run?.log.command).toBe("/opt/homebrew/bin/bun");
+  });
+
+  it("emits admiral lifecycle log lines", async () => {
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+    const sink: Array<string> = [];
+
+    await Effect.runPromise(
+      Effect.scoped(
+        admiralServer({
+          admiralDir: "/tmp/fake-admiral",
+          port: ts.port,
+          healthTimeoutSec: 2,
+        }),
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(mock.layer, httpClientLayer, captureLogs(sink, LogLevel.Info)),
+        ),
+      ),
+    );
+
+    expect(sink.some((l) => l.includes("admiral | starting on :"))).toBe(true);
+    expect(sink.some((l) => l.match(/admiral \| healthy in \d/))).toBe(true);
+    expect(sink.some((l) => l.includes("admiral | stopping"))).toBe(true);
   });
 });

@@ -2,8 +2,9 @@
  * GameServer lifecycle tests — same shape as `llamacpp.test.ts` but
  * verifying the env-var contract from `game_lifecycle.py:45-56`.
  */
-import { Effect, Layer } from "effect";
+import { Effect, Layer, LogLevel } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
+import { captureLogs } from "../../cli/__tests__/log-capture.js";
 import {
   httpClientLayer,
   makeMockExecutor,
@@ -54,6 +55,29 @@ describe("gameServer", () => {
     if (!run) return;
     expect(run.log.command).toBe("/tmp/fake-gameserver/bin/server");
     expect(run.log.args).toEqual([]);
+  });
+
+  it("emits a gameserver started log line", async () => {
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+    const sink: Array<string> = [];
+
+    await Effect.runPromise(
+      Effect.scoped(
+        gameServer({
+          binaryPath: "/tmp/fake-gameserver/bin/server",
+          port: ts.port,
+          adminToken: "deadbeef",
+          healthTimeoutSec: 2,
+        }),
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(mock.layer, httpClientLayer, captureLogs(sink, LogLevel.Info)),
+        ),
+      ),
+    );
+
+    expect(sink.some((l) => l.match(/gameserver \| started on :\d+/))).toBe(true);
   });
 
   it("allocates an ephemeral port when port is omitted", async () => {

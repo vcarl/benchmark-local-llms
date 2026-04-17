@@ -95,5 +95,7 @@ export const gameServer = (
       healthTimeoutSec: cfg.healthTimeoutSec ?? 30,
     });
 
+    yield* Effect.logInfo(`started on :${port}`).pipe(Effect.annotateLogs("scope", "gameserver"));
+
     return { ...handle, baseUrl, adminToken: cfg.adminToken };
   });
