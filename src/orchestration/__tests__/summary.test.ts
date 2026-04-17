@@ -151,7 +151,7 @@ describe("aggregator", () => {
     expect(block).toContain("prompts     1 completed · 0 cached · 0 errors");
     expect(block).toContain("scenarios   1 completed · 0 cached · 0 errors");
     expect(block).toContain("wall        3.4 min total");
-    expect(block).toContain("avg 18.2 tps gen");
+    expect(block).toContain("avg 18.8 tps gen");
     expect(block).toContain("slowest     bootstrap_grind 94s");
     expect(block).toContain("archive     ./benchmark-archive/run1.jsonl");
     expect(block).toContain("interrupted false");

@@ -102,14 +102,7 @@ export const recordScenario = (
   r: ExecutionResult,
   cached: boolean,
 ): ModelAggregate => {
-  // Scenarios are not included in TPS averages — they measure game-play wall time,
-  // not raw generation throughput.
-  const tps = {
-    tokenWeightedGenTpsDenominator: agg.tokenWeightedGenTpsDenominator,
-    tokenWeightedGenTpsNumerator: agg.tokenWeightedGenTpsNumerator,
-    tokenWeightedPromptTpsDenominator: agg.tokenWeightedPromptTpsDenominator,
-    tokenWeightedPromptTpsNumerator: agg.tokenWeightedPromptTpsNumerator,
-  };
+  const tps = addTps(agg, r, cached);
   const isError = r.error !== null;
   const scenarioStats: ModelAggregate["scenarioStats"] = {
     ...bumpCounts(agg.scenarioStats, cached, isError),
