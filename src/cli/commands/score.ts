@@ -20,10 +20,13 @@ import type { ExecutionResult } from "../../schema/execution.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
 import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
 import { scoreExecution } from "../../scoring/score-result.js";
+import { makeLoggerLayer } from "../logger.js";
 
 const archivePathOpt = Options.file("archive").pipe(
   Options.withDescription("Path to the archive JSONL file to re-score"),
 );
+
+const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
 
 /**
  * Look up the corpus entry that matches an `ExecutionResult`. Prompt results
@@ -61,27 +64,30 @@ const printLine = (line: string): Effect.Effect<void> =>
     console.log(line);
   });
 
-export const scoreCommand = Command.make("score", { archive: archivePathOpt }, ({ archive }) =>
-  Effect.gen(function* () {
-    const loaded = yield* loadManifest(archive);
-    const prompts = loaded.manifest.promptCorpus;
-    const scenarios = loaded.manifest.scenarioCorpus;
+export const scoreCommand = Command.make(
+  "score",
+  { archive: archivePathOpt, verbose },
+  ({ archive, verbose: isVerbose }) =>
+    Effect.gen(function* () {
+      const loaded = yield* loadManifest(archive);
+      const prompts = loaded.manifest.promptCorpus;
+      const scenarios = loaded.manifest.scenarioCorpus;
 
-    for (const result of loaded.results) {
-      const entry = resolveCorpusEntry(result, prompts, scenarios);
-      if (entry === null) {
-        yield* printLine(formatScoredLine(result, null));
-        continue;
+      for (const result of loaded.results) {
+        const entry = resolveCorpusEntry(result, prompts, scenarios);
+        if (entry === null) {
+          yield* printLine(formatScoredLine(result, null));
+          continue;
+        }
+        const scoreOutcome = yield* scoreExecution(result, entry).pipe(Effect.either);
+        if (scoreOutcome._tag === "Left") {
+          yield* printLine(
+            formatScoredLine(result, { score: 0, details: `error: ${String(scoreOutcome.left)}` }),
+          );
+          continue;
+        }
+        const s = scoreOutcome.right;
+        yield* printLine(formatScoredLine(result, { score: s.score, details: s.details }));
       }
-      const scoreOutcome = yield* scoreExecution(result, entry).pipe(Effect.either);
-      if (scoreOutcome._tag === "Left") {
-        yield* printLine(
-          formatScoredLine(result, { score: 0, details: `error: ${String(scoreOutcome.left)}` }),
-        );
-        continue;
-      }
-      const s = scoreOutcome.right;
-      yield* printLine(formatScoredLine(result, { score: s.score, details: s.details }));
-    }
-  }),
+    }).pipe(Effect.provide(makeLoggerLayer(isVerbose))),
 ).pipe(Command.withDescription("Re-score an existing archive in place (stdout only)"));

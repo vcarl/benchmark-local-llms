@@ -16,6 +16,7 @@ const baseParsed = {
   promptsDir: "prompts",
   admiralDir: Option.none() as Option.Option<string>,
   gameServerBinary: Option.none() as Option.Option<string>,
+  verbose: false,
 };
 
 describe("normalizeRunOptions", () => {

@@ -72,6 +72,12 @@ export const gameServerBinary = Options.file("game-server-binary").pipe(
   Options.optional,
 );
 
+export const verbose = Options.boolean("verbose").pipe(
+  Options.withAlias("v"),
+  Options.withDescription("Enable debug-level log output (intra-call detail)"),
+  Options.withDefault(false),
+);
+
 export const runOptions = {
   modelName,
   maxTokens,
@@ -86,4 +92,5 @@ export const runOptions = {
   promptsDir,
   admiralDir,
   gameServerBinary,
+  verbose,
 };

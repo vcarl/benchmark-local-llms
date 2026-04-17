@@ -14,6 +14,7 @@ import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { runReport } from "../../report/index.js";
+import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 
 const archiveDir = Options.directory("archive-dir").pipe(
@@ -36,9 +37,11 @@ const promptsDir = Options.directory("prompts-dir").pipe(
   Options.withDefault("prompts"),
 );
 
+const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+
 export const reportCommand = Command.make(
   "report",
-  { archiveDir, scoring, output, promptsDir },
+  { archiveDir, scoring, output, promptsDir, verbose },
   (args) =>
     Effect.gen(function* () {
       const outputPath = path.join(args.output, "data.js");
@@ -71,5 +74,5 @@ export const reportCommand = Command.make(
       if (summary.unmatched.length > 0) {
         yield* Effect.logWarning(`report: ${summary.unmatched.length} unmatched prompt(s)`);
       }
-    }),
+    }).pipe(Effect.provide(makeLoggerLayer(args.verbose))),
 ).pipe(Command.withDescription("Generate webapp report data from archive files"));

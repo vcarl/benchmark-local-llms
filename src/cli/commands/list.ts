@@ -16,6 +16,7 @@ import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-pro
 import type { ModelConfig } from "../../schema/model.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
 import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
+import { makeLoggerLayer } from "../logger.js";
 
 const modelsPathOpt = Options.file("models").pipe(
   Options.withDescription("Path to models.yaml"),
@@ -87,20 +88,22 @@ const printLine = (line: string): Effect.Effect<void> =>
     console.log(line);
   });
 
+const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+
 export const listModelsCommand = Command.make(
   "list-models",
-  { modelsPath: modelsPathOpt },
-  ({ modelsPath }) =>
+  { modelsPath: modelsPathOpt, verbose },
+  ({ modelsPath, verbose: isVerbose }) =>
     Effect.gen(function* () {
       const models = yield* loadModels(modelsPath);
       yield* printLine(formatModelList(models));
-    }),
+    }).pipe(Effect.provide(makeLoggerLayer(isVerbose))),
 ).pipe(Command.withDescription("Print one line per configured model (artifact, runtime, quant)"));
 
 export const listPromptsCommand = Command.make(
   "list-prompts",
-  { promptsDir: promptsDirOpt },
-  ({ promptsDir }) =>
+  { promptsDir: promptsDirOpt, verbose },
+  ({ promptsDir, verbose: isVerbose }) =>
     Effect.gen(function* () {
       const prompts = yield* loadPromptCorpus(promptsDir).pipe(
         Effect.provide(registryLayer(promptsDir)),
@@ -111,5 +114,5 @@ export const listPromptsCommand = Command.make(
         Effect.catchAll(() => Effect.succeed([] as ReadonlyArray<ScenarioCorpusEntry>)),
       );
       yield* printLine(formatPromptList(prompts, scenarios));
-    }),
+    }).pipe(Effect.provide(makeLoggerLayer(isVerbose))),
 ).pipe(Command.withDescription("Print loaded prompts and scenarios"));

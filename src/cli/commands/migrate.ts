@@ -9,6 +9,7 @@ import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { runMigrate } from "../../migrate/index.js";
+import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 
 const inputDir = Options.directory("input").pipe(
@@ -31,9 +32,11 @@ const dryRun = Options.boolean("dry-run").pipe(
   Options.withDefault(false),
 );
 
+const verbose = Options.boolean("verbose").pipe(Options.withAlias("v"), Options.withDefault(false));
+
 export const migrateCommand = Command.make(
   "migrate",
-  { inputDir, outputDir, promptsDir, dryRun },
+  { inputDir, outputDir, promptsDir, dryRun, verbose },
   (args) =>
     Effect.gen(function* () {
       const registry = Layer.effect(
@@ -62,7 +65,7 @@ export const migrateCommand = Command.make(
       if (summary.invalidRecords.length > 0) {
         yield* Effect.logWarning(`migrate: ${summary.invalidRecords.length} invalid record(s)`);
       }
-    }),
+    }).pipe(Effect.provide(makeLoggerLayer(args.verbose))),
 ).pipe(
   Command.withDescription(
     "Migrate prototype benchmark-execution/*.jsonl files into RunManifest archives",

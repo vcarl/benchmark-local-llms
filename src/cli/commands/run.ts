@@ -36,6 +36,7 @@ import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { runLoop } from "../../orchestration/run-loop.js";
 import { buildRunLoopConfig, parseTemperatures, type RunFlags } from "../config/build.js";
 import { makeRunDeps } from "../deps.js";
+import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 import { runOptions } from "./run-options.js";
 
@@ -53,6 +54,7 @@ type RunOptionsParsed = {
   readonly promptsDir: string;
   readonly admiralDir: Option.Option<string>;
   readonly gameServerBinary: Option.Option<string>;
+  readonly verbose: boolean;
 };
 
 /**
@@ -138,5 +140,9 @@ export const runCommand = Command.make("run", runOptions, (raw) =>
         `${label}\tcompleted=${stats.completed}\tskippedCached=${stats.skippedCached}\terrors=${stats.errors}\tinterrupted=${m.interrupted}`,
       );
     }
-  }).pipe(Effect.provide(ChatCompletionLive), Effect.provide(FetchHttpClient.layer)),
+  }).pipe(
+    Effect.provide(ChatCompletionLive),
+    Effect.provide(FetchHttpClient.layer),
+    Effect.provide(makeLoggerLayer((raw as unknown as RunOptionsParsed).verbose)),
+  ),
 ).pipe(Command.withDescription("Run the benchmark suite against configured models"));
