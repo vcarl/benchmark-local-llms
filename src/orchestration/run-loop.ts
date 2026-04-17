@@ -23,6 +23,7 @@ import type { RunEnv, RunManifest } from "../schema/run-manifest.js";
 import type { ScenarioCorpusEntry } from "../schema/scenario.js";
 import { archiveFileName, makeRunId } from "./run-id.js";
 import { type RunModelDeps, type RunModelOutcome, runModel } from "./run-model.js";
+import { formatCrossModelRollup, toRollupInput } from "./summary.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -232,6 +233,14 @@ export const runLoop = (
         }),
       );
       perModel.push(outcome);
+    }
+
+    if (perModel.length > 1) {
+      yield* Effect.logInfo(
+        `\n${formatCrossModelRollup(
+          perModel.map((m) => toRollupInput(m.aggregate, m.stats.totalWallTimeSec)),
+        )}`,
+      ).pipe(Effect.annotateLogs("scope", "run-loop"));
     }
 
     return { perModel };

@@ -97,4 +97,38 @@ describe("annotation boundaries", () => {
     expect(skip).toContain("model=Beta");
     expect(skip).toContain("runtime=mlx");
   });
+
+  it("emits a cross-model rollup line when >1 model runs", async () => {
+    const sink: string[] = [];
+    const { layer } = makeChatCompletionMock({});
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "M1", artifact: "a/m1" }),
+        sampleModel({ name: "M2", artifact: "a/m2" }),
+      ],
+    });
+    await Effect.runPromise(
+      runLoop(config, fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+        Effect.provide(captureLogs(sink, LogLevel.Info)),
+      ),
+    );
+    expect(sink.some((l) => l.includes("2 models ·"))).toBe(true);
+    const rollup = sink.find((l) => l.includes("2 models ·"));
+    expect(rollup).toContain(" run-loop | ");
+  });
+
+  it("does NOT emit the rollup when only one model runs", async () => {
+    const sink: string[] = [];
+    const { layer } = makeChatCompletionMock({});
+    await Effect.runPromise(
+      runLoop(baseConfig(dir), fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+        Effect.provide(captureLogs(sink, LogLevel.Info)),
+      ),
+    );
+    expect(sink.every((l) => !l.includes("models ·"))).toBe(true);
+  });
 });
