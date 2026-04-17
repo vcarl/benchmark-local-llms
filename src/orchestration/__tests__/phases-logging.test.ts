@@ -6,7 +6,7 @@ import type { ChatCompletionService } from "../../llm/chat-completion.js";
 import { ChatCompletion } from "../../llm/chat-completion.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
 import type { RunStats } from "../../schema/run-manifest.js";
-import { runPromptPhase, truncateError } from "../phases.js";
+import { runPromptPhase } from "../phases.js";
 import type { RunModelInput } from "../run-model.js";
 import { emptyAggregate, type ModelAggregate } from "../summary.js";
 
@@ -97,11 +97,8 @@ describe("prompt phase logging", () => {
   });
 
   it("emits an ERROR line for failing prompts with error truncated to 200 chars + …", async () => {
-    // 250-char string pushed into the chat cause; `runPrompt` slices it to 200
-    // via `stringifyLlmError`, and the ERROR-log `truncateError` is a no-op at
-    // exactly 200 chars (so the emitted line won't carry `…`). This verifies
-    // the integration wiring: log contains `ERROR:` followed by the first 200
-    // chars of the cause.
+    // `runPrompt`'s `stringifyLlmError` caps `result.error` at 200 chars —
+    // verify the logged line carries the capped error end-to-end.
     const longCause = "A".repeat(250);
     const sink: string[] = [];
     const statsRef = await Effect.runPromise(Ref.make<RunStats>(baseInput().manifest.stats));
@@ -120,23 +117,5 @@ describe("prompt phase logging", () => {
     const line = sink.find((l) => l.includes("prompt 1/1") && l.includes("ERROR:"));
     expect(line).toBeDefined();
     expect(line).toContain(`ERROR: ${"A".repeat(200)}`);
-    // 200 chars exactly → no ellipsis in the log line.
-    expect(line).not.toContain("\u2026");
-  });
-});
-
-describe("truncateError", () => {
-  it("returns the input unchanged when <= 200 chars", () => {
-    expect(truncateError("short")).toBe("short");
-    expect(truncateError("A".repeat(200))).toBe("A".repeat(200));
-  });
-
-  it("truncates to 200 chars and appends … when longer", () => {
-    const input = `${"A".repeat(200)}TAIL`;
-    const out = truncateError(input);
-    expect(out).toBe(`${"A".repeat(200)}\u2026`);
-    expect(out.endsWith("\u2026")).toBe(true);
-    // 200 A's + 1 ellipsis code-point = 201 code-points.
-    expect([...out].length).toBe(201);
   });
 });
