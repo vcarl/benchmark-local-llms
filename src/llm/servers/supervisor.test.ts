@@ -1,6 +1,7 @@
-import { Command } from "@effect/platform";
-import { Deferred, Effect, Exit, Layer } from "effect";
+import { Command, CommandExecutor } from "@effect/platform";
+import { Deferred, Effect, Exit, Inspectable, Layer, LogLevel, Sink, Stream } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
+import { captureLogs } from "../../cli/__tests__/log-capture.js";
 import { superviseServer } from "./supervisor.js";
 import {
   httpClientLayer,
@@ -240,5 +241,108 @@ describe("superviseServer", () => {
     if (Exit.isFailure(outcome)) {
       expect(JSON.stringify(outcome.cause)).toContain("ServerSpawnError");
     }
+  });
+
+  it("logs 'starting' and 'healthy' INF lines on successful boot", async () => {
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive", pid: 777 });
+    const sink: string[] = [];
+    await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+        }),
+      ).pipe(
+        Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer)),
+        Effect.provide(captureLogs(sink, LogLevel.Info)),
+      ),
+    );
+    expect(sink.some((l) => l.includes(`starting llamacpp on :${ts?.port} (pid=777)`))).toBe(true);
+    expect(sink.some((l) => l.match(/healthy in \d/))).toBe(true);
+  });
+
+  it("logs 'stopping' + 'escalating to SIGKILL' when graceful shutdown does not bring down the process", async () => {
+    ts = await startHealthyServer();
+    const sink: string[] = [];
+
+    // Build a mock executor whose kill("SIGTERM") never resolves — forces
+    // the graceful-timeout path so escalation fires. SIGKILL resolves
+    // immediately so the finalizer can complete within the test budget.
+    const exitedDeferred = Deferred.unsafeMake<number, never>(undefined as never);
+    const neverTermProc: CommandExecutor.Process = {
+      [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
+      pid: CommandExecutor.ProcessId(9999),
+      exitCode: Effect.map(Deferred.await(exitedDeferred), (c) => CommandExecutor.ExitCode(c)),
+      isRunning: Effect.map(Deferred.isDone(exitedDeferred), (done) => !done),
+      kill: (signal) => {
+        if (signal === "SIGKILL") {
+          return Effect.sync(() => {
+            Deferred.unsafeDone(exitedDeferred, Effect.succeed(137));
+          });
+        }
+        // SIGTERM: never resolves — simulates an unresponsive process
+        return Effect.never;
+      },
+      stderr: Stream.empty,
+      stdin: Sink.drain,
+      stdout: Stream.empty,
+      toJSON() {
+        return { _tag: "MockProcess", pid: 9999 };
+      },
+      [Inspectable.NodeInspectSymbol]() {
+        return { _tag: "MockProcess", pid: 9999 };
+      },
+    };
+    const executor = CommandExecutor.makeExecutor(() => Effect.succeed(neverTermProc));
+    const neverTermLayer = Layer.succeed(CommandExecutor.CommandExecutor, executor);
+
+    await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+          gracefulShutdownSec: 1,
+        }),
+      ).pipe(
+        Effect.provide(Layer.mergeAll(neverTermLayer, httpClientLayer)),
+        Effect.provide(captureLogs(sink, LogLevel.Info)),
+      ),
+    );
+    expect(sink.some((l) => l.includes("stopping (SIGTERM, 1s grace)"))).toBe(true);
+    expect(sink.some((l) => l.includes("escalating to SIGKILL"))).toBe(true);
+  });
+
+  it("at debug level, logs proc.isRunning and exit-path elapsed", async () => {
+    ts = await startHealthyServer();
+    const sink: string[] = [];
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+          gracefulShutdownSec: 1,
+        }),
+      ).pipe(
+        Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer)),
+        Effect.provide(captureLogs(sink, LogLevel.Debug)),
+      ),
+    );
+    expect(sink.some((l) => l.includes("proc.isRunning=true before SIGTERM"))).toBe(true);
+    expect(sink.some((l) => l.match(/exit \(SIGTERM→SIGKILL path\) completed in \d/))).toBe(true);
   });
 });

@@ -13,7 +13,7 @@
  *   - start_mlx_server / stop_mlx_server (identical shape)
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
-import { Deferred, Duration, Effect, Exit, Fiber } from "effect";
+import { Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect";
 import { type HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
 import type { Runtime } from "../../schema/enums.js";
 import { waitForHealthy } from "./health.js";
@@ -76,6 +76,11 @@ export const superviseServer = (
       ),
     );
 
+    const spawnedMs = yield* Clock.currentTimeMillis;
+    yield* Effect.logInfo(`starting ${params.runtime} on :${params.port} (pid=${proc.pid})`).pipe(
+      Effect.annotateLogs("scope", "llm-server"),
+    );
+
     // Install graceful-shutdown finalizer BEFORE health wait — if health
     // times out mid-boot, we still escalate cleanly. This finalizer runs
     // before Command.start's own finalizer (LIFO order), so by the time
@@ -83,7 +88,15 @@ export const superviseServer = (
     yield* Effect.addFinalizer(() =>
       Effect.gen(function* () {
         const running = yield* proc.isRunning.pipe(Effect.orElseSucceed(() => false));
+        yield* Effect.logDebug(`proc.isRunning=${running} before SIGTERM`).pipe(
+          Effect.annotateLogs("scope", "llm-server"),
+        );
         if (!running) return;
+
+        yield* Effect.logInfo(`stopping (SIGTERM, ${gracefulShutdownSec}s grace)`).pipe(
+          Effect.annotateLogs("scope", "llm-server"),
+        );
+        const finalizerStartMs = yield* Clock.currentTimeMillis;
 
         // `proc.kill(sig)` in @effect/platform-node-shared sends the signal
         // AND awaits process exit in the same effect. If the process ignores
@@ -104,6 +117,9 @@ export const superviseServer = (
           Effect.interruptible,
         );
         if (!graceful) {
+          yield* Effect.logInfo("escalating to SIGKILL").pipe(
+            Effect.annotateLogs("scope", "llm-server"),
+          );
           // Same shape for SIGKILL: bound the whole thing (signal + wait) with
           // a short timeout so the overall finalizer can't stall indefinitely
           // on a truly unkillable process (defensive; SIGKILL should complete
@@ -113,6 +129,12 @@ export const superviseServer = (
             Duration.seconds(gracefulShutdownSec),
           ).pipe(Effect.ignore, Effect.interruptible);
         }
+
+        const finalizerEndMs = yield* Clock.currentTimeMillis;
+        const exitElapsed = ((finalizerEndMs - finalizerStartMs) / 1000).toFixed(1);
+        yield* Effect.logDebug(`exit (SIGTERM→SIGKILL path) completed in ${exitElapsed}s`).pipe(
+          Effect.annotateLogs("scope", "llm-server"),
+        );
       }),
     );
 
@@ -155,6 +177,12 @@ export const superviseServer = (
           }),
         ),
     });
+
+    const healthyMs = yield* Clock.currentTimeMillis;
+    const elapsedSec = ((healthyMs - spawnedMs) / 1000).toFixed(1);
+    yield* Effect.logInfo(`healthy in ${elapsedSec}s`).pipe(
+      Effect.annotateLogs("scope", "llm-server"),
+    );
 
     return {
       runtime: params.runtime,
