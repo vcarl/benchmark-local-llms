@@ -152,9 +152,53 @@ describe("aggregator", () => {
     expect(block).toContain("scenarios   1 completed · 0 cached · 0 errors");
     expect(block).toContain("wall        3.4 min total");
     expect(block).toContain("avg 18.8 tps gen");
+    expect(block).toContain("avg 121.0 tps prompt");
     expect(block).toContain("slowest     bootstrap_grind 94s");
     expect(block).toContain("archive     ./benchmark-archive/run1.jsonl");
     expect(block).toContain("interrupted false");
+  });
+
+  it("formats scenario-error trailer with termination reason", () => {
+    let agg = emptyAggregate();
+    agg = recordScenario(
+      agg,
+      {
+        ...baseResult,
+        scenarioName: "cutoff_scenario",
+        error: "timeout",
+        terminationReason: "wall_clock",
+      },
+      false,
+    );
+    const block = formatModelBlock({
+      modelDisplayName: "m",
+      runtime: "mlx",
+      quant: "Q",
+      archivePath: "/a",
+      totalWallTimeSec: 10,
+      interrupted: false,
+      aggregate: agg,
+    });
+    expect(block).toContain("scenarios   0 completed · 0 cached · 1 errors (wall_clock)");
+  });
+
+  it("falls back to '(error)' when errored scenario has no termination reason", () => {
+    let agg = emptyAggregate();
+    agg = recordScenario(
+      agg,
+      { ...baseResult, scenarioName: "s", error: "boom", terminationReason: null },
+      false,
+    );
+    const block = formatModelBlock({
+      modelDisplayName: "m",
+      runtime: "mlx",
+      quant: "Q",
+      archivePath: "/a",
+      totalWallTimeSec: 10,
+      interrupted: false,
+      aggregate: agg,
+    });
+    expect(block).toContain("1 errors (error)");
   });
 
   it("renders duration format: <60s as s.s s, <3600s as m.m min, ≥3600 as h.h h", () => {
