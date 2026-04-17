@@ -87,14 +87,21 @@ export const superviseServer = (
 
         // `proc.kill(sig)` in @effect/platform-node-shared sends the signal
         // AND awaits process exit in the same effect. If the process ignores
-        // SIGTERM, the await blocks forever. Wrap with a timeout so the
+        // SIGTERM, the await blocks forever. Bound with a timeout so the
         // escalation path is actually reachable.
+        //
+        // Finalizers run in an uninterruptible region by default. `Effect.timeout`
+        // cancels via interruption, so the inner kill effect must be made
+        // interruptible here — otherwise the timeout fires but the await
+        // keeps running, and the finalizer hangs indefinitely when a server
+        // (e.g. llama-server with a full stderr pipe) doesn't respond to SIGTERM.
         const graceful = yield* Effect.timeout(
           proc.kill("SIGTERM").pipe(Effect.ignore),
           Duration.seconds(gracefulShutdownSec),
         ).pipe(
           Effect.map(() => true as const),
           Effect.catchTag("TimeoutException", () => Effect.succeed(false as const)),
+          Effect.interruptible,
         );
         if (!graceful) {
           // Same shape for SIGKILL: bound the whole thing (signal + wait) with
@@ -104,7 +111,7 @@ export const superviseServer = (
           yield* Effect.timeout(
             proc.kill("SIGKILL").pipe(Effect.ignore),
             Duration.seconds(gracefulShutdownSec),
-          ).pipe(Effect.ignore);
+          ).pipe(Effect.ignore, Effect.interruptible);
         }
       }),
     );
