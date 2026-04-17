@@ -24,6 +24,17 @@ import { type ModelAggregate, recordPrompt } from "./summary.js";
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Truncate an error string to 200 chars for the per-prompt ERROR log line,
+ * appending `…` (U+2026) when truncation occurred. Matches spec line 80 of
+ * `docs/superpowers/specs/2026-04-17-stdout-observability-design.md`.
+ *
+ * Exported for unit testing: `runPrompt` itself caps `result.error` at 200
+ * chars via `stringifyLlmError`, so the integration path never exercises the
+ * truncation branch. Keep the cap here anyway as belt-and-suspenders.
+ */
+export const truncateError = (s: string): string => (s.length > 200 ? `${s.slice(0, 200)}…` : s);
+
 const tallyResult = (stats: RunStats, result: ExecutionResult): RunStats => {
   const next: RunStats = {
     ...stats,
@@ -131,7 +142,7 @@ export const runPromptPhase = (
         yield* Ref.update(aggRef, (a) => recordPrompt(a, result, false));
         if (result.error !== null) {
           yield* Effect.logInfo(
-            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — ERROR: ${result.error}`,
+            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — ERROR: ${truncateError(result.error)}`,
           ).pipe(Effect.annotateLogs("scope", "prompt"));
         } else {
           yield* Effect.logInfo(
