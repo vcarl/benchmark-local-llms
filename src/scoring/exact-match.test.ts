@@ -61,7 +61,7 @@ describe("scoreExactMatch", () => {
   });
 
   it("is case-sensitive on the expected comparison", () => {
-    const c = cfg("YES", String.raw`([A-Za-z]+)`);
+    const c = cfg("YES", "([A-Za-z]+)");
     const r = run(scoreExactMatch("answer: yes", c));
     expect(r.score).toBe(0);
   });

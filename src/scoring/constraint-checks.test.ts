@@ -60,7 +60,7 @@ describe("constraint checks — regex family", () => {
     const def: ConstraintDef = {
       check: "regex",
       name: "t",
-      pattern: String.raw`start.*end`,
+      pattern: "start.*end",
       dotall: true,
     };
     expect(run("start\nmiddle\nend", def)).toBe(true);
@@ -70,7 +70,7 @@ describe("constraint checks — regex family", () => {
     const def: ConstraintDef = {
       check: "regex",
       name: "t",
-      pattern: String.raw`start.*end`,
+      pattern: "start.*end",
     };
     expect(run("start\nmiddle\nend", def)).toBe(false);
   });
