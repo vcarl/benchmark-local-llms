@@ -1,6 +1,7 @@
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { captureLogs } from "../../cli/__tests__/log-capture.js";
 import { findCachedResult } from "../cache.js";
 import { appendResult, writeManifestHeader } from "../writer.js";
 import { openManifest, sampleResult } from "./fixtures.js";
@@ -147,5 +148,42 @@ describe("findCachedResult", () => {
       }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(Option.isNone(exit)).toBe(true);
+  });
+
+  it("emits Debug logs for scan start and candidate count with scope=cache", async () => {
+    const r = sampleResult({ promptName: "p1", promptHash: "h1", temperature: 0.7 });
+    const lines: Array<string> = [];
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* seed("a.jsonl", "artifact-A", [r]);
+        return yield* findCachedResult(dir, {
+          artifact: "artifact-A",
+          promptName: "p1",
+          promptHash: "h1",
+          temperature: 0.7,
+        });
+      }).pipe(Effect.provide(NodeContext.layer), Effect.provide(captureLogs(lines))),
+    );
+    const joined = lines.join("\n");
+    expect(joined).toContain("DBG cache");
+    expect(joined).toMatch(/scanning .+ \(1 files\) for key=\(artifact-A,p1,h1,0\.7\)/);
+    expect(joined).toContain("1 candidates, picked runId=");
+    expect(joined).toContain("(most recent)");
+  });
+
+  it("emits '0 candidates' Debug log when the archive is empty", async () => {
+    const lines: Array<string> = [];
+    await Effect.runPromise(
+      findCachedResult(dir, {
+        artifact: "artifact-A",
+        promptName: "p1",
+        promptHash: "h1",
+        temperature: 0.7,
+      }).pipe(Effect.provide(NodeContext.layer), Effect.provide(captureLogs(lines))),
+    );
+    const joined = lines.join("\n");
+    expect(joined).toContain("scanning");
+    expect(joined).toContain("(0 files)");
+    expect(joined).toContain("0 candidates");
   });
 });

@@ -8,7 +8,7 @@
  * also expose `/health`, so callers pick the endpoint that fits their runtime.
  */
 import { HttpClient, HttpClientResponse } from "@effect/platform";
-import { Duration, Effect, Schedule } from "effect";
+import { Duration, Effect, Ref, Schedule } from "effect";
 import { HealthCheckTimeout } from "../../errors/index.js";
 
 export interface HealthCheckOptions {
@@ -29,10 +29,27 @@ export const waitForHealthy = (
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient;
     const pollIntervalMs = options.pollIntervalMs ?? 250;
+    const maxAttempts = Math.ceil((options.timeoutSec * 1000) / pollIntervalMs);
+    const attemptRef = yield* Ref.make(0);
 
-    const probe = client
-      .get(options.url)
-      .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk), Effect.asVoid);
+    const probe = Effect.gen(function* () {
+      const n = yield* Ref.updateAndGet(attemptRef, (x) => x + 1);
+      return yield* client.get(options.url).pipe(
+        Effect.flatMap(HttpClientResponse.filterStatusOk),
+        Effect.asVoid,
+        Effect.tap(() =>
+          Effect.logDebug(`poll ${n}/${maxAttempts} → 200`).pipe(
+            Effect.annotateLogs("scope", "health"),
+          ),
+        ),
+        Effect.tapError((err) => {
+          const tag = (err as { readonly _tag?: string })._tag ?? String(err).slice(0, 60);
+          return Effect.logDebug(
+            `poll ${n}/${maxAttempts} → ${tag} (retry ${pollIntervalMs}ms)`,
+          ).pipe(Effect.annotateLogs("scope", "health"));
+        }),
+      );
+    });
 
     const schedule = Schedule.spaced(Duration.millis(pollIntervalMs));
 

@@ -71,18 +71,30 @@ export const findCachedResult = (
     );
     const archives = entries.filter((e) => e.endsWith(".jsonl"));
 
+    yield* Effect.logDebug(
+      `scanning ${archiveDir} (${archives.length} files) for key=(${key.artifact},${key.promptName},${key.promptHash},${key.temperature})`,
+    ).pipe(Effect.annotateLogs("scope", "cache"));
+
     let best: ExecutionResult | null = null;
+    let candidateCount = 0;
     for (const entry of archives) {
       const filePath = pathMod.join(archiveDir, entry);
       const loaded = yield* loadManifest(filePath);
       if (loaded.manifest.artifact !== key.artifact) continue;
       for (const r of loaded.results) {
         if (!matchesKey(r, key)) continue;
+        candidateCount += 1;
         if (best === null || r.executedAt > best.executedAt) {
           best = r;
         }
       }
     }
+
+    yield* Effect.logDebug(
+      candidateCount === 0
+        ? "0 candidates"
+        : `${candidateCount} candidates, picked runId=${best?.runId ?? "?"} (most recent)`,
+    ).pipe(Effect.annotateLogs("scope", "cache"));
 
     return best === null ? Option.none() : Option.some(best);
   });
