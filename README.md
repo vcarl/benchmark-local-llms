@@ -79,6 +79,16 @@ Key behaviors:
 - **Self-contained archives.** Each `.jsonl` embeds the `promptCorpus` + `scenarioCorpus` used at execution time, so re-scoring (`./bench score`, `./bench report --scoring as-run`) never needs the filesystem corpus.
 - **Scope-based teardown.** LLM servers, Admiral, gameserver, and SSE connections are wrapped in `Scope`-managed finalizers. Ctrl-C causes SIGTERM→SIGKILL with a 10s budget and still writes a trailer marking the manifest `interrupted: true`.
 
+### Logging
+
+`./bench run` writes a terse per-prompt / per-scenario progress stream to
+stderr, plus an end-of-model summary block. Stdout stays machine-readable —
+one tab-separated record per model with `completed=`, `cached=`, `errors=`,
+`wall=`, `genTps=`, `interrupted=`, `archive=` fields.
+
+Pass `--verbose` (`-v`) to add intra-call detail (HTTP requests, cache
+scans, health polls, SSE events, watchdog ticks).
+
 ## Dev loop
 
 ```bash
