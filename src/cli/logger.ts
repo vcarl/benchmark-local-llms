@@ -60,7 +60,11 @@ export const formatLogLine = (options: Logger.Logger.Options<unknown>): string =
     .map(([k, v]) => renderAnnotation(k, v))
     .join(" ");
   const message = typeof options.message === "string" ? options.message : String(options.message);
-  const suffix = remaining.length > 0 ? ` ${remaining}` : "";
+  // Multi-line messages (e.g. the end-of-model summary block) are pre-formatted
+  // blocks; appending `k=v` to their last line scrambles the layout. Render
+  // those as-is and let the caller include any annotation-like content it
+  // wants inside the block body.
+  const suffix = remaining.length > 0 && !message.includes("\n") ? ` ${remaining}` : "";
   return `${ts} ${tag} ${scope} | ${message}${suffix}`;
 };
 

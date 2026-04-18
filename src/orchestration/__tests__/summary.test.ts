@@ -141,6 +141,7 @@ describe("aggregator", () => {
     );
     const block = formatModelBlock({
       modelDisplayName: "qwen3.5-9b",
+      runId: "run-abc",
       runtime: "mlx",
       quant: "Q4_K_M",
       archivePath: "./benchmark-archive/run1.jsonl",
@@ -149,6 +150,7 @@ describe("aggregator", () => {
       aggregate: agg,
     });
     expect(block).toContain("─ qwen3.5-9b · mlx · Q4_K_M ");
+    expect(block).toContain("runId       run-abc");
     expect(block).toContain("prompts     1 completed · 0 cached · 0 errors");
     expect(block).toContain("scenarios   1 completed · 0 cached · 0 errors");
     expect(block).toContain("wall        3.4 min total");
@@ -173,6 +175,7 @@ describe("aggregator", () => {
     );
     const block = formatModelBlock({
       modelDisplayName: "m",
+      runId: "r",
       runtime: "mlx",
       quant: "Q",
       archivePath: "/a",
@@ -192,6 +195,7 @@ describe("aggregator", () => {
     );
     const block = formatModelBlock({
       modelDisplayName: "m",
+      runId: "r",
       runtime: "mlx",
       quant: "Q",
       archivePath: "/a",
@@ -207,6 +211,7 @@ describe("aggregator", () => {
     agg = recordPrompt(agg, { ...baseResult, wallTimeSec: 1 }, false);
     const short = formatModelBlock({
       modelDisplayName: "m",
+      runId: "r",
       runtime: "mlx",
       quant: "Q",
       archivePath: "/a",
@@ -217,6 +222,7 @@ describe("aggregator", () => {
     expect(short).toContain("wall        42.3s total");
     const mid = formatModelBlock({
       modelDisplayName: "m",
+      runId: "r",
       runtime: "mlx",
       quant: "Q",
       archivePath: "/a",
@@ -227,6 +233,7 @@ describe("aggregator", () => {
     expect(mid).toContain("wall        3.4 min total");
     const long = formatModelBlock({
       modelDisplayName: "m",
+      runId: "r",
       runtime: "mlx",
       quant: "Q",
       archivePath: "/a",

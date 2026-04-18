@@ -150,6 +150,7 @@ export interface FormatModelBlockParams {
   readonly interrupted: boolean;
   readonly modelDisplayName: string;
   readonly quant: string;
+  readonly runId: string;
   readonly runtime: Runtime;
   readonly totalWallTimeSec: number;
 }
@@ -160,6 +161,7 @@ export const formatModelBlock = (params: FormatModelBlockParams): string => {
     params.quant ? ` · ${params.quant}` : ""
   }`;
   const headerRule = `─ ${headerLabel} ${"─".repeat(Math.max(0, 50 - headerLabel.length))}`;
+  const runIdLine = `  runId       ${params.runId}`;
   const promptsLine = `  prompts     ${a.promptStats.completed} completed · ${a.promptStats.cached} cached · ${a.promptStats.errors} errors`;
   const scenariosLine = `  scenarios   ${a.scenarioStats.completed} completed · ${a.scenarioStats.cached} cached · ${a.scenarioStats.errors} errors${scenarioErrorTrailer(a.scenarioStats)}`;
   const wallLine = `  wall        ${formatDuration(params.totalWallTimeSec)} total · avg ${averageGenTps(a).toFixed(1)} tps gen · avg ${averagePromptTps(a).toFixed(1)} tps prompt`;
@@ -168,6 +170,7 @@ export const formatModelBlock = (params: FormatModelBlockParams): string => {
   const interruptedLine = `  interrupted ${params.interrupted}`;
   return [
     headerRule,
+    runIdLine,
     promptsLine,
     scenariosLine,
     wallLine,
