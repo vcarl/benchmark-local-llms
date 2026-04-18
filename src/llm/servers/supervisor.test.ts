@@ -292,6 +292,65 @@ describe("superviseServer", () => {
     expect(sink.some((l) => l.includes("escalating to SIGKILL"))).toBe(true);
   });
 
+  it("forwards each subprocess stderr line as an INF log scoped to the runtime", async () => {
+    ts = await startHealthyServer();
+    const sink: string[] = [];
+    const mock = makeMockExecutor({
+      behaviour: "alive",
+      stderrLines: ["loading weights", "ready on 127.0.0.1"],
+    });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+        }),
+      ).pipe(
+        Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer)),
+        Effect.provide(captureLogs(sink, LogLevel.Info)),
+      ),
+    );
+
+    // Each line shows up under `scope=llamacpp` (formatter renders scope as
+    // the middle section: `HH:MM:SS INF llamacpp | <line>`).
+    expect(sink.some((l) => l.includes("INF llamacpp | loading weights"))).toBe(true);
+    expect(sink.some((l) => l.includes("INF llamacpp | ready on 127.0.0.1"))).toBe(true);
+  });
+
+  it("forwards BOTH stdout and stderr lines to the logger", async () => {
+    ts = await startHealthyServer();
+    const sink: string[] = [];
+    const mock = makeMockExecutor({
+      behaviour: "alive",
+      stdoutLines: ["stdout hello"],
+      stderrLines: ["stderr hello"],
+    });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "mlx",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+        }),
+      ).pipe(
+        Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer)),
+        Effect.provide(captureLogs(sink, LogLevel.Info)),
+      ),
+    );
+
+    expect(sink.some((l) => l.includes("INF mlx | stdout hello"))).toBe(true);
+    expect(sink.some((l) => l.includes("INF mlx | stderr hello"))).toBe(true);
+  });
+
   it("at debug level, logs proc.isRunning and exit-path elapsed", async () => {
     ts = await startHealthyServer();
     const sink: string[] = [];

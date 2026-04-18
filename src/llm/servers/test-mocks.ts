@@ -18,6 +18,15 @@ export interface MockProcessSpec {
   readonly behaviour: "alive" | { readonly exitAfterMs: number; readonly code: number };
   /** Simulated PID returned by the handle. */
   readonly pid?: number;
+  /**
+   * Canned stderr lines the process "emits" once stderr is consumed. Each
+   * string becomes one byte chunk; `\n` is appended if missing so the
+   * supervisor's `splitLines` pipeline yields the line cleanly. Defaults
+   * to an empty stream for backward compatibility.
+   */
+  readonly stderrLines?: ReadonlyArray<string>;
+  /** Same shape as `stderrLines`, for stdout. */
+  readonly stdoutLines?: ReadonlyArray<string>;
 }
 
 export interface MockCommandLog {
@@ -33,6 +42,21 @@ export interface MockRun {
   /** Force the process to exit immediately with the given code. */
   readonly forceExit: (code: number) => Effect.Effect<void>;
 }
+
+const textEncoder = new TextEncoder();
+
+/**
+ * Build a byte stream from an array of text lines. Each line is emitted as
+ * one Uint8Array chunk with a trailing `\n` (added only if the line doesn't
+ * already end in a newline). Used to simulate `stderr`/`stdout` output from
+ * a subprocess so the supervisor's line-forwarding pipeline has real bytes
+ * to decode.
+ */
+const cannedByteStream = (lines: ReadonlyArray<string> | undefined): Stream.Stream<Uint8Array> => {
+  if (lines === undefined || lines.length === 0) return Stream.empty;
+  const chunks = lines.map((l) => textEncoder.encode(l.endsWith("\n") ? l : `${l}\n`));
+  return Stream.fromIterable(chunks);
+};
 
 const buildMockProcess = (
   cmdString: string,
@@ -86,9 +110,9 @@ const buildMockProcess = (
             Deferred.unsafeDone(exited, Effect.succeed(143));
           }
         }),
-      stderr: Stream.empty,
+      stderr: cannedByteStream(spec.stderrLines),
       stdin: Sink.drain,
-      stdout: Stream.empty,
+      stdout: cannedByteStream(spec.stdoutLines),
       toJSON() {
         return { _tag: "MockProcess", pid: spec.pid ?? 4242 };
       },

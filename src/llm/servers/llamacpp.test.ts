@@ -43,7 +43,6 @@ describe("llamacppServer", () => {
       "127.0.0.1",
       "--port",
       String(ts.port),
-      "--verbose",
       "--cache-type-k",
       "q8_0",
       "--cache-type-v",

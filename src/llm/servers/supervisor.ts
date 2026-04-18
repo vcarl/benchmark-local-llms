@@ -13,11 +13,38 @@
  *   - start_mlx_server / stop_mlx_server (identical shape)
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
-import { Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect";
+import { Clock, Deferred, Duration, Effect, Exit, Fiber, Stream } from "effect";
 import { type HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
 import type { Runtime } from "../../schema/enums.js";
 import { waitForHealthy } from "./health.js";
 import { type ProcessHealthMonitor, watchProcess } from "./process-health.js";
+
+/**
+ * Forward a subprocess byte stream to the Effect logger at Info level,
+ * one log line per line emitted by the process. `runtime` becomes the
+ * log `scope` so users can see `llamacpp | starting server...`.
+ *
+ * `Stream.splitLines` handles chunk boundaries that land mid-line, so
+ * we don't have to buffer manually. Empty lines are skipped so we don't
+ * spam the logger with blank INF rows between paragraphs of server output.
+ *
+ * Stream errors are swallowed — a broken pipe should never fail the
+ * supervisor or the in-flight request it's protecting.
+ */
+const forwardSubprocessStream = <E>(
+  stream: Stream.Stream<Uint8Array, E>,
+  runtime: Runtime,
+): Effect.Effect<void> =>
+  stream.pipe(
+    Stream.decodeText("utf-8"),
+    Stream.splitLines,
+    Stream.runForEach((line) =>
+      line.length === 0
+        ? Effect.void
+        : Effect.logInfo(line).pipe(Effect.annotateLogs("scope", runtime)),
+    ),
+    Effect.ignore,
+  );
 
 /**
  * Runtime-agnostic handle returned once a server is spawned + healthy.
@@ -80,6 +107,14 @@ export const superviseServer = (
     yield* Effect.logInfo(`starting ${params.runtime} on :${params.port} (pid=${proc.pid})`).pipe(
       Effect.annotateLogs("scope", "llm-server"),
     );
+
+    // Forward subprocess stderr + stdout to the Effect logger at Info so
+    // users see model-load progress and boot errors by default. Fibers are
+    // scoped so they die with the supervisor; they do NOT block health
+    // checks or downstream work. Stream failures are swallowed inside the
+    // helper — a broken log pipe never fails the server.
+    yield* Effect.forkScoped(forwardSubprocessStream(proc.stderr, params.runtime));
+    yield* Effect.forkScoped(forwardSubprocessStream(proc.stdout, params.runtime));
 
     // Install graceful-shutdown finalizer BEFORE health wait — if health
     // times out mid-boot, we still escalate cleanly. This finalizer runs

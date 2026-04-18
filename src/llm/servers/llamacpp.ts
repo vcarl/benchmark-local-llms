@@ -7,7 +7,6 @@
  *     -m <artifact>
  *     --host 127.0.0.1
  *     --port <port>
- *     --verbose
  *     --cache-type-k q8_0
  *     --cache-type-v q8_0
  *     --reasoning-format none
@@ -49,7 +48,6 @@ const buildArgs = (cfg: LlamacppConfig, port: number): ReadonlyArray<string> => 
     "127.0.0.1",
     "--port",
     String(port),
-    "--verbose",
     "--cache-type-k",
     "q8_0",
     "--cache-type-v",
