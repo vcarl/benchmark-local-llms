@@ -85,7 +85,7 @@ export const llamacppServer = (
       runtime: "llamacpp",
       port,
       command,
-      healthUrl: `http://127.0.0.1:${port}/health`,
+      healthUrl: `http://127.0.0.1:${port}/v1/models`,
       ...(cfg.healthTimeoutSec !== undefined ? { healthTimeoutSec: cfg.healthTimeoutSec } : {}),
     });
   });

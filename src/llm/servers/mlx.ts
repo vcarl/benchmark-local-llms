@@ -70,7 +70,9 @@ export const mlxServer = (
       runtime: "mlx",
       port,
       command,
-      healthUrl: `http://127.0.0.1:${port}/health`,
+      // `mlx_lm.server` does not serve /health; use the OpenAI-compat route
+      // that both llamacpp and mlx implement.
+      healthUrl: `http://127.0.0.1:${port}/v1/models`,
       // MLX loads large safetensor files from disk; the prototype uses a
       // 600s budget here (runner.py:600), so match that.
       healthTimeoutSec: cfg.healthTimeoutSec ?? 600,
