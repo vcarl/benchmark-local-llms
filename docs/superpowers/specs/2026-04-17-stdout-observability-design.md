@@ -149,8 +149,8 @@ Current single line becomes:
 ```
 
 - Tab-separated.
-- First three fields are positional identifiers (`<model>`, `<runtime>`, `<quant>`) to match the current convention.
-- Remaining fields are `key=value`, preserving the current structure and appending new keys. Existing shell glue keeps working.
+- First three fields are positional identifiers (`<model>`, `<runtime>`, `<quant>`). The old record had only `<model>` at field 1 — consumers reading field 2 or later by position must update.
+- Remaining fields are `key=value`. The old `skippedCached=` key is renamed to `cached=` — consumers grepping `skippedCached=` must update.
 - `wall=<s>` is `totalWallTimeSec` rendered as a decimal number of seconds (e.g. `wall=204.3`), not the human-friendly format used in the stderr block.
 - `genTps=<f>` is the token-weighted average generation TPS over non-cached non-errored executions, rendered with one decimal place.
 - `archive=<path>` is the full archive path as written by the writer.
@@ -221,7 +221,7 @@ interface ModelAggregate {
 
 ### Backwards compatibility
 
-- **Stdout record:** tail-extension of the current format. Consumers reading the first three tab-separated fields (or any of the existing `key=value` pairs) keep working. Consumers reading the exact line length break — there's no known such consumer.
+- **Stdout record:** breaking change. Positional field 1 (`<model>`) stays the same, but fields 2-3 are now `<runtime>` / `<quant>` (previously `completed=N` / `skippedCached=N`). The `skippedCached` key is renamed to `cached`. No known internal consumer, but any downstream shell glue reading field 2+ by position or grepping `skippedCached=` must update.
 - **`--verbose` flag:** new; default `false` preserves today's behavior except for new stderr output.
 - **Test baseline:** existing tests don't assert silence on stderr, so new stderr lines don't break them.
 
