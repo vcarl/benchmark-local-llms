@@ -162,9 +162,18 @@ export const runSession = (
       );
     }
 
+    yield* Effect.logDebug(`reset fixture ${input.scenario.fixture}`).pipe(
+      Effect.annotateLogs("scope", "session"),
+    );
     const creds = yield* deps.admin.reset(input.scenario.fixture);
+    yield* Effect.logDebug(`resolve credential for player=${playerId ?? "<auto>"}`).pipe(
+      Effect.annotateLogs("scope", "session"),
+    );
     const player = yield* deps.admin.resolveCredential(creds, playerId);
 
+    yield* Effect.logDebug(`configure + create profile for scenario ${input.scenario.name}`).pipe(
+      Effect.annotateLogs("scope", "session"),
+    );
     const profile = yield* acquireProfile(deps.admiral, {
       provider: {
         id: provider,
@@ -182,6 +191,9 @@ export const runSession = (
         connectionMode: "http_v2",
       },
     });
+    yield* Effect.logDebug(`profile ${profile.profileId} ready`).pipe(
+      Effect.annotateLogs("scope", "session"),
+    );
 
     const watchdog = yield* makeWatchdog(input.scenario.cutoffs);
 
@@ -212,6 +224,9 @@ export const runSession = (
         Effect.succeed(buildErrorResult(input, startedAt, startedMs, collected, cause)),
       onSuccess: ({ reason }) =>
         Effect.gen(function* () {
+          yield* Effect.logDebug(`fetching final player stats`).pipe(
+            Effect.annotateLogs("scope", "session"),
+          );
           const finalStats = yield* deps.admin
             .getPlayerStats(playerId ?? "")
             .pipe(Effect.orElseSucceed(() => ({}) as Record<string, unknown>));

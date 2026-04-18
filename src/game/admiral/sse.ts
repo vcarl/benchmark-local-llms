@@ -116,7 +116,12 @@ const eventsFromBody = (
           ),
         );
         const outcome = yield* mapper.step(entry);
-        if (outcome.kind === "event") return [outcome.event];
+        if (outcome.kind === "event") {
+          yield* Effect.logDebug(`tick=${outcome.event.tick} event=${outcome.event.event}`).pipe(
+            Effect.annotateLogs("scope", "sse"),
+          );
+          return [outcome.event];
+        }
         return [];
       }),
     ),

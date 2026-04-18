@@ -84,15 +84,21 @@ export const makeWatchdog = (cutoffs: CutoffConfig): Effect.Effect<CutoffWatchdo
     const ref = yield* Ref.make<InternalState>(initialState());
 
     const observe = (event: AgentEvent): Effect.Effect<void> =>
-      Ref.update(ref, (state) => {
-        let next = state;
-        if (event.event === "tool_call") {
-          next = { ...next, toolCallCount: next.toolCallCount + 1 };
-        } else if (event.event === "turn_end") {
-          next = { ...next, totalTokens: readTokenUsage(event.data) };
-        }
-        const tripped = computeTripped(next, cutoffs);
-        return tripped === next.tripped ? next : { ...next, tripped };
+      Effect.gen(function* () {
+        yield* Ref.update(ref, (state) => {
+          let next = state;
+          if (event.event === "tool_call") {
+            next = { ...next, toolCallCount: next.toolCallCount + 1 };
+          } else if (event.event === "turn_end") {
+            next = { ...next, totalTokens: readTokenUsage(event.data) };
+          }
+          const tripped = computeTripped(next, cutoffs);
+          return tripped === next.tripped ? next : { ...next, tripped };
+        });
+        const snap = yield* Ref.get(ref);
+        yield* Effect.logDebug(
+          `tokens=${snap.totalTokens} toolCalls=${snap.toolCallCount} (limits: ${cutoffs.wallClockSec}s/${cutoffs.totalTokens}/${cutoffs.toolCalls})`,
+        ).pipe(Effect.annotateLogs("scope", "watchdog"));
       });
 
     const tripped: Effect.Effect<TerminationReason | null> = Effect.map(
