@@ -76,8 +76,14 @@ const stderrLogger = Logger.make<unknown, void>((options) => {
  *
  * Unset → `LogLevel.Info`. Set → `LogLevel.Debug`.
  */
-export const makeLoggerLayer = (verbose: boolean): Layer.Layer<never> => {
-  const replace = Logger.replace(Logger.defaultLogger, stderrLogger);
-  const minLevel = Logger.minimumLogLevel(verbose ? LogLevel.Debug : LogLevel.Info);
-  return Layer.merge(replace, minLevel);
-};
+export const makeLoggerLayer = (verbose: boolean): Layer.Layer<never> =>
+  Layer.mergeAll(
+    // `defaultLogger` is what Effect registers in test / direct-runPromise
+    // contexts. `@effect/platform`'s runMain swaps it for `prettyLoggerDefault`
+    // before our layer runs — so we target both. Each `replace` is a
+    // remove+add; whichever wasn't present no-ops the remove, and HashSet
+    // dedupes the add. Result: only `stderrLogger` + `tracerLogger` remain.
+    Logger.replace(Logger.defaultLogger, stderrLogger),
+    Logger.replace(Logger.prettyLoggerDefault, stderrLogger),
+    Logger.minimumLogLevel(verbose ? LogLevel.Debug : LogLevel.Info),
+  );
