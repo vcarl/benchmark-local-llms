@@ -57,6 +57,26 @@ const stringifyLlmError = (cause: unknown): string => {
 };
 
 /**
+ * Derive tokens/sec for runtimes that don't report a `timings` block
+ * (notably `mlx_lm.server`). Mirrors `runner.py::run_llamacpp_prompt`:
+ * when the server omits timings, approximate `generationTps` from the
+ * total wall time and generation token count. `promptTps` cannot be
+ * reconstructed without knowing prefill time, so it stays at 0 in that
+ * case — explicitly, not as a silent parse fallback.
+ *
+ * Exported for tests.
+ */
+export const deriveTps = (
+  serverReported: CompletionResult["generationTps"],
+  generationTokens: number,
+  wallTimeSec: number,
+): number => {
+  if (serverReported !== null) return serverReported;
+  if (generationTokens <= 0 || wallTimeSec <= 0) return 0;
+  return generationTokens / wallTimeSec;
+};
+
+/**
  * Build an `ExecutionResult` from a successful {@link CompletionResult}. This
  * is extracted from `runPrompt` so tests can exercise the assembly path
  * directly without round-tripping through `ChatCompletion`.
@@ -76,8 +96,11 @@ export const makeSuccessResult = (
   quant: quantLabel(input.model),
   promptTokens: completion.promptTokens,
   generationTokens: completion.generationTokens,
-  promptTps: completion.promptTps,
-  generationTps: completion.generationTps,
+  // llamacpp reports both; mlx_lm.server reports neither. When the server
+  // doesn't, compute generationTps from wall time (see `deriveTps`). We
+  // can't derive promptTps without prefill timing, so it stays 0 for MLX.
+  promptTps: completion.promptTps ?? 0,
+  generationTps: deriveTps(completion.generationTps, completion.generationTokens, wallTimeSec),
   // TODO: peakMemoryGb — the Python prototype reads this from the MLX
   // `stream_generate` response's `peak_memory` attribute, which is only
   // available in subprocess mode. The rewrite eliminates subprocess mode

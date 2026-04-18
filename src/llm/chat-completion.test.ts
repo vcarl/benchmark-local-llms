@@ -118,9 +118,10 @@ describe("ChatCompletion", () => {
 
     const result = await Effect.runPromise(Effect.provide(program, layer));
     expect(capturedUrl).toBe("http://127.0.0.1:18081/v1/chat/completions");
-    // MLX doesn't always emit `timings`; tps fields fall back to 0.
-    expect(result.promptTps).toBe(0);
-    expect(result.generationTps).toBe(0);
+    // MLX doesn't emit `timings`; we surface that as `null` rather than
+    // silently coercing to 0 so the caller can derive a sane fallback.
+    expect(result.promptTps).toBeNull();
+    expect(result.generationTps).toBeNull();
     expect(result.output).toBe("hi");
   });
 
@@ -318,7 +319,10 @@ describe("ChatCompletion", () => {
     }
   });
 
-  it("defaults promptTps/generationTps to 0 when timings field is absent", async () => {
+  it("surfaces null promptTps/generationTps when the `timings` block is absent", async () => {
+    // Regression guard for the MLX-reports-zero-tps bug: we must NOT silently
+    // coerce missing timings to 0 inside the decode path. Returning `null`
+    // keeps the signal visible so `runPrompt` can compute a wall-time fallback.
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
@@ -341,8 +345,8 @@ describe("ChatCompletion", () => {
       output: "ok",
       promptTokens: 7,
       generationTokens: 3,
-      promptTps: 0,
-      generationTps: 0,
+      promptTps: null,
+      generationTps: null,
     });
   });
 

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { LlmRequestError, LlmTimeoutError } from "../../errors/index.js";
-import { runPrompt } from "../run-prompt.js";
+import { deriveTps, makeSuccessResult, runPrompt } from "../run-prompt.js";
 import { makeChatCompletionMock, sampleModel, samplePromptExact } from "./fixtures.js";
 
 describe("runPrompt", () => {
@@ -138,5 +138,67 @@ describe("runPrompt", () => {
       }).pipe(Effect.provide(layer)),
     );
     expect(result.peakMemoryGb).toBe(0);
+  });
+
+  it("derives generationTps from wall time when the server omits `timings` (MLX case)", () => {
+    // Regression guard: mlx_lm.server never emits a `timings` block, which
+    // used to make every MLX row record promptTps=0, generationTps=0 in the
+    // archive. The ChatCompletion layer now surfaces that as `null`;
+    // makeSuccessResult must compute a wall-time-based generationTps so the
+    // archive carries a useful rate — mirroring runner.py's MLX fallback.
+    const result = makeSuccessResult(
+      {
+        runId: "run-1",
+        model: sampleModel({ runtime: "mlx" }),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+      },
+      {
+        output: "ok",
+        promptTokens: 40,
+        generationTokens: 200,
+        promptTps: null,
+        generationTps: null,
+      },
+      "2026-04-18T00:00:00.000Z",
+      /* wallTimeSec */ 4,
+    );
+    // promptTps can't be reconstructed without prefill timing — stays 0.
+    expect(result.promptTps).toBe(0);
+    // generationTps ≈ generationTokens / wallTimeSec = 200 / 4 = 50.
+    expect(result.generationTps).toBeCloseTo(50);
+  });
+
+  it("uses the server-reported tps verbatim when `timings` is present (llamacpp case)", () => {
+    const result = makeSuccessResult(
+      {
+        runId: "run-1",
+        model: sampleModel({ runtime: "llamacpp" }),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+      },
+      {
+        output: "ok",
+        promptTokens: 40,
+        generationTokens: 200,
+        promptTps: 113.01,
+        generationTps: 39.71,
+      },
+      "2026-04-18T00:00:00.000Z",
+      /* wallTimeSec */ 5.2,
+    );
+    expect(result.promptTps).toBeCloseTo(113.01);
+    expect(result.generationTps).toBeCloseTo(39.71);
+  });
+
+  it("deriveTps returns 0 (not NaN/Infinity) when there is nothing to measure", () => {
+    // No tokens generated → no meaningful tps to compute.
+    expect(deriveTps(null, 0, 1)).toBe(0);
+    // Zero wall time → avoid division by zero silently producing Infinity.
+    expect(deriveTps(null, 10, 0)).toBe(0);
+    // Negative/nonsensical wall time → same rule.
+    expect(deriveTps(null, 10, -1)).toBe(0);
   });
 });

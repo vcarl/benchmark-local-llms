@@ -20,8 +20,11 @@
  *   consistent shape.
  * - `usage.prompt_tokens`/`usage.completion_tokens` → tokens counters.
  * - `timings.prompt_per_second`/`timings.predicted_per_second` → tps
- *   counters. MLX doesn't emit `timings` in its OpenAI-compatible output;
- *   both tps fields fall back to `0` in that case.
+ *   counters when the server reports them (llamacpp). `mlx_lm.server` does
+ *   not emit a `timings` object, so both tps fields come back as `null`.
+ *   The caller (`runPrompt`) is responsible for either deriving `generationTps`
+ *   from wall time or recording 0 explicitly — this service does NOT silently
+ *   coerce missing timings to 0, because that hides the signal.
  */
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "@effect/platform";
 import type { HttpClientError } from "@effect/platform/HttpClientError";
@@ -59,9 +62,15 @@ export interface CompletionResult {
   readonly output: string;
   readonly promptTokens: number;
   readonly generationTokens: number;
-  /** Tokens/sec reported by the server (llamacpp `timings`); `0` if absent. */
-  readonly promptTps: number;
-  readonly generationTps: number;
+  /**
+   * Tokens/sec reported by the server's `timings` block (llamacpp emits these;
+   * mlx_lm.server omits the whole block). `null` means "server did not report"
+   * — callers must decide whether to derive a value from wall time or record
+   * zero explicitly. Do not coerce `null` to `0` at the decode site; that
+   * hides the MLX-vs-llamacpp signal.
+   */
+  readonly promptTps: number | null;
+  readonly generationTps: number | null;
 }
 
 /** Service interface. */
@@ -285,12 +294,17 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
         `response 200 in ${elapsed}s, prompt_tokens=${decoded.usage.prompt_tokens} gen_tokens=${decoded.usage.completion_tokens}`,
       ).pipe(Effect.annotateLogs("scope", "chat"));
 
+      // `timings` is an llamacpp-only extension. When absent we return
+      // `null` so callers can compute a fallback from wall time (see
+      // `runPrompt::makeSuccessResult`). Silently defaulting to 0 here
+      // would make MLX runs look like they completed at 0 tokens/sec.
+      const timings = decoded.timings;
       return {
         output,
         promptTokens: decoded.usage.prompt_tokens,
         generationTokens: decoded.usage.completion_tokens,
-        promptTps: decoded.timings?.prompt_per_second ?? 0,
-        generationTps: decoded.timings?.predicted_per_second ?? 0,
+        promptTps: timings === undefined ? null : timings.prompt_per_second,
+        generationTps: timings === undefined ? null : timings.predicted_per_second,
       } satisfies CompletionResult;
     }),
 });
