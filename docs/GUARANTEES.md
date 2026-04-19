@@ -6,15 +6,15 @@ The harness commits to a small set of invariants. Each section names the invaria
 
 ## Scope-managed resources
 
-Every subprocess, HTTP session, and SSE connection is acquired inside an `Effect.Scope`. Closing the scope runs all registered finalizers in LIFO order. Acquisition implies guaranteed release; there is no path through normal completion or interruption that leaves a process running. The LLM server finalizer is installed before the health wait so a boot-time timeout still escalates cleanly.
+Every subprocess, HTTP session, and SSE connection is acquired inside an `Effect.Scope`. Closing the scope runs all registered finalizers in LIFO order. Acquisition implies guaranteed release; no path through completion or interruption leaves a process running. The LLM server finalizer is installed before the health wait so a boot-time timeout still escalates cleanly.
 
 Ref: `src/orchestration/run-model.ts` (scope wrapping), `src/llm/servers/supervisor.ts` (server finalizer registration).
 
 ## Graceful shutdown: SIGTERM → SIGKILL
 
-The server supervisor sends SIGTERM, waits up to 10s for clean exit, then escalates to SIGKILL. The grace period is the `gracefulShutdownSec` parameter (default `10`). Both kill calls are wrapped in `Effect.interruptible` and bounded by `Effect.timeout` so a child that ignores SIGTERM — or a kernel that stalls on SIGKILL — cannot hang the finalizer. On ungraceful parent exit (SIGHUP, crash), a process-level safety net in `src/cli/subprocess-registry.ts` tears the child down instead.
+The server supervisor sends SIGTERM, waits up to 10s for clean exit, then escalates to SIGKILL. The grace period is the `gracefulShutdownSec` parameter (default `10`). Both kill calls are wrapped in `Effect.interruptible` and bounded by `Effect.timeout` so a child that ignores SIGTERM — or a kernel that stalls on SIGKILL — cannot hang the finalizer. On ungraceful parent exit (SIGHUP, crash), a process-level safety net tears the child down instead.
 
-Ref: `src/llm/servers/supervisor.ts`.
+Ref: `src/llm/servers/supervisor.ts`, `src/cli/subprocess-registry.ts` (ungraceful-exit safety net).
 
 ## Interruption safety
 
@@ -30,7 +30,7 @@ Ref: `src/archive/writer.ts`, `src/orchestration/finalize-archive.ts`.
 
 ## Cross-run cache validity
 
-A cached result is reused only when `(artifact, promptName, promptHash, temperature)` match exactly. Manifests are fast-filtered on `artifact` before result lines are scanned. Validation rejects entries where `error !== null`; prompt results additionally require non-empty `output`, and scenario results require non-null `terminationReason`. Ties broken by `executedAt` — most recent wins. `--fresh` short-circuits the lookup to `None`.
+A cached result is reused only when `(artifact, promptName, promptHash, temperature)` match exactly. Manifests are fast-filtered on `artifact` before result lines are scanned. Validation rejects entries where `error !== null`; prompt results additionally require non-empty `output`, and scenario results require non-null `terminationReason`. Ties are broken by `executedAt`; most recent wins. `--fresh` short-circuits the lookup to `None`.
 
 Ref: `src/archive/cache.ts` (scan), `src/orchestration/cache.ts` (validation).
 
@@ -44,11 +44,11 @@ Ref: `src/schema/run-manifest.ts`, `src/orchestration/run-model.ts`, `src/cli/co
 
 All YAML loaders fully decode at startup. Malformed `prompts/*.yaml`, unknown `system:` keys, unknown constraint `check` discriminators, and duplicate prompt names surface before the first model spawns — never at prompt-run time.
 
-Ref: `src/config/` (see `prompt-corpus.ts` for the loader shape).
+Ref: `src/config/prompt-corpus.ts`, `src/config/models.ts`, `src/config/scenario-corpus.ts`, `src/config/system-prompts.ts`.
 
 ## Error-channel discipline
 
-Every fallible operation returns `Effect<A, TaggedError, R>`. Tagged errors extend `Data.TaggedError` and live in `src/errors/<domain>.ts` (`config`, `llm`, `game`, `scorer`, `io`, `server`, `sse`). `scripts/lint-strict.sh` in `npm run lint` bans three patterns with per-pattern exceptions:
+Every fallible operation returns `Effect<A, TaggedError, R>`. Tagged errors extend `Data.TaggedError` and live in `src/errors/<domain>.ts` (`config`, `llm`, `game`, `scorer`, `io`, `server`, `sse`). `scripts/lint-strict.sh` (run via `npm run lint`) bans three patterns with per-pattern exceptions:
 
 - `try {` — allowed only in `src/cli/main.ts`, `src/cli/subprocess-registry.ts`, and `src/interop/`.
 - `throw ` — allowed only in `src/interop/`.
@@ -58,6 +58,6 @@ Ref: `src/errors/index.ts`, `scripts/lint-strict.sh`.
 
 ## Re-scoring stability
 
-`./bench score --archive FILE` and `./bench report --scoring as-run` score the archive against its own embedded corpus, so output is stable across runs as long as the scorer code is unchanged. `--scoring current` re-scores against the current `prompts/` corpus on disk. Scores are transient by design — the archive format stores `ExecutionResult` without a score field, so re-scoring never mutates the archive.
+`./bench score --archive FILE` and `./bench report --scoring as-run` score the archive against its own embedded corpus; output is stable across runs while the scorer code is unchanged. `--scoring current` re-scores against the current `prompts/` corpus on disk. Scores are transient by design — the archive format stores `ExecutionResult` without a score field, so re-scoring never mutates the archive.
 
 Ref: `src/scoring/score-result.ts`, `src/cli/commands/score.ts`, `src/cli/commands/report.ts`.
