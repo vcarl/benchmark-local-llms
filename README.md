@@ -1,6 +1,6 @@
 # llm-bench
 
-> _Last verified: 2026-04-17 against commit `0d008c4`. Update this line when edits to the doc are prompted by code changes._
+> _Last verified: 2026-04-19 against commit `eae465c`. Update this line when edits to the doc are prompted by code changes._
 
 TypeScript + Effect-TS harness for benchmarking local LLMs.
 
@@ -49,7 +49,13 @@ Prerequisites:
 | `v1-archive/`, `benchmark-execution/` | Legacy prototype archives; sources for `./bench migrate` |
 | `webapp/` | Static report viewer; consumes `webapp/src/data/data.js` written by `./bench report` |
 
-For deeper internals see [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+## Further reading
+
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — layer map, lifecycle, troubleshooting
+- [`docs/GUARANTEES.md`](./docs/GUARANTEES.md) — invariants the harness commits to
+- [`docs/CONFIG.md`](./docs/CONFIG.md) — YAML schemas for models, prompts, scenarios
+- [`docs/ARCHIVE-FORMAT.md`](./docs/ARCHIVE-FORMAT.md) — `.jsonl` manifest + result format
+- [`docs/SCORING.md`](./docs/SCORING.md) — scorer dispatch, constraint + game scorer catalogs
 
 ## CLI reference
 
@@ -73,11 +79,7 @@ All subcommands take `--help`. Paths default to convention:
 ./bench list-prompts [--prompts DIR]
 ```
 
-Key behaviors:
-
-- **Cross-run cache.** `./bench run` reuses prior `(artifact, promptName, promptHash, temperature)` results by scanning `--archive-dir`. `--fresh` bypasses it.
-- **Self-contained archives.** Each `.jsonl` embeds the `promptCorpus` + `scenarioCorpus` used at execution time, so re-scoring (`./bench score`, `./bench report --scoring as-run`) never needs the filesystem corpus.
-- **Scope-based teardown.** LLM servers, Admiral, gameserver, and SSE connections are wrapped in `Scope`-managed finalizers. Ctrl-C causes SIGTERM→SIGKILL with a 10s budget and still writes a trailer marking the manifest `interrupted: true`.
+For invariants the harness commits to (cache validity, scope-managed cleanup, archive immutability, error-channel discipline) → see [`docs/GUARANTEES.md`](./docs/GUARANTEES.md).
 
 ### Logging
 
