@@ -1,6 +1,6 @@
 # Architecture
 
-> _Last verified: 2026-04-17 against commit `0d008c4`. Update this line when edits to the doc are prompted by code changes._
+> _Last verified: 2026-04-19 against commit `eae465c`. Update this line when edits to the doc are prompted by code changes._
 
 The harness is layered so that each layer can be reasoned about (and tested) independently. All I/O and lifecycle is managed through Effect's `Scope` — opening a scope is the only way to acquire a subprocess or HTTP session, and closing it is the only way to tear one down. Errors travel through typed `Data.TaggedError` classes in the Effect error channel; `try`/`catch`/`throw`/`console.*` are banned outside `src/cli/` by `scripts/lint-strict.sh`.
 
@@ -46,14 +46,15 @@ src/game/       — Admiral + gameserver + session
 src/scoring/    — dispatch by scorer type
 ├── score-result.ts                scoreExecution: pick scorer by corpus entry
 ├── strip-thinking.ts              Remove <think> / reasoning_content blocks
-├── exact_match.ts
-├── constraint.ts                  20 check-type variants
-├── code_exec.ts                   Python subprocess via @effect/platform Command
+├── exact-match.ts
+├── constraint.ts                  Constraint scorer entry point
+├── constraint-checks.ts           20 check-type handlers
+├── code-exec.ts                   Python subprocess via @effect/platform Command
 └── game.ts                        14 scenario scorers (bootstrap_grind, navigation, …)
 
 src/archive/    — RunManifest read/write + cross-run cache index
 ├── writer.ts                      header / appendResult / writeManifestTrailer
-├── reader.ts                      Streaming JSONL reader
+├── loader.ts                      Streaming JSONL reader
 └── cache.ts                       Scan archiveDir for (artifact, promptName, promptHash, temp)
 
 src/config/     — YAML loaders (fail-fast, typed errors)
@@ -112,47 +113,27 @@ Scope-close order is LIFO. The finalizers registered in `runModel` run last-adde
 
 On Ctrl-C the same teardown happens, except `interruptedRef` is never flipped to `false`, so the manifest's `interrupted` field is written `true`.
 
-## Cross-run cache
-
-Before calling the LLM for a `(prompt, temperature)` pair, `runPromptPhase` consults `src/archive/cache.ts`, which scans every `.jsonl` in the archive directory looking for a validated result with the same `(artifact, promptName, promptHash, temperature)`. A hit is carried forward into the new archive via `appendIfSaving` with a fresh `runId`. `--fresh` disables the scan.
-
-Validation rejects cached results where `error !== null`, or (for prompts) `output` is empty. Ties broken by `executedAt` (most recent wins).
-
-## Supervisor shutdown — interruptibility gotcha
-
-`Effect.Scope` finalizers run inside an uninterruptible region. `Effect.timeout` cancels its operand via interruption; if the operand is uninterruptible, the timeout fires but the await keeps running, and the finalizer hangs forever.
-
-This bites when `proc.kill("SIGTERM")` from `@effect/platform`'s `Command.Process` is used without wrapping: `proc.kill` sends the signal AND awaits exit, and llama-server with a full stderr pipe (the default, since `--verbose` is on and we don't drain stdio) doesn't respond to SIGTERM until the pipe drains.
-
-Fix (`src/llm/servers/supervisor.ts`): wrap both `Effect.timeout(proc.kill(...), …)` calls in `.pipe(Effect.interruptible)` so the finalizer can actually escalate from SIGTERM → SIGKILL. Without this, a clean end-of-run hangs the entire process and the manifest never gets its trailer.
-
-## Archive format
-
-One `.jsonl` per `(model, runtime, quant)` run, named `{runId}.jsonl`. Line 1 is a `RunManifest` (header/trailer — overwritten on finalize with `finishedAt`, `interrupted`, final `stats`). Lines 2+ are `ExecutionResult` records, append-only.
-
-Archives are **self-contained**: each manifest embeds the `promptCorpus` and `scenarioCorpus` keyed by name. Re-scoring (`./bench score`, `./bench report --scoring as-run`) reads straight from the manifest without touching the YAML corpus on disk.
-
-## Scorer dispatch
+## Data flow
 
 ```
-scoreExecution(result, corpusEntry, systemPrompts)
-  if promptCorpusEntry: switch entry.scorer.type
-    exact_match → scoreExactMatch
-    constraint  → scoreConstraints     (20 check-type functions)
-    code_exec   → scoreCodeExec        (python3 subprocess, 10s timeout)
-    game        → ScorerNotFound       (degenerate on a prompt)
-  if scenarioCorpusEntry:
-    GAME_SCORERS[entry.scorer](result, entry.scorerParams)
+CLI flag parsing
+  → orchestration (run loop, per-model scope)
+    → llm (server supervisor + ChatCompletion client)
+    → game (Admiral, gameserver, session) [scenarios only]
+    → scoring (dispatch by corpus entry + scorer)
+    → archive (manifest header + appended results)
+report subcommand
+  → archive (read .jsonl)
+    → scoring (re-score against embedded or current corpus)
+    → webapp data.js
 ```
-
-All scorers return `Score = { score: number [0,1], details: string, breakdown?: ... }`. Failures during scoring (process timeout, unknown constraint type) propagate as tagged errors; the report layer catches them, emits `score: 0` with `score_details: "scorer error: <tag>"`, and keeps going.
 
 ## Where to look when…
 
 | Problem | Start here |
 |---|---|
 | New scorer type | `src/schema/scorer.ts` (union) → `src/scoring/score-result.ts` (dispatch) → add scorer module |
-| New constraint check | `src/schema/constraints.ts` (union) → `src/scoring/constraint.ts` (handler) → `src/config/prompt-corpus.ts::preValidateConstraintChecks` |
+| New constraint check | `src/schema/constraints.ts` (union) → `src/scoring/constraint-checks.ts` (handler) → `src/config/prompt-corpus.ts::preValidateConstraintChecks` |
 | New runtime (not llamacpp/mlx) | `src/schema/enums.ts::Runtime` → `src/llm/servers/<new>.ts` (use `superviseServer`) → `src/cli/deps.ts::makeLlmServerFactory` |
 | Shutdown hangs | `src/llm/servers/supervisor.ts` finalizer — interruptibility |
 | Manifest trailer missing fields | `src/orchestration/finalize-archive.ts` — head-rewrite helper |
@@ -162,8 +143,8 @@ All scorers return `Score = { score: number [0,1], details: string, breakdown?: 
 
 ## Conventions
 
-- **Effect error channel.** Every fallible operation returns `Effect<A, TaggedError, R>` — no thrown exceptions outside `src/cli/`. Tagged errors live in `src/errors/<domain>.ts`; the re-export hub is `src/errors/index.ts`.
-- **Scope propagation.** Anything that acquires a subprocess, HTTP connection, or temporary file takes `Scope` in its environment. Callers wrap in `Effect.scoped` to decide cleanup boundaries.
-- **Fail-fast config.** All YAML loaders fully decode at startup; a malformed `prompts/*.yaml` can't delay an error until prompt-run time.
-- **Self-contained archives.** The corpus travels in the archive. Never rebuild it from the filesystem when re-scoring.
-- **One file per concept.** Files are kept small enough to hold in context; if a module approaches 300 lines, split it along the boundary that makes the parts independently testable.
+- **Effect error channel.** No thrown exceptions outside `src/cli/`. → see [`GUARANTEES.md` § Error-channel discipline](./GUARANTEES.md#error-channel-discipline).
+- **Scope propagation.** Anything that acquires a subprocess, HTTP connection, or temporary file takes `Scope` in its environment. → see [`GUARANTEES.md` § Scope-managed resources](./GUARANTEES.md#scope-managed-resources).
+- **Fail-fast config.** All YAML loaders fully decode at startup. → see [`GUARANTEES.md` § Fail-fast config](./GUARANTEES.md#fail-fast-config).
+- **Self-contained archives.** Corpus travels in the archive. → see [`GUARANTEES.md` § Self-contained archives](./GUARANTEES.md#self-contained-archives).
+- **One file per concept.** Files small enough to hold in context; split when a module approaches 300 lines along the boundary that makes parts independently testable.
