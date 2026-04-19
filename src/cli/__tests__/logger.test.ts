@@ -70,4 +70,14 @@ describe("formatLogLine", () => {
     );
     expect(line).toContain(`note="has spaces"`);
   });
+
+  it("appends pretty-printed cause when non-empty (so uncaught errors are visible)", () => {
+    const options: Logger.Logger.Options<unknown> = {
+      ...makeOptions({ message: "", level: LogLevel.Error }),
+      cause: Cause.fail(new Error("artifact not found at /tmp/model.gguf")),
+    };
+    const line = formatLogLine(options);
+    expect(line).toContain(" ERR app | ");
+    expect(line).toContain("artifact not found at /tmp/model.gguf");
+  });
 });

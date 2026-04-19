@@ -7,7 +7,7 @@
  * Allowed to use `console.error` — this module lives under `src/cli/` which
  * `scripts/lint-strict.sh` whitelists.
  */
-import { HashMap, Layer, Logger, LogLevel } from "effect";
+import { Cause, HashMap, Layer, Logger, LogLevel } from "effect";
 
 const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
 
@@ -65,7 +65,11 @@ export const formatLogLine = (options: Logger.Logger.Options<unknown>): string =
   // those as-is and let the caller include any annotation-like content it
   // wants inside the block body.
   const suffix = remaining.length > 0 && !message.includes("\n") ? ` ${remaining}` : "";
-  return `${ts} ${tag} ${scope} | ${message}${suffix}`;
+  // Unhandled failures surfaced by NodeRuntime.runMain arrive with an empty
+  // message and the real info in `cause`. Without this, all we'd print is
+  // `ERR app |` with no body.
+  const causeStr = Cause.isEmpty(options.cause) ? "" : `\n${Cause.pretty(options.cause)}`;
+  return `${ts} ${tag} ${scope} | ${message}${suffix}${causeStr}`;
 };
 
 const stderrLogger = Logger.make<unknown, void>((options) => {
