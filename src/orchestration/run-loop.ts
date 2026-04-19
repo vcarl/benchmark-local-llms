@@ -67,6 +67,26 @@ export const defaultRunEnv = (): RunEnv => ({
 
 const isActive = (m: ModelConfig): boolean => m.active !== false;
 
+// ── Error description ─────────────────────────────────────────────────────
+//
+// Per-model failures are caught and rendered as a one-liner so the skip log
+// shows the actionable reason (e.g. "No cached .gguf for ...") rather than
+// the outer FileIOError wrapper. For ServerSpawnError-wrapped failures the
+// `reason` field carries the human message; for cache-corruption we surface
+// the file + line.
+
+const describeModelFailure = (err: FileIOError | JsonlCorruptLine): string => {
+  if (err._tag === "JsonlCorruptLine") {
+    return `cache corrupt at ${err.filePath}:${err.lineNumber}`;
+  }
+  const cause = err.cause;
+  if (cause !== null && typeof cause === "object" && "reason" in cause) {
+    const reason = (cause as { reason: unknown }).reason;
+    if (typeof reason === "string") return reason;
+  }
+  return `${err.operation} failed (${err.path})`;
+};
+
 const matchesName = (m: ModelConfig, filter?: string): boolean => {
   if (filter === undefined || filter.length === 0) return true;
   const needle = filter.toLowerCase();
@@ -132,9 +152,9 @@ export const makeOpenManifest = (params: {
  * collected {@link RunModelOutcome}s are returned in model-order for the
  * caller (CLI, test) to format.
  *
- * Errors from per-model runs currently propagate — the caller decides
- * whether to continue or bail. A follow-up patch can switch this to
- * `Effect.catchAll` + log + continue, once the logging service is wired.
+ * Per-model typed failures (FileIOError, JsonlCorruptLine) are logged at
+ * ERR and the loop moves on — one missing artifact or corrupt cache line
+ * shouldn't sink a 56-model sweep. Defects and interrupts still propagate.
  */
 export const runLoop = (
   config: RunLoopConfig,
@@ -225,14 +245,23 @@ export const runLoop = (
           deps,
         );
       }).pipe(
+        // tapError emits ERR inside the outer annotateLogs wrap so the
+        // skip log carries model/runtime/quant/runId. catchAll then swaps
+        // the failure for `null`, which the loop uses as a skip sentinel.
+        Effect.tapError((err) =>
+          Effect.logError(`skipping ${displayName}: ${describeModelFailure(err)}`).pipe(
+            Effect.annotateLogs("scope", "run-loop"),
+          ),
+        ),
         Effect.annotateLogs({
           model: displayName,
           runtime: model.runtime,
           quant,
           runId,
         }),
+        Effect.catchAll(() => Effect.succeed(null)),
       );
-      perModel.push(outcome);
+      if (outcome !== null) perModel.push(outcome);
     }
 
     if (perModel.length > 1) {

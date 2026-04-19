@@ -10,9 +10,13 @@ import * as fsp from "node:fs/promises";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { captureLogs } from "../../cli/__tests__/log-capture.js";
+import { ServerSpawnError } from "../../errors/index.js";
 import { type RunLoopConfig, runLoop } from "../run-loop.js";
+import type { LlmServerFactory } from "../run-model.js";
 import {
   fakeDeps,
+  fakeLlmServerFactory,
   inertHttpClientLayer,
   listFiles,
   makeChatCompletionMock,
@@ -128,6 +132,39 @@ describe("runLoop", () => {
     expect(outcome.perModel.length).toBe(0);
     const files = await fsp.readdir(dir);
     expect(files.length).toBe(0);
+  });
+
+  it("logs ERR and continues when a single model fails to spawn", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const failingLlm: LlmServerFactory = (m) =>
+      m.name === "Broken"
+        ? Effect.fail(
+            new ServerSpawnError({
+              runtime: m.runtime,
+              reason: "No cached .gguf for x/broken (quant=Q8_0)",
+            }),
+          )
+        : fakeLlmServerFactory(m);
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "Broken", artifact: "x/broken" }),
+        sampleModel({ name: "Working", artifact: "x/working" }),
+      ],
+    });
+    const logs: string[] = [];
+    const outcome = await Effect.runPromise(
+      runLoop(config, { ...fakeDeps(), llmServer: failingLlm }, sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+        Effect.provide(captureLogs(logs)),
+      ),
+    );
+    expect(outcome.perModel.length).toBe(1);
+    expect(outcome.perModel[0]?.manifest.model).toBe("Working");
+    const skipLog = logs.find((l) => l.includes("skipping Broken"));
+    expect(skipLog).toBeDefined();
+    expect(skipLog).toContain("No cached .gguf for x/broken");
+    expect(skipLog).toContain(" ERR run-loop | ");
   });
 
   it("writes one archive per model when multiple models are active", async () => {
