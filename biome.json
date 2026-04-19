@@ -9,15 +9,10 @@
       "!**/benchmark-archive",
       "!**/benchmark-execution",
       "!**/benchmark-results",
-      "!**/.venv",
       "!**/.superpowers",
       "!**/.claude",
       "!**/.husky",
-      "!**/.pytest_cache",
-      "!**/__pycache__",
-      "!**/tests",
-      "!**/prompts",
-      "!**/*.py"
+      "!**/prompts"
     ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },

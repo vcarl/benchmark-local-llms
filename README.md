@@ -2,7 +2,7 @@
 
 > _Last verified: 2026-04-17 against commit `0d008c4`. Update this line when edits to the doc are prompted by code changes._
 
-TypeScript + Effect-TS harness for benchmarking local LLMs. Rewrite of the Python prototype (`benchmark.py`, `runner.py`, `common.py`, etc., still in-tree until the migration is diffed).
+TypeScript + Effect-TS harness for benchmarking local LLMs.
 
 ## Quickstart
 
