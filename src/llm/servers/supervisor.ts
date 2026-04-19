@@ -14,6 +14,7 @@
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
 import { Clock, Deferred, Duration, Effect, Exit, Fiber, Stream } from "effect";
+import { deregisterSubprocess, registerSubprocess } from "../../cli/subprocess-registry.js";
 import { type HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
 import type { Runtime } from "../../schema/enums.js";
 import { waitForHealthy } from "./health.js";
@@ -103,6 +104,13 @@ export const superviseServer = (
       ),
     );
 
+    const pid = proc.pid as unknown as number;
+    // Register with the process-level safety net before we do anything else
+    // that could fail. If the parent dies ungracefully (SIGHUP, crash,
+    // closed pipe), Effect finalizers won't run, but the safety net handler
+    // will still fire and tear the child down.
+    yield* Effect.sync(() => registerSubprocess(pid));
+
     const spawnedMs = yield* Clock.currentTimeMillis;
     yield* Effect.logInfo(`starting ${params.runtime} on :${params.port} (pid=${proc.pid})`).pipe(
       Effect.annotateLogs("scope", "llm-server"),
@@ -170,6 +178,11 @@ export const superviseServer = (
         yield* Effect.logDebug(
           `exit finalizer completed in ${exitElapsed}s (graceful=${graceful})`,
         ).pipe(Effect.annotateLogs("scope", "llm-server"));
+
+        // Graceful path succeeded: the safety net no longer needs to track
+        // this pid. On interrupted/aborted finalizer runs we leave the pid
+        // registered — the safety net will clean up instead.
+        yield* Effect.sync(() => deregisterSubprocess(pid));
       }),
     );
 

@@ -21,6 +21,7 @@ import { migrateCommand } from "./commands/migrate.js";
 import { reportCommand } from "./commands/report.js";
 import { runCommand } from "./commands/run.js";
 import { scoreCommand } from "./commands/score.js";
+import { installSubprocessSafetyNet } from "./subprocess-registry.js";
 
 const root = Command.make("llm-bench").pipe(
   Command.withDescription("Benchmark local LLM runtimes and emit reports"),
@@ -41,6 +42,11 @@ const cli = Command.run(root, {
 
 export const program = (argv: ReadonlyArray<string>): Effect.Effect<void, unknown, never> =>
   cli(argv).pipe(Effect.provide(NodeContext.layer)) as Effect.Effect<void, unknown, never>;
+
+// Safety net for subprocess lifecycle: catches SIGHUP, uncaughtException,
+// and any `exit` path that bypasses Effect's scoped finalizer. Must run
+// before anything spawns a subprocess.
+installSubprocessSafetyNet();
 
 // Entry: @effect/cli's `Command.run` expects process.argv-style input
 // (node bin + script path + args) and strips the first two internally.

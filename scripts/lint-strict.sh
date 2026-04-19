@@ -18,8 +18,11 @@ fi
 
 # Ban try/catch except in explicitly allowed files.
 # - src/cli/main.ts: top-level entry point, Effect runtime boundary
+# - src/cli/subprocess-registry.ts: signal-handler safety net; runs below
+#   the Effect runtime with no fiber context, so try/catch around
+#   process.kill is unavoidable.
 # - src/interop/: Python subprocess interop bridges to Effect
-if grep -rn 'try\s*{' src/ --include='*.ts' | grep -v 'src/cli/main.ts' | grep -v 'src/interop/'; then
+if grep -rn 'try\s*{' src/ --include='*.ts' | grep -v 'src/cli/main.ts' | grep -v 'src/cli/subprocess-registry.ts' | grep -v 'src/interop/'; then
   echo "ERROR: try/catch found outside allowed files. Use Effect error channels instead."
   errors=$((errors + 1))
 fi
