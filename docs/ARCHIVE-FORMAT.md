@@ -93,6 +93,6 @@ See [`GUARANTEES.md`](./GUARANTEES.md) for the full self-contained-archives inva
 | Concern | File |
 |---|---|
 | Header / append / trailer rewrite | `src/archive/writer.ts` |
-| Streaming JSONL reader | `src/archive/loader.ts` |
+| Archive loader (whole-file read) | `src/archive/loader.ts` |
 | Cross-run cache scan | `src/archive/cache.ts` |
 | Manifest finalize handler | `src/orchestration/finalize-archive.ts` |
