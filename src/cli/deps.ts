@@ -26,6 +26,7 @@ import { gameServer } from "../game/server/game-server.js";
 import { llamacppServer } from "../llm/servers/llamacpp.js";
 import { mlxServer } from "../llm/servers/mlx.js";
 import { resolveLlamacppGguf } from "../llm/servers/resolve-gguf.js";
+import { resolveMlxModel } from "../llm/servers/resolve-mlx.js";
 import type {
   AdmiralFactory,
   GameSessionFactory,
@@ -75,14 +76,19 @@ const resolveMlxPython = (): string => {
 /**
  * Dispatch llmServer factory on `model.runtime`.
  *
- * llamacpp: resolve the HuggingFace artifact string + quant to a local .gguf
- * file (mirrors runner.py:238 `resolve_llamacpp_gguf`). `llama-server -m`
- * expects a filesystem path, not a HF repo.
+ * Both runtimes pre-check the HuggingFace cache and fail with a
+ * ServerSpawnError if the model isn't already downloaded — `./bench run` is
+ * a pure-execution phase, so downloading happens via an explicit out-of-tool
+ * step.
  *
- * mlx: `mlx_lm.server --model` accepts HF repo strings directly and
- * auto-downloads on first use; no resolver needed. The interpreter is
- * resolved via {@link resolveMlxPython} so an activated or conventionally-
- * located venv is picked up automatically.
+ * llamacpp: resolve artifact + quant to a local `.gguf` file (mirrors
+ * runner.py:238 `resolve_llamacpp_gguf`). `llama-server -m` wants a path.
+ *
+ * mlx: resolve artifact to a local snapshot directory. `mlx_lm.server
+ * --model` accepts either a HF repo id or a local path; handing it a local
+ * path skips the implicit `snapshot_download()` roundtrip mlx_lm otherwise
+ * makes. The Python interpreter is resolved via {@link resolveMlxPython} so
+ * an activated or conventionally-located venv is picked up automatically.
  */
 export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) => {
   if (model.runtime === "llamacpp") {
@@ -99,7 +105,10 @@ export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig)
       });
     });
   }
-  return mlxServer({ artifactPath: model.artifact, pythonBin: resolveMlxPython() });
+  return Effect.gen(function* () {
+    const artifactPath = yield* resolveMlxModel(model.artifact);
+    return yield* mlxServer({ artifactPath, pythonBin: resolveMlxPython() });
+  });
 };
 
 const newAdminToken = (): string => randomBytes(16).toString("hex");
