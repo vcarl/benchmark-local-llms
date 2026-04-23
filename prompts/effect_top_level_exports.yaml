@@ -12,3 +12,6 @@ constraints:
   check: regex_count_min
   pattern: (?m)^\s*(Effect|Stream|Sink|Queue|Ref|Layer|Context|Config|Schedule|Schema|Data|Option|Either|Cause|Exit|Fiber|Scope|Runtime|Match|Logger|Chunk|Duration|HashMap|HashSet|STM|PubSub|Pool|Deferred|FiberRef|Metric|Clock|Random|Order|Predicate|String|Number|Boolean|ReadonlyArray|Record|Struct|Tuple|Types|Function|Brand|Encoding|DateTime|Micro|ManagedRuntime|Mailbox|RcRef|Tracer|Cron|Inspectable|Pipeable)\s*$
   min: 5
+tags:
+  - TODO
+  - code-synthesis

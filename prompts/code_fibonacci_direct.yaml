@@ -5,3 +5,6 @@ system: code_direct
 prompt: 'Write a Python function `fibonacci(n: int) -> int` that returns the nth Fibonacci number, where fibonacci(0) = 0, fibonacci(1) = 1.'
 scorer: code_exec
 testFile: code_fibonacci.test.py
+tags:
+  - TODO
+  - code-synthesis

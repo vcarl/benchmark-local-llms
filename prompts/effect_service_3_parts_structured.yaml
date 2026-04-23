@@ -18,3 +18,6 @@ constraints:
 - name: mentions implementation or layer
   check: regex
   pattern: (?i)(implement|layer|live)
+tags:
+  - TODO
+  - code-synthesis

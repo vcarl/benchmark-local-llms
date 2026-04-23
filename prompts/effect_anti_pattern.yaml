@@ -8,3 +8,6 @@ constraints:
 - name: mentions breaking the chain or losing types
   check: regex
   pattern: (?i)(break|lose|bypass|escape).*(chain|type|error|composition|context|pur[ei]|transparenc)
+tags:
+  - TODO
+  - code-synthesis

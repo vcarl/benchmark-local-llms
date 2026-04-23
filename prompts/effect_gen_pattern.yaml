@@ -8,3 +8,6 @@ constraints:
 - name: says Effect.gen
   check: contains_exact
   value: Effect.gen
+tags:
+  - TODO
+  - code-synthesis

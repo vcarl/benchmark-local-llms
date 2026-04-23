@@ -8,3 +8,6 @@ constraints:
 - name: says Context.Tag
   check: regex
   pattern: (?i)Context\.Tag
+tags:
+  - TODO
+  - code-synthesis

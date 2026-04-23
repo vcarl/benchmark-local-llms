@@ -22,3 +22,6 @@ constraints:
   check: all_lines_word_count
   min: 5
   max: 12
+tags:
+  - TODO
+  - instruction-following

@@ -14,3 +14,6 @@ constraints:
 - name: mentions Ref.set or Ref.update
   check: regex
   pattern: Ref\.(set|update)
+tags:
+  - TODO
+  - code-synthesis

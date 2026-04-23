@@ -12,3 +12,6 @@ constraints:
 - name: has no 6th item
   check: no_numbered_line
   line: 6
+tags:
+  - TODO
+  - instruction-following

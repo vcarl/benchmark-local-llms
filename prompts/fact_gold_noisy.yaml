@@ -6,3 +6,6 @@ prompt: I'm working on a chemistry homework assignment about transition metals. 
 scorer: exact_match
 expected: Au
 extract: \b([A-Z][a-z]?)\b
+tags:
+  - TODO
+  - factual-recall

@@ -11,3 +11,6 @@ constraints:
 - name: is a sentence
   check: min_length
   length: 10
+tags:
+  - TODO
+  - instruction-following

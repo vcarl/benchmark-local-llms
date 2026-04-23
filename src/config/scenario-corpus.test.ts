@@ -40,6 +40,27 @@ describe("loadScenarioCorpus", () => {
     expect(pirate.scenarioMd).toContain("Combat Pirate");
   });
 
+  it("decodes tags when present and leaves them undefined when absent", async () => {
+    const exit = await run(
+      loadScenarioCorpus(fixturePath("prompts", "scenarios")).pipe(
+        Effect.provide(NodeFileSystem.layer),
+      ),
+    );
+    expect(exit._tag).toBe("Success");
+    if (exit._tag !== "Success") return;
+    const byName = new Map(exit.value.map((e) => [e.name, e]));
+
+    const boot = byName.get("bootstrap_grind");
+    expect(boot).toBeDefined();
+    if (!boot) return;
+    expect(boot.tags).toEqual(["TODO", "tool-use", "long-term-planning", "resource-management"]);
+
+    const pirate = byName.get("combat_pirate");
+    expect(pirate).toBeDefined();
+    if (!pirate) return;
+    expect(pirate.tags).toBeUndefined();
+  });
+
   it("fails with ConfigError when a scenario's .md file is missing", async () => {
     const exit = await run(
       loadScenarioCorpus(fixturePath("scenarios-missing-md")).pipe(

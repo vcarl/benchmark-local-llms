@@ -9,3 +9,6 @@ constraints:
   check: regex_count_min
   pattern: Schedule\.\w+
   min: 2
+tags:
+  - TODO
+  - code-synthesis

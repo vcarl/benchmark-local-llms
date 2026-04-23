@@ -14,3 +14,6 @@ constraints:
 - name: mentions consuming/processing a stream
   check: regex
   pattern: (?i)(consum|process|receiv|terminal|fold|accumulat|run)
+tags:
+  - TODO
+  - code-synthesis

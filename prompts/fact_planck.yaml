@@ -6,3 +6,6 @@ prompt: What is Planck's constant in units of 10^-34 J·s, rounded to 2 decimal 
 scorer: exact_match
 expected: '6.63'
 extract: (\d+\.\d+)
+tags:
+  - TODO
+  - factual-recall

@@ -13,3 +13,6 @@ prompt: |-
   ```
 scorer: code_exec
 testFile: code_is_palindrome.test.py
+tags:
+  - TODO
+  - code-synthesis

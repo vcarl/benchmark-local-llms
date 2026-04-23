@@ -16,3 +16,6 @@ prompt: |-
   ```
 scorer: code_exec
 testFile: code_fibonacci.test.py
+tags:
+  - TODO
+  - code-synthesis

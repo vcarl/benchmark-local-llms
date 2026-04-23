@@ -15,3 +15,6 @@ constraints:
   - city
 - name: all values are strings
   check: json_all_string_values
+tags:
+  - TODO
+  - instruction-following

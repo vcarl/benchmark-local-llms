@@ -6,3 +6,6 @@ prompt: You invest $1000 at 10% annual interest compounded once per year. How mu
 scorer: exact_match
 expected: '1331'
 extract: (\d[\d,]*)
+tags:
+  - TODO
+  - math-reasoning

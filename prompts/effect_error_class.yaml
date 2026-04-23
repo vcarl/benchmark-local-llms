@@ -8,3 +8,6 @@ constraints:
 - name: says Data.TaggedError
   check: regex
   pattern: (?i)Data\.TaggedError
+tags:
+  - TODO
+  - code-synthesis

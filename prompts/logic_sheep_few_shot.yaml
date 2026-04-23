@@ -14,3 +14,6 @@ prompt: |-
 scorer: exact_match
 expected: '9'
 extract: (\d+)
+tags:
+  - TODO
+  - logical-deduction

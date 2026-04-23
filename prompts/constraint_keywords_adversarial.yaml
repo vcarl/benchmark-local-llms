@@ -20,3 +20,6 @@ constraints:
 - name: contains 'trench'
   check: contains
   value: trench
+tags:
+  - TODO
+  - instruction-following

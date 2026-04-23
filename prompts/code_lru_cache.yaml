@@ -9,3 +9,6 @@ prompt: |-
   - `put(self, key: int, value: int)` — insert/update, evict LRU if at capacity
 scorer: code_exec
 testFile: code_lru_cache.test.py
+tags:
+  - TODO
+  - code-synthesis

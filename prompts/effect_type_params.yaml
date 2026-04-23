@@ -14,3 +14,6 @@ constraints:
 - name: mentions requirements/dependencies/context for R
   check: regex
   pattern: (?i)(require|depend|context|service|environment)
+tags:
+  - TODO
+  - code-synthesis

@@ -41,5 +41,8 @@ export const ScenarioCorpusEntry = Schema.Struct({
   tier: Schema.Number,
   scenarioMd: Schema.String,
   scenarioHash: Schema.String,
+  // Capability cluster tags (e.g. `code-synthesis`, `instruction-following`).
+  // `TODO` means auto-seeded, needs manual review.
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 export type ScenarioCorpusEntry = typeof ScenarioCorpusEntry.Type;

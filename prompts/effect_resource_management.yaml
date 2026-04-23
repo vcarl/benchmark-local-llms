@@ -8,3 +8,6 @@ constraints:
 - name: says acquireUseRelease or acquireRelease
   check: regex
   pattern: (?i)Effect\.(acquireUseRelease|acquireRelease)
+tags:
+  - TODO
+  - code-synthesis

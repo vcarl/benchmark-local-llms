@@ -6,3 +6,6 @@ prompt: 'How many chromosomes do humans have? Note: I''m asking about the total 
 scorer: exact_match
 expected: '46'
 extract: (\d+)
+tags:
+  - TODO
+  - factual-recall

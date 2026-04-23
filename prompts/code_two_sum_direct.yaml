@@ -5,3 +5,6 @@ system: code_direct
 prompt: 'Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution.'
 scorer: code_exec
 testFile: code_two_sum.test.py
+tags:
+  - TODO
+  - code-synthesis

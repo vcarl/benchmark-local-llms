@@ -6,3 +6,6 @@ prompt: 'What is 47 * 89? Think step by step, then write ANSWER: followed by jus
 scorer: exact_match
 expected: '4183'
 extract: ANSWER:\s*(\d[\d,]*)
+tags:
+  - TODO
+  - math-reasoning

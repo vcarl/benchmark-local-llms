@@ -12,3 +12,6 @@ prompt: |-
 scorer: exact_match
 expected: '96'
 extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

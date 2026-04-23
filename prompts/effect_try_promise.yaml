@@ -8,3 +8,6 @@ constraints:
 - name: says Effect.tryPromise
   check: contains_exact
   value: Effect.tryPromise
+tags:
+  - TODO
+  - code-synthesis

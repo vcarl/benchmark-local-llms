@@ -11,3 +11,8 @@ cutoffs:
   totalTokens: 200000      # ~200k token budget
   toolCalls: 300           # ~10x typical run
 tier: 1
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - resource-management

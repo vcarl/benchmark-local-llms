@@ -8,3 +8,6 @@ constraints:
 - name: says Layer.mergeAll or Layer.merge
   check: regex
   pattern: (?i)Layer\.(mergeAll|merge)
+tags:
+  - TODO
+  - code-synthesis

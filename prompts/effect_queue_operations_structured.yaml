@@ -17,3 +17,6 @@ constraints:
 - name: take function
   check: regex
   pattern: (?i)"take"\s*:\s*"Queue\.take"
+tags:
+  - TODO
+  - code-synthesis

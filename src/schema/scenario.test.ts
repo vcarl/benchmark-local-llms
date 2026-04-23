@@ -69,4 +69,20 @@ describe("ScenarioCorpusEntry", () => {
     };
     expect(roundTrip(ScenarioCorpusEntry, v)).toEqual(v);
   });
+
+  it("round-trips with tags", () => {
+    const v: ScenarioCorpusEntry = {
+      name: "navigation_route",
+      fixture: "galaxy_small",
+      players: [],
+      scorer: "navigation_route",
+      scorerParams: {},
+      cutoffs: { wallClockSec: 300, totalTokens: 8000, toolCalls: 30 },
+      tier: 1,
+      scenarioMd: "",
+      scenarioHash: "0123456789ab",
+      tags: ["foo", "bar"],
+    };
+    expect(roundTrip(ScenarioCorpusEntry, v)).toEqual(v);
+  });
 });

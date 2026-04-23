@@ -6,3 +6,6 @@ prompt: In what year was the Treaty of Westphalia signed? Reply with just the ye
 scorer: exact_match
 expected: '1648'
 extract: (\d{4})
+tags:
+  - TODO
+  - factual-recall

@@ -14,3 +14,6 @@ constraints:
 - name: contains 'gravity'
   check: contains
   value: gravity
+tags:
+  - TODO
+  - instruction-following

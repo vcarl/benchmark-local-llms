@@ -11,3 +11,6 @@ constraints:
 - name: mentions Either
   check: contains_exact
   value: Either
+tags:
+  - TODO
+  - code-synthesis

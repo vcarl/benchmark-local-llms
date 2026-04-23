@@ -6,3 +6,6 @@ prompt: 'When was the Treaty of Westphalia signed? Reply as: {"year": <number>}'
 scorer: exact_match
 expected: '1648'
 extract: '"year"\s*:\s*(\d{4})'
+tags:
+  - TODO
+  - factual-recall

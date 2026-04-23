@@ -6,3 +6,6 @@ prompt: OK so my math teacher gave us this problem and half the class got it wro
 scorer: exact_match
 expected: '5'
 extract: (\d+)
+tags:
+  - TODO
+  - logical-deduction

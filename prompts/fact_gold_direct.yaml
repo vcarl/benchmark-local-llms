@@ -6,3 +6,6 @@ prompt: What is the chemical symbol for gold? Reply with just the symbol.
 scorer: exact_match
 expected: Au
 extract: \b([A-Z][a-z]?)\b
+tags:
+  - TODO
+  - factual-recall

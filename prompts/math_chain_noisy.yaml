@@ -6,3 +6,6 @@ prompt: My friend told me this puzzle yesterday at the coffee shop (great latte 
 scorer: exact_match
 expected: '51'
 extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

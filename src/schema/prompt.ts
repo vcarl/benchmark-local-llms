@@ -30,5 +30,8 @@ export const PromptCorpusEntry = Schema.Struct({
   promptText: Schema.String,
   scorer: ScorerConfig,
   promptHash: Schema.String,
+  // Capability cluster tags (e.g. `code-synthesis`, `instruction-following`).
+  // `TODO` means auto-seeded, needs manual review.
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 export type PromptCorpusEntry = typeof PromptCorpusEntry.Type;

@@ -18,3 +18,6 @@ constraints:
   check: json_nested_has_key
   parent: address
   key: city
+tags:
+  - TODO
+  - instruction-following

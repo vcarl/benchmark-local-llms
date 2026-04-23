@@ -11,3 +11,6 @@ constraints:
 - name: mentions Fiber.join
   check: contains_exact
   value: Fiber.join
+tags:
+  - TODO
+  - code-synthesis

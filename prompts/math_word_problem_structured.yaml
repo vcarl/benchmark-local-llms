@@ -10,3 +10,6 @@ prompt: |-
 scorer: exact_match
 expected: '96'
 extract: '"answer"\s*:\s*(\d+)'
+tags:
+  - TODO
+  - math-reasoning

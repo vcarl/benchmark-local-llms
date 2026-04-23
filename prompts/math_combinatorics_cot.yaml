@@ -6,3 +6,6 @@ prompt: 'How many ways can you choose 3 items from a set of 7? Think step by ste
 scorer: exact_match
 expected: '35'
 extract: ANSWER:\s*(\d+)
+tags:
+  - TODO
+  - math-reasoning

@@ -18,3 +18,6 @@ prompt: |-
   ```
 scorer: code_exec
 testFile: code_caesar_cipher.test.py
+tags:
+  - TODO
+  - code-debugging

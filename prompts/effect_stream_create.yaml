@@ -8,3 +8,6 @@ constraints:
 - name: says Stream.fromIterable
   check: regex
   pattern: (?i)Stream\.(fromIterable|from)
+tags:
+  - TODO
+  - code-synthesis

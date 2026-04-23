@@ -26,3 +26,6 @@ constraints:
 - name: unit = void or unit
   check: regex
   pattern: '"unit"\s*:\s*"(void|unit)"'
+tags:
+  - TODO
+  - code-synthesis

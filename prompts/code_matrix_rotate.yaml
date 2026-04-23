@@ -5,3 +5,6 @@ system: code_direct
 prompt: 'Write a Python function `rotate_90(matrix: list[list[int]]) -> list[list[int]]` that rotates a square matrix 90 degrees clockwise. Do not modify the input.'
 scorer: code_exec
 testFile: code_matrix_rotate.test.py
+tags:
+  - TODO
+  - code-synthesis

@@ -13,3 +13,6 @@ constraints:
 - name: symbol Au
   check: contains_exact
   value: Au
+tags:
+  - TODO
+  - factual-recall

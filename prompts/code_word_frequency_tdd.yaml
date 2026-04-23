@@ -17,3 +17,6 @@ prompt: |-
   Split on whitespace, strip punctuation from word edges, lowercase everything.
 scorer: code_exec
 testFile: code_word_frequency.test.py
+tags:
+  - TODO
+  - code-synthesis

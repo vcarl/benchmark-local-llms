@@ -35,6 +35,7 @@ const ExactMatchInput = Schema.Struct({
   scorer: Schema.Literal("exact_match"),
   expected: Schema.String,
   extract: Schema.String,
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
 const ConstraintInput = Schema.Struct({
@@ -48,6 +49,7 @@ const ConstraintInput = Schema.Struct({
   // exists in the schema layer, so we reuse it rather than re-defining the
   // 20 variants here.
   constraints: Schema.Array(ConstraintDef),
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
 const CodeExecInput = Schema.Struct({
@@ -59,6 +61,7 @@ const CodeExecInput = Schema.Struct({
   scorer: Schema.Literal("code_exec"),
   /** Path to companion test file, resolved relative to the prompts dir. */
   testFile: Schema.String,
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
 const GameInput = Schema.Struct({
@@ -70,6 +73,7 @@ const GameInput = Schema.Struct({
   scorer: Schema.Literal("game"),
   gameScorer: Schema.String,
   scorerParams: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
 const PromptInput = Schema.Union(ExactMatchInput, ConstraintInput, CodeExecInput, GameInput);
@@ -170,6 +174,7 @@ const buildCorpusEntry = (
       promptText: input.prompt,
       scorer,
       promptHash,
+      tags: input.tags,
     };
   });
 

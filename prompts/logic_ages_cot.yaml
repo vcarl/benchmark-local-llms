@@ -6,3 +6,6 @@ prompt: 'Alice is twice as old as Bob. In 10 years, Alice will be 1.5 times as o
 scorer: exact_match
 expected: '10'
 extract: ANSWER:\s*(\d+)
+tags:
+  - TODO
+  - logical-deduction

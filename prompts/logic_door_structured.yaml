@@ -14,3 +14,6 @@ constraints:
 - name: says switch
   check: contains
   value: switch
+tags:
+  - TODO
+  - logical-deduction

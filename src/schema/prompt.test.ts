@@ -71,4 +71,22 @@ describe("PromptCorpusEntry", () => {
     };
     expect(roundTrip(PromptCorpusEntry, v)).toEqual(v);
   });
+
+  it("round-trips an entry with tags", () => {
+    const v: PromptCorpusEntry = {
+      name: "math_multiply_cot",
+      category: "math",
+      tier: 2,
+      system: { key: "cot", text: "Think step by step." },
+      promptText: "What is 47 * 89?",
+      scorer: {
+        type: "exact_match",
+        expected: "4183",
+        extract: "ANSWER:\\s*(\\d+)",
+      },
+      promptHash: "abc123def456",
+      tags: ["foo", "bar"],
+    };
+    expect(roundTrip(PromptCorpusEntry, v)).toEqual(v);
+  });
 });

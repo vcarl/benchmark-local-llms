@@ -23,6 +23,7 @@ const ScenarioInput = Schema.Struct({
   tier: Schema.Number,
   /** Filename (relative to the scenarios dir), resolved at load time. */
   scenarioMd: Schema.String,
+  tags: Schema.optional(Schema.Array(Schema.String)),
 });
 type ScenarioInput = typeof ScenarioInput.Type;
 
@@ -114,6 +115,7 @@ export const loadScenarioCorpus = (
         tier: input.tier,
         scenarioMd,
         scenarioHash,
+        tags: input.tags,
       });
     }
 

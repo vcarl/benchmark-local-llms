@@ -18,3 +18,6 @@ constraints:
   check: regex_count_min
   pattern: \w+:\s*\w+
   min: 3
+tags:
+  - TODO
+  - instruction-following

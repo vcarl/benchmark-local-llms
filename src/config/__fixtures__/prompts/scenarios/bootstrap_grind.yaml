@@ -14,3 +14,8 @@ cutoffs:
   toolCalls: 100
 tier: 2
 scenarioMd: bootstrap_grind.md
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - resource-management

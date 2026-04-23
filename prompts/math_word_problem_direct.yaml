@@ -6,3 +6,6 @@ prompt: A baker makes 4 batches of cookies. Each batch has 36 cookies. She gives
 scorer: exact_match
 expected: '96'
 extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

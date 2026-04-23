@@ -6,3 +6,6 @@ prompt: Start with 5. Double it. Add 7. Triple the result. What number do you ha
 scorer: exact_match
 expected: '51'
 extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

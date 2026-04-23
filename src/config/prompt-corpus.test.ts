@@ -96,6 +96,23 @@ describe("loadPromptCorpus", () => {
     expect(body).toContain("b.yaml");
   });
 
+  it("decodes tags when present and leaves them undefined when absent", async () => {
+    const exit = await run(loadPromptCorpus(fixturePath("prompts")).pipe(Effect.provide(envLayer)));
+    expect(exit._tag).toBe("Success");
+    if (exit._tag !== "Success") return;
+    const byName = new Map(exit.value.map((e) => [e.name, e]));
+
+    const math = byName.get("math_multiply_cot");
+    expect(math).toBeDefined();
+    if (!math) return;
+    expect(math.tags).toEqual(["TODO", "math-reasoning"]);
+
+    const haiku = byName.get("constraint_haiku");
+    expect(haiku).toBeDefined();
+    if (!haiku) return;
+    expect(haiku.tags).toBeUndefined();
+  });
+
   it("excludes system-prompts.yaml and the scenarios/ subdir from the prompt list", async () => {
     // The prompts/ fixture dir contains a scenarios/ subdir; readDirectory
     // should return it as an entry, but it doesn't end in .yaml, so it is

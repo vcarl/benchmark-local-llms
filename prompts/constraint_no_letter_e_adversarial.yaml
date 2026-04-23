@@ -14,3 +14,6 @@ constraints:
 - name: long enough
   check: min_length
   length: 40
+tags:
+  - TODO
+  - instruction-following

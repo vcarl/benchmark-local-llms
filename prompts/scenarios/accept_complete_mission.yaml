@@ -11,3 +11,7 @@ cutoffs:
   wallClockSec: 600
   totalTokens: 150000
   toolCalls: 200
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning

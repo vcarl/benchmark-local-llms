@@ -11,3 +11,8 @@ cutoffs:
   wallClockSec: 300
   totalTokens: 100000
   toolCalls: 100
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - spatial-reasoning

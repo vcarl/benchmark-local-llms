@@ -6,3 +6,6 @@ prompt: A farmer has 17 sheep. All but 9 die. How many sheep are left? Reply wit
 scorer: exact_match
 expected: '9'
 extract: (\d+)
+tags:
+  - TODO
+  - logical-deduction
