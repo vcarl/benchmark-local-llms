@@ -16,6 +16,8 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   category: "math",
   tier: 1,
   temperature: 0.3,
+  tags: [],
+  is_scenario: false,
   score: 1,
   score_details: "ok",
   prompt_tokens: 10,
@@ -26,6 +28,11 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   peak_memory_gb: 3.14,
   output: "hello",
   prompt_text: "prompt",
+  scenario_name: null,
+  termination_reason: null,
+  tool_call_count: null,
+  final_player_stats: null,
+  events: null,
   ...overrides,
 });
 

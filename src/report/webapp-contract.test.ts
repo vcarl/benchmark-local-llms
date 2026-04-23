@@ -113,4 +113,47 @@ describe("toWebappRecord", () => {
       "llamacpp",
     );
   });
+
+  it("emits tags from the corpus entry", () => {
+    const entry = { ...promptEntry, tags: ["math-reasoning", "TODO"] };
+    const rec = toWebappRecord(makeExecution(), entry, score);
+    expect(rec.tags).toEqual(["math-reasoning", "TODO"]);
+    expect(rec.is_scenario).toBe(false);
+  });
+
+  it("defaults tags to [] when the corpus entry has no tags", () => {
+    const rec = toWebappRecord(makeExecution(), promptEntry, score);
+    expect(rec.tags).toEqual([]);
+  });
+
+  it("emits scenario fields on a scenario result", () => {
+    const scenarioExec = makeExecution({
+      promptName: "bootstrap_grind",
+      scenarioName: "bootstrap_grind",
+      scenarioHash: "xyz789",
+      terminationReason: "completed",
+      toolCallCount: 47,
+      finalPlayerStats: { credits: 2840, fuel: 87 },
+      events: [{ event: "tool_call", tick: 1, ts: "1700000000", data: { tool: "scan_system" } }],
+    });
+    const rec = toWebappRecord(scenarioExec, scenarioEntry, score);
+    expect(rec.is_scenario).toBe(true);
+    expect(rec.scenario_name).toBe("bootstrap_grind");
+    expect(rec.termination_reason).toBe("completed");
+    expect(rec.tool_call_count).toBe(47);
+    expect(rec.final_player_stats).toEqual({ credits: 2840, fuel: 87 });
+    const events = rec.events;
+    expect(events).toHaveLength(1);
+    expect(events?.[0]?.event).toBe("tool_call");
+  });
+
+  it("nulls scenario fields on a prompt result", () => {
+    const rec = toWebappRecord(makeExecution(), promptEntry, score);
+    expect(rec.is_scenario).toBe(false);
+    expect(rec.scenario_name).toBeNull();
+    expect(rec.termination_reason).toBeNull();
+    expect(rec.tool_call_count).toBeNull();
+    expect(rec.final_player_stats).toBeNull();
+    expect(rec.events).toBeNull();
+  });
 });

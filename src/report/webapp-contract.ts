@@ -15,8 +15,16 @@
  * requirements note (§2.1 / §10.1) explicitly removes it. The webapp still
  * references `style` in its TypeScript interface and will warn, but that's
  * out-of-scope for this phase (webapp revision is deferred).
+ *
+ * Tags and scenario fields (new in Task 1) surface capability clusters and
+ * game state data that was previously discarded at the contract boundary.
  */
-import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
+import type {
+  AgentEvent,
+  ExecutionResult,
+  PromptCorpusEntry,
+  ScenarioCorpusEntry,
+} from "../schema/index.js";
 import type { Score } from "../scoring/score-result.js";
 
 /**
@@ -36,6 +44,8 @@ export interface WebappRecord {
   readonly category: string;
   readonly tier: number;
   readonly temperature: number;
+  readonly tags: ReadonlyArray<string>;
+  readonly is_scenario: boolean;
   readonly score: number;
   readonly score_details: string;
   readonly prompt_tokens: number;
@@ -46,6 +56,17 @@ export interface WebappRecord {
   readonly peak_memory_gb: number;
   readonly output: string;
   readonly prompt_text: string;
+  readonly scenario_name: string | null;
+  readonly termination_reason:
+    | "completed"
+    | "wall_clock"
+    | "tokens"
+    | "tool_calls"
+    | "error"
+    | null;
+  readonly tool_call_count: number | null;
+  readonly final_player_stats: Record<string, unknown> | null;
+  readonly events: ReadonlyArray<AgentEvent> | null;
 }
 
 /**
@@ -76,6 +97,8 @@ export const toWebappRecord = (
     category: isPrompt ? entry.category : "game",
     tier: entry.tier,
     temperature: result.temperature,
+    tags: entry.tags ?? [],
+    is_scenario: !isPrompt,
     score: score.score,
     score_details: score.details,
     prompt_tokens: result.promptTokens,
@@ -86,5 +109,10 @@ export const toWebappRecord = (
     peak_memory_gb: round2(result.peakMemoryGb),
     output: result.output,
     prompt_text: isPrompt ? entry.promptText : "",
+    scenario_name: isPrompt ? null : entry.name,
+    termination_reason: result.terminationReason,
+    tool_call_count: result.toolCallCount,
+    final_player_stats: result.finalPlayerStats as Record<string, unknown> | null,
+    events: result.events,
   };
 };
