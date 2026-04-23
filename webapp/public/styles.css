@@ -82,3 +82,25 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .chip-popover input { margin-right: 6px; }
 .preset-menu { display: flex; gap: 4px; margin-left: auto; }
 .preset-menu select, .preset-menu button { background: #222; color: #ddd; border: 1px solid #333; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.result-table { padding: 0 16px; }
+.result-header, .result-row {
+  display: grid;
+  grid-template-columns: 1fr 280px 70px 60px 20px;
+  gap: 12px; align-items: center;
+  padding: 8px 12px; font-size: 12px;
+}
+.result-header { font-weight: bold; color: #888; font-size: 10px; border-bottom: 1px solid #333; text-transform: uppercase; }
+.result-row { border-bottom: 1px solid #222; cursor: pointer; }
+.result-row:hover { background: #1a1a1a; }
+.result-label { color: #ddd; }
+.result-score { text-align: right; font-weight: bold; background: transparent !important; color: inherit; padding: 2px 6px; border-radius: 3px; }
+.result-score.cap-green       { color: #4ade80; }
+.result-score.cap-yellow-green { color: #a3e635; }
+.result-score.cap-yellow      { color: #facc15; }
+.result-score.cap-orange      { color: #fb923c; }
+.result-score.cap-red         { color: #ef4444; }
+.result-pass { text-align: right; color: #aaa; }
+.result-arrow { color: #666; }
+.result-empty { padding: 40px; text-align: center; color: #666; }
+.top-models { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+.top-model { padding: 1px 6px; background: #222; border-radius: 3px; }
