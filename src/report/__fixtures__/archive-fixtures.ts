@@ -29,7 +29,7 @@ export const fixturePrompt = (
 });
 
 export const fixtureScenario = (
-  overrides: Partial<{ name: string; scorer: string; tier: number }> = {},
+  overrides: Partial<{ name: string; scorer: string; tier: number; tags: string[] }> = {},
 ): RunManifest["scenarioCorpus"][string] => ({
   name: overrides.name ?? "s1",
   fixture: "fixture.json",
@@ -40,6 +40,7 @@ export const fixtureScenario = (
   tier: overrides.tier ?? 2,
   scenarioMd: "# directive",
   scenarioHash: "hashS",
+  tags: overrides.tags,
 });
 
 export const fixtureManifest = (

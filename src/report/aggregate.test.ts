@@ -80,6 +80,35 @@ describe("aggregateArchive: as-run mode", () => {
     expect(out.unmatched).toHaveLength(1);
     expect(out.unmatched[0]?.promptName).toBe("unknown_prompt");
   });
+
+  it("passes scenario fields through to WebappRecord", async () => {
+    const scenario = fixtureScenario({ tags: ["long-term-planning", "spatial-reasoning"] });
+    const manifest = fixtureManifest({ scenarios: [scenario] });
+    const result = fixtureResult({
+      promptName: "s1",
+      scenarioName: "s1",
+      terminationReason: "completed",
+      toolCallCount: 47,
+      finalPlayerStats: { stats: { score: 100 } },
+      events: [],
+    });
+    const out = await Effect.runPromise(
+      aggregateArchive({ manifest, results: [result] }, { scoringMode: "as-run" }).pipe(
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    expect(out.records).toHaveLength(1);
+    const rec = out.records[0];
+    if (rec === undefined) return;
+    expect(rec.is_scenario).toBe(true);
+    expect(rec.scenario_name).toBe("s1");
+    expect(rec.category).toBe("game");
+    expect(rec.tags).toContain("long-term-planning");
+    expect(rec.tags).toContain("spatial-reasoning");
+    expect(rec.termination_reason).toBe("completed");
+    expect(rec.tool_call_count).toBe(47);
+    expect(rec.final_player_stats).toEqual({ stats: { score: 100 } });
+  });
 });
 
 describe("aggregateArchive: current mode", () => {
