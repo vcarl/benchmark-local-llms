@@ -1,15 +1,17 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { RouterProvider, createRouter, createMemoryHistory } from "@tanstack/react-router";
+import { routeTree } from "./routeTree.gen";
 
-function App() {
-  return (
-    <div className="header">Benchmark Analysis (v1 entry point - deprecated)</div>
-  );
-}
+const router = createRouter({
+  routeTree,
+  history: createMemoryHistory({ initialEntries: ["/"] }),
+  scrollRestoration: true,
+});
 
 const root = createRoot(document.getElementById("root")!);
 root.render(
   <StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </StrictMode>,
 );
