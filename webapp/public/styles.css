@@ -126,3 +126,32 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .panel-run:hover { background: #1a1a1a; }
 .panel-run-tier { color: #666; }
 .panel-run-score { text-align: right; font-weight: bold; }
+.run-header { padding: 16px; border-bottom: 1px solid #333; }
+.run-header h1 { margin: 4px 0 0; font-size: 18px; }
+.run-back { color: #6bf; text-decoration: none; font-size: 12px; }
+.run-meta { margin-top: 6px; font-size: 12px; color: #aaa; }
+.run-meta-small { font-size: 11px; color: #666; margin-top: 2px; }
+.run-score { margin-left: 12px; padding: 2px 8px; border-radius: 3px; background: transparent !important; font-weight: bold; }
+.prompt-view section, .scenario-view section { padding: 12px 16px; border-bottom: 1px solid #222; }
+.prompt-view h3, .scenario-view h3 { font-size: 11px; text-transform: uppercase; color: #888; margin: 0 0 6px; }
+.run-text, .run-details { background: #0a0a0a; border: 1px solid #222; padding: 8px; border-radius: 3px; font-size: 12px; white-space: pre-wrap; word-break: break-word; color: #ddd; margin: 0; max-height: 600px; overflow-y: auto; }
+.run-thinking { color: #888; }
+.thinking button { background: transparent; border: none; color: #888; cursor: pointer; padding: 0; font-size: 11px; margin-bottom: 6px; }
+.scenario-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.scenario-stat { background: #1a1a1a; padding: 8px 10px; border-radius: 4px; border: 1px solid #222; }
+.scenario-stat-label { font-size: 9px; text-transform: uppercase; color: #666; }
+.scenario-stat-value { font-size: 14px; font-weight: bold; color: #ddd; }
+.scenario-stat-value.cap-green { color: #4ade80; } .scenario-stat-value.cap-yellow { color: #facc15; } .scenario-stat-value.cap-red { color: #ef4444; }
+.timeline { position: relative; height: 14px; background: #0a0a0a; border: 1px solid #222; border-radius: 3px; }
+.timeline-tick { position: absolute; top: 3px; width: 2px; height: 8px; }
+.event-log { font-family: monospace; font-size: 11px; }
+.event-filters { display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 0; font-size: 11px; color: #aaa; }
+.event-filters label { display: inline-flex; align-items: center; gap: 4px; }
+.event-count { margin-left: auto; color: #666; font-family: sans-serif; }
+.event-rows { max-height: 500px; overflow-y: auto; border: 1px solid #222; border-radius: 3px; background: #0a0a0a; }
+.event-row { display: grid; grid-template-columns: 50px 90px 1fr; padding: 3px 6px; cursor: pointer; border-bottom: 1px solid #1a1a1a; }
+.event-row:hover { background: #151515; }
+.event-tick { color: #6bf; }
+.event-type { color: #888; }
+.event-tool_error .event-type, .event-error .event-type { color: #fb923c; }
+.event-data { grid-column: 1 / -1; margin-top: 4px; background: #050505; padding: 6px; color: #aaa; white-space: pre-wrap; }
