@@ -81,7 +81,7 @@ Replaces the current `ResultRow`. One row per group (default `groupBy=model`). C
 
 ### Modified
 
-- `webapp/src/routes/index.tsx` — conditionally renders `<Scatter>` above `<ResultTable>` when `groupBy=model`. When `groupBy ≠ model`, scatter is hidden.
+- `webapp/src/routes/index.tsx` — renders `<Scatter>` above `<ResultTable>` on the home route. Scatter is always visible (model-centric); `groupBy` only affects the list beneath it. If the filtered dataset has zero rows, the scatter renders an empty-state message rather than a blank chart.
 - `webapp/src/lib/pipeline.ts` — adds `aggregateForScatter(records)` and `aggregateForList(groups)` helpers. Existing `aggregate` stays for any non-list consumers.
 
 ## Data flow
@@ -111,7 +111,7 @@ Input: filtered `BenchmarkResult[]`. Output: `ScatterDot[]` where each dot is:
   runtime: string;
   quant: string;
   temp: number;
-  timestamp: string;   // for chronological line ordering
+  executedAt: string;  // ISO-8601 timestamp, for chronological line ordering
   score: number;       // pass rate 0..100
   tokens: number;      // avg per run
   mem: number;         // max memory, with fallback to sibling variant
@@ -153,15 +153,13 @@ When `groupBy ≠ model`, list rows never call `setHovered` (they have no model 
 
 ## Testing
 
-Follows existing vitest patterns (`webapp/src/**/*.test.ts(x)`).
+Existing vitest config is node-env with `*.test.ts` glob (`webapp/vitest.config.ts`). Tests cover pure logic; React components are verified visually in the dev server.
 
-- `Scatter.test.tsx` — dot count matches aggregated variants; star-point function at 500/1k/2k/5k/16k boundaries; dotted line vertex order matches timestamp order; memory fallback populates missing sizes; scatter hides when `groupBy ≠ model`.
-- `aggregateForScatter.test.ts` — deduplication, memory fallback (present, sibling fallback, fully missing).
-- `aggregateForList.test.ts` — variant ordering (best first), efficiency calc, capability profile with `null` passes for missing tags.
-- `CapabilityHoverCard.test.tsx` — renders ten rows; hatched fallback for `null` pass; correct tag labels.
-- `hover-store.test.ts` — set / clear / subscribe behavior.
+- `aggregateForScatter.test.ts` — dot count matches distinct `(model, runtime, quant, temp)` combos; star-point function at 500/1k/2k/5k/16k boundaries; trajectory vertex order matches `executed_at` order; memory fallback returns sibling-variant memory when current variant is zero; dot is omitted when no variant has memory data.
+- `aggregateForList.test.ts` — variant ordering (best first), efficiency calc, capability profile carries `null` for tags with zero runs.
+- `hover-store.test.ts` — subscribe/unsubscribe/get; setting the same model is idempotent.
 
-The existing home-route test is extended to assert `<Scatter>` is in the DOM when `groupBy=model` and absent otherwise.
+Components (`Scatter`, `ScatterLegend`, `CapabilityHoverCard`, new `ResultRow`) are manually verified by running `npm run -C webapp dev` and exercising the home route.
 
 ## Out of scope
 
@@ -174,6 +172,10 @@ The existing home-route test is extended to assert `<Scatter>` is in the DOM whe
 - Pinning/multi-select of models
 - Pass-threshold horizontal reference line
 - Click-through from scatter dot to detail panel (nice-to-have; not required for v1)
+
+## Data contract addition
+
+`BenchmarkResult` (webapp) and `WebappRecord` (report) need an `executed_at: string` field (ISO-8601) so the scatter can order the per-model trajectory chronologically. The source `ExecutionResult` already carries `executedAt`; this spec plumbs it through `toWebappRecord` and the webapp's `normalizeRecord`. Records from archives without the field default to `""` (no timestamp available — such models' trajectory is drawn in insertion order).
 
 ## Open questions
 
