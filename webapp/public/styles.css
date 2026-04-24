@@ -273,3 +273,27 @@ body { margin: 0; background: #0a0a0a; color: #ddd; font-family: -apple-system, 
 }
 .result-numeric { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-size: 13px; color: #ddd; }
 .result-numeric-sub { font-size: 10px; color: #888; }
+
+/* Rewritten result table — overrides old .result-table padding */
+.result-table { background: #0a0a0a; border: 1px solid #222; border-radius: 8px; overflow: hidden; padding: 0; margin: 0 16px 16px; }
+.result-controls { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 12px; color: #888; border-bottom: 1px solid #222; background: #0d0d0d; }
+.result-count { font-variant-numeric: tabular-nums; }
+.result-sort { display: flex; gap: 6px; align-items: center; }
+.result-sort-label { color: #666; }
+.result-sort-btn { padding: 4px 10px; border-radius: 4px; border: 1px solid #333; background: #1a1a1a; color: #ddd; font-size: 11px; cursor: pointer; }
+.result-sort-btn:hover { background: #222; }
+.result-sort-btn--active { background: #2a4a6b; border-color: #6bf; color: #fff; }
+.result-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 100px minmax(260px, 2fr) auto 72px 72px;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  border-bottom: 1px solid #333;
+  background: #0d0d0d;
+}
+.result-score-header, .result-numeric-header { text-align: right; }
