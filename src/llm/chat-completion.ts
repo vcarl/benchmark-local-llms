@@ -99,13 +99,16 @@ export class ChatCompletion extends Context.Tag("llm/ChatCompletion")<
  * split the model output differently:
  *   - `content`          — classic OpenAI shape, llama.cpp with
  *                          `--reasoning-format none` puts everything here.
- *   - `reasoning_content` — some llama.cpp builds split reasoning out here.
- *   - `reasoning`        — `mlx_lm.server` splits reasoning into this field
- *                          and omits `content` entirely when the whole
- *                          response was reasoning (e.g. Qwen chat template).
+ *   - `reasoning_content` — llama.cpp `--reasoning-format deepseek` strips
+ *                          reasoning out of `content` and exposes it here.
+ *   - `reasoning`        — `mlx_lm.server` always splits reasoning into this
+ *                          field; `content` may be empty (budget hit mid-think)
+ *                          or populated (reasoning + visible answer both fit).
  *
- * At least one must be non-empty — `extractOutput` enforces that; a response
- * with none populated is surfaced as `LlmEmptyResponse` downstream.
+ * When a split-reasoning field is populated alongside `content`, both are
+ * preserved in the archived output (`<think>…</think>\n\ncontent`) so the
+ * archive stays lossless. `extractOutput` rejects the all-empty case with
+ * `LlmEmptyResponse` downstream.
  */
 const MessageSchema = Schema.Struct({
   content: Schema.optional(Schema.NullOr(Schema.String)),
@@ -158,7 +161,7 @@ const buildBody = (p: CompletionParams) => ({
   stream: false,
 });
 
-const extractOutput = (
+export const extractOutput = (
   choices: ReadonlyArray<{
     readonly message: {
       readonly content?: string | null | undefined;
@@ -171,15 +174,19 @@ const extractOutput = (
   const first = choices[0];
   if (first === undefined) return "";
   const content = (first.message.content ?? "").trim();
-  if (content.length > 0) return content;
-  // Both reasoning fields get wrapped in <think>…</think> so that the
-  // downstream thinking-tag stripper in `src/scoring/strip-thinking.ts`
-  // removes them uniformly regardless of which runtime produced the output.
   const reasoningContent = (first.message.reasoning_content ?? "").trim();
-  if (reasoningContent.length > 0) return `<think>${reasoningContent}</think>`;
   const reasoning = (first.message.reasoning ?? "").trim();
-  if (reasoning.length > 0) return `<think>${reasoning}</think>`;
-  return "";
+  // Providers that split reasoning out of `content` use either
+  // `reasoning_content` (llama.cpp `--reasoning-format deepseek`) or
+  // `reasoning` (mlx_lm.server); never both on the same response. Wrapping
+  // the split text in `<think>…</think>` matches what llama.cpp emits with
+  // `--reasoning-format none`, so archives stay lossless and the downstream
+  // thinking-tag stripper in `src/scoring/strip-thinking.ts` peels it off
+  // uniformly regardless of which runtime produced the output.
+  const splitReasoning = reasoningContent.length > 0 ? reasoningContent : reasoning;
+  if (splitReasoning.length === 0) return content;
+  const wrapped = `<think>${splitReasoning}</think>`;
+  return content.length === 0 ? wrapped : `${wrapped}\n\n${content}`;
 };
 
 // ── Layer ───────────────────────────────────────────────────────────────────

@@ -72,7 +72,7 @@ export function ResultRow({ row, rank, onClick }: Props) {
                 />
                 <span
                   className="result-variant-tokens"
-                  style={{ width: `${tokenPct}%`, background: rowColor, opacity: opacity * 0.5 }}
+                  style={{ width: `${tokenPct}%`, background: rowColor, boxShadow: `0 0 6px ${rowColor}` }}
                 />
               </span>
               <span className="result-variant-score">{v.score.toFixed(0)}%</span>

@@ -183,6 +183,63 @@ describe("ChatCompletion", () => {
     expect(result.output).toBe("<think>hmm let me think… the answer is 4</think>");
   });
 
+  it("wraps mlx_lm's `reasoning` field in <think>...</think> when content is empty", async () => {
+    // mlx_lm.server exposes reasoning on `message.reasoning` (not
+    // `reasoning_content`). Verified against a live server with
+    // DeepSeek-R1-0528-Qwen3-8B-4bit.
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() =>
+          jsonResponse({
+            choices: [{ message: { content: "", reasoning: "thinking it through" } }],
+            usage: { prompt_tokens: 3, completion_tokens: 9 },
+          }),
+        ),
+      ),
+    );
+
+    const program = Effect.gen(function* () {
+      const chat = yield* ChatCompletion;
+      return yield* chat.complete(baseParams());
+    });
+
+    const result = await Effect.runPromise(Effect.provide(program, layer));
+    expect(result.output).toBe("<think>thinking it through</think>");
+  });
+
+  it("preserves both reasoning and visible content when both are populated", async () => {
+    // When `reasoning_content` (or mlx_lm's `reasoning`) co-exists with
+    // non-empty `content`, the archive must capture both — otherwise the
+    // thought trace is lost on any reasoning-model run that also produced
+    // a visible answer. We prepend `<think>…</think>` so the downstream
+    // stripper yields the same scored answer.
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() =>
+          jsonResponse({
+            choices: [
+              {
+                message: {
+                  content: "12",
+                  reasoning: "7 + 5 = 12, user wants just the number",
+                },
+              },
+            ],
+            usage: { prompt_tokens: 16, completion_tokens: 200 },
+          }),
+        ),
+      ),
+    );
+
+    const program = Effect.gen(function* () {
+      const chat = yield* ChatCompletion;
+      return yield* chat.complete(baseParams());
+    });
+
+    const result = await Effect.runPromise(Effect.provide(program, layer));
+    expect(result.output).toBe("<think>7 + 5 = 12, user wants just the number</think>\n\n12");
+  });
+
   it("maps non-2xx HTTP status to LlmRequestError", async () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(mockClient(() => new Response("internal boom", { status: 500 }))),
