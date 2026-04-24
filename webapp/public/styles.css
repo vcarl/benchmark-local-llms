@@ -159,3 +159,28 @@ body { margin: 0; background: #0a0a0a; color: #ddd; font-family: -apple-system, 
 .app-header { padding: 12px 16px; border-bottom: 1px solid #222; }
 .app-header h1 { margin: 0; font-size: 16px; }
 .app-subtitle { font-size: 11px; color: #888; margin-top: 2px; }
+
+/* Capability hover card — rich per-tag breakdown */
+.cap-hover-card {
+  position: absolute;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #ddd;
+  pointer-events: none;
+  z-index: 40;
+  line-height: 1.5;
+  min-width: 240px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.cap-hover-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+.cap-hover-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.cap-hover-table td { padding: 3px 0; color: #aaa; }
+.cap-hover-table td.ct-tag { color: #ddd; }
+.cap-hover-table td.ct-bar { width: 80px; padding-left: 8px; }
+.cap-hover-table td.ct-val { text-align: right; font-variant-numeric: tabular-nums; color: #ddd; width: 40px; }
+.cap-hover-table td.ct-runs { color: #888; text-align: right; width: 56px; padding-left: 8px; }
+.ct-bar-track { height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+.ct-bar-fill { height: 100%; border-radius: 3px; }
