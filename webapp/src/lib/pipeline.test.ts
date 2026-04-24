@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregate,
+  aggregateForList,
   aggregateForScatter,
   applyFilters,
   groupRows,
@@ -8,6 +9,7 @@ import {
   starPointsForTokens,
   type Filters,
   type GroupBy,
+  type ListRow,
 } from "./pipeline";
 import type { BenchmarkResult } from "./data";
 
@@ -200,5 +202,63 @@ describe("aggregateForScatter", () => {
     ];
     const [dot] = aggregateForScatter(data);
     expect(dot.executedAt).toBe("2026-04-01T00:00:00Z");
+  });
+});
+
+import { CAPABILITY_TAGS } from "./constants";
+
+describe("aggregateForList", () => {
+  const mkRec = (over: Partial<BenchmarkResult>): BenchmarkResult => ({
+    model: "llama-3.1-8b", runtime: "llamacpp", quant: "q8",
+    prompt_name: "p", category: "c", tier: 1, temperature: 0,
+    tags: [], is_scenario: false, score: 0.7, score_details: "",
+    prompt_tokens: 200, generation_tokens: 600, prompt_tps: 0, generation_tps: 0,
+    wall_time_sec: 0, peak_memory_gb: 8.5, output: "", prompt_text: "",
+    scenario_name: null, termination_reason: null, tool_call_count: null,
+    final_player_stats: null, events: null,
+    executed_at: "2026-04-01T00:00:00Z", ...over,
+  });
+
+  it("bestScore is max across variants", () => {
+    const rows = aggregateForList([
+      mkRec({ runtime: "llamacpp", score: 0.68 }),
+      mkRec({ runtime: "mlx", score: 0.65 }),
+    ], "model");
+    expect(rows[0].bestScore).toBe(68);
+  });
+
+  it("efficiency = round(tokens / score%) for the best variant", () => {
+    const rows = aggregateForList([
+      mkRec({ score: 0.8, prompt_tokens: 200, generation_tokens: 2600 }), // 2800 total
+    ], "model");
+    // 2800 / 80 = 35
+    expect(rows[0].efficiency).toBe(35);
+  });
+
+  it("variants sorted best-first", () => {
+    const rows = aggregateForList([
+      mkRec({ runtime: "llamacpp", quant: "q4", score: 0.63 }),
+      mkRec({ runtime: "llamacpp", quant: "q8", score: 0.68 }),
+      mkRec({ runtime: "mlx", quant: "q4", score: 0.65 }),
+    ], "model");
+    const scores = rows[0].variants.map((v) => v.score);
+    expect(scores).toEqual([68, 65, 63]);
+  });
+
+  it("capability profile has 10 entries (one per CAPABILITY_TAG)", () => {
+    const rows = aggregateForList([mkRec({ tags: ["tool-use"] })], "model");
+    expect(rows[0].capability).toHaveLength(CAPABILITY_TAGS.length);
+  });
+
+  it("capability entries with zero runs have pass=null", () => {
+    const rows = aggregateForList([
+      mkRec({ tags: ["tool-use"], score: 0.9 }),
+    ], "model");
+    const toolUse = rows[0].capability.find((c) => c.tag === "tool-use");
+    expect(toolUse?.pass).toBeCloseTo(1.0); // score 0.9 >= PASS_THRESHOLD (0.5)
+    expect(toolUse?.runs).toBe(1);
+    const factualRecall = rows[0].capability.find((c) => c.tag === "factual-recall");
+    expect(factualRecall?.pass).toBeNull();
+    expect(factualRecall?.runs).toBe(0);
   });
 });
