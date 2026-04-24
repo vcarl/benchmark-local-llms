@@ -18,7 +18,10 @@ import { deregisterSubprocess, registerSubprocess } from "../../cli/subprocess-r
 import { type HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
 import type { Runtime } from "../../schema/enums.js";
 import { waitForHealthy } from "./health.js";
+import { trackPeakRss } from "./peak-rss.js";
 import { type ProcessHealthMonitor, watchProcess } from "./process-health.js";
+
+const PEAK_RSS_POLL_MS = 30_000;
 
 /**
  * Forward a subprocess byte stream to the Effect logger at Info level,
@@ -58,6 +61,12 @@ export interface ServerHandle {
   readonly port: number;
   readonly pid: number;
   readonly monitor: ProcessHealthMonitor;
+  /**
+   * Current peak RSS observed for the subprocess, in KB. Backed by a
+   * scoped poller that samples every 30s. Returns 0 until the first
+   * successful sample — treat 0 as "unknown" rather than "zero bytes".
+   */
+  readonly peakRssKb: Effect.Effect<number>;
 }
 
 export interface SuperviseParams {
@@ -124,6 +133,12 @@ export const superviseServer = (
     yield* Effect.forkScoped(forwardSubprocessStream(proc.stderr, params.runtime));
     yield* Effect.forkScoped(forwardSubprocessStream(proc.stdout, params.runtime));
 
+    // Must be set up before the shutdown finalizer so the finalizer can
+    // read the peak for its log line. The poll fiber itself is scoped and
+    // will be interrupted on scope close; the backing Ref survives, so
+    // reading peak from inside or after the finalizer is safe.
+    const peakRssKb = yield* trackPeakRss(pid, PEAK_RSS_POLL_MS);
+
     // Install graceful-shutdown finalizer BEFORE health wait — if health
     // times out mid-boot, we still escalate cleanly. This finalizer runs
     // before Command.start's own finalizer (LIFO order), so by the time
@@ -178,6 +193,14 @@ export const superviseServer = (
         yield* Effect.logDebug(
           `exit finalizer completed in ${exitElapsed}s (graceful=${graceful})`,
         ).pipe(Effect.annotateLogs("scope", "llm-server"));
+
+        const peakKb = yield* peakRssKb;
+        if (peakKb > 0) {
+          const peakMib = (peakKb / 1024).toFixed(0);
+          yield* Effect.logInfo(`peak RSS ${peakMib} MiB (${peakKb} KB)`).pipe(
+            Effect.annotateLogs("scope", "llm-server"),
+          );
+        }
 
         // Graceful path succeeded: the safety net no longer needs to track
         // this pid. On interrupted/aborted finalizer runs we leave the pid
@@ -237,5 +260,6 @@ export const superviseServer = (
       port: params.port,
       pid: proc.pid as unknown as number,
       monitor,
+      peakRssKb,
     };
   });

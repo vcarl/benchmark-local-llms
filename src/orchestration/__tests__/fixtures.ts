@@ -177,6 +177,7 @@ export const fakeServerHandle = (port = 18080): Effect.Effect<ServerHandle> =>
       port,
       pid: 1234,
       monitor,
+      peakRssKb: Effect.succeed(0),
     };
   });
 
