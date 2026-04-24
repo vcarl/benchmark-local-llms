@@ -31,6 +31,7 @@ export interface BenchmarkResult {
   tool_call_count: number | null;
   final_player_stats: Record<string, unknown> | null;
   events: AgentEvent[] | null;
+  executed_at: string;
 }
 
 declare global {
@@ -66,6 +67,7 @@ export const normalizeRecord = (raw: Partial<BenchmarkResult>): BenchmarkResult 
   tool_call_count: raw.tool_call_count ?? null,
   final_player_stats: raw.final_player_stats ?? null,
   events: raw.events ?? null,
+  executed_at: raw.executed_at ?? "",
 });
 
 export let DATA: BenchmarkResult[] = globalThis.__BENCHMARK_DATA

@@ -156,4 +156,13 @@ describe("toWebappRecord", () => {
     expect(rec.final_player_stats).toBeNull();
     expect(rec.events).toBeNull();
   });
+
+  it("includes executed_at from ExecutionResult.executedAt", () => {
+    const rec = toWebappRecord(
+      makeExecution({ executedAt: "2026-04-14T12:34:56.000Z" }),
+      promptEntry,
+      score,
+    );
+    expect(rec.executed_at).toBe("2026-04-14T12:34:56.000Z");
+  });
 });

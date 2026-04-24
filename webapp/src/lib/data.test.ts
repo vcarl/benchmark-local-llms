@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRecord } from "./data";
+import { type BenchmarkResult, normalizeRecord } from "./data";
 
 describe("normalizeRecord", () => {
   it("fills defaults for missing new fields on legacy data.js", () => {
@@ -34,5 +34,15 @@ describe("normalizeRecord", () => {
     expect(rec.tags).toEqual(["tool-use"]);
     expect(rec.is_scenario).toBe(true);
     expect(rec.termination_reason).toBe("completed");
+  });
+
+  it("preserves executed_at when present", () => {
+    const r = normalizeRecord({ executed_at: "2026-04-01T12:00:00Z" } as Partial<BenchmarkResult>);
+    expect(r.executed_at).toBe("2026-04-01T12:00:00Z");
+  });
+
+  it("defaults executed_at to empty string when missing", () => {
+    const r = normalizeRecord({});
+    expect(r.executed_at).toBe("");
   });
 });
