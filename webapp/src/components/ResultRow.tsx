@@ -3,29 +3,13 @@ import type { ListRow } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
 import { CapabilityHoverCard } from "./CapabilityHoverCard";
 import { setHoveredModel, clearHoveredModel, useHoveredModel } from "../lib/hover-store";
+import { familyColor } from "../lib/colors";
 
 interface Props {
   row: ListRow;
   rank: number;
   onClick: () => void;
 }
-
-const FAMILY_COLORS: Record<string, string> = {
-  Llama: "#e06666",
-  Qwen: "#6fa8dc",
-  Mistral: "#93c47d",
-  Gemma: "#b996de",
-  DeepSeek: "#f6b26b",
-  Phi: "#76d7c4",
-  GPT: "#ffd966",
-  GLM: "#c27ba0",
-  Other: "#9aa0a6",
-};
-
-const colorFor = (family: string | null): string => {
-  if (family === null) return FAMILY_COLORS.Other;
-  return FAMILY_COLORS[family] ?? FAMILY_COLORS.Other;
-};
 
 const abbrevRuntime = (runtime: string): string =>
   runtime === "llamacpp" ? "lcpp" : runtime;
@@ -37,7 +21,7 @@ export function ResultRow({ row, rank, onClick }: Props) {
 
   const [capTip, setCapTip] = useState<{ x: number; y: number } | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
-  const familyColor = colorFor(row.family);
+  const rowColor = familyColor(row.family);
 
   const handleMouseEnter = () => {
     if (row.baseModel !== null) setHoveredModel(row.baseModel);
@@ -78,7 +62,7 @@ export function ResultRow({ row, rank, onClick }: Props) {
               <span className="result-variant-track">
                 <span
                   className="result-variant-fill"
-                  style={{ width: `${Math.max(0, Math.min(100, v.score))}%`, background: familyColor, opacity }}
+                  style={{ width: `${Math.max(0, Math.min(100, v.score))}%`, background: rowColor, opacity }}
                 />
               </span>
               <span className="result-variant-score">{v.score.toFixed(0)}%</span>

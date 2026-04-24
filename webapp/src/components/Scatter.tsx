@@ -11,24 +11,11 @@ import {
   clearHoveredModel,
   useHoveredModel,
 } from "../lib/hover-store";
+import { familyColor } from "../lib/colors";
 
 interface Props {
   data: BenchmarkResult[];
 }
-
-const FAMILY_COLORS: Record<string, string> = {
-  Llama: "#e06666",
-  Qwen: "#6fa8dc",
-  Mistral: "#93c47d",
-  Gemma: "#b996de",
-  DeepSeek: "#f6b26b",
-  Phi: "#76d7c4",
-  GPT: "#ffd966",
-  GLM: "#c27ba0",
-  Other: "#9aa0a6",
-};
-
-const colorFor = (family: string): string => FAMILY_COLORS[family] ?? FAMILY_COLORS.Other;
 
 const W = 860;
 const H = 460;
@@ -105,7 +92,7 @@ export function Scatter({ data }: Props) {
     for (const d of dots) {
       if (!seen.has(d.family)) {
         seen.add(d.family);
-        out.push({ name: d.family, color: colorFor(d.family) });
+        out.push({ name: d.family, color: familyColor(d.family) });
       }
     }
     return out;
@@ -181,7 +168,7 @@ export function Scatter({ data }: Props) {
               key={t.model}
               className="scatter-trajectory"
               points={points}
-              stroke={colorFor(t.family)}
+              stroke={familyColor(t.family)}
               style={{ opacity: dim ? 0.2 : 0.55 }}
             />
           );
@@ -198,7 +185,7 @@ export function Scatter({ data }: Props) {
               key={`${d.baseModel}|${d.runtime}|${d.quant}|${d.temperature}`}
               className="scatter-dot"
               d={starPath(xScale(d.tokens), yScale(d.score), n, outerR, innerR)}
-              fill={colorFor(d.family)}
+              fill={familyColor(d.family)}
               fillOpacity={dim ? 0.35 : active ? 0.95 : 0.85}
               onMouseEnter={(ev) => {
                 setHoveredModel(d.baseModel);
