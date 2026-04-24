@@ -24,20 +24,6 @@ export type GroupBy =
   | "runtime"
   | "family";
 
-export interface Row {
-  key: string;
-  label: string;
-  meanScore: number;
-  passRate: number;
-  capabilityProfile: Record<string, { mean: number; count: number }>;
-  runs: BenchmarkResult[];
-}
-
-export interface Sort {
-  field: "meanScore" | "passRate" | "generation_tps" | "peak_memory_gb" | "wall_time_sec" | "name" | "tier";
-  dir: "asc" | "desc";
-}
-
 const passesDim = <T>(selected: T[] | undefined, v: T): boolean =>
   selected === undefined || selected.length === 0 || selected.includes(v);
 
@@ -99,64 +85,6 @@ export const groupRows = (
     }
   }
   return groups;
-};
-
-const labelFor = (by: GroupBy, key: string, runs: BenchmarkResult[]): string => {
-  if (by === "model") {
-    const r = runs[0];
-    if (r === undefined) return key;
-    return `${r.model} · ${r.runtime} · ${r.quant}`;
-  }
-  return key;
-};
-
-export const aggregate = (
-  groups: Map<string, BenchmarkResult[]>,
-  by: GroupBy,
-): Row[] => {
-  const rows: Row[] = [];
-  for (const [key, runs] of groups) {
-    const meanScore = runs.reduce((s, r) => s + r.score, 0) / runs.length;
-    const passRate = runs.filter((r) => r.score >= PASS_THRESHOLD).length / runs.length;
-
-    // capability profile: mean score per tag across THIS group's runs
-    const byTag = new Map<string, number[]>();
-    for (const r of runs) {
-      for (const t of r.tags) {
-        const arr = byTag.get(t);
-        if (arr) arr.push(r.score);
-        else byTag.set(t, [r.score]);
-      }
-    }
-    const capabilityProfile: Record<string, { mean: number; count: number }> = {};
-    for (const [tag, scores] of byTag) {
-      capabilityProfile[tag] = {
-        mean: scores.reduce((s, v) => s + v, 0) / scores.length,
-        count: scores.length,
-      };
-    }
-    rows.push({ key, label: labelFor(by, key, runs), meanScore, passRate, capabilityProfile, runs });
-  }
-  return rows;
-};
-
-export const sortRows = (rows: Row[], sort: Sort): Row[] => {
-  const mult = sort.dir === "asc" ? 1 : -1;
-  const copy = rows.slice();
-  copy.sort((a, b) => {
-    if (sort.field === "name") return mult * a.label.localeCompare(b.label);
-    if (sort.field === "meanScore") return mult * (a.meanScore - b.meanScore);
-    if (sort.field === "passRate") return mult * (a.passRate - b.passRate);
-    const avg = (field: keyof BenchmarkResult) =>
-      (rs: BenchmarkResult[]) =>
-        rs.reduce((s, r) => s + (typeof r[field] === "number" ? (r[field] as number) : 0), 0) / rs.length;
-    if (sort.field === "generation_tps") return mult * (avg("generation_tps")(a.runs) - avg("generation_tps")(b.runs));
-    if (sort.field === "peak_memory_gb") return mult * (avg("peak_memory_gb")(a.runs) - avg("peak_memory_gb")(b.runs));
-    if (sort.field === "wall_time_sec") return mult * (avg("wall_time_sec")(a.runs) - avg("wall_time_sec")(b.runs));
-    if (sort.field === "tier") return mult * (avg("tier")(a.runs) - avg("tier")(b.runs));
-    return 0;
-  });
-  return copy;
 };
 
 export interface ScatterDot {

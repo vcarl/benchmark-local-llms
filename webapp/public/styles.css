@@ -59,8 +59,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .family-chip.active { background: #3b82f6; color: white; border-color: #3b82f6; }
 .family-chip.partial { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
 .family-chip .count { font-size: 10px; opacity: 0.7; margin-left: 4px; }
-.capability-bar { display: flex; gap: 2px; width: 100%; }
-.cap-cell { flex: 1; border-radius: 1px; background: #333; }
 .cap-green       { background: #4ade80; }
 .cap-yellow-green { background: #a3e635; }
 .cap-yellow      { background: #facc15; }
@@ -82,28 +80,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .chip-popover input { margin-right: 6px; }
 .preset-menu { display: flex; gap: 4px; margin-left: auto; }
 .preset-menu select, .preset-menu button { background: #222; color: #ddd; border: 1px solid #333; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-.result-table { padding: 0 16px; }
-.result-header, .result-row {
-  display: grid;
-  grid-template-columns: 1fr 280px 70px 60px 20px;
-  gap: 12px; align-items: center;
-  padding: 8px 12px; font-size: 12px;
-}
-.result-header { font-weight: bold; color: #888; font-size: 10px; border-bottom: 1px solid #333; text-transform: uppercase; }
-.result-row { border-bottom: 1px solid #222; cursor: pointer; }
-.result-row:hover { background: #1a1a1a; }
-.result-label { color: #ddd; }
-.result-score { text-align: right; font-weight: bold; background: transparent !important; color: inherit; padding: 2px 6px; border-radius: 3px; }
 .result-score.cap-green       { color: #4ade80; }
 .result-score.cap-yellow-green { color: #a3e635; }
 .result-score.cap-yellow      { color: #facc15; }
 .result-score.cap-orange      { color: #fb923c; }
 .result-score.cap-red         { color: #ef4444; }
-.result-pass { text-align: right; color: #aaa; }
-.result-arrow { color: #666; }
 .result-empty { padding: 40px; text-align: center; color: #666; }
-.top-models { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; }
-.top-model { padding: 1px 6px; background: #222; border-radius: 3px; }
 .panel-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; }
 .model-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 90vw; background: #151515; border-left: 1px solid #333; z-index: 51; overflow-y: auto; color: #ddd; }
 .model-panel-header { padding: 16px; border-bottom: 1px solid #222; position: relative; }
@@ -236,7 +218,7 @@ body { margin: 0; background: #0a0a0a; color: #ddd; font-family: -apple-system, 
 .scatter-tip-meta { color: #aaa; font-size: 11px; margin-bottom: 4px; }
 .scatter-empty { text-align: center; padding: 40px 20px; color: #666; }
 
-/* Rewritten result row — overrides the old .result-row grid via cascade */
+/* Result row — grid layout */
 .result-row {
   display: grid;
   grid-template-columns: 28px 1fr 100px minmax(260px, 2fr) auto 72px 72px;
@@ -274,7 +256,7 @@ body { margin: 0; background: #0a0a0a; color: #ddd; font-family: -apple-system, 
 .result-numeric { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-size: 13px; color: #ddd; }
 .result-numeric-sub { font-size: 10px; color: #888; }
 
-/* Rewritten result table — overrides old .result-table padding */
+/* Result table */
 .result-table { background: #0a0a0a; border: 1px solid #222; border-radius: 8px; overflow: hidden; padding: 0; margin: 0 16px 16px; }
 .result-controls { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 12px; color: #888; border-bottom: 1px solid #222; background: #0d0d0d; }
 .result-count { font-variant-numeric: tabular-nums; }

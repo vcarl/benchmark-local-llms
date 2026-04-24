@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  aggregate,
   aggregateForList,
   aggregateForScatter,
   applyFilters,
-  groupRows,
-  sortRows,
   starPointsForTokens,
-  type Filters,
-  type GroupBy,
-  type ListRow,
 } from "./pipeline";
 import type { BenchmarkResult } from "./data";
 
@@ -53,57 +47,6 @@ describe("applyFilters", () => {
   it("excludes via negative filter", () => {
     const data = [mk({ tags: ["TODO"] }), mk({ tags: ["code-synthesis"] })];
     expect(applyFilters(data, { tagsExclude: ["TODO"] }).length).toBe(1);
-  });
-});
-
-describe("groupRows + aggregate", () => {
-  it("groups by model and computes mean + passRate", () => {
-    const data = [
-      mk({ model: "A", score: 1.0 }),
-      mk({ model: "A", score: 0.3 }),
-      mk({ model: "A", score: 0.8 }),
-      mk({ model: "B", score: 0.1 }),
-    ];
-    const groups = groupRows(data, "modelOnly");
-    const rows = aggregate(groups, "modelOnly");
-    const a = rows.find((r) => r.key === "A")!;
-    expect(a.meanScore).toBeCloseTo((1.0 + 0.3 + 0.8) / 3);
-    expect(a.passRate).toBeCloseTo(2 / 3); // >= 0.5: 1.0 and 0.8
-    expect(rows.find((r) => r.key === "B")?.passRate).toBe(0);
-  });
-
-  it("groups by tag and explodes multi-tag results", () => {
-    const data = [
-      mk({ tags: ["tool-use", "long-term-planning"], score: 0.9 }),
-      mk({ tags: ["tool-use"], score: 0.5 }),
-    ];
-    const groups = groupRows(data, "tag");
-    const rows = aggregate(groups, "tag");
-    expect(rows.find((r) => r.key === "tool-use")?.runs.length).toBe(2);
-    expect(rows.find((r) => r.key === "long-term-planning")?.runs.length).toBe(1);
-  });
-
-  it("emits capabilityProfile with per-tag means for model groupings", () => {
-    const data = [
-      mk({ model: "A", tags: ["code-synthesis"], score: 0.9 }),
-      mk({ model: "A", tags: ["math-reasoning"], score: 0.4 }),
-    ];
-    const rows = aggregate(groupRows(data, "model"), "model");
-    const profile = rows[0].capabilityProfile;
-    expect(profile["code-synthesis"]?.mean).toBe(0.9);
-    expect(profile["math-reasoning"]?.mean).toBe(0.4);
-    expect(profile["factual-recall"]).toBeUndefined();
-  });
-});
-
-describe("sortRows", () => {
-  it("sorts descending by meanScore", () => {
-    const rows = [
-      { key: "a", label: "a", meanScore: 0.5, passRate: 0, capabilityProfile: {}, runs: [] },
-      { key: "b", label: "b", meanScore: 0.9, passRate: 0, capabilityProfile: {}, runs: [] },
-    ];
-    const out = sortRows(rows as never, { field: "meanScore", dir: "desc" });
-    expect(out[0].key).toBe("b");
   });
 });
 

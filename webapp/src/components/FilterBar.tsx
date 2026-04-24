@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useState, useCallback, useEffect } from "react";
-import type { Filters, GroupBy, Sort } from "../lib/pipeline";
+import type { Filters, GroupBy } from "../lib/pipeline";
 import {
   loadPresets, upsertPreset, deletePreset, renamePreset,
   resetPresets, seedIfEmpty,
@@ -17,7 +17,6 @@ type SearchState = {
   temperature?: string;
   isScenario?: string;
   groupBy?: GroupBy;
-  sort?: string;
   preset?: string;
   model?: string;
 };
@@ -36,15 +35,6 @@ export const parseFilters = (search: SearchState): Filters => ({
   temperature: csv(search.temperature).map(Number).filter((n) => !Number.isNaN(n)),
   isScenario: search.isScenario === "true" ? true : search.isScenario === "false" ? false : undefined,
 });
-
-export const parseSort = (s: string | undefined): Sort => {
-  if (!s) return { field: "meanScore", dir: "desc" };
-  const dir = s.startsWith("-") ? "desc" : "asc";
-  const field = s.replace(/^-/, "") as Sort["field"];
-  return { field, dir };
-};
-
-const sortString = (s: Sort): string => (s.dir === "desc" ? `-${s.field}` : s.field);
 
 interface Props {
   allValues: {
@@ -74,7 +64,6 @@ export function FilterBar({ allValues }: Props) {
   const updateMulti = (key: keyof SearchState) => (values: string[]) =>
     setSearch({ [key]: values.length === 0 ? undefined : values.join(",") } as Partial<SearchState>);
 
-  const currentSort = parseSort(search.sort);
   const presets = loadPresets();
 
   return (
@@ -102,25 +91,6 @@ export function FilterBar({ allValues }: Props) {
             <option value="family">family</option>
           </select>
         </label>
-
-        <label>Sort by{" "}
-          <select value={currentSort.field} onChange={(e) =>
-            setSearch({ sort: sortString({ ...currentSort, field: e.target.value as Sort["field"] }) })
-          }>
-            <option value="meanScore">mean score</option>
-            <option value="passRate">pass rate</option>
-            <option value="generation_tps">gen tps</option>
-            <option value="peak_memory_gb">peak mem</option>
-            <option value="wall_time_sec">wall time</option>
-            <option value="name">name</option>
-            <option value="tier">tier</option>
-          </select>
-        </label>
-        <button onClick={() =>
-          setSearch({ sort: sortString({ ...currentSort, dir: currentSort.dir === "asc" ? "desc" : "asc" }) })
-        }>
-          {currentSort.dir === "asc" ? "↑" : "↓"}
-        </button>
 
         <div className="preset-menu">
           <select value={search.preset ?? ""} onChange={(e) => {
