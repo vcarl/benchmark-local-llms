@@ -121,6 +121,82 @@ describe("runLoop", () => {
     expect(outcome.perModel[0]?.manifest.artifact).toBe("unsloth/Qwen3.5-9B-GGUF");
   });
 
+  it("applies quantFilter (substring, case-insensitive)", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "A", quant: "Q8_0" }),
+        sampleModel({ name: "B", quant: "4bit" }),
+        sampleModel({ name: "C", quant: "Q6_K" }),
+      ],
+      quantFilter: "q8",
+    });
+    const outcome = await Effect.runPromise(
+      runLoop(config, fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+      ),
+    );
+    expect(outcome.perModel.map((m) => m.manifest.model)).toEqual(["A"]);
+  });
+
+  it("applies paramsFilter (substring, case-insensitive)", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "Small", params: "7B" }),
+        sampleModel({ name: "Medium", params: "32B" }),
+        sampleModel({ name: "Large", params: "72B" }),
+      ],
+      paramsFilter: "32b",
+    });
+    const outcome = await Effect.runPromise(
+      runLoop(config, fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+      ),
+    );
+    expect(outcome.perModel.map((m) => m.manifest.model)).toEqual(["Medium"]);
+  });
+
+  it("quantFilter + paramsFilter stack (AND)", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "A", quant: "Q8_0", params: "7B" }),
+        sampleModel({ name: "B", quant: "Q8_0", params: "32B" }),
+        sampleModel({ name: "C", quant: "4bit", params: "32B" }),
+      ],
+      quantFilter: "q8",
+      paramsFilter: "32B",
+    });
+    const outcome = await Effect.runPromise(
+      runLoop(config, fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+      ),
+    );
+    expect(outcome.perModel.map((m) => m.manifest.model)).toEqual(["B"]);
+  });
+
+  it("quantFilter skips models with no quant value set", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const config = baseConfig(dir, {
+      models: [
+        sampleModel({ name: "WithQuant", quant: "Q8_0" }),
+        sampleModel({ name: "NoQuant", quant: undefined }),
+      ],
+      quantFilter: "q8",
+    });
+    const outcome = await Effect.runPromise(
+      runLoop(config, fakeDeps(), sampleEnv).pipe(
+        Effect.provide(layer),
+        Effect.provide(runtimeLayer),
+      ),
+    );
+    expect(outcome.perModel.map((m) => m.manifest.model)).toEqual(["WithQuant"]);
+  });
+
   it("empty models → empty outcome, no archive files", async () => {
     const { layer } = makeChatCompletionMock({});
     const outcome = await Effect.runPromise(

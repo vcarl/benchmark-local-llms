@@ -77,6 +77,8 @@ export const formatRunRecord = (r: RunRecordInput): string =>
 
 type RunOptionsParsed = {
   readonly modelName: Option.Option<string>;
+  readonly quant: Option.Option<string>;
+  readonly params: Option.Option<string>;
   readonly maxTokens: number;
   readonly scenarios: string;
   readonly noSave: boolean;
@@ -111,6 +113,8 @@ export const normalizeRunOptions = (
   }
   const flags: RunFlags = {
     ...(Option.isSome(parsed.modelName) ? { modelName: parsed.modelName.value } : {}),
+    ...(Option.isSome(parsed.quant) ? { quant: parsed.quant.value } : {}),
+    ...(Option.isSome(parsed.params) ? { params: parsed.params.value } : {}),
     maxTokens: parsed.maxTokens,
     scenarios: parsed.scenarios,
     noSave: parsed.noSave,

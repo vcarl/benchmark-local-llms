@@ -4,6 +4,8 @@ import { normalizeRunOptions } from "../run.js";
 
 const baseParsed = {
   modelName: Option.none() as Option.Option<string>,
+  quant: Option.none() as Option.Option<string>,
+  params: Option.none() as Option.Option<string>,
   maxTokens: 8096,
   scenarios: "all",
   noSave: false,

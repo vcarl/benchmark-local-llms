@@ -24,6 +24,8 @@ import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
  */
 export interface RunFlags {
   readonly modelName?: string | undefined;
+  readonly quant?: string | undefined;
+  readonly params?: string | undefined;
   readonly maxTokens: number;
   readonly scenarios: string;
   readonly noSave: boolean;
@@ -91,6 +93,8 @@ export const buildRunLoopConfig = (params: {
     noSave: params.flags.noSave,
     scenariosOnly: params.flags.scenariosOnly,
     ...(params.flags.modelName !== undefined ? { modelNameFilter: params.flags.modelName } : {}),
+    ...(params.flags.quant !== undefined ? { quantFilter: params.flags.quant } : {}),
+    ...(params.flags.params !== undefined ? { paramsFilter: params.flags.params } : {}),
     ...(params.flags.idleTimeoutSec !== undefined
       ? { idleTimeoutSec: params.flags.idleTimeoutSec }
       : {}),

@@ -12,6 +12,16 @@ export const modelName = Options.text("model-name").pipe(
   Options.optional,
 );
 
+export const quant = Options.text("quant").pipe(
+  Options.withDescription("Substring filter on model quant, e.g. 'Q8', '4bit' (case-insensitive)"),
+  Options.optional,
+);
+
+export const params = Options.text("params").pipe(
+  Options.withDescription("Substring filter on model params, e.g. '7B', '32B' (case-insensitive)"),
+  Options.optional,
+);
+
 export const maxTokens = Options.integer("max-tokens").pipe(
   Options.withDescription("Max generation tokens per prompt (default 8096)"),
   Options.withDefault(8096),
@@ -80,6 +90,8 @@ export const verbose = Options.boolean("verbose").pipe(
 
 export const runOptions = {
   modelName,
+  quant,
+  params,
   maxTokens,
   scenarios,
   noSave,

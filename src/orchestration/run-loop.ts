@@ -38,6 +38,10 @@ export interface RunLoopConfig {
   readonly maxTokens: number;
   readonly idleTimeoutSec?: number;
   readonly modelNameFilter?: string;
+  /** Substring filter on `ModelConfig.quant`, case-insensitive. Models with no quant value are skipped when this filter is set. */
+  readonly quantFilter?: string;
+  /** Substring filter on `ModelConfig.params`, case-insensitive. Models with no params value are skipped when this filter is set. */
+  readonly paramsFilter?: string;
   readonly scenariosOnly?: boolean;
   readonly noSave?: boolean;
   /** Per-LLM-request timeout in seconds. Default: 600. */
@@ -97,6 +101,14 @@ const matchesName = (m: ModelConfig, filter?: string): boolean => {
   // selects only the llamacpp Qwen 3.5 9B; `mlx-community/...` selects only
   // the mlx variant).
   return m.artifact.toLowerCase().includes(needle);
+};
+
+const matchesField = (value: string | undefined, filter?: string): boolean => {
+  if (filter === undefined || filter.length === 0) return true;
+  // A filter set against a model with no value for this field is a miss —
+  // the user asked for a specific slice and this entry can't express one.
+  if (value === undefined) return false;
+  return value.toLowerCase().includes(filter.toLowerCase());
 };
 
 // ── Manifest construction ──────────────────────────────────────────────────
@@ -187,7 +199,11 @@ export const runLoop = (
         );
         continue;
       }
-      if (!matchesName(m, config.modelNameFilter)) {
+      if (
+        !matchesName(m, config.modelNameFilter) ||
+        !matchesField(m.quant, config.quantFilter) ||
+        !matchesField(m.params, config.paramsFilter)
+      ) {
         yield* Effect.logInfo(`skipping (filter miss): ${m.name ?? m.artifact}`).pipe(
           Effect.annotateLogs({
             scope: "run-loop",
