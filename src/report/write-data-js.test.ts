@@ -33,6 +33,7 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   tool_call_count: null,
   final_player_stats: null,
   events: null,
+  executed_at: "2026-04-14T12:34:56.000Z",
   ...overrides,
 });
 
