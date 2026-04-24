@@ -1,57 +1,127 @@
-import { CapabilityBar } from "./CapabilityBar";
-import type { Row } from "../lib/pipeline";
+import { useRef, useState } from "react";
+import type { ListRow } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
-import type { GroupBy } from "../lib/pipeline";
+import { CapabilityHoverCard } from "./CapabilityHoverCard";
+import { setHoveredModel, clearHoveredModel, useHoveredModel } from "../lib/hover-store";
 
 interface Props {
-  row: Row;
-  groupBy: GroupBy;
+  row: ListRow;
+  rank: number;
   onClick: () => void;
 }
 
-const showProfile = (by: GroupBy): boolean =>
-  by === "model" || by === "modelOnly" || by === "family" || by === "runtime";
+const FAMILY_COLORS: Record<string, string> = {
+  Llama: "#e06666",
+  Qwen: "#6fa8dc",
+  Mistral: "#93c47d",
+  Gemma: "#b996de",
+  DeepSeek: "#f6b26b",
+  Phi: "#76d7c4",
+  GPT: "#ffd966",
+  GLM: "#c27ba0",
+  Other: "#9aa0a6",
+};
 
-export function ResultRow({ row, groupBy, onClick }: Props) {
+const colorFor = (family: string | null): string => {
+  if (family === null) return FAMILY_COLORS.Other;
+  return FAMILY_COLORS[family] ?? FAMILY_COLORS.Other;
+};
+
+const abbrevRuntime = (runtime: string): string =>
+  runtime === "llamacpp" ? "lcpp" : runtime;
+
+export function ResultRow({ row, rank, onClick }: Props) {
+  const hovered = useHoveredModel();
+  const isHovered = row.baseModel !== null && hovered === row.baseModel;
+  const isDimmed = hovered !== null && !isHovered && row.baseModel !== null;
+
+  const [capTip, setCapTip] = useState<{ x: number; y: number } | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const familyColor = colorFor(row.family);
+
+  const handleMouseEnter = () => {
+    if (row.baseModel !== null) setHoveredModel(row.baseModel);
+  };
+  const handleMouseLeave = () => {
+    if (row.baseModel !== null) clearHoveredModel();
+  };
+
   return (
-    <div className="result-row" onClick={onClick} role="button">
-      <div className="result-label">{row.label}</div>
-      <div className="result-profile">
-        {showProfile(groupBy) ? (
-          <CapabilityBar profile={row.capabilityProfile} />
-        ) : (
-          <TopModels runs={row.runs} />
+    <div
+      ref={rowRef}
+      className={`result-row${isHovered ? " result-row--hovered" : ""}${isDimmed ? " result-row--dimmed" : ""}`}
+      onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      role="button"
+    >
+      <div className="result-rank">{rank}</div>
+
+      <div className="result-model">
+        <div className="result-model-name">{row.key}</div>
+        {row.family !== null && <div className="result-model-family">{row.family}</div>}
+      </div>
+
+      <div className="result-score-cell">
+        <div className={`result-score cap-${scoreBand(row.bestScore / 100)}`}>
+          {row.bestScore.toFixed(0)}%
+        </div>
+        <div className="result-efficiency">{row.efficiency} tok/pt</div>
+      </div>
+
+      <div className="result-variants">
+        {row.variants.map((v, i) => {
+          const opacity = 0.55 + 0.45 * (1 - i / Math.max(1, row.variants.length - 1));
+          return (
+            <div key={`${v.runtime}|${v.quant}|${v.temperature}`} className="result-variant">
+              <span className="result-variant-label">{abbrevRuntime(v.runtime)} {v.quant} t{v.temperature}</span>
+              <span className="result-variant-track">
+                <span
+                  className="result-variant-fill"
+                  style={{ width: `${Math.max(0, Math.min(100, v.score))}%`, background: familyColor, opacity }}
+                />
+              </span>
+              <span className="result-variant-score">{v.score.toFixed(0)}%</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        className="result-capability"
+        onMouseEnter={(ev) => {
+          const rect = rowRef.current?.getBoundingClientRect();
+          if (rect) setCapTip({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
+        }}
+        onMouseMove={(ev) => {
+          const rect = rowRef.current?.getBoundingClientRect();
+          if (rect) setCapTip({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
+        }}
+        onMouseLeave={() => setCapTip(null)}
+      >
+        {row.capability.map((c) => (
+          <div
+            key={c.tag}
+            className={c.pass === null ? "result-cap-cell cap-absent" : `result-cap-cell cap-${scoreBand(c.pass)}`}
+            title={c.pass === null ? `${c.tag}: no runs` : `${c.tag}: ${Math.round(c.pass * 100)}%`}
+          />
+        ))}
+        {capTip !== null && (
+          <div style={{ position: "absolute", left: capTip.x + 12, top: capTip.y + 12, pointerEvents: "none" }}>
+            <CapabilityHoverCard title={row.key} capability={row.capability} />
+          </div>
         )}
       </div>
-      <div className={`result-score cap-${scoreBand(row.meanScore)}`}>
-        {row.meanScore.toFixed(2)}
-      </div>
-      <div className="result-pass">{Math.round(row.passRate * 100)}%</div>
-      <div className="result-arrow">▸</div>
-    </div>
-  );
-}
 
-// When grouping by tag/category/prompt, the profile bar is replaced by
-// a mini-list of the top 3 models inside this group.
-function TopModels({ runs }: { runs: Row["runs"] }) {
-  const byModel = new Map<string, { sum: number; count: number }>();
-  for (const r of runs) {
-    const prev = byModel.get(r.model);
-    if (prev) { prev.sum += r.score; prev.count += 1; }
-    else byModel.set(r.model, { sum: r.score, count: 1 });
-  }
-  const top = Array.from(byModel.entries())
-    .map(([m, v]) => ({ model: m, mean: v.sum / v.count }))
-    .sort((a, b) => b.mean - a.mean)
-    .slice(0, 3);
-  return (
-    <div className="top-models">
-      {top.map((t) => (
-        <span key={t.model} className={`top-model cap-${scoreBand(t.mean)}`}>
-          {t.model} · {t.mean.toFixed(2)}
-        </span>
-      ))}
+      <div className="result-numeric">
+        <span>{row.mem.toFixed(1)} GB</span>
+        <span className="result-numeric-sub">{row.bestVariant.quant}</span>
+      </div>
+
+      <div className="result-numeric">
+        <span>{Math.round(row.avgTokens).toLocaleString()}</span>
+        <span className="result-numeric-sub">avg/run</span>
+      </div>
     </div>
   );
 }

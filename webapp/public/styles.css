@@ -235,3 +235,41 @@ body { margin: 0; background: #0a0a0a; color: #ddd; font-family: -apple-system, 
 .scatter-tip-title { font-weight: 600; margin-bottom: 4px; }
 .scatter-tip-meta { color: #aaa; font-size: 11px; margin-bottom: 4px; }
 .scatter-empty { text-align: center; padding: 40px 20px; color: #666; }
+
+/* Rewritten result row — overrides the old .result-row grid via cascade */
+.result-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 100px minmax(260px, 2fr) auto 72px 72px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #222;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.1s, opacity 0.1s;
+  font-size: 13px;
+  color: #ddd;
+}
+.result-row:hover { background: #1a1a1a; }
+.result-row--hovered { background: #1f1f1f; }
+.result-row--dimmed { opacity: 0.45; }
+.result-rank { text-align: right; color: #666; font-variant-numeric: tabular-nums; font-size: 12px; }
+.result-model-name { font-weight: 500; color: #ddd; }
+.result-model-family { font-size: 11px; color: #888; }
+.result-score-cell { text-align: right; }
+.result-score { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.result-efficiency { font-size: 11px; color: #888; font-variant-numeric: tabular-nums; margin-top: 3px; }
+.result-variants { display: flex; flex-direction: column; gap: 3px; }
+.result-variant { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #888; font-variant-numeric: tabular-nums; }
+.result-variant-label { flex: 0 0 96px; white-space: nowrap; text-align: right; font-family: ui-monospace, SFMono-Regular, monospace; overflow: hidden; text-overflow: ellipsis; }
+.result-variant-track { flex: 1 1 auto; height: 10px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 2px; overflow: hidden; min-width: 60px; }
+.result-variant-fill { display: block; height: 100%; border-radius: 2px; }
+.result-variant-score { flex: 0 0 34px; text-align: right; color: #ddd; }
+.result-capability { display: flex; gap: 2px; position: relative; }
+.result-cap-cell { width: 14px; height: 20px; border-radius: 2px; cursor: default; background: #333; }
+.result-cap-cell.cap-absent {
+  background: transparent;
+  background-image: repeating-linear-gradient(45deg, #333 0 2px, transparent 2px 4px);
+}
+.result-numeric { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-size: 13px; color: #ddd; }
+.result-numeric-sub { font-size: 10px; color: #888; }
