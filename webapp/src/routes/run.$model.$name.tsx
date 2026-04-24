@@ -41,6 +41,7 @@ function RunPage() {
           tool_call_count: null,
           final_player_stats: null,
           events: null,
+          executed_at: "",
         }} />
         <div style={{ padding: 16 }}>No run found for {decodedModel} / {name}.</div>
       </div>

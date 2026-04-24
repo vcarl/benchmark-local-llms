@@ -24,6 +24,7 @@ const baseRec: BenchmarkResult = {
   output: "", prompt_text: "",
   scenario_name: null, termination_reason: null,
   tool_call_count: null, final_player_stats: null, events: null,
+  executed_at: "",
 };
 const mk = (o: Partial<BenchmarkResult>): BenchmarkResult => ({ ...baseRec, ...o });
 
