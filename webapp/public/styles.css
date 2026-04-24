@@ -233,8 +233,6 @@ body { margin: 0; background: #0a0a0a; color: #ddd; font-family: -apple-system, 
   color: #ddd;
 }
 .result-row:hover { background: #1a1a1a; }
-.result-row--hovered { background: #1f1f1f; }
-.result-row--dimmed { opacity: 0.45; }
 .result-rank { text-align: right; color: #666; font-variant-numeric: tabular-nums; font-size: 12px; }
 .result-model-name { font-weight: 500; color: #ddd; }
 .result-model-family { font-size: 11px; color: #888; }

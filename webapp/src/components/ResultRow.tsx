@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import type { ListRow } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
 import { CapabilityHoverCard } from "./CapabilityHoverCard";
-import { setHoveredModel, clearHoveredModel, useHoveredModel } from "../lib/hover-store";
+import { setHoveredModel, clearHoveredModel } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
 
 interface Props {
@@ -15,10 +15,6 @@ const abbrevRuntime = (runtime: string): string =>
   runtime === "llamacpp" ? "lcpp" : runtime;
 
 export function ResultRow({ row, rank, onClick }: Props) {
-  const hovered = useHoveredModel();
-  const isHovered = row.baseModel !== null && hovered === row.baseModel;
-  const isDimmed = hovered !== null && !isHovered && row.baseModel !== null;
-
   const [capTip, setCapTip] = useState<{ x: number; y: number } | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const rowColor = familyColor(row.family);
@@ -36,7 +32,7 @@ export function ResultRow({ row, rank, onClick }: Props) {
   return (
     <div
       ref={rowRef}
-      className={`result-row${isHovered ? " result-row--hovered" : ""}${isDimmed ? " result-row--dimmed" : ""}`}
+      className="result-row"
       onClick={onClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
