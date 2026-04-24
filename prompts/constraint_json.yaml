@@ -1,0 +1,20 @@
+name: constraint_json
+category: constraint
+tier: 1
+system: structured
+prompt: 'Output a JSON object with exactly 3 keys: "name", "age", "city". All values must be strings. Output only the JSON, nothing else.'
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: has required keys
+  check: json_has_keys
+  keys:
+  - name
+  - age
+  - city
+- name: all values are strings
+  check: json_all_string_values
+tags:
+  - TODO
+  - instruction-following

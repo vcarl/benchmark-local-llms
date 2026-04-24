@@ -1,0 +1,11 @@
+name: math_primes_sum_direct
+category: math
+tier: 1
+system: direct
+prompt: What is the sum of all prime numbers less than 20? Reply with just the number.
+scorer: exact_match
+expected: '77'
+extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

@@ -1,135 +1,79 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useCallback, useMemo } from "react";
-import { DATA, uniqueSorted, modelFamily, bestQuantData, bestQuantMap, quantSummary } from "../lib/data-dev";
-import type { CellSelection } from "../components/HeatmapTable";
-import { FamilyFilter } from "../components/FamilyFilter";
-import { SizeFilter } from "../components/SizeFilter";
-import { ModelSelector } from "../components/ModelSelector";
-import { ScatterPlot } from "../components/ScatterPlot";
-import { Leaderboard } from "../components/Leaderboard";
-import { HeatmapTable } from "../components/HeatmapTable";
-import { DetailPanel } from "../components/DetailPanel";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { DATA, uniqueSorted, modelFamily, modelSizeRange, SIZE_RANGES } from "../lib/data-dev";
+import { FilterBar, parseFilters } from "../components/FilterBar";
+import { ResultTable, type ListSortKey } from "../components/ResultTable";
+import { ModelDetailPanel } from "../components/ModelDetailPanel";
+import { Scatter } from "../components/Scatter";
+import type { GroupBy, ListRow } from "../lib/pipeline";
+import { applyFilters, aggregateForList } from "../lib/pipeline";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
 function HomePage() {
-  const allModels = useMemo(() => uniqueSorted(DATA, "model") as string[], []);
-  const allCategories = useMemo(
-    () => uniqueSorted(DATA, "category") as string[],
-    [],
-  );
-  const allTiers = useMemo(
-    () => (uniqueSorted(DATA, "tier") as number[]).sort((a, b) => a - b),
-    [],
-  );
-  const runtimes = useMemo(
-    () => uniqueSorted(DATA, "runtime") as string[],
-    [],
-  );
+  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const navigate = useNavigate();
+  const [sortKey, setSortKey] = useState<ListSortKey>("best");
 
-  const familyMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    allModels.forEach((m) => {
-      const fam = modelFamily(m);
-      if (!map[fam]) map[fam] = [];
-      map[fam].push(m);
-    });
-    return map;
-  }, [allModels]);
-  const allFamilies = useMemo(
-    () => Object.keys(familyMap).sort(),
-    [familyMap],
-  );
+  const allValues = useMemo(() => ({
+    tags: Array.from(new Set(DATA.flatMap((d) => d.tags))).sort(),
+    categories: uniqueSorted(DATA, "category") as string[],
+    tiers: (uniqueSorted(DATA, "tier") as number[]).sort((a, b) => a - b),
+    runtimes: uniqueSorted(DATA, "runtime") as string[],
+    families: Array.from(new Set(DATA.map((d) => modelFamily(d.model)))).sort(),
+    sizeRanges: SIZE_RANGES.map((r) => r.label).filter((label) =>
+      DATA.some((d) => modelSizeRange(d.model)?.label === label),
+    ),
+    quants: uniqueSorted(DATA, "quant") as string[],
+    temperatures: (uniqueSorted(DATA, "temperature") as number[]).sort((a, b) => a - b),
+  }), []);
 
-  const [checkedModels, setCheckedModels] = useState(() => new Set(allModels));
-  const [selectedCell, setSelectedCell] = useState<CellSelection | null>(null);
-  const [hoveredModel, setHoveredModel] = useState<string | null>(null);
+  const filters = parseFilters(search as never);
+  const groupBy = (search.groupBy ?? "model") as GroupBy;
+  const panelModel = search.model;
 
-  const handleModelChange = useCallback(
-    (model: string, checked: boolean) => {
-      setCheckedModels((prev) => {
-        const next = new Set(prev);
-        if (checked) next.add(model);
-        else next.delete(model);
-        return next;
-      });
-    },
-    [],
+  const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
+
+  const rows: ListRow[] = useMemo(
+    () => aggregateForList(filtered, groupBy),
+    [filtered, groupBy],
   );
 
-  const handleFamilyToggle = useCallback((newChecked: Set<string>) => {
-    setCheckedModels(newChecked);
-  }, []);
-
-  const handleSelectAll = useCallback(
-    (selected: boolean) => {
-      setCheckedModels(selected ? new Set(allModels) : new Set());
-    },
-    [allModels],
-  );
-
-  const bestData = useMemo(() => bestQuantData(DATA), []);
-  const bestQMap = useMemo(() => bestQuantMap(DATA), []);
-  const allQuantSummary = useMemo(() => {
-    const summary: Record<string, Record<string, import("../lib/data").QuantInfo[]>> = {};
-    for (const model of allModels) {
-      summary[model] = quantSummary(DATA, model);
+  const handleRowClick = (row: ListRow) => {
+    if (row.baseModel !== null) {
+      navigate({ to: "/", search: (s) => ({ ...s, model: row.baseModel }) as never });
+      return;
     }
-    return summary;
-  }, [allModels]);
+    if (groupBy === "prompt") {
+      const firstRun = filtered.find((r) => r.prompt_name === row.key);
+      if (firstRun) {
+        navigate({ to: "/run/$model/$name", params: { model: firstRun.model, name: firstRun.prompt_name } });
+      }
+      return;
+    }
+    const patch: Record<string, string> =
+      groupBy === "tag" ? { tags: row.key } :
+      groupBy === "category" ? { category: row.key } : {};
+    navigate({ to: "/", search: (s) => ({ ...s, ...patch }) as never });
+  };
 
-  const filteredData = useMemo(
-    () => bestData.filter((d) => checkedModels.has(d.model)),
-    [bestData, checkedModels],
-  );
+  const closePanel = () =>
+    navigate({ to: "/", search: (s) => { const { model: _, ...rest } = s as Record<string, unknown>; return rest as never; } });
 
   return (
-    <>
-      <div className="header">Benchmark Analysis</div>
-      <FamilyFilter
-        families={allFamilies}
-        familyMap={familyMap}
-        checkedModels={checkedModels}
-        onChange={handleFamilyToggle}
-      />
-      <SizeFilter
-        allModels={allModels}
-        checkedModels={checkedModels}
-        onChange={handleFamilyToggle}
-      />
-      <ModelSelector
-        allModels={allModels}
-        checkedModels={checkedModels}
-        onChange={handleModelChange}
-        onSelectAll={handleSelectAll}
-      />
-      <div className="content">
-        <div className="summary-charts">
-          <ScatterPlot data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} bestQuantMap={bestQMap} quantSummary={allQuantSummary} />
-          <Leaderboard data={filteredData} hoveredModel={hoveredModel} onHoverModel={setHoveredModel} bestQuantMap={bestQMap} quantSummary={allQuantSummary} />
-        </div>
-        <div className="heatmaps-scroll">
-          <div className="heatmaps-row">
-            {runtimes.map((rt, idx) => (
-              <HeatmapTable
-                key={rt}
-                data={bestData}
-                runtime={rt}
-                allModels={allModels}
-                allCategories={allCategories}
-                allTiers={allTiers}
-                checkedModels={checkedModels}
-                showModelNames={idx === 0}
-                onCellClick={setSelectedCell}
-                bestQuantMap={bestQMap}
-              />
-            ))}
-          </div>
-        </div>
-        <DetailPanel selection={selectedCell} data={DATA} />
-      </div>
-    </>
+    <div className="app">
+      <header className="app-header">
+        <h1>Benchmark Analysis</h1>
+        <div className="app-subtitle">{DATA.length} runs · {allValues.tags.length} tags · {allValues.runtimes.length} runtimes</div>
+      </header>
+      <FilterBar allValues={allValues} />
+      <Scatter data={filtered} />
+      <ResultTable rows={rows} sortKey={sortKey} onSortChange={setSortKey} onRowClick={handleRowClick} />
+      {panelModel !== undefined && panelModel !== "" && (
+        <ModelDetailPanel model={panelModel} data={DATA} onClose={closePanel} />
+      )}
+    </div>
   );
 }

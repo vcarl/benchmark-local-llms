@@ -1,0 +1,31 @@
+{
+  "name": "llm-bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LLM benchmarking system (Effect-TS rewrite)",
+  "scripts": {
+    "lint": "biome check src/ && bash scripts/lint-strict.sh",
+    "lint:fix": "biome check --write src/",
+    "format": "biome format --write src/",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.12",
+    "@types/node": "^25.6.0",
+    "husky": "^9.1.7",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.75.0",
+    "@effect/platform": "^0.96.0",
+    "@effect/platform-node": "^0.106.0",
+    "effect": "^3.21.0",
+    "yaml": "^2.8.3"
+  }
+}

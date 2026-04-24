@@ -1,0 +1,13 @@
+name: effect_error_class
+category: effect-ts
+tier: 1
+system: direct
+prompt: In Effect-TS, what base class do you extend to create a tagged error type? Reply with just the class name and module, like `Module.ClassName`.
+scorer: constraint
+constraints:
+- name: says Data.TaggedError
+  check: regex
+  pattern: (?i)Data\.TaggedError
+tags:
+  - TODO
+  - code-synthesis

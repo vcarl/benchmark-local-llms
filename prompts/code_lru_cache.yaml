@@ -1,0 +1,14 @@
+name: code_lru_cache
+category: code
+tier: 3
+system: code_direct
+prompt: |-
+  Write a Python class `LRUCache` with:
+  - `__init__(self, capacity: int)` — max number of items
+  - `get(self, key: int) -> int` — return value or -1 if not found
+  - `put(self, key: int, value: int)` — insert/update, evict LRU if at capacity
+scorer: code_exec
+testFile: code_lru_cache.test.py
+tags:
+  - TODO
+  - code-synthesis

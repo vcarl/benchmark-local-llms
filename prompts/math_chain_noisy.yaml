@@ -1,0 +1,11 @@
+name: math_chain_noisy
+category: math
+tier: 2
+system: noisy
+prompt: My friend told me this puzzle yesterday at the coffee shop (great latte by the way). Start with 5. Double it. Add 7. Triple the result. I think the answer might be 45 but I'm not sure. What number do you get? Reply with just the number.
+scorer: exact_match
+expected: '51'
+extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

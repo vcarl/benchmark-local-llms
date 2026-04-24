@@ -1,0 +1,16 @@
+name: constraint_no_letter_e_direct
+category: constraint
+tier: 1
+system: structured
+prompt: Write a sentence about a cat. The sentence must NOT contain the letter 'e' anywhere.
+scorer: constraint
+constraints:
+- name: no letter e
+  check: not_contains_char
+  char: e
+- name: is a sentence
+  check: min_length
+  length: 10
+tags:
+  - TODO
+  - instruction-following

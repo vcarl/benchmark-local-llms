@@ -1,0 +1,19 @@
+name: constraint_no_letter_e_adversarial
+category: constraint
+tier: 2
+system: structured
+prompt: Write exactly 3 sentences about cooking dinner. None of the sentences may contain the letter 'e'. Number each sentence 1-3.
+scorer: constraint
+constraints:
+- name: no letter e
+  check: not_contains_char
+  char: e
+- name: has 3 lines
+  check: numbered_line_exists
+  line: 3
+- name: long enough
+  check: min_length
+  length: 40
+tags:
+  - TODO
+  - instruction-following

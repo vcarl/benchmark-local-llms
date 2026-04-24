@@ -1,0 +1,23 @@
+name: effect_service_3_parts_structured
+category: effect-ts
+tier: 3
+system: structured
+prompt: |-
+  In Effect-TS, a service has three parts. Name them in order.
+  Reply as JSON: {"parts": ["first", "second", "third"]}
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: mentions interface
+  check: regex
+  pattern: (?i)interface
+- name: mentions tag
+  check: regex
+  pattern: (?i)tag
+- name: mentions implementation or layer
+  check: regex
+  pattern: (?i)(implement|layer|live)
+tags:
+  - TODO
+  - code-synthesis

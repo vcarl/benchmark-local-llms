@@ -1,0 +1,19 @@
+name: effect_type_params
+category: effect-ts
+tier: 1
+system: direct
+prompt: 'In Effect-TS, the type `Effect.Effect<A, E, R>` has three type parameters. What do A, E, and R represent? Reply with exactly three short phrases, one per line, in order: A, E, R.'
+scorer: constraint
+constraints:
+- name: mentions success/value for A
+  check: regex
+  pattern: (?i)(success|result|value|output|return)
+- name: mentions error for E
+  check: regex
+  pattern: (?i)(error|fail)
+- name: mentions requirements/dependencies/context for R
+  check: regex
+  pattern: (?i)(require|depend|context|service|environment)
+tags:
+  - TODO
+  - code-synthesis

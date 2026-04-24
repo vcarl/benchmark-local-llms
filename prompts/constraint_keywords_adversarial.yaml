@@ -1,0 +1,25 @@
+name: constraint_keywords_adversarial
+category: constraint
+tier: 2
+system: structured
+prompt: 'Write one paragraph about the ocean. You MUST include ALL of these words: ''current'', ''pressure'', ''salinity'', ''bioluminescence'', and ''trench''. Do not use any word more than once.'
+scorer: constraint
+constraints:
+- name: contains 'current'
+  check: contains
+  value: current
+- name: contains 'pressure'
+  check: contains
+  value: pressure
+- name: contains 'salinity'
+  check: contains
+  value: salinity
+- name: contains 'bioluminescence'
+  check: contains
+  value: bioluminescence
+- name: contains 'trench'
+  check: contains
+  value: trench
+tags:
+  - TODO
+  - instruction-following

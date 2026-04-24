@@ -1,15 +1,18 @@
 name: refuel_loop
 fixture: benchmark
-scenario_md: bench-refuel-loop.md
+scenarioMd: refuel_loop.md
 players:
   - id: bench_rookie
-    controlled_by: llm
+    controlledBy: llm
 scorer: refuel_loop
-scorer_params: {}
+scorerParams: {}
 tier: 1
 cutoffs:
-  wall_clock_sec: 300
-  total_tokens: 100000
-  tool_calls: 100
-commander:
-  max_turns: 100
+  wallClockSec: 300
+  totalTokens: 100000
+  toolCalls: 100
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - resource-management

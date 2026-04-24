@@ -1,0 +1,11 @@
+name: math_multiply_direct
+category: math
+tier: 1
+system: direct
+prompt: What is 47 * 89? Reply with just the number.
+scorer: exact_match
+expected: '4183'
+extract: (\d[\d,]*)
+tags:
+  - TODO
+  - math-reasoning

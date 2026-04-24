@@ -1,0 +1,13 @@
+name: constraint_haiku
+category: constraint
+tier: 1
+system: direct
+prompt: "Write a haiku."
+scorer: constraint
+constraints:
+  - name: three_lines
+    check: line_count
+    count: 3
+  - name: no_emoji
+    check: not_contains_char
+    char: "😀"

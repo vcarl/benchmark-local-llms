@@ -1,0 +1,21 @@
+name: code_fibonacci_docstring
+category: code
+tier: 2
+system: code_docstring
+prompt: |-
+  Complete this function:
+
+  ```python
+  def fibonacci(n: int) -> int:
+      """Return the nth Fibonacci number.
+
+      fibonacci(0) = 0
+      fibonacci(1) = 1
+      fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)
+      """
+  ```
+scorer: code_exec
+testFile: code_fibonacci.test.py
+tags:
+  - TODO
+  - code-synthesis

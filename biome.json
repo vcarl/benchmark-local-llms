@@ -1,0 +1,60 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/webapp",
+      "!**/benchmark-archive",
+      "!**/benchmark-execution",
+      "!**/benchmark-results",
+      "!**/.superpowers",
+      "!**/.claude",
+      "!**/.husky",
+      "!**/prompts"
+    ]
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConfusingVoidType": "error",
+        "noFallthroughSwitchClause": "error",
+        "noImplicitAnyLet": "error",
+        "noAssignInExpressions": "error",
+        "noVar": "error"
+      },
+      "complexity": {
+        "noBannedTypes": "error",
+        "noUselessTypeConstraint": "error",
+        "noForEach": "error",
+        "useLiteralKeys": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "error",
+        "useConst": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+name: bootstrap_grind
+fixture: starter_city
+scorer: gold_threshold
+scorerParams:
+  threshold: 100
+players:
+  - id: agent1
+    controlledBy: llm
+  - id: npc1
+    controlledBy: npc
+cutoffs:
+  wallClockSec: 600
+  totalTokens: 50000
+  toolCalls: 100
+tier: 2
+scenarioMd: bootstrap_grind.md
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - resource-management

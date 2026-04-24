@@ -1,0 +1,11 @@
+name: fact_planck
+category: factual
+tier: 3
+system: direct
+prompt: What is Planck's constant in units of 10^-34 J·s, rounded to 2 decimal places? Reply with just the number (e.g. 6.63).
+scorer: exact_match
+expected: '6.63'
+extract: (\d+\.\d+)
+tags:
+  - TODO
+  - factual-recall

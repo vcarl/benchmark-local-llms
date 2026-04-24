@@ -1,0 +1,22 @@
+name: effect_queue_operations_structured
+category: effect-ts
+tier: 3
+system: structured
+prompt: |-
+  In Effect-TS, a Queue supports producer/consumer patterns.
+  What function does a producer use to add an item?
+  What function does a consumer use to take an item (blocking)?
+  Reply as JSON: {"offer": "Queue.xxx", "take": "Queue.xxx"}
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: offer function
+  check: regex
+  pattern: (?i)"offer"\s*:\s*"Queue\.offer"
+- name: take function
+  check: regex
+  pattern: (?i)"take"\s*:\s*"Queue\.take"
+tags:
+  - TODO
+  - code-synthesis

@@ -1,0 +1,10 @@
+- artifact: mlx-community/Qwen3-32B-4bit
+  runtime: mlx
+- artifact: Qwen/Qwen3-32B-GGUF
+  runtime: llamacpp
+  ctxSize: 16384
+  scenarioCtxSize: 32768
+- artifact: mlx-community/DeepSeek-Coder-33B-Instruct-4bit
+  runtime: mlx
+  name: DeepSeek Coder 33B
+  active: false

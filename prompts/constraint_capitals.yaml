@@ -1,0 +1,17 @@
+name: constraint_capitals
+category: constraint
+tier: 1
+system: structured
+prompt: List exactly 5 US state capitals, one per line, numbered 1 through 5.
+scorer: constraint
+constraints:
+- name: has 5 numbered lines
+  check: numbered_lines
+  from: 1
+  to: 5
+- name: has no 6th item
+  check: no_numbered_line
+  line: 6
+tags:
+  - TODO
+  - instruction-following
