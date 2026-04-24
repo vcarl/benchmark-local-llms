@@ -36,15 +36,46 @@ const M = { top: 20, right: 24, bottom: 50, left: 60 };
 const IW = W - M.left - M.right;
 const IH = H - M.top - M.bottom;
 
-const X_MIN = 100;
-const X_MAX = 100000;
-
-const xScale = (v: number): number => {
-  const clamped = Math.max(v, X_MIN);
-  return M.left + ((Math.log10(clamped) - Math.log10(X_MIN)) / (Math.log10(X_MAX) - Math.log10(X_MIN))) * IW;
-};
 const yScale = (v: number): number => M.top + (1 - v / 100) * IH;
 const rScale = (mem: number): number => 6 + Math.sqrt(Math.max(mem, 0)) * 2.4;
+
+interface XDomain {
+  min: number;
+  max: number;
+  ticks: number[];
+}
+
+const FALLBACK_DOMAIN: XDomain = { min: 100, max: 100000, ticks: [100, 1000, 10000, 100000] };
+
+const computeXDomain = (dots: ScatterDot[]): XDomain => {
+  const values = dots.map((d) => d.tokens).filter((t) => t > 0);
+  if (values.length === 0) return FALLBACK_DOMAIN;
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const minExp = Math.floor(Math.log10(rawMin));
+  const maxExp = Math.ceil(Math.log10(rawMax));
+  const effectiveMaxExp = maxExp === minExp ? minExp + 1 : maxExp;
+  const min = 10 ** minExp;
+  const max = 10 ** effectiveMaxExp;
+  const ticks: number[] = [];
+  for (let e = minExp; e <= effectiveMaxExp; e += 1) {
+    const p = 10 ** e;
+    ticks.push(p);
+    if (e < effectiveMaxExp) ticks.push(3 * p);
+  }
+  return { min, max, ticks };
+};
+
+const xScaleFor = (domain: XDomain) => (v: number): number => {
+  const clamped = Math.max(Math.min(v, domain.max), domain.min);
+  return M.left + ((Math.log10(clamped) - Math.log10(domain.min)) / (Math.log10(domain.max) - Math.log10(domain.min))) * IW;
+};
+
+const formatTick = (v: number): string => {
+  if (v >= 1_000_000) return `${v / 1_000_000}M`;
+  if (v >= 1_000) return `${v / 1_000}k`;
+  return String(v);
+};
 
 const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: number): string => {
   let d = "";
@@ -58,11 +89,12 @@ const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: num
   return `${d}Z`;
 };
 
-const xTicks = [100, 300, 1000, 3000, 10000, 30000, 100000];
 const yTicks = [0, 20, 40, 60, 80, 100];
 
 export function Scatter({ data }: Props) {
   const dots = useMemo(() => aggregateForScatter(data), [data]);
+  const xDomain = useMemo(() => computeXDomain(dots), [dots]);
+  const xScale = useMemo(() => xScaleFor(xDomain), [xDomain]);
   const hovered = useHoveredModel();
   const [tip, setTip] = useState<{ dot: ScatterDot; x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -117,11 +149,11 @@ export function Scatter({ data }: Props) {
             <text className="scatter-tick" x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{v}%</text>
           </g>
         ))}
-        {xTicks.map((v) => (
+        {xDomain.ticks.map((v) => (
           <g key={`x${v}`}>
             <line className="scatter-grid" x1={xScale(v)} x2={xScale(v)} y1={M.top} y2={M.top + IH} />
             <text className="scatter-tick" x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">
-              {v >= 1000 ? `${v / 1000}k` : v}
+              {formatTick(v)}
             </text>
           </g>
         ))}
