@@ -36,8 +36,8 @@ const M = { top: 20, right: 24, bottom: 50, left: 60 };
 const IW = W - M.left - M.right;
 const IH = H - M.top - M.bottom;
 
-const X_MIN = 500;
-const X_MAX = 32000;
+const X_MIN = 100;
+const X_MAX = 100000;
 
 const xScale = (v: number): number => {
   const clamped = Math.max(v, X_MIN);
@@ -58,7 +58,7 @@ const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: num
   return `${d}Z`;
 };
 
-const xTicks = [500, 1000, 2000, 5000, 10000, 20000];
+const xTicks = [100, 300, 1000, 3000, 10000, 30000, 100000];
 const yTicks = [0, 20, 40, 60, 80, 100];
 
 export function Scatter({ data }: Props) {
