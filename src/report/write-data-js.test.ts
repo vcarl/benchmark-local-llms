@@ -39,17 +39,17 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
 describe("formatDataJs", () => {
   it("emits the exact webapp-loadable shape", () => {
     const out = formatDataJs([record()]);
-    expect(out.startsWith("window.__BENCHMARK_DATA = ")).toBe(true);
+    expect(out.startsWith("globalThis.__BENCHMARK_DATA = ")).toBe(true);
     expect(out.endsWith(";\n")).toBe(true);
     // parse the JSON portion to verify shape
-    const jsonPart = out.slice("window.__BENCHMARK_DATA = ".length, -2);
+    const jsonPart = out.slice("globalThis.__BENCHMARK_DATA = ".length, -2);
     const parsed = JSON.parse(jsonPart) as WebappRecord[];
     expect(parsed).toHaveLength(1);
     expect(parsed[0]?.model).toBe("Test");
   });
 
   it("produces an empty-array file for no records", () => {
-    expect(formatDataJs([])).toBe("window.__BENCHMARK_DATA = [];\n");
+    expect(formatDataJs([])).toBe("globalThis.__BENCHMARK_DATA = [];\n");
   });
 
   it("uses no indentation (single-line JSON)", () => {
@@ -78,10 +78,10 @@ describe("writeDataJs", () => {
     );
     expect(exit._tag).toBe("Success");
     const written = readFileSync(outputPath, "utf-8");
-    expect(written).toMatch(/^window\.__BENCHMARK_DATA = \[/);
+    expect(written).toMatch(/^globalThis\.__BENCHMARK_DATA = \[/);
     expect(written.endsWith(";\n")).toBe(true);
     // round-trip parse
-    const body = written.slice("window.__BENCHMARK_DATA = ".length, -2);
+    const body = written.slice("globalThis.__BENCHMARK_DATA = ".length, -2);
     const parsed = JSON.parse(body) as WebappRecord[];
     expect(parsed[0]?.prompt_name).toBe("hello");
   });

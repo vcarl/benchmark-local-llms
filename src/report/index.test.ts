@@ -48,9 +48,9 @@ describe("runReport (integration)", () => {
 
     // Read the written file and verify shape
     const written = readFileSync(outputPath, "utf-8");
-    expect(written.startsWith("window.__BENCHMARK_DATA = ")).toBe(true);
+    expect(written.startsWith("globalThis.__BENCHMARK_DATA = ")).toBe(true);
     expect(written.endsWith(";\n")).toBe(true);
-    const body = written.slice("window.__BENCHMARK_DATA = ".length, -2);
+    const body = written.slice("globalThis.__BENCHMARK_DATA = ".length, -2);
     const parsed = JSON.parse(body) as WebappRecord[];
     expect(parsed).toHaveLength(2);
 

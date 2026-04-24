@@ -28,7 +28,7 @@ import type {
 import type { Score } from "../scoring/score-result.js";
 
 /**
- * Shape of one record in `window.__BENCHMARK_DATA`. Field names are
+ * Shape of one record in `globalThis.__BENCHMARK_DATA`. Field names are
  * snake_case to match the Python prototype's JSON serialization exactly,
  * which is what the webapp's `BenchmarkResult` interface expects.
  *

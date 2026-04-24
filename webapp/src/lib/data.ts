@@ -34,9 +34,8 @@ export interface BenchmarkResult {
 }
 
 declare global {
-  interface Window {
-    __BENCHMARK_DATA?: unknown[];
-  }
+  // biome-ignore lint/style/noVar: augmenting globalThis requires `var`
+  var __BENCHMARK_DATA: unknown[] | undefined;
 }
 
 // Defensive normalization: old data.js files produced before the scenario-first
@@ -69,10 +68,9 @@ export const normalizeRecord = (raw: Partial<BenchmarkResult>): BenchmarkResult 
   events: raw.events ?? null,
 });
 
-export let DATA: BenchmarkResult[] =
-  typeof window !== "undefined" && window.__BENCHMARK_DATA
-    ? (window.__BENCHMARK_DATA as Partial<BenchmarkResult>[]).map(normalizeRecord)
-    : [];
+export let DATA: BenchmarkResult[] = globalThis.__BENCHMARK_DATA
+  ? (globalThis.__BENCHMARK_DATA as Partial<BenchmarkResult>[]).map(normalizeRecord)
+  : [];
 
 export function setData(data: BenchmarkResult[]) {
   DATA = data;

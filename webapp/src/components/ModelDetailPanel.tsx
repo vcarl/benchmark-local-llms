@@ -81,10 +81,10 @@ export function ModelDetailPanel({ model, data, onClose }: Props) {
             <button className={tab === "prompts" ? "active" : ""} onClick={() => setTab("prompts")}>Prompts</button>
             <button className={tab === "scenarios" ? "active" : ""} onClick={() => setTab("scenarios")}>Scenarios</button>
           </div>
-          <div className="panel-runs">
+          <div className="panel-runs" key={tab}>
             {filtered.map((r) => (
               <button
-                key={r.prompt_name + r.temperature}
+                key={`${r.prompt_name}·${r.temperature}·${r.quant}·${r.runtime}`}
                 className="panel-run"
                 onClick={() => navigate({ to: "/run/$model/$name", params: { model, name: r.prompt_name } })}
               >

@@ -1,9 +1,12 @@
 /**
  * Write the webapp's data file as a `<script>`-loadable global assignment
- * (§10.3). The webapp loads `webapp/src/data/data.js` as a plain `<script>`,
- * not as a module — so the file is literally:
+ * (§10.3). The webapp loads `webapp/src/data/data.js` as a plain `<script>`
+ * for the static report bundle and as a side-effect import for the dev
+ * server. The file assigns to `globalThis` rather than `window` so it
+ * evaluates cleanly in Node SSR contexts (TanStack Start prerender) where
+ * `window` is undefined.
  *
- *     window.__BENCHMARK_DATA = [{...}, {...}, ...];\n
+ *     globalThis.__BENCHMARK_DATA = [{...}, {...}, ...];\n
  *
  * No module export, no indentation in the JSON body (matches Python
  * prototype's `json.dumps` with no `indent` — a single compact line).
@@ -24,13 +27,13 @@ const toFileIOError =
     new FileIOError({ path: filePath, operation, cause: String(cause) });
 
 /**
- * Serialize records to the `window.__BENCHMARK_DATA = [...];` form.
+ * Serialize records to the `globalThis.__BENCHMARK_DATA = [...];` form.
  * Exported for test assertions (it's easier to parse back the JSON portion
  * from a unit test than to read+diff whole files).
  */
 export const formatDataJs = (records: ReadonlyArray<WebappRecord>): string => {
   const json = JSON.stringify(records);
-  return `window.__BENCHMARK_DATA = ${json};\n`;
+  return `globalThis.__BENCHMARK_DATA = ${json};\n`;
 };
 
 /**

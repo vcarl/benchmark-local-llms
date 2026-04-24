@@ -3,8 +3,8 @@ const KEY = "llm-bench.presets";
 export type PresetStore = Record<string, string>;
 
 export const DEFAULT_PRESETS: PresetStore = {
-  "Task-first: agentic tier 3":
-    "tags=long-term-planning,tool-use&tier=3&groupBy=model&sort=-meanScore",
+  "Task-first: agentic":
+    "tags=long-term-planning,tool-use&groupBy=model&sort=-meanScore",
   "Model-first: all":
     "groupBy=model&sort=-meanScore",
   "Capability leaderboard":
