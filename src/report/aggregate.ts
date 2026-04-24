@@ -129,7 +129,14 @@ export const aggregateArchive = (
         result.error !== null && result.error.length > 0
           ? errorScore(result)
           : yield* safeScore(result, entry);
-      records.push(toWebappRecord(result, entry, score));
+      const currentTagsEntry =
+        result.scenarioName !== null
+          ? options.currentScenarioCorpus?.[result.promptName]
+          : options.currentPromptCorpus?.[result.promptName];
+      const base = toWebappRecord(result, entry, score);
+      records.push(
+        currentTagsEntry !== undefined ? { ...base, tags: currentTagsEntry.tags ?? [] } : base,
+      );
     }
     return { records, unmatched };
   });

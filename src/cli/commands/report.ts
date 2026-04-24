@@ -14,6 +14,7 @@ import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { runReport } from "../../report/index.js";
+import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../../schema/index.js";
 import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
 
@@ -54,12 +55,14 @@ export const reportCommand = Command.make(
         SystemPromptRegistry,
         loadSystemPrompts(systemPromptsPath(args.promptsDir)),
       );
-      const currentPromptCorpus = useCurrent
-        ? yield* loadPromptCorpus(args.promptsDir).pipe(Effect.provide(registry))
-        : undefined;
-      const currentScenarioCorpus = useCurrent
-        ? yield* loadScenarioCorpus(scenariosSubdir(args.promptsDir))
-        : undefined;
+      const loadPrompts = loadPromptCorpus(args.promptsDir).pipe(Effect.provide(registry));
+      const loadScenarios = loadScenarioCorpus(scenariosSubdir(args.promptsDir));
+      const currentPromptCorpus: ReadonlyArray<PromptCorpusEntry> | undefined = useCurrent
+        ? yield* loadPrompts
+        : yield* loadPrompts.pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+      const currentScenarioCorpus: ReadonlyArray<ScenarioCorpusEntry> | undefined = useCurrent
+        ? yield* loadScenarios
+        : yield* loadScenarios.pipe(Effect.catchAll(() => Effect.succeed(undefined)));
 
       const summary = yield* runReport({
         archiveDir: args.archiveDir,

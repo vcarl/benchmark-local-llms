@@ -22,6 +22,9 @@ export function ResultRow({ row, rank, onClick }: Props) {
   const [capTip, setCapTip] = useState<{ x: number; y: number } | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const rowColor = familyColor(row.family);
+  const maxVariantTokens = Math.max(1, ...row.variants.map((v) => v.tokens));
+  const anyBrokenTokens = row.variants.some((v) => v.tokens === 0 && v.score > 0);
+  const brokenTitle = "Some variants ran without recording token counts — aggregate is unreliable.";
 
   const handleMouseEnter = () => {
     if (row.baseModel !== null) setHoveredModel(row.baseModel);
@@ -50,19 +53,30 @@ export function ResultRow({ row, rank, onClick }: Props) {
         <div className={`result-score cap-${scoreBand(row.bestScore / 100)}`}>
           {row.bestScore.toFixed(0)}%
         </div>
-        <div className="result-efficiency">{row.efficiency} tok/pt</div>
+        <div
+          className={`result-efficiency${anyBrokenTokens ? " result-efficiency--broken" : ""}`}
+          title={anyBrokenTokens ? brokenTitle : undefined}
+        >
+          {row.efficiency} tok/pt
+        </div>
       </div>
 
       <div className="result-variants">
         {row.variants.map((v, i) => {
           const opacity = 0.55 + 0.45 * (1 - i / Math.max(1, row.variants.length - 1));
+          const tokenPct = Math.max(0, Math.min(100, (v.tokens / maxVariantTokens) * 100));
+          const variantTitle = `${Math.round(v.tokens).toLocaleString()} tokens/run`;
           return (
             <div key={`${v.runtime}|${v.quant}|${v.temperature}`} className="result-variant">
               <span className="result-variant-label">{abbrevRuntime(v.runtime)} {v.quant} t{v.temperature}</span>
-              <span className="result-variant-track">
+              <span className="result-variant-track" title={variantTitle}>
                 <span
                   className="result-variant-fill"
                   style={{ width: `${Math.max(0, Math.min(100, v.score))}%`, background: rowColor, opacity }}
+                />
+                <span
+                  className="result-variant-tokens"
+                  style={{ width: `${tokenPct}%`, background: rowColor, opacity: opacity * 0.5 }}
                 />
               </span>
               <span className="result-variant-score">{v.score.toFixed(0)}%</span>
@@ -102,7 +116,10 @@ export function ResultRow({ row, rank, onClick }: Props) {
         <span className="result-numeric-sub">{row.bestVariant.quant}</span>
       </div>
 
-      <div className="result-numeric">
+      <div
+        className={`result-numeric${anyBrokenTokens ? " result-numeric--broken" : ""}`}
+        title={anyBrokenTokens ? brokenTitle : undefined}
+      >
         <span>{Math.round(row.avgTokens).toLocaleString()}</span>
         <span className="result-numeric-sub">avg/run</span>
       </div>

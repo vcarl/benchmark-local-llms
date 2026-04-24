@@ -111,6 +111,73 @@ describe("aggregateArchive: as-run mode", () => {
   });
 });
 
+describe("aggregateArchive: tag backfill", () => {
+  it("overlays tags from currentPromptCorpus while preserving as-run scoring", async () => {
+    const manifest = fixtureManifest({
+      prompts: [fixturePrompt()],
+    });
+    const result = fixtureResult({ output: "the answer is 4183" });
+    const fresh = { ...fixturePrompt(), tags: ["math-reasoning", "arithmetic"] };
+
+    const out = await Effect.runPromise(
+      aggregateArchive(
+        { manifest, results: [result] },
+        {
+          scoringMode: "as-run",
+          currentPromptCorpus: { p1: fresh },
+        },
+      ).pipe(Effect.provide(NodeContext.layer)),
+    );
+    const rec = out.records[0];
+    expect(rec).toBeDefined();
+    if (rec === undefined) return;
+    expect(rec.score).toBe(1);
+    expect(rec.tags).toEqual(["math-reasoning", "arithmetic"]);
+  });
+
+  it("overlays tags from currentScenarioCorpus for scenario records", async () => {
+    const manifest = fixtureManifest({ scenarios: [fixtureScenario()] });
+    const result = fixtureResult({
+      promptName: "s1",
+      scenarioName: "s1",
+      finalPlayerStats: { stats: {} },
+      events: [],
+    });
+    const fresh = { ...fixtureScenario(), tags: ["long-term-planning"] };
+
+    const out = await Effect.runPromise(
+      aggregateArchive(
+        { manifest, results: [result] },
+        {
+          scoringMode: "as-run",
+          currentScenarioCorpus: { s1: fresh },
+        },
+      ).pipe(Effect.provide(NodeContext.layer)),
+    );
+    const rec = out.records[0];
+    expect(rec).toBeDefined();
+    if (rec === undefined) return;
+    expect(rec.tags).toEqual(["long-term-planning"]);
+  });
+
+  it("falls back to manifest tags when current corpus entry missing", async () => {
+    const manifest = fixtureManifest({
+      prompts: [{ ...fixturePrompt(), tags: ["manifest-tag"] }],
+    });
+    const result = fixtureResult({ output: "the answer is 4183" });
+    const out = await Effect.runPromise(
+      aggregateArchive(
+        { manifest, results: [result] },
+        { scoringMode: "as-run", currentPromptCorpus: {} },
+      ).pipe(Effect.provide(NodeContext.layer)),
+    );
+    const rec = out.records[0];
+    expect(rec).toBeDefined();
+    if (rec === undefined) return;
+    expect(rec.tags).toEqual(["manifest-tag"]);
+  });
+});
+
 describe("aggregateArchive: current mode", () => {
   it("uses the supplied current corpus, ignoring manifest embedding", async () => {
     // Manifest has an exact_match scorer expecting "4183"
