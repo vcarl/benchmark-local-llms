@@ -13,10 +13,24 @@ import { Effect, Layer } from "effect";
 import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
+import { FileIOError } from "../../errors/index.js";
 import { runReport } from "../../report/index.js";
 import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../../schema/index.js";
 import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
+
+/**
+ * True when a {@link FileIOError} indicates the archive directory itself is
+ * missing (rather than a per-file load failure). The archive-dir read is the
+ * first filesystem op `runReport` performs; ENOENT / NotFound here usually
+ * means the operator hasn't run `./bench migrate` yet.
+ */
+export const isMissingArchiveDirError = (err: FileIOError): boolean =>
+  err.operation === "read-archive-dir" && /ENOENT|NotFound/i.test(String(err.cause));
+
+export const missingArchiveDirHint = (archiveDir: string): string =>
+  `No archive directory at '${archiveDir}'. Run './bench migrate' to create ` +
+  "archives from benchmark-execution/, or pass --archive-dir to point at an existing directory.";
 
 const archiveDir = Options.directory("archive-dir").pipe(
   Options.withDescription("Archive directory to scan"),
@@ -70,7 +84,13 @@ export const reportCommand = Command.make(
         scoringMode: args.scoring,
         ...(currentPromptCorpus !== undefined ? { currentPromptCorpus } : {}),
         ...(currentScenarioCorpus !== undefined ? { currentScenarioCorpus } : {}),
-      });
+      }).pipe(
+        Effect.tapError((err) =>
+          err instanceof FileIOError && isMissingArchiveDirError(err)
+            ? Effect.logError(missingArchiveDirHint(args.archiveDir))
+            : Effect.void,
+        ),
+      );
 
       yield* Effect.logInfo(
         `report: wrote ${summary.recordCount} records from ${summary.archivesLoaded} archives → ${summary.outputPath}`,

@@ -25,4 +25,16 @@ describe("FileIOError", () => {
     expect(e._tag).toBe("FileIOError");
     expect(e.operation).toBe("write");
   });
+
+  it("renders operation, path, and cause in its message", () => {
+    const e = new FileIOError({
+      path: "./benchmark-archive",
+      operation: "read-archive-dir",
+      cause: "ENOENT: no such file or directory",
+    });
+    expect(e.message).toBe(
+      "read-archive-dir failed on './benchmark-archive': ENOENT: no such file or directory",
+    );
+    expect(String(e)).toContain("read-archive-dir failed on './benchmark-archive'");
+  });
 });

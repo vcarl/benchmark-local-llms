@@ -26,4 +26,8 @@ export class FileIOError extends Data.TaggedError("FileIOError")<{
   readonly path: string;
   readonly operation: string;
   readonly cause: unknown;
-}> {}
+}> {
+  override get message(): string {
+    return `${this.operation} failed on '${this.path}': ${String(this.cause)}`;
+  }
+}
