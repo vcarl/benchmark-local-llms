@@ -158,3 +158,66 @@ export const sortRows = (rows: Row[], sort: Sort): Row[] => {
   });
   return copy;
 };
+
+export interface ScatterDot {
+  baseModel: string;
+  family: string;
+  runtime: string;
+  quant: string;
+  temperature: number;
+  executedAt: string;
+  score: number;       // 0..100 (mean * 100)
+  tokens: number;      // mean (prompt_tokens + generation_tokens)
+  mem: number;         // max peak_memory_gb, with fallback to sibling variants
+}
+
+export const starPointsForTokens = (tokens: number): number => {
+  const t = Math.max(tokens, 500);
+  const n = 6 + Math.floor(Math.log2(t / 500) * 2.4);
+  return Math.max(6, Math.min(18, n));
+};
+
+export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
+  const key = (r: BenchmarkResult) => `${r.model}|${r.runtime}|${r.quant}|${r.temperature}`;
+  const groups = new Map<string, BenchmarkResult[]>();
+  for (const r of data) {
+    const k = key(r);
+    const arr = groups.get(k);
+    if (arr) arr.push(r);
+    else groups.set(k, [r]);
+  }
+
+  const memByBaseModel = new Map<string, number>();
+  for (const r of data) {
+    const existing = memByBaseModel.get(r.model) ?? 0;
+    if (r.peak_memory_gb > existing) memByBaseModel.set(r.model, r.peak_memory_gb);
+  }
+
+  const dots: ScatterDot[] = [];
+  for (const [, runs] of groups) {
+    const first = runs[0];
+    if (first === undefined) continue;
+    const n = runs.length;
+    const meanScore = runs.reduce((s, r) => s + r.score, 0) / n;
+    const meanTokens = runs.reduce((s, r) => s + (r.prompt_tokens + r.generation_tokens), 0) / n;
+    const variantMem = runs.reduce((m, r) => Math.max(m, r.peak_memory_gb), 0);
+    const mem = variantMem > 0 ? variantMem : (memByBaseModel.get(first.model) ?? 0);
+    if (mem <= 0) continue;
+    const executedAt = runs.reduce(
+      (min, r) => (r.executed_at !== "" && (min === "" || r.executed_at < min) ? r.executed_at : min),
+      "",
+    );
+    dots.push({
+      baseModel: first.model,
+      family: modelFamily(first.model),
+      runtime: first.runtime,
+      quant: first.quant,
+      temperature: first.temperature,
+      executedAt,
+      score: meanScore * 100,
+      tokens: meanTokens,
+      mem,
+    });
+  }
+  return dots;
+};

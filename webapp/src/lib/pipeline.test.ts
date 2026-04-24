@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregate,
+  aggregateForScatter,
   applyFilters,
   groupRows,
-  aggregate,
   sortRows,
+  starPointsForTokens,
   type Filters,
   type GroupBy,
 } from "./pipeline";
@@ -99,5 +101,104 @@ describe("sortRows", () => {
     ];
     const out = sortRows(rows as never, { field: "meanScore", dir: "desc" });
     expect(out[0].key).toBe("b");
+  });
+});
+
+describe("starPointsForTokens", () => {
+  it("returns 6 at 500 tokens", () => {
+    expect(starPointsForTokens(500)).toBe(6);
+  });
+  it("returns 6 below 500 tokens (clamped)", () => {
+    expect(starPointsForTokens(100)).toBe(6);
+  });
+  it("returns 8 at 1000 tokens", () => {
+    expect(starPointsForTokens(1000)).toBe(8);
+  });
+  it("returns 10 at 2000 tokens", () => {
+    expect(starPointsForTokens(2000)).toBe(10);
+  });
+  it("returns 13 at 4000 tokens", () => {
+    expect(starPointsForTokens(4000)).toBe(13);
+  });
+  it("returns 15 at 8000 tokens", () => {
+    expect(starPointsForTokens(8000)).toBe(15);
+  });
+  it("returns 18 at 16000 tokens", () => {
+    expect(starPointsForTokens(16000)).toBe(18);
+  });
+  it("clamps to 18 at very high token counts", () => {
+    expect(starPointsForTokens(200000)).toBe(18);
+  });
+});
+
+describe("aggregateForScatter", () => {
+  const baseRec = (over: Partial<BenchmarkResult>): BenchmarkResult => ({
+    model: "llama-3.1-8b", runtime: "llamacpp", quant: "q8",
+    prompt_name: "p1", category: "c", tier: 1, temperature: 0,
+    tags: [], is_scenario: false, score: 0.7, score_details: "",
+    prompt_tokens: 100, generation_tokens: 400, prompt_tps: 0, generation_tps: 0,
+    wall_time_sec: 0, peak_memory_gb: 8.5, output: "", prompt_text: "",
+    scenario_name: null, termination_reason: null, tool_call_count: null,
+    final_player_stats: null, events: null,
+    executed_at: "2026-04-01T00:00:00Z", ...over,
+  });
+
+  it("one dot per (model, runtime, quant, temperature) combo", () => {
+    const data = [
+      baseRec({ score: 0.7 }),
+      baseRec({ score: 0.8 }), // same variant → same dot
+      baseRec({ runtime: "mlx", score: 0.6 }),
+      baseRec({ quant: "q4", score: 0.5 }),
+      baseRec({ temperature: 0.7, score: 0.65 }),
+    ];
+    const dots = aggregateForScatter(data);
+    expect(dots).toHaveLength(4);
+  });
+
+  it("averages score and tokens within a variant", () => {
+    const data = [
+      baseRec({ score: 0.6, prompt_tokens: 100, generation_tokens: 400 }), // 500 total
+      baseRec({ score: 0.8, prompt_tokens: 100, generation_tokens: 600 }), // 700 total
+    ];
+    const [dot] = aggregateForScatter(data);
+    expect(dot.score).toBeCloseTo(70); // (60+80)/2 as percentage
+    expect(dot.tokens).toBe(600); // (500+700)/2
+  });
+
+  it("uses max peak_memory_gb across runs in the variant", () => {
+    const data = [
+      baseRec({ peak_memory_gb: 4.0 }),
+      baseRec({ peak_memory_gb: 8.5 }),
+    ];
+    const [dot] = aggregateForScatter(data);
+    expect(dot.mem).toBe(8.5);
+  });
+
+  it("falls back to sibling-variant memory when a variant lacks it", () => {
+    const data = [
+      baseRec({ runtime: "llamacpp", peak_memory_gb: 8.5 }),
+      baseRec({ runtime: "mlx", peak_memory_gb: 0 }),
+    ];
+    const dots = aggregateForScatter(data);
+    const mlxDot = dots.find((d) => d.runtime === "mlx");
+    expect(mlxDot?.mem).toBe(8.5);
+  });
+
+  it("omits a dot when no variant has memory data for the base model", () => {
+    const data = [
+      baseRec({ runtime: "llamacpp", peak_memory_gb: 0 }),
+      baseRec({ runtime: "mlx", peak_memory_gb: 0 }),
+    ];
+    const dots = aggregateForScatter(data);
+    expect(dots).toHaveLength(0);
+  });
+
+  it("uses earliest executed_at when variant has multiple runs", () => {
+    const data = [
+      baseRec({ executed_at: "2026-04-05T00:00:00Z" }),
+      baseRec({ executed_at: "2026-04-01T00:00:00Z" }),
+    ];
+    const [dot] = aggregateForScatter(data);
+    expect(dot.executedAt).toBe("2026-04-01T00:00:00Z");
   });
 });
