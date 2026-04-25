@@ -6,7 +6,7 @@ models/
 *-backup*/
 benchmark-results/
 webapp/src/data/data.js
-webapp/dist-report/
+.git-gh-pages/
 
 # TypeScript / Node
 node_modules/

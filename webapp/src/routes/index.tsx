@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { DATA, uniqueSorted, modelFamily, modelSizeRange, SIZE_RANGES } from "../lib/data-dev";
+import { DATA, uniqueSorted, modelFamily, modelSizeRange, SIZE_RANGES } from "../lib/data";
 import { FilterBar, parseFilters } from "../components/FilterBar";
 import { ResultTable, type ListSortKey } from "../components/ResultTable";
 import { ModelDetailPanel } from "../components/ModelDetailPanel";

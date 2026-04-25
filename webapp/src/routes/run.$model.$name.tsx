@@ -1,5 +1,5 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { DATA } from "../lib/data-dev";
+import { DATA } from "../lib/data";
 import { RunHeader } from "../components/RunHeader";
 import { PromptView } from "../components/PromptView";
 import { ScenarioView } from "../components/ScenarioView";
