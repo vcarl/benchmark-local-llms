@@ -5,6 +5,7 @@ import { FilterBar, parseFilters } from "../components/FilterBar";
 import { ResultTable, type ListSortKey } from "../components/ResultTable";
 import { ModelDetailPanel } from "../components/ModelDetailPanel";
 import { Scatter } from "../components/Scatter";
+import { ShiftFrame } from "../components/ShiftFrame";
 import type { GroupBy, ListRow } from "../lib/pipeline";
 import { applyFilters, aggregateForList } from "../lib/pipeline";
 
@@ -69,11 +70,13 @@ function HomePage() {
         <div className="app-subtitle">{DATA.length} runs · {allValues.tags.length} tags · {allValues.runtimes.length} runtimes</div>
       </header>
       <FilterBar allValues={allValues} />
-      <Scatter data={filtered} />
-      <ResultTable rows={rows} sortKey={sortKey} onSortChange={setSortKey} onRowClick={handleRowClick} />
-      {panelModel !== undefined && panelModel !== "" && (
-        <ModelDetailPanel model={panelModel} data={DATA} onClose={closePanel} />
-      )}
+      <ShiftFrame
+        model={panelModel}
+        onClose={closePanel}
+        scatter={<Scatter data={filtered} />}
+        ranking={<ResultTable rows={rows} sortKey={sortKey} onSortChange={setSortKey} onRowClick={handleRowClick} />}
+        details={panelModel !== undefined && panelModel !== "" ? <ModelDetailPanel model={panelModel} data={DATA} /> : null}
+      />
     </div>
   );
 }

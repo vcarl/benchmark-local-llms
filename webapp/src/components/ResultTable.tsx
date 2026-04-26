@@ -53,13 +53,17 @@ export function ResultTable({ rows, sortKey, onSortChange, onRowClick }: Props) 
         </div>
       </div>
       <div className="result-header">
-        <div className="result-rank">#</div>
-        <div>Model</div>
-        <div className="result-score-header">Score / efficiency</div>
-        <div>Pass rate by variant</div>
-        <div>Capabilities</div>
-        <div className="result-numeric-header">Memory</div>
-        <div className="result-numeric-header">Tokens</div>
+        <div className="result-row-breakdown">
+          <div>Pass rate by variant</div>
+          <div>Capabilities</div>
+        </div>
+        <div className="result-row-always">
+          <div className="result-rank">#</div>
+          <div>Model</div>
+          <div className="result-score-header">Score / efficiency</div>
+          <div className="result-numeric-header">Memory</div>
+          <div className="result-numeric-header">Tokens</div>
+        </div>
       </div>
       {sorted.map((r, i) => (
         <ResultRow
