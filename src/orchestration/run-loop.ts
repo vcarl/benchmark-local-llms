@@ -21,13 +21,14 @@ import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
 import type { RunEnv, RunManifest } from "../schema/run-manifest.js";
 import type { ScenarioCorpusEntry } from "../schema/scenario.js";
-import { archiveFileName, makeRunId } from "./run-id.js";
+import { archiveFileName, makeArchiveId } from "./run-id.js";
 import { type RunModelDeps, type RunModelOutcome, runModel } from "./run-model.js";
 import { formatCrossModelRollup, toRollupInput } from "./summary.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
 export interface RunLoopConfig {
+  readonly runId: string;
   readonly models: ReadonlyArray<ModelConfig>;
   readonly promptCorpus: ReadonlyArray<PromptCorpusEntry>;
   readonly scenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
@@ -126,6 +127,7 @@ const toCorpusRecord = <T extends { readonly name: string }>(
  * interrupted false. The run loop's per-model call completes this envelope.
  */
 export const makeOpenManifest = (params: {
+  readonly archiveId: string;
   readonly runId: string;
   readonly startedAt: string;
   readonly model: ModelConfig;
@@ -135,6 +137,7 @@ export const makeOpenManifest = (params: {
   readonly scenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
 }): RunManifest => ({
   schemaVersion: 1,
+  archiveId: params.archiveId,
   runId: params.runId,
   startedAt: params.startedAt,
   finishedAt: null,
@@ -220,9 +223,10 @@ export const runLoop = (
     let modelIndex = 0;
     for (const model of eligible) {
       modelIndex += 1;
-      const { runId, startedAt } = yield* makeRunId(model);
+      const { archiveId, startedAt } = yield* makeArchiveId(model);
       const manifest = makeOpenManifest({
-        runId,
+        archiveId,
+        runId: config.runId,
         startedAt,
         model,
         env,
@@ -230,7 +234,7 @@ export const runLoop = (
         promptCorpus: config.promptCorpus,
         scenarioCorpus: config.scenarioCorpus,
       });
-      const archivePath = pathMod.join(config.archiveDir, archiveFileName(runId));
+      const archivePath = pathMod.join(config.archiveDir, archiveFileName(archiveId));
       const displayName = model.name ?? model.artifact;
       const quant = model.quant ?? "";
 
@@ -273,7 +277,8 @@ export const runLoop = (
           model: displayName,
           runtime: model.runtime,
           quant,
-          runId,
+          archiveId,
+          runId: config.runId,
         }),
         Effect.catchAll(() => Effect.succeed(null)),
       );

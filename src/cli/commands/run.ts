@@ -27,14 +27,16 @@
  */
 import { Command } from "@effect/cli";
 import { FetchHttpClient } from "@effect/platform";
-import { Effect, Layer, Option } from "effect";
+import { Clock, Effect, Layer, Option } from "effect";
 import { loadModels } from "../../config/models.js";
 import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { ChatCompletionLive } from "../../llm/chat-completion.js";
+import { checkCompletion, type PlannedCell } from "../../orchestration/completion.js";
 import { runLoop } from "../../orchestration/run-loop.js";
 import { averageGenTps } from "../../orchestration/summary.js";
+import { clearRunState, generateRunId, loadRunState, saveRunState } from "../../state/run-state.js";
 import { buildRunLoopConfig, parseTemperatures, type RunFlags } from "../config/build.js";
 import { makeRunDeps } from "../deps.js";
 import { makeLoggerLayer } from "../logger.js";
@@ -123,8 +125,102 @@ export const normalizeRunOptions = (
     ...(Option.isSome(parsed.idleTimeout) ? { idleTimeoutSec: parsed.idleTimeout.value } : {}),
     archiveDir: parsed.archiveDir,
     scenariosOnly: parsed.scenariosOnly,
+    // Sentinel — proper run-id plumbing (state file, resume) lands in a
+    // later task. Every archive produced by this invocation gets this
+    // value stamped on it.
+    runId: "UNSET-PENDING-TASK-6",
   };
   return { ok: true, flags };
+};
+
+// ── Run-id lifecycle helpers ───────────────────────────────────────────────
+
+/**
+ * Resolve the active runId for this invocation:
+ *   --fresh        → delete state, generate new id, write state
+ *   --no-save      → ephemeral id; skip state I/O
+ *   state present  → reuse cached id (resume)
+ *   state absent   → generate new id, write state
+ *
+ * Returns the id and a flag indicating whether this is a resume.
+ */
+const resolveRunId = (archiveDir: string, fresh: boolean, noSave: boolean) =>
+  Effect.gen(function* () {
+    if (noSave) {
+      const id = yield* generateRunId();
+      return { runId: id, resumed: false, ephemeral: true };
+    }
+    if (fresh) {
+      yield* clearRunState(archiveDir);
+      const id = yield* generateRunId();
+      const millis = yield* Clock.currentTimeMillis;
+      const createdAt = new Date(millis).toISOString();
+      yield* saveRunState(archiveDir, { runId: id, createdAt });
+      return { runId: id, resumed: false, ephemeral: false };
+    }
+    const existing = yield* loadRunState(archiveDir);
+    if (Option.isSome(existing)) {
+      return { runId: existing.value.runId, resumed: true, ephemeral: false };
+    }
+    const id = yield* generateRunId();
+    const millis = yield* Clock.currentTimeMillis;
+    const createdAt = new Date(millis).toISOString();
+    yield* saveRunState(archiveDir, { runId: id, createdAt });
+    return { runId: id, resumed: false, ephemeral: false };
+  });
+
+/**
+ * Enumerate the (artifact, promptName, promptHash, temperature) cells
+ * implied by the live config. Filters mirror the run-loop's per-model
+ * matching: name (against m.name OR m.artifact), quant, params. Each
+ * cell is tagged kind="prompt" or kind="scenario" for callers that care.
+ */
+const enumeratePlannedCells = (
+  config: import("../../orchestration/run-loop.js").RunLoopConfig,
+): ReadonlyArray<PlannedCell> => {
+  const out: PlannedCell[] = [];
+  for (const m of config.models) {
+    if (config.modelNameFilter !== undefined) {
+      const needle = config.modelNameFilter.toLowerCase();
+      const haystackName = (m.name ?? "").toLowerCase();
+      const haystackArtifact = m.artifact.toLowerCase();
+      if (!haystackName.includes(needle) && !haystackArtifact.includes(needle)) continue;
+    }
+    if (config.quantFilter !== undefined) {
+      const needle = config.quantFilter.toLowerCase();
+      if (m.quant === undefined || !m.quant.toLowerCase().includes(needle)) continue;
+    }
+    if (config.paramsFilter !== undefined) {
+      const needle = config.paramsFilter.toLowerCase();
+      if (m.params === undefined || !m.params.toLowerCase().includes(needle)) continue;
+    }
+    if (config.scenariosOnly !== true) {
+      for (const p of config.promptCorpus) {
+        for (const t of config.temperatures) {
+          out.push({
+            artifact: m.artifact,
+            promptName: p.name,
+            promptHash: p.promptHash,
+            temperature: t,
+            kind: "prompt",
+          });
+        }
+      }
+    }
+    const t0 = config.temperatures[0];
+    if (t0 !== undefined) {
+      for (const s of config.scenarioCorpus) {
+        out.push({
+          artifact: m.artifact,
+          promptName: s.name,
+          promptHash: s.scenarioHash,
+          temperature: t0,
+          kind: "scenario",
+        });
+      }
+    }
+  }
+  return out;
 };
 
 // ── Handler ────────────────────────────────────────────────────────────────
@@ -142,6 +238,21 @@ export const runCommand = Command.make("run", runOptions, (raw) => {
     }
     const flags = normalized.flags;
 
+    const archiveDir = flags.archiveDir;
+    const { runId, resumed, ephemeral } = yield* resolveRunId(
+      archiveDir,
+      flags.fresh,
+      flags.noSave,
+    );
+
+    yield* Effect.logInfo(
+      resumed
+        ? `run ${runId}: resuming`
+        : ephemeral
+          ? `run ${runId}: ephemeral (--no-save)`
+          : `run ${runId}: starting fresh`,
+    ).pipe(Effect.annotateLogs("scope", "run"));
+
     // Load corpora -------------------------------------------------------
     const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(parsed.promptsDir));
     const models = yield* loadModels(parsed.modelsFile);
@@ -155,7 +266,7 @@ export const runCommand = Command.make("run", runOptions, (raw) => {
     );
 
     const config = buildRunLoopConfig({
-      flags,
+      flags: { ...flags, runId },
       models,
       promptCorpus,
       scenarioCorpus,
@@ -187,6 +298,25 @@ export const runCommand = Command.make("run", runOptions, (raw) => {
           archivePath: m.archivePath,
         }),
       );
+    }
+
+    if (!ephemeral) {
+      const planned = enumeratePlannedCells(config);
+      const verdict = yield* checkCompletion({
+        archiveDir,
+        runId,
+        plannedCells: planned,
+      });
+      if (verdict.complete) {
+        yield* clearRunState(archiveDir);
+        yield* Effect.logInfo(
+          `run ${runId} complete: ${verdict.validCells}/${verdict.totalCells} cells`,
+        ).pipe(Effect.annotateLogs("scope", "run"));
+      } else {
+        yield* Effect.logInfo(
+          `run ${runId} partial: ${verdict.validCells}/${verdict.totalCells} cells; rerun ./bench run to continue`,
+        ).pipe(Effect.annotateLogs("scope", "run"));
+      }
     }
   }).pipe(
     Effect.provide(ChatCompletionLive),

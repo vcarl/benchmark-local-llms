@@ -44,6 +44,32 @@ const parseJsonLine = (
     catch: () => new JsonlCorruptLine({ filePath, lineNumber, rawLine }),
   });
 
+/**
+ * Legacy archive shape compatibility. Archives written before the runId →
+ * archiveId rename carry `runId` in the per-archive sense and have no
+ * `archiveId`. We synthesize on read: `archiveId = oldRunId`,
+ * `runId = "legacy-{oldRunId}"`. Legacy archives therefore can never satisfy
+ * a cache lookup for a real (non-legacy) runId, which is the intended
+ * semantic — old data exists but doesn't auto-cache into new logical runs.
+ *
+ * Detection: presence of the `archiveId` key. New writes always include it;
+ * legacy writes never did.
+ */
+const translateLegacyShape = (raw: unknown): unknown => {
+  if (typeof raw !== "object" || raw === null) return raw;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj["archiveId"] === "string") return obj;
+  const legacyId = obj["runId"];
+  if (typeof legacyId === "string") {
+    return {
+      ...obj,
+      archiveId: legacyId,
+      runId: `legacy-${legacyId}`,
+    };
+  }
+  return obj;
+};
+
 const corruptFromDecodeError =
   (filePath: string, lineNumber: number, rawLine: string) =>
   (_cause: unknown): JsonlCorruptLine =>
@@ -87,7 +113,8 @@ export const loadManifest = (
     const headerLine = lines[headerIndex] ?? "";
     const headerLineNumber = headerIndex + 1;
     const headerJson = yield* parseJsonLine(path, headerLineNumber, headerLine);
-    const manifest = yield* decodeManifest(headerJson).pipe(
+    const headerTranslated = translateLegacyShape(headerJson);
+    const manifest = yield* decodeManifest(headerTranslated).pipe(
       Effect.mapError(corruptFromDecodeError(path, headerLineNumber, headerLine)),
     );
 
@@ -97,7 +124,8 @@ export const loadManifest = (
       if (raw.length === 0) continue;
       const lineNumber = i + 1;
       const parsed = yield* parseJsonLine(path, lineNumber, raw);
-      const result = yield* decodeResult(parsed).pipe(
+      const translated = translateLegacyShape(parsed);
+      const result = yield* decodeResult(translated).pipe(
         Effect.mapError(corruptFromDecodeError(path, lineNumber, raw)),
       );
       results.push(result);

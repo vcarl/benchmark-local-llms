@@ -31,6 +31,7 @@ export interface BenchmarkResult {
   tool_call_count: number | null;
   final_player_stats: Record<string, unknown> | null;
   events: AgentEvent[] | null;
+  run_id: string;
   executed_at: string;
 }
 
@@ -67,6 +68,7 @@ export const normalizeRecord = (raw: Partial<BenchmarkResult>): BenchmarkResult 
   tool_call_count: raw.tool_call_count ?? null,
   final_player_stats: raw.final_player_stats ?? null,
   events: raw.events ?? null,
+  run_id: raw.run_id ?? "",
   executed_at: raw.executed_at ?? "",
 });
 

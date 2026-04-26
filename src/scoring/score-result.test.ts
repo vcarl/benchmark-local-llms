@@ -5,6 +5,7 @@ import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "..
 import { scoreExecution } from "./score-result.js";
 
 const baseResult: ExecutionResult = {
+  archiveId: "a1",
   runId: "r1",
   executedAt: "2026-04-14T00:00:00.000Z",
   promptName: "p",

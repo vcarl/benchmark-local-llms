@@ -20,6 +20,7 @@ describe("lookupCache", () => {
       lookupCache({
         archiveDir: dir,
         artifact: "artifact-1",
+        runId: "prior-run",
         promptName: "p1",
         promptHash: "h",
         temperature: 0.7,
@@ -34,7 +35,7 @@ describe("lookupCache", () => {
     const prog = Effect.gen(function* () {
       yield* writeManifestHeader(
         archivePath,
-        openManifest({ artifact: "artifact-X", runId: "prior" }),
+        openManifest({ artifact: "artifact-X", runId: "prior-run" }),
       );
       yield* appendResult(
         archivePath,
@@ -51,6 +52,7 @@ describe("lookupCache", () => {
       lookupCache({
         archiveDir: dir,
         artifact: "artifact-X",
+        runId: "prior-run",
         promptName: "p1",
         promptHash: "hash-p1",
         temperature: 0.7,
@@ -64,7 +66,10 @@ describe("lookupCache", () => {
     const archivePath = path.join(dir, "prior.jsonl");
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* writeManifestHeader(archivePath, openManifest({ artifact: "a", runId: "prior" }));
+        yield* writeManifestHeader(
+          archivePath,
+          openManifest({ artifact: "a", runId: "prior-run" }),
+        );
         yield* appendResult(
           archivePath,
           sampleExistingResult({
@@ -80,6 +85,7 @@ describe("lookupCache", () => {
       lookupCache({
         archiveDir: dir,
         artifact: "a",
+        runId: "prior-run",
         promptName: "p1",
         promptHash: "hash-p1",
         temperature: 0.7,
@@ -93,7 +99,10 @@ describe("lookupCache", () => {
     const archivePath = path.join(dir, "prior.jsonl");
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* writeManifestHeader(archivePath, openManifest({ artifact: "a", runId: "prior" }));
+        yield* writeManifestHeader(
+          archivePath,
+          openManifest({ artifact: "a", runId: "prior-run" }),
+        );
         yield* appendResult(
           archivePath,
           sampleExistingResult({
@@ -109,6 +118,7 @@ describe("lookupCache", () => {
       lookupCache({
         archiveDir: dir,
         artifact: "a",
+        runId: "prior-run",
         promptName: "p1",
         promptHash: "hash-p1",
         // Different temperature — no hit.
@@ -123,7 +133,10 @@ describe("lookupCache", () => {
     const archivePath = path.join(dir, "prior.jsonl");
     await Effect.runPromise(
       Effect.gen(function* () {
-        yield* writeManifestHeader(archivePath, openManifest({ artifact: "a", runId: "prior" }));
+        yield* writeManifestHeader(
+          archivePath,
+          openManifest({ artifact: "a", runId: "prior-run" }),
+        );
         yield* appendResult(
           archivePath,
           sampleExistingResult({
@@ -141,6 +154,7 @@ describe("lookupCache", () => {
       lookupCache({
         archiveDir: dir,
         artifact: "a",
+        runId: "prior-run",
         promptName: "p1",
         promptHash: "hash-p1",
         temperature: 0.7,
@@ -148,6 +162,37 @@ describe("lookupCache", () => {
       }).pipe(Effect.provide(platformLayer)),
     );
     expect(Option.isNone(result)).toBe(true);
+  });
+
+  it("returns None when artifact and prompt match but runId differs", async () => {
+    const archivePath = path.join(dir, "prior.jsonl");
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeManifestHeader(archivePath, openManifest({ artifact: "a", runId: "r-A" }));
+        yield* appendResult(
+          archivePath,
+          sampleExistingResult({
+            promptName: "p1",
+            promptHash: "hash-p1",
+            temperature: 0.7,
+            runId: "r-A",
+          }),
+        );
+      }).pipe(Effect.provide(platformLayer)),
+    );
+
+    const miss = await Effect.runPromise(
+      lookupCache({
+        archiveDir: dir,
+        artifact: "a",
+        runId: "r-B", // different run-id — should miss
+        promptName: "p1",
+        promptHash: "hash-p1",
+        temperature: 0.7,
+        fresh: false,
+      }).pipe(Effect.provide(platformLayer)),
+    );
+    expect(Option.isNone(miss)).toBe(true);
   });
 });
 

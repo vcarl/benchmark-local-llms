@@ -27,7 +27,7 @@ import { writeMigratedArchive } from "./write-migrated.js";
 export interface MigrateOptions {
   /** Directory containing the prototype's `*.jsonl` files. */
   readonly sourceDir: string;
-  /** Where to write migrated `{runId}.jsonl` archives. Must not be `sourceDir`. */
+  /** Where to write migrated `{archiveId}.jsonl` archives. Must not be `sourceDir`. */
   readonly outputDir: string;
   /** Current prompt corpus from freshly-loaded YAML. */
   readonly currentPromptCorpus: ReadonlyArray<PromptCorpusEntry>;
@@ -41,6 +41,7 @@ export interface MigrateOptions {
 
 export interface MigratedArchiveSummary {
   readonly groupKey: GroupKey;
+  readonly archiveId: string;
   readonly runId: string;
   readonly outputPath: string | null;
   readonly sourceRecords: number;
@@ -119,6 +120,7 @@ export const runMigrate = (
       if (options.dryRun === true) {
         archives.push({
           groupKey: group.key,
+          archiveId: recon.archiveId,
           runId: recon.runId,
           outputPath: null,
           sourceRecords: group.records.length,
@@ -131,7 +133,7 @@ export const runMigrate = (
 
       const outputPath = yield* writeMigratedArchive(
         options.outputDir,
-        recon.runId,
+        recon.archiveId,
         recon.manifest,
         recon.results,
       );
@@ -139,6 +141,7 @@ export const runMigrate = (
 
       archives.push({
         groupKey: group.key,
+        archiveId: recon.archiveId,
         runId: recon.runId,
         outputPath,
         sourceRecords: group.records.length,

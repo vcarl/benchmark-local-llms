@@ -48,6 +48,7 @@ const prompt: PromptCorpusEntry = {
 const baseInput = (): RunModelInput => ({
   manifest: {
     schemaVersion: 1,
+    archiveId: "a1",
     runId: "r1",
     startedAt: "2026-04-17T00:00:00Z",
     finishedAt: null,

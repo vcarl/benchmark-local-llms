@@ -1,5 +1,5 @@
 /**
- * Migrated archive writer. Emits one `{runId}.jsonl` under the migration
+ * Migrated archive writer. Emits one `{archiveId}.jsonl` under the migration
  * output dir for a reconstructed group (§11.2: destructive-safe — writer
  * never touches the source directory).
  *
@@ -22,7 +22,7 @@ const toFileIOError =
     new FileIOError({ path: filePath, operation, cause: String(cause) });
 
 /**
- * Write one migrated archive to `{outputDir}/{runId}.jsonl`. Creates the
+ * Write one migrated archive to `{outputDir}/{archiveId}.jsonl`. Creates the
  * output dir if missing (including intermediate parents), then writes the
  * manifest header and appends each result line.
  *
@@ -33,7 +33,7 @@ const toFileIOError =
  */
 export const writeMigratedArchive = (
   outputDir: string,
-  runId: string,
+  archiveId: string,
   manifest: RunManifest,
   results: ReadonlyArray<ExecutionResult>,
 ): Effect.Effect<string, FileIOError, FileSystem.FileSystem> =>
@@ -42,7 +42,7 @@ export const writeMigratedArchive = (
     yield* fs
       .makeDirectory(outputDir, { recursive: true })
       .pipe(Effect.mapError(toFileIOError(outputDir, "mkdir-migrate-dir")));
-    const outputPath = path.join(outputDir, `${runId}.jsonl`);
+    const outputPath = path.join(outputDir, `${archiveId}.jsonl`);
     yield* writeManifestHeader(outputPath, manifest);
     for (const r of results) {
       yield* appendResult(outputPath, r);

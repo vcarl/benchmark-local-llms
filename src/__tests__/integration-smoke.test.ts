@@ -56,6 +56,7 @@ describe("integration smoke: YAML -> score pipeline", () => {
 
       // Construct an ExecutionResult that should match the exact_match extraction
       const executionResult: ExecutionResult = {
+        archiveId: "smoke_test_archive",
         runId: "smoke_test_run",
         executedAt: new Date().toISOString(),
         promptName: prompt.name,

@@ -20,6 +20,7 @@ describe("runPrompt", () => {
     });
     const result = await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel(),
         prompt: samplePromptExact(),
@@ -54,6 +55,7 @@ describe("runPrompt", () => {
     });
     const result = await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel(),
         prompt: samplePromptExact(),
@@ -76,6 +78,7 @@ describe("runPrompt", () => {
     });
     const result = await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel(),
         prompt: samplePromptExact(),
@@ -90,6 +93,7 @@ describe("runPrompt", () => {
     const { layer, log } = makeChatCompletionMock({});
     await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel(),
         prompt: samplePromptExact(),
@@ -105,6 +109,7 @@ describe("runPrompt", () => {
     const { layer } = makeChatCompletionMock({});
     const result1 = await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel({ name: "Nickname", artifact: "org/real" }),
         prompt: samplePromptExact(),
@@ -115,6 +120,7 @@ describe("runPrompt", () => {
     expect(result1.model).toBe("Nickname");
     const result2 = await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel({ name: undefined, artifact: "org/real" }),
         prompt: samplePromptExact(),
@@ -130,6 +136,7 @@ describe("runPrompt", () => {
     const { layer } = makeChatCompletionMock({});
     const result = await Effect.runPromise(
       runPrompt({
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel(),
         prompt: samplePromptExact(),
@@ -148,6 +155,7 @@ describe("runPrompt", () => {
     // archive carries a useful rate — mirroring runner.py's MLX fallback.
     const result = makeSuccessResult(
       {
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel({ runtime: "mlx" }),
         prompt: samplePromptExact(),
@@ -173,6 +181,7 @@ describe("runPrompt", () => {
   it("uses the server-reported tps verbatim when `timings` is present (llamacpp case)", () => {
     const result = makeSuccessResult(
       {
+        archiveId: "archive-1",
         runId: "run-1",
         model: sampleModel({ runtime: "llamacpp" }),
         prompt: samplePromptExact(),

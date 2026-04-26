@@ -1,6 +1,7 @@
 /**
- * Run identity helpers (§2.4). A `runId` is the archive filename stem and the
- * back-reference stamped on every {@link ExecutionResult} written during a run.
+ * Archive identity helpers (§2.4). An `archiveId` is the archive filename
+ * stem and the back-reference stamped on every {@link ExecutionResult}
+ * written during a run.
  *
  * Shape: `{YYYY-MM-DD}_{modelSlug}_{quant}_{shortId}` (requirements §2.4).
  *   - `YYYY-MM-DD`  — date portion of `startedAt`, UTC
@@ -10,8 +11,11 @@
  *                     that pin the clock get deterministic IDs.
  *
  * The clock is supplied via `Effect.Clock` so tests can pin time with
- * `TestClock`. `archiveFileName` is a pure derivation — passing a runId is
- * enough; no extra state.
+ * `TestClock`. `archiveFileName` is a pure derivation — passing an archiveId
+ * is enough; no extra state.
+ *
+ * The logical-run group id (`runId`) is created elsewhere — see the run-state
+ * module — and threaded through the run loop as configuration.
  */
 import { Clock, Effect } from "effect";
 import type { ModelConfig } from "../schema/model.js";
@@ -44,13 +48,16 @@ const modelSlug = (model: ModelConfig): string => {
 const quantPart = (model: ModelConfig): string => slugify(model.quant ?? "");
 
 /**
- * Build a runId for the given model and wall-clock. Stable across repeated
+ * Build an archiveId for one model + clock tick. Stable across repeated
  * calls with the same inputs; tests can pin the clock via `TestClock`.
+ *
+ * Shape: `{YYYY-MM-DD}_{modelSlug}_{quant}_{shortId}` — the per-archive id
+ * that matches the `.jsonl` filename stem.
  */
-export const makeRunId = (
+export const makeArchiveId = (
   model: ModelConfig,
 ): Effect.Effect<{
-  readonly runId: string;
+  readonly archiveId: string;
   readonly startedAt: string;
   readonly startedAtMs: number;
 }> =>
@@ -63,15 +70,13 @@ export const makeRunId = (
       (p) => p.length > 0,
     );
     return {
-      runId: parts.join("_"),
+      archiveId: parts.join("_"),
       startedAt: iso,
       startedAtMs: millis,
     };
   });
 
 /**
- * Archive file name from a runId. Kept as a separate pure helper so callers
- * that already have a runId (e.g. tests, the migration tool) can derive the
- * filename without the full clock dance.
+ * Archive file name from an archiveId. Pure helper.
  */
-export const archiveFileName = (runId: string): string => `${runId}.jsonl`;
+export const archiveFileName = (archiveId: string): string => `${archiveId}.jsonl`;

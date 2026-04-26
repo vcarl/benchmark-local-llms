@@ -41,7 +41,8 @@ describe("RunManifest", () => {
   it("round-trips a completed run", () => {
     const v: RunManifest = {
       schemaVersion: 1,
-      runId: "2026-04-14_qwen3-32b_4bit_deadbe",
+      archiveId: "2026-04-14_qwen3-32b_4bit_deadbe",
+      runId: "r-2026-04-14-deadbe",
       startedAt: "2026-04-14T12:00:00.000Z",
       finishedAt: "2026-04-14T13:00:00.000Z",
       interrupted: false,
@@ -74,7 +75,8 @@ describe("RunManifest", () => {
   it("round-trips an interrupted run (finishedAt null)", () => {
     const v: RunManifest = {
       schemaVersion: 1,
-      runId: "2026-04-14_qwen3-32b_4bit_cafeba",
+      archiveId: "2026-04-14_qwen3-32b_4bit_cafeba",
+      runId: "r-2026-04-14-cafeba",
       startedAt: "2026-04-14T12:00:00.000Z",
       finishedAt: null,
       interrupted: true,

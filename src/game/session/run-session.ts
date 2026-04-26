@@ -45,7 +45,9 @@ export interface RunSessionInput {
   readonly scenario: ScenarioCorpusEntry;
   /** Model under test (carries runtime + artifact identity). */
   readonly model: ModelConfig;
-  /** Run identity stamped on the result. */
+  /** Per-archive identity (filename stem) stamped on the result. */
+  readonly archiveId: string;
+  /** Logical-run group identity stamped on the result. */
   readonly runId: string;
   /** Temperature this scenario runs at (per §5.3.1, scenarios run at one). */
   readonly temperature: number;
@@ -182,7 +184,7 @@ export const runSession = (
       },
       profile: {
         provider,
-        name: `bench-${input.runId}-${input.scenario.name}`,
+        name: `bench-${input.archiveId}-${input.scenario.name}`,
         username: credString(player, "username"),
         password: credString(player, "password"),
         model: input.model.artifact,
@@ -293,6 +295,7 @@ const buildResult = (
   }
 
   const result: ExecutionResult = {
+    archiveId: input.archiveId,
     runId: input.runId,
     executedAt: startedAt,
     promptName: input.scenario.name,

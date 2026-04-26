@@ -22,6 +22,7 @@ import type { ExecutionResult } from "../schema/index.js";
 export interface CacheLookupInput {
   readonly archiveDir: string;
   readonly artifact: string;
+  readonly runId: string;
   readonly promptName: string;
   /** For prompt runs this is `PromptCorpusEntry.promptHash`; for scenarios it's
    *  the scenario hash (the loader stamps both slots with the same value so
@@ -65,6 +66,7 @@ export const lookupCache = (
   }
   return findCachedResult(input.archiveDir, {
     artifact: input.artifact,
+    runId: input.runId,
     promptName: input.promptName,
     promptHash: input.promptHash,
     temperature: input.temperature,

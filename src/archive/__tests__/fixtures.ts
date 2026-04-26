@@ -43,7 +43,8 @@ export const sampleScenario: ScenarioCorpusEntry = {
  */
 export const openManifest = (overrides: Partial<RunManifest> = {}): RunManifest => ({
   schemaVersion: 1,
-  runId: "2026-04-14_qwen3-32b_4bit_deadbe",
+  archiveId: "2026-04-14_qwen3-32b_4bit_deadbe",
+  runId: "r-2026-04-14-deadbe",
   startedAt: "2026-04-14T12:00:00.000Z",
   finishedAt: null,
   interrupted: false,
@@ -73,7 +74,8 @@ export const openManifest = (overrides: Partial<RunManifest> = {}): RunManifest 
 });
 
 export const sampleResult = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => ({
-  runId: "2026-04-14_qwen3-32b_4bit_deadbe",
+  archiveId: "2026-04-14_qwen3-32b_4bit_deadbe",
+  runId: "r-2026-04-14-deadbe",
   executedAt: "2026-04-14T12:34:56.000Z",
   promptName: "hello_prompt",
   temperature: 0.7,

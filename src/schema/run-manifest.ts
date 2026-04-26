@@ -27,17 +27,21 @@ export type RunStats = typeof RunStats.Type;
 /**
  * Top-level archival envelope (§2.4). One manifest per benchmark execution
  * session. Serialized as a single JSON line (the header) at the top of the
- * `{runId}.jsonl` archive file, with ExecutionResults on subsequent lines
+ * `{archiveId}.jsonl` archive file, with ExecutionResults on subsequent lines
  * and a trailer rewriting `stats`/`finishedAt` at the end (§6.1).
  *
- * `schemaVersion` is a hard literal `1` — bump requires a migration.
+ * `archiveId` is the per-(model × invocation) identity that matches the
+ * filename stem. `runId` is the logical-run group id — same value across
+ * every archive produced by one `./bench run` invocation, and across resume
+ * invocations of the same logical run.
  *
- * `promptCorpus` and `scenarioCorpus` are keyed by the entry's `name`, giving
- * O(1) lookup when scoring results. Embedding the full corpus makes the
- * archive self-contained: re-scoring "as run" doesn't depend on current YAML.
+ * `schemaVersion` stays at literal `1`; legacy archives (which carry only
+ * the old `runId`) are translated by the loader rather than being version-
+ * bumped on disk.
  */
 export const RunManifest = Schema.Struct({
   schemaVersion: Schema.Literal(1),
+  archiveId: Schema.String,
   runId: Schema.String,
   startedAt: Schema.String,
   finishedAt: Schema.NullOr(Schema.String),

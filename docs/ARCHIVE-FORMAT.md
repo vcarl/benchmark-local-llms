@@ -4,7 +4,7 @@
 
 ## File layout
 
-One `.jsonl` per `(model, runtime, quant)` run, named `{runId}.jsonl`, written under `--archive-dir` (default `benchmark-archive/`).
+One `.jsonl` per `(model, runtime, quant)` per `./bench run` invocation, named `{archiveId}.jsonl`, written under `--archive-dir` (default `benchmark-archive/`). Multiple archives produced by the same invocation share a `runId` (the logical-run group id); see [Run state and resume](#run-state-and-resume).
 
 - **Line 1**: `RunManifest` — header, rewritten exactly once at finalize.
 - **Lines 2+**: `ExecutionResult` records — append-only.
@@ -16,7 +16,8 @@ Interior blank lines are tolerated by the loader; the trailing `\n` on every app
 | Field | Type | Description |
 |---|---|---|
 | `schemaVersion` | `1` (literal) | Hard-coded version tag. Bump requires a migration. |
-| `runId` | `string` | Unique id for this run; matches the filename stem. |
+| `archiveId` | `string` | Per-archive identity; matches the `.jsonl` filename stem. |
+| `runId` | `string` | Logical-run group id; same value across every archive produced by one `./bench run` invocation, and across resume invocations of the same run. |
 | `startedAt` | `string` | ISO timestamp written when the header is first flushed. |
 | `finishedAt` | `string \| null` | ISO timestamp; `null` until the trailer rewrite completes. |
 | `interrupted` | `boolean` | Starts `true`; flipped to `false` only on natural completion. |
@@ -40,7 +41,8 @@ One line per `(prompt, temperature)` pair for prompt runs; one line per scenario
 
 | Field | Type | Description |
 |---|---|---|
-| `runId` | `string` | Back-reference to the owning manifest. |
+| `archiveId` | `string` | Back-reference to the owning archive (matches the manifest's `archiveId`). |
+| `runId` | `string` | Logical-run group id; denormalized from the manifest. Cache scoping key. |
 | `executedAt` | `string` | ISO timestamp at execution start. Tie-breaker for cache dedup (most recent wins). |
 | `promptName` | `string` | Prompt or scenario name. |
 | `temperature` | `number` | Sampling temperature used. |
@@ -79,6 +81,20 @@ Each manifest embeds the corpus that was used at execution time:
 - A corpus change (renaming a prompt, editing a constraint) does not retroactively change historical archive scoring unless `--scoring current` is passed to `./bench report`.
 
 See [`GUARANTEES.md`](./GUARANTEES.md) for the full self-contained-archives invariant.
+
+## Run state and resume
+
+`./bench run` persists the active logical-run id in `{archiveDir}/.run-state.json`:
+
+```json
+{ "runId": "r-2026-04-25-7f3a9c", "createdAt": "2026-04-25T15:04:32.118Z" }
+```
+
+The state file is created on a fresh start, read on subsequent invocations to resume the same logical run, and removed when every planned cell has a valid result tagged with that `runId`. `--fresh` deletes the state file before generating a new id. `--no-save` skips state I/O entirely; the run gets an ephemeral id thrown away on exit.
+
+Cache lookup is scoped to the active `runId` — only results carrying that id satisfy a hit, so resume produces a complete dataset under one id rather than mixing in older archives.
+
+Legacy archives written before the `runId` → `archiveId` rename are translated by the loader: `archiveId` is synthesized from the old `runId`, and the new `runId` is set to `legacy-{archiveId}`. They are readable by reports but cannot satisfy a cache lookup for any non-legacy run.
 
 ## Re-scoring CLIs
 

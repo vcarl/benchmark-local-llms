@@ -4,6 +4,7 @@ import type { Score } from "../scoring/score-result.js";
 import { toWebappRecord, type WebappRecord } from "./webapp-contract.js";
 
 const makeExecution = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => ({
+  archiveId: "a1",
   runId: "r1",
   executedAt: "2026-01-01T00:00:00.000Z",
   promptName: "math_multiply_direct",
@@ -164,5 +165,10 @@ describe("toWebappRecord", () => {
       score,
     );
     expect(rec.executed_at).toBe("2026-04-14T12:34:56.000Z");
+  });
+
+  it("includes run_id from ExecutionResult.runId", () => {
+    const rec = toWebappRecord(makeExecution({ runId: "r-2026-04-14-deadbe" }), promptEntry, score);
+    expect(rec.run_id).toBe("r-2026-04-14-deadbe");
   });
 });

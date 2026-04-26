@@ -112,7 +112,8 @@ describe("runMigrate (integration)", () => {
     expect(summary.archives).toHaveLength(1);
     const arch = summary.archives[0];
     if (arch === undefined) return;
-    expect(arch.runId).toContain("migrated");
+    expect(arch.archiveId).toMatch(/_migrated$/);
+    expect(arch.runId).toMatch(/^legacy-/);
     expect(arch.sourceRecords).toBe(2);
     expect(arch.migratedResults).toBe(2);
     expect(arch.unmatched).toHaveLength(0);

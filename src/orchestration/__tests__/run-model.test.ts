@@ -161,19 +161,20 @@ describe("runModel — prompt phase", () => {
     expect(byName.get("p2")?.error).toBeNull();
   });
 
-  it("cross-run cache hit: skips execution and carries result into new archive with current runId", async () => {
-    // Seed a prior archive with a passing result for (art-1, p1, hash-p1, 0.7).
+  it("same-runId cache hit (resume): skips execution and carries result into the new archive", async () => {
+    // Seed a prior archive sharing the run-id we're about to execute under —
+    // this models a resumed run picking up a previously-completed cell.
     const priorPath = path.join(dir, "prior.jsonl");
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* writeManifestHeader(
           priorPath,
-          openManifest({ artifact: "art-1", runId: "prior-run" }),
+          openManifest({ artifact: "art-1", runId: "shared-run" }),
         );
         yield* appendResult(
           priorPath,
           sampleExistingResult({
-            runId: "prior-run",
+            runId: "shared-run",
             promptName: "p1",
             promptHash: "hash-p1",
             temperature: 0.7,
@@ -186,7 +187,7 @@ describe("runModel — prompt phase", () => {
 
     const archivePath = path.join(dir, "new.jsonl");
     const manifest = baseManifest({
-      runId: "new-run",
+      runId: "shared-run",
       temperatures: [0.7],
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
@@ -217,7 +218,73 @@ describe("runModel — prompt phase", () => {
     expect(lines.length).toBe(2);
     const carried = decodeResult(JSON.parse(lines[1] ?? "{}"));
     expect(carried.output).toBe("prior-output");
-    expect(carried.runId).toBe("new-run"); // runId rebound to the new run
+    expect(carried.runId).toBe("shared-run");
+  });
+
+  it("different-runId archive does not produce a cache hit", async () => {
+    // A passing result exists for the same (artifact, prompt, hash, temp), but
+    // under a different run-id — Task 3 cache scoping should skip it.
+    const priorPath = path.join(dir, "prior.jsonl");
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeManifestHeader(
+          priorPath,
+          openManifest({ artifact: "art-1", runId: "old-run" }),
+        );
+        yield* appendResult(
+          priorPath,
+          sampleExistingResult({
+            runId: "old-run",
+            promptName: "p1",
+            promptHash: "hash-p1",
+            temperature: 0.7,
+            output: "prior-output",
+            error: null,
+          }),
+        );
+      }).pipe(Effect.provide(runtimeLayer)),
+    );
+
+    const archivePath = path.join(dir, "new.jsonl");
+    const manifest = baseManifest({
+      runId: "new-run",
+      temperatures: [0.7],
+      promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
+      scenarioCorpus: {},
+    });
+    const mock = makeChatCompletionMock({
+      "p1:0.7": {
+        kind: "ok",
+        result: {
+          output: "new-output",
+          promptTokens: 1,
+          generationTokens: 1,
+          promptTps: 1,
+          generationTps: 1,
+        },
+      },
+    });
+
+    const outcome = await Effect.runPromise(
+      runModel(
+        {
+          manifest,
+          archivePath,
+          prompts: [samplePromptExact({ name: "p1" })],
+          scenarios: [],
+          temperatures: [0.7],
+          archiveDir: dir,
+          fresh: false,
+          maxTokens: 256,
+          noSave: false,
+        },
+        fakeDeps(),
+      ).pipe(Effect.provide(mock.layer), Effect.provide(runtimeLayer)),
+    );
+
+    expect(outcome.stats.skippedCached).toBe(0);
+    expect(outcome.stats.completed).toBe(1);
+    expect(mock.log.calls.length).toBe(1);
   });
 
   it("fresh=true disables cache even when a matching prior result exists", async () => {

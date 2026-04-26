@@ -13,6 +13,7 @@ import {
 } from "../summary.js";
 
 const baseResult: ExecutionResult = {
+  archiveId: "a1",
   runId: "r1",
   executedAt: "2026-04-17T00:00:00.000Z",
   promptName: "p",
@@ -141,6 +142,7 @@ describe("aggregator", () => {
     );
     const block = formatModelBlock({
       modelDisplayName: "qwen3.5-9b",
+      archiveId: "archive-abc",
       runId: "run-abc",
       runtime: "mlx",
       quant: "Q4_K_M",
@@ -175,6 +177,7 @@ describe("aggregator", () => {
     );
     const block = formatModelBlock({
       modelDisplayName: "m",
+      archiveId: "a",
       runId: "r",
       runtime: "mlx",
       quant: "Q",
@@ -195,6 +198,7 @@ describe("aggregator", () => {
     );
     const block = formatModelBlock({
       modelDisplayName: "m",
+      archiveId: "a",
       runId: "r",
       runtime: "mlx",
       quant: "Q",
@@ -211,6 +215,7 @@ describe("aggregator", () => {
     agg = recordPrompt(agg, { ...baseResult, wallTimeSec: 1 }, false);
     const short = formatModelBlock({
       modelDisplayName: "m",
+      archiveId: "a",
       runId: "r",
       runtime: "mlx",
       quant: "Q",
@@ -222,6 +227,7 @@ describe("aggregator", () => {
     expect(short).toContain("wall        42.3s total");
     const mid = formatModelBlock({
       modelDisplayName: "m",
+      archiveId: "a",
       runId: "r",
       runtime: "mlx",
       quant: "Q",
@@ -233,6 +239,7 @@ describe("aggregator", () => {
     expect(mid).toContain("wall        3.4 min total");
     const long = formatModelBlock({
       modelDisplayName: "m",
+      archiveId: "a",
       runId: "r",
       runtime: "mlx",
       quant: "Q",

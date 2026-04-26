@@ -24,11 +24,18 @@ export type AgentEvent = typeof AgentEvent.Type;
  * Model identity is denormalized from the manifest header for direct
  * query convenience against the flat result stream.
  *
+ * `archiveId` is the back-reference to the owning archive (matches the
+ * `.jsonl` filename stem and the manifest's own `archiveId`). `runId` is
+ * denormalized from the manifest as the logical-run group id, so cache
+ * scans can read it from a single result line without re-decoding the
+ * header.
+ *
  * Cache key for cross-run dedup: `(artifact, promptName, promptHash, temperature)`.
  * `scenarioHash` is non-null for scenario runs; `promptHash` carries the same
  * value when the execution is a scenario (there is no distinct prompt hash).
  */
 export const ExecutionResult = Schema.Struct({
+  archiveId: Schema.String,
   runId: Schema.String,
   executedAt: Schema.String,
   promptName: Schema.String,

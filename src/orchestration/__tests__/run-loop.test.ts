@@ -30,6 +30,7 @@ import {
 const runtimeLayer = Layer.mergeAll(NodeContext.layer, inertHttpClientLayer);
 
 const baseConfig = (dir: string, overrides: Partial<RunLoopConfig> = {}): RunLoopConfig => ({
+  runId: "r-test",
   models: [sampleModel()],
   promptCorpus: [samplePromptExact({ name: "p1" })],
   scenarioCorpus: [],

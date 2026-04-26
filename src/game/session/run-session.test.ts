@@ -73,6 +73,7 @@ describe("runSession", () => {
           {
             scenario: baseScenario,
             model: baseModel,
+            archiveId: "a-1",
             runId: "r-1",
             temperature: 0.3,
             admiralBaseUrl: "http://admiral",
@@ -114,6 +115,7 @@ describe("runSession", () => {
           {
             scenario,
             model: baseModel,
+            archiveId: "a-1",
             runId: "r-1",
             temperature: 0.3,
             admiralBaseUrl: "http://admiral",
@@ -144,6 +146,7 @@ describe("runSession", () => {
           {
             scenario: baseScenario,
             model: baseModel,
+            archiveId: "a-1",
             runId: "r-1",
             temperature: 0.3,
             admiralBaseUrl: "http://admiral",
@@ -173,6 +176,7 @@ describe("runSession", () => {
           {
             scenario: baseScenario,
             model: baseModel,
+            archiveId: "a-1",
             runId: "r-1",
             temperature: 0.3,
             admiralBaseUrl: "http://admiral",

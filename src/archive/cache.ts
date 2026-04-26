@@ -4,10 +4,11 @@
  * can skip re-executing a (model × prompt × temperature) combination that
  * already has a recorded output.
  *
- * Key shape: `(artifact, promptName, promptHash, temperature)`. `artifact`
- * and `promptHash` together guarantee we're comparing like-for-like —
- * `artifact` pins the model build, `promptHash` pins the prompt content
- * (including its `system` prompt text and any constraint bodies).
+ * Key shape: `(artifact, runId, promptName, promptHash, temperature)`.
+ * `artifact`, `runId`, and `promptHash` together guarantee we're comparing
+ * like-for-like — `artifact` pins the model build, `runId` pins the logical
+ * run, `promptHash` pins the prompt content (including its `system` prompt
+ * text and any constraint bodies).
  *
  * Fast-filter on `manifest.artifact` before scanning result lines: the
  * manifest filename convention isn't reliable (users may rename), so we
@@ -27,12 +28,14 @@ import { loadManifest } from "./loader.js";
 
 export interface CacheKey {
   readonly artifact: string;
+  readonly runId: string;
   readonly promptName: string;
   readonly promptHash: string;
   readonly temperature: number;
 }
 
 const matchesKey = (r: ExecutionResult, key: CacheKey): boolean =>
+  r.runId === key.runId &&
   r.promptName === key.promptName &&
   r.promptHash === key.promptHash &&
   r.temperature === key.temperature;
@@ -72,7 +75,7 @@ export const findCachedResult = (
     const archives = entries.filter((e) => e.endsWith(".jsonl"));
 
     yield* Effect.logDebug(
-      `scanning ${archiveDir} (${archives.length} files) for key=(${key.artifact},${key.promptName},${key.promptHash},${key.temperature})`,
+      `scanning ${archiveDir} (${archives.length} files) for key=(${key.artifact},${key.runId},${key.promptName},${key.promptHash},${key.temperature})`,
     ).pipe(Effect.annotateLogs("scope", "cache"));
 
     let best: ExecutionResult | null = null;
@@ -81,6 +84,7 @@ export const findCachedResult = (
       const filePath = pathMod.join(archiveDir, entry);
       const loaded = yield* loadManifest(filePath);
       if (loaded.manifest.artifact !== key.artifact) continue;
+      if (loaded.manifest.runId !== key.runId) continue;
       for (const r of loaded.results) {
         if (!matchesKey(r, key)) continue;
         candidateCount += 1;
@@ -93,7 +97,7 @@ export const findCachedResult = (
     yield* Effect.logDebug(
       candidateCount === 0
         ? "0 candidates"
-        : `${candidateCount} candidates, picked runId=${best?.runId ?? "?"} (most recent)`,
+        : `${candidateCount} candidates, picked archiveId=${best?.archiveId ?? "?"} (most recent)`,
     ).pipe(Effect.annotateLogs("scope", "cache"));
 
     return best === null ? Option.none() : Option.some(best);

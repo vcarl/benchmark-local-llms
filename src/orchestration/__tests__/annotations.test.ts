@@ -17,6 +17,7 @@ import {
 const runtimeLayer = Layer.mergeAll(NodeContext.layer, inertHttpClientLayer);
 
 const baseConfig = (dir: string, overrides: Partial<RunLoopConfig> = {}): RunLoopConfig => ({
+  runId: "r-test",
   models: [sampleModel()],
   promptCorpus: [samplePromptExact({ name: "p1" })],
   scenarioCorpus: [],
@@ -38,7 +39,7 @@ describe("annotation boundaries", () => {
     await removeDir(dir);
   });
 
-  it("per-model INF line carries model/runtime/quant/runId annotations", async () => {
+  it("per-model INF line carries model/runtime/quant/archiveId/runId annotations", async () => {
     const sink: string[] = [];
     const { layer } = makeChatCompletionMock({});
     await Effect.runPromise(
@@ -53,7 +54,8 @@ describe("annotation boundaries", () => {
     expect(entry).toContain(`model="Test Model"`);
     expect(entry).toContain("runtime=mlx");
     expect(entry).toContain("quant=4bit");
-    expect(entry).toMatch(/runId=[^ ]+/);
+    expect(entry).toMatch(/archiveId=[^ ]+/);
+    expect(entry).toContain("runId=r-test");
   });
 
   it("logs skipped inactive models", async () => {

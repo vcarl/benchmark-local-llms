@@ -8,7 +8,7 @@
  * Strategy choices for this module:
  *
  * - **Header write:** plain overwrite (`flag: "w"`). `writeManifestHeader`
- *   is a fresh-run operation — any prior content for that runId is expected
+ *   is a fresh-run operation — any prior content for that archiveId is expected
  *   to be clobbered.
  *
  * - **Append:** `writeFileString` with `flag: "a"`. Single-writer-per-file

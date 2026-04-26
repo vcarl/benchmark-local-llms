@@ -20,14 +20,15 @@ describe("writeMigratedArchive", () => {
 
   it("writes a manifest + results and round-trips through the archive loader", async () => {
     const outputDir = path.join(dir, "migrated");
+    const archiveId = "roundtrip_archive";
     const manifest = fixtureManifest({ runId: "roundtrip_run" });
     const results = [fixtureResult({ runId: "roundtrip_run", promptName: "p1" })];
     const outPath = await Effect.runPromise(
-      writeMigratedArchive(outputDir, "roundtrip_run", manifest, results).pipe(
+      writeMigratedArchive(outputDir, archiveId, manifest, results).pipe(
         Effect.provide(NodeFileSystem.layer),
       ),
     );
-    expect(outPath).toBe(path.join(outputDir, "roundtrip_run.jsonl"));
+    expect(outPath).toBe(path.join(outputDir, "roundtrip_archive.jsonl"));
     expect(existsSync(outPath)).toBe(true);
 
     // Archive is valid and loadable
@@ -49,10 +50,13 @@ describe("writeMigratedArchive", () => {
 
   it("creates the output directory if missing", async () => {
     const outputDir = path.join(dir, "deeply", "nested", "out");
+    const archiveId = "a";
     const manifest = fixtureManifest({ runId: "r" });
     await Effect.runPromise(
-      writeMigratedArchive(outputDir, "r", manifest, []).pipe(Effect.provide(NodeFileSystem.layer)),
+      writeMigratedArchive(outputDir, archiveId, manifest, []).pipe(
+        Effect.provide(NodeFileSystem.layer),
+      ),
     );
-    expect(existsSync(path.join(outputDir, "r.jsonl"))).toBe(true);
+    expect(existsSync(path.join(outputDir, "a.jsonl"))).toBe(true);
   });
 });

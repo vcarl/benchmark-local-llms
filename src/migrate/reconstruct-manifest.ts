@@ -4,8 +4,12 @@
  * A prototype archive has no manifest header — the migration tool must
  * synthesize one. We use:
  *
- * - **runId** — derived from the group identity + a short hash of the source
- *   file path(s). Deterministic so re-running migration produces the same IDs.
+ * - **archiveId** — the synthesized stem `{date}_{modelSlug}_{quant}_migrated`
+ *   derived from the group identity. Deterministic so re-running migration
+ *   produces the same IDs. Used as the output filename (`{archiveId}.jsonl`).
+ * - **runId** — the logical-run group id stamped on every record. For
+ *   migrated archives this is `legacy-{archiveId}` so legacy data is clearly
+ *   distinguishable from real run-id-grouped archives produced by `bench run`.
  * - **startedAt / finishedAt** — the file's mtime (§11.1). All records in a
  *   group share this timestamp; the original per-execution timing is gone.
  * - **env** — synthesized placeholder. `benchmarkGitSha: "migrated"` marks
@@ -93,16 +97,23 @@ const slugify = (s: string): string =>
     .replace(/^-+|-+$/g, "") || "model";
 
 /**
- * Deterministic synthetic runId from a group's identity. The shape matches
- * the new convention `{date}_{modelSlug}_{quant}_{shortId}` but with a
- * "migrated" marker as the shortId to distinguish reconstructed archives.
+ * Deterministic synthetic archiveId from a group's identity. The shape
+ * matches the new convention `{date}_{modelSlug}_{quant}_{shortId}` but with
+ * a "migrated" marker as the shortId to distinguish reconstructed archives.
  */
-export const synthesizeRunId = (group: PrototypeGroup): string => {
+export const synthesizeArchiveId = (group: PrototypeGroup): string => {
   const date = new Date(group.mtimeMs).toISOString().slice(0, 10);
   const modelSlug = slugify(group.key.model);
   const quantPart = group.key.quant.length > 0 ? slugify(group.key.quant) : "noquant";
   return `${date}_${modelSlug}_${quantPart}_migrated`;
 };
+
+/**
+ * Synthetic runId for a legacy archive — there's no group concept in
+ * prototype data, so each migrated archive becomes its own one-archive
+ * group, identified by `legacy-{stem}`.
+ */
+export const synthesizeLegacyRunId = (archiveId: string): string => `legacy-${archiveId}`;
 
 export interface ReconstructInput {
   readonly group: PrototypeGroup;
@@ -113,6 +124,7 @@ export interface ReconstructInput {
 }
 
 export interface ReconstructedArchive {
+  readonly archiveId: string;
   readonly runId: string;
   readonly manifest: RunManifest;
   readonly results: ReadonlyArray<ExecutionResult>;
@@ -138,6 +150,7 @@ const defaultEnv: RunEnv = {
  */
 const toExecutionResult = (
   rec: PrototypeRecord,
+  archiveId: string,
   runId: string,
   executedAt: string,
   group: PrototypeGroup,
@@ -202,6 +215,7 @@ const toExecutionResult = (
           });
 
   return {
+    archiveId,
     runId,
     executedAt,
     promptName: rec.prompt_name ?? "",
@@ -245,14 +259,15 @@ const normalizeTerminationReason = (
  * Reconstruct a complete RunManifest archive from one prototype group. The
  * returned `results` array mirrors the source records in order (minus the
  * unmatched ones). The caller writes `manifest` + `results` to
- * `{runId}.jsonl` via `write-migrated.ts`.
+ * `{archiveId}.jsonl` via `write-migrated.ts`.
  */
 export const reconstructArchive = (
   input: ReconstructInput,
 ): Effect.Effect<ReconstructedArchive, never> =>
   Effect.sync(() => {
     const { group, currentPromptCorpus, currentScenarioCorpus } = input;
-    const runId = synthesizeRunId(group);
+    const archiveId = synthesizeArchiveId(group);
+    const runId = synthesizeLegacyRunId(archiveId);
     const isoAt = new Date(group.mtimeMs).toISOString();
 
     const results: ExecutionResult[] = [];
@@ -301,6 +316,7 @@ export const reconstructArchive = (
       results.push(
         toExecutionResult(
           { ...rec, prompt_name: matched },
+          archiveId,
           runId,
           isoAt,
           group,
@@ -327,6 +343,7 @@ export const reconstructArchive = (
 
     const manifest: RunManifest = {
       schemaVersion: 1,
+      archiveId,
       runId,
       startedAt: isoAt,
       finishedAt: isoAt,
@@ -349,7 +366,7 @@ export const reconstructArchive = (
       },
     };
 
-    return { runId, manifest, results, unmatched };
+    return { archiveId, runId, manifest, results, unmatched };
   });
 
 export const reconstructKey = (key: GroupKey): string => `${key.model}|${key.runtime}|${key.quant}`;

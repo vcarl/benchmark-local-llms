@@ -3,6 +3,7 @@ import type { ExecutionResult } from "../schema/index.js";
 import { GAME_SCORERS } from "./game.js";
 
 const baseResult: ExecutionResult = {
+  archiveId: "a1",
   runId: "r1",
   executedAt: "2026-04-14T00:00:00.000Z",
   promptName: "scenario_smoke",

@@ -30,9 +30,17 @@ Ref: `src/archive/writer.ts`, `src/orchestration/finalize-archive.ts`.
 
 ## Cross-run cache validity
 
-A cached result is reused only when `(artifact, promptName, promptHash, temperature)` match exactly. Manifests are fast-filtered on `artifact` before result lines are scanned. Validation rejects entries where `error !== null`; prompt results additionally require non-empty `output`, and scenario results require non-null `terminationReason`. Ties are broken by `executedAt`; most recent wins. `--fresh` short-circuits the lookup to `None`.
+A cached result is reused only when `(artifact, runId, promptName, promptHash, temperature)` match exactly. Manifests are fast-filtered on `artifact` and `runId` before result lines are scanned. Validation rejects entries where `error !== null`; prompt results additionally require non-empty `output`, and scenario results require non-null `terminationReason`. Ties are broken by `executedAt`; most recent wins. `--fresh` short-circuits the lookup to `None`.
 
 Ref: `src/archive/cache.ts` (scan), `src/orchestration/cache.ts` (validation).
+
+## Resume guarantees
+
+- Within one logical run (one `runId`), the cross-run cache only returns results carrying that `runId`. A `--fresh` re-run is not contaminated by older archives even when they match `(artifact, promptName, promptHash, temperature)`.
+- Interrupted runs are resumable: re-invoking `./bench run` reads `.run-state.json`, reuses the same `runId`, and only re-executes cells that don't yet have a valid result tagged with that id.
+- Completion is computed against the live filtered config every invocation; narrowing scope (e.g. dropping a prompt) lets a previously partial run complete naturally.
+
+Ref: `src/state/run-state.ts`, `src/orchestration/completion.ts`, `src/cli/commands/run.ts`.
 
 ## Self-contained archives
 

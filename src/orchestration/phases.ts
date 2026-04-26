@@ -98,6 +98,7 @@ export const runPromptPhase = (
         const cached = yield* lookupCache({
           archiveDir: input.archiveDir,
           artifact: input.manifest.artifact,
+          runId: input.manifest.runId,
           promptName: prompt.name,
           promptHash: prompt.promptHash,
           temperature,
@@ -107,18 +108,20 @@ export const runPromptPhase = (
         if (Option.isSome(cached)) {
           const carried: ExecutionResult = {
             ...cached.value,
+            archiveId: input.manifest.archiveId,
             runId: input.manifest.runId,
           };
           yield* appendIfSaving(carried, input.archivePath, input.noSave);
           yield* Ref.update(statsRef, (s) => tallySkipped(s, carried));
           yield* Ref.update(aggRef, (a) => recordPrompt(a, carried, true));
           yield* Effect.logInfo(
-            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — cache hit (runId=${carried.runId}, executedAt=${carried.executedAt})`,
+            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — cache hit (archiveId=${carried.archiveId}, executedAt=${carried.executedAt})`,
           ).pipe(Effect.annotateLogs("scope", "prompt"));
           continue;
         }
 
         const result = yield* runPrompt({
+          archiveId: input.manifest.archiveId,
           runId: input.manifest.runId,
           model,
           prompt,
@@ -181,6 +184,7 @@ export const runScenarioPhase = (
       const cached = yield* lookupCache({
         archiveDir: input.archiveDir,
         artifact: input.manifest.artifact,
+        runId: input.manifest.runId,
         promptName: scenario.name,
         promptHash: scenario.scenarioHash,
         temperature,
@@ -190,13 +194,14 @@ export const runScenarioPhase = (
       if (Option.isSome(cached)) {
         const carried: ExecutionResult = {
           ...cached.value,
+          archiveId: input.manifest.archiveId,
           runId: input.manifest.runId,
         };
         yield* appendIfSaving(carried, input.archivePath, input.noSave);
         yield* Ref.update(statsRef, (s) => tallySkipped(s, carried));
         yield* Ref.update(aggRef, (a) => recordScenario(a, carried, true));
         yield* Effect.logInfo(
-          `scenario ${scenarioIndex}/${total} ${scenario.name} — cache hit (runId=${carried.runId}, executedAt=${carried.executedAt})`,
+          `scenario ${scenarioIndex}/${total} ${scenario.name} — cache hit (archiveId=${carried.archiveId}, executedAt=${carried.executedAt})`,
         ).pipe(Effect.annotateLogs("scope", "scenario"));
         continue;
       }
@@ -209,6 +214,7 @@ export const runScenarioPhase = (
           );
           return yield* runScenario(
             {
+              archiveId: input.manifest.archiveId,
               runId: input.manifest.runId,
               model,
               scenario,

@@ -34,6 +34,12 @@ export interface RunFlags {
   readonly idleTimeoutSec?: number | undefined;
   readonly archiveDir: string;
   readonly scenariosOnly: boolean;
+  /**
+   * Logical-run group id stamped on every archive produced in one bench run
+   * invocation. Real plumbing (state file, resume) lands in later tasks; for
+   * now callers may pass the sentinel `"UNSET-PENDING-TASK-6"`.
+   */
+  readonly runId: string;
 }
 
 /**
@@ -82,6 +88,7 @@ export const buildRunLoopConfig = (params: {
 }): RunLoopConfig => {
   const scenarios = filterScenarios(params.scenarioCorpus, params.flags.scenarios);
   const config: RunLoopConfig = {
+    runId: params.flags.runId,
     models: params.models,
     promptCorpus: params.promptCorpus,
     scenarioCorpus: scenarios,

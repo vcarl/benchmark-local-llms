@@ -253,6 +253,7 @@ export const runModel = (
       yield* Effect.logInfo(
         `\n${formatModelBlock({
           modelDisplayName: input.manifest.model,
+          archiveId: input.manifest.archiveId,
           runId: input.manifest.runId,
           runtime: input.manifest.runtime,
           quant: input.manifest.quant,

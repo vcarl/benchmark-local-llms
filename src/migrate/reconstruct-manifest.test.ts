@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
 import type { PrototypeGroup } from "./group-by-model.js";
 import type { PrototypeRecord } from "./read-prototype.js";
-import { reconstructArchive, resolvePromptName, synthesizeRunId } from "./reconstruct-manifest.js";
+import {
+  reconstructArchive,
+  resolvePromptName,
+  synthesizeArchiveId,
+} from "./reconstruct-manifest.js";
 
 const promptEntry = (name: string, promptHash = "h1"): PromptCorpusEntry => ({
   name,
@@ -70,16 +74,16 @@ const mkGroup = (records: PrototypeRecord[]): PrototypeGroup => ({
   mtimeMs: new Date("2026-03-01T00:00:00.000Z").getTime(),
 });
 
-describe("synthesizeRunId", () => {
+describe("synthesizeArchiveId", () => {
   it("produces a deterministic ID from group identity", () => {
     const g = mkGroup([]);
-    const id = synthesizeRunId(g);
+    const id = synthesizeArchiveId(g);
     expect(id).toBe("2026-03-01_m_4bit_migrated");
   });
 
   it("uses 'noquant' marker when quant is empty", () => {
     const g: PrototypeGroup = { ...mkGroup([]), key: { model: "M", runtime: "mlx", quant: "" } };
-    expect(synthesizeRunId(g)).toBe("2026-03-01_m_noquant_migrated");
+    expect(synthesizeArchiveId(g)).toBe("2026-03-01_m_noquant_migrated");
   });
 });
 
@@ -116,7 +120,10 @@ describe("reconstructArchive", () => {
         currentScenarioCorpus: scenarioCorpus,
       }),
     );
-    expect(r.runId).toBe("2026-03-01_m_4bit_migrated");
+    expect(r.archiveId).toBe("2026-03-01_m_4bit_migrated");
+    expect(r.runId).toBe("legacy-2026-03-01_m_4bit_migrated");
+    expect(r.manifest.archiveId).toBe(r.archiveId);
+    expect(r.manifest.runId).toBe(r.runId);
     expect(r.manifest.env.benchmarkGitSha).toBe("migrated");
     expect(r.manifest.interrupted).toBe(false);
     expect(Object.keys(r.manifest.promptCorpus)).toEqual(["code_fibonacci_direct"]);

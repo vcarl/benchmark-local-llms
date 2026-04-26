@@ -147,10 +147,20 @@ const slowestLine = (slots: ReadonlyArray<SlowestItem>): string => {
 export interface FormatModelBlockParams {
   readonly aggregate: ModelAggregate;
   readonly archivePath: string;
+  /**
+   * Per-archive stem used as the archive's filename
+   * (`{archiveId}.jsonl`). Unique per `(model, runtime, quant)` invocation.
+   */
+  readonly archiveId: string;
+  /**
+   * Logical-run group id stamped on every record in this archive. Multiple
+   * archives produced by a single `bench run` invocation share the same
+   * `runId`; one archive is uniquely identified by its `archiveId`.
+   */
+  readonly runId: string;
   readonly interrupted: boolean;
   readonly modelDisplayName: string;
   readonly quant: string;
-  readonly runId: string;
   readonly runtime: Runtime;
   readonly totalWallTimeSec: number;
 }
@@ -161,6 +171,7 @@ export const formatModelBlock = (params: FormatModelBlockParams): string => {
     params.quant ? ` · ${params.quant}` : ""
   }`;
   const headerRule = `─ ${headerLabel} ${"─".repeat(Math.max(0, 50 - headerLabel.length))}`;
+  const archiveIdLine = `  archiveId   ${params.archiveId}`;
   const runIdLine = `  runId       ${params.runId}`;
   const promptsLine = `  prompts     ${a.promptStats.completed} completed · ${a.promptStats.cached} cached · ${a.promptStats.errors} errors`;
   const scenariosLine = `  scenarios   ${a.scenarioStats.completed} completed · ${a.scenarioStats.cached} cached · ${a.scenarioStats.errors} errors${scenarioErrorTrailer(a.scenarioStats)}`;
@@ -170,6 +181,7 @@ export const formatModelBlock = (params: FormatModelBlockParams): string => {
   const interruptedLine = `  interrupted ${params.interrupted}`;
   return [
     headerRule,
+    archiveIdLine,
     runIdLine,
     promptsLine,
     scenariosLine,

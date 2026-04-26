@@ -25,6 +25,7 @@ const baseFlags: RunFlags = {
   temperatures: [0.7],
   archiveDir: "./benchmark-archive",
   scenariosOnly: false,
+  runId: "r-test",
 };
 
 describe("parseTemperatures", () => {

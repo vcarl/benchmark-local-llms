@@ -264,6 +264,7 @@ export const agentEvent = (
 export const sampleExistingResult = (
   overrides: Partial<ExecutionResult> = {},
 ): ExecutionResult => ({
+  archiveId: "prior-archive",
   runId: "prior-run",
   executedAt: "2026-04-01T00:00:00Z",
   promptName: "p1",

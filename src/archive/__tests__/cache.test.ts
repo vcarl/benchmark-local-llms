@@ -32,6 +32,7 @@ describe("findCachedResult", () => {
     const exit = await Effect.runPromise(
       findCachedResult(dir, {
         artifact: "any",
+        runId: "r-2026-04-14-deadbe",
         promptName: "p",
         promptHash: "h",
         temperature: 0.7,
@@ -47,6 +48,7 @@ describe("findCachedResult", () => {
         yield* seed("a.jsonl", "artifact-A", [r]);
         return yield* findCachedResult(dir, {
           artifact: "artifact-A",
+          runId: "r-2026-04-14-deadbe",
           promptName: "p1",
           promptHash: "h1",
           temperature: 0.7,
@@ -73,6 +75,7 @@ describe("findCachedResult", () => {
         yield* seed("right.jsonl", "artifact-A", [rRightArtifact]);
         return yield* findCachedResult(dir, {
           artifact: "artifact-A",
+          runId: "r-2026-04-14-deadbe",
           promptName: "p1",
           promptHash: "h1",
           temperature: 0.7,
@@ -106,6 +109,7 @@ describe("findCachedResult", () => {
         yield* seed("newer.jsonl", "artifact-A", [newer]);
         return yield* findCachedResult(dir, {
           artifact: "artifact-A",
+          runId: "r-2026-04-14-deadbe",
           promptName: "p1",
           promptHash: "h1",
           temperature: 0.7,
@@ -125,6 +129,7 @@ describe("findCachedResult", () => {
         yield* seed("a.jsonl", "artifact-A", [stored]);
         return yield* findCachedResult(dir, {
           artifact: "artifact-A",
+          runId: "r-2026-04-14-deadbe",
           promptName: "p1",
           promptHash: "new-hash",
           temperature: 0.7,
@@ -141,6 +146,7 @@ describe("findCachedResult", () => {
         yield* seed("a.jsonl", "artifact-A", [stored]);
         return yield* findCachedResult(dir, {
           artifact: "artifact-A",
+          runId: "r-2026-04-14-deadbe",
           promptName: "p1",
           promptHash: "h1",
           temperature: 0.3,
@@ -158,6 +164,7 @@ describe("findCachedResult", () => {
         yield* seed("a.jsonl", "artifact-A", [r]);
         return yield* findCachedResult(dir, {
           artifact: "artifact-A",
+          runId: "r-2026-04-14-deadbe",
           promptName: "p1",
           promptHash: "h1",
           temperature: 0.7,
@@ -166,8 +173,10 @@ describe("findCachedResult", () => {
     );
     const joined = lines.join("\n");
     expect(joined).toContain("DBG cache");
-    expect(joined).toMatch(/scanning .+ \(1 files\) for key=\(artifact-A,p1,h1,0\.7\)/);
-    expect(joined).toContain("1 candidates, picked runId=");
+    expect(joined).toMatch(
+      /scanning .+ \(1 files\) for key=\(artifact-A,r-2026-04-14-deadbe,p1,h1,0\.7\)/,
+    );
+    expect(joined).toContain("1 candidates, picked archiveId=");
     expect(joined).toContain("(most recent)");
   });
 
@@ -176,6 +185,7 @@ describe("findCachedResult", () => {
     await Effect.runPromise(
       findCachedResult(dir, {
         artifact: "artifact-A",
+        runId: "r-2026-04-14-deadbe",
         promptName: "p1",
         promptHash: "h1",
         temperature: 0.7,
@@ -185,5 +195,57 @@ describe("findCachedResult", () => {
     expect(joined).toContain("scanning");
     expect(joined).toContain("(0 files)");
     expect(joined).toContain("0 candidates");
+  });
+
+  it("only returns a hit when the manifest's runId matches the cache key", async () => {
+    const r = sampleResult({
+      promptName: "p1",
+      promptHash: "h1",
+      temperature: 0.7,
+      runId: "r-run-A",
+    });
+    const exit = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeManifestHeader(
+          `${dir}/a.jsonl`,
+          openManifest({ artifact: "artifact-A", runId: "r-run-A" }),
+        );
+        yield* appendResult(`${dir}/a.jsonl`, r);
+        return yield* findCachedResult(dir, {
+          artifact: "artifact-A",
+          runId: "r-run-B", // different run
+          promptName: "p1",
+          promptHash: "h1",
+          temperature: 0.7,
+        });
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(Option.isNone(exit)).toBe(true);
+  });
+
+  it("returns the hit when manifest runId matches", async () => {
+    const r = sampleResult({
+      promptName: "p1",
+      promptHash: "h1",
+      temperature: 0.7,
+      runId: "r-run-A",
+    });
+    const exit = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeManifestHeader(
+          `${dir}/a.jsonl`,
+          openManifest({ artifact: "artifact-A", runId: "r-run-A" }),
+        );
+        yield* appendResult(`${dir}/a.jsonl`, r);
+        return yield* findCachedResult(dir, {
+          artifact: "artifact-A",
+          runId: "r-run-A",
+          promptName: "p1",
+          promptHash: "h1",
+          temperature: 0.7,
+        });
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(Option.isSome(exit)).toBe(true);
   });
 });

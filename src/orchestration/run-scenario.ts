@@ -23,6 +23,7 @@ import type { ModelConfig } from "../schema/model.js";
 import type { ScenarioCorpusEntry } from "../schema/scenario.js";
 
 export interface RunScenarioInput {
+  readonly archiveId: string;
   readonly runId: string;
   readonly model: ModelConfig;
   readonly scenario: ScenarioCorpusEntry;
@@ -61,6 +62,7 @@ export const runScenario = (
     {
       scenario: input.scenario,
       model: input.model,
+      archiveId: input.archiveId,
       runId: input.runId,
       temperature: input.temperature,
       admiralBaseUrl: input.admiralBaseUrl,

@@ -25,6 +25,7 @@ import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
 
 export interface RunPromptInput {
+  readonly archiveId: string;
   readonly runId: string;
   readonly model: ModelConfig;
   readonly prompt: PromptCorpusEntry;
@@ -87,6 +88,7 @@ export const makeSuccessResult = (
   startedAt: string,
   wallTimeSec: number,
 ): ExecutionResult => ({
+  archiveId: input.archiveId,
   runId: input.runId,
   executedAt: startedAt,
   promptName: input.prompt.name,
@@ -126,6 +128,7 @@ export const makeErrorResult = (
   wallTimeSec: number,
   error: string,
 ): ExecutionResult => ({
+  archiveId: input.archiveId,
   runId: input.runId,
   executedAt: startedAt,
   promptName: input.prompt.name,

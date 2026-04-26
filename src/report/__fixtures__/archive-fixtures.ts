@@ -45,6 +45,7 @@ export const fixtureScenario = (
 
 export const fixtureManifest = (
   overrides: Partial<{
+    archiveId: string;
     runId: string;
     model: string;
     artifact: string;
@@ -63,6 +64,7 @@ export const fixtureManifest = (
 
   return {
     schemaVersion: 1,
+    archiveId: overrides.archiveId ?? "archiveX",
     runId: overrides.runId ?? "runX",
     startedAt: "2026-01-01T00:00:00.000Z",
     finishedAt: "2026-01-01T00:01:00.000Z",
@@ -93,6 +95,7 @@ export const fixtureManifest = (
 };
 
 export const fixtureResult = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => ({
+  archiveId: overrides.archiveId ?? "archiveX",
   runId: overrides.runId ?? "runX",
   executedAt: overrides.executedAt ?? "2026-01-01T00:00:30.000Z",
   promptName: overrides.promptName ?? "p1",

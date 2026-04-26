@@ -41,7 +41,8 @@ describe("AgentEvent", () => {
 describe("ExecutionResult", () => {
   it("round-trips a prompt result (no scenario fields)", () => {
     const v: ExecutionResult = {
-      runId: "2026-04-14_qwen3-32b_4bit_a1b2c3",
+      archiveId: "2026-04-14_qwen3-32b_4bit_a1b2c3",
+      runId: "r-2026-04-14-a1b2c3",
       executedAt: "2026-04-14T12:34:56.000Z",
       promptName: "math_multiply_cot",
       temperature: 0.7,
@@ -69,7 +70,8 @@ describe("ExecutionResult", () => {
 
   it("round-trips a scenario result with events", () => {
     const v: ExecutionResult = {
-      runId: "2026-04-14_qwen3-32b_4bit_a1b2c3",
+      archiveId: "2026-04-14_qwen3-32b_4bit_a1b2c3",
+      runId: "r-2026-04-14-a1b2c3",
       executedAt: "2026-04-14T12:34:56Z",
       promptName: "bootstrap_grind",
       temperature: 0.7,
@@ -104,6 +106,7 @@ describe("ExecutionResult", () => {
 
   it("round-trips a result with a non-null error string", () => {
     const v: ExecutionResult = {
+      archiveId: "archive1",
       runId: "run1",
       executedAt: "2026-04-14T00:00:00Z",
       promptName: "bad_prompt",
