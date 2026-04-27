@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import styles from "./ModelDetailPanel.module.css";
 import type { BenchmarkResult } from "../lib/data";
 import { PASS_THRESHOLD, CAPABILITY_TAGS, scoreBand } from "../lib/constants";
 
@@ -35,33 +36,34 @@ export function ModelDetailPanel({ model, data }: Props) {
   const first = runs[0];
 
   return (
-    <aside className="model-panel">
-      <header className="model-panel-header">
+    <aside className={styles.modelPanel}>
+      <header className={styles.modelPanelHeader}>
         <h2>{model}</h2>
-        {first && <div className="panel-subtitle">{first.runtime} · {first.quant} · temp {first.temperature}</div>}
-        <div className="panel-metrics">
-          <span className={`cap-${scoreBand(mean)}`}>score {mean.toFixed(2)}</span>
+        {first && <div className={styles.panelSubtitle}>{first.runtime} · {first.quant} · temp {first.temperature}</div>}
+        <div className={styles.panelMetrics}>
+          <span data-band={scoreBand(mean)}>score {mean.toFixed(2)}</span>
           <span>pass {Math.round(pass * 100)}%</span>
         </div>
       </header>
 
-      <section className="panel-section">
+      <section className={styles.panelSection}>
         <h3>Capability profile</h3>
-        <div className="panel-profile">
+        <div className={styles.panelProfile}>
           {CAPABILITY_TAGS.map((tag) => {
             const cell = profile[tag];
             return (
-              <div key={tag} className="panel-profile-row">
-                <span className="panel-profile-name">{tag}</span>
-                <div className="panel-profile-bar">
+              <div key={tag} className={styles.panelProfileRow}>
+                <span className={styles.panelProfileName}>{tag}</span>
+                <div className={styles.panelProfileBar}>
                   {cell !== undefined && (
                     <div
-                      className={`cap-${scoreBand(cell.mean)}`}
+                      className={styles.panelProfileBarFill}
+                      data-band={scoreBand(cell.mean)}
                       style={{ width: `${Math.round(cell.mean * 100)}%`, height: "100%" }}
                     />
                   )}
                 </div>
-                <span className="panel-profile-value">
+                <span className={styles.panelProfileValue}>
                   {cell !== undefined ? cell.mean.toFixed(2) : "—"}
                 </span>
               </div>
@@ -70,22 +72,22 @@ export function ModelDetailPanel({ model, data }: Props) {
         </div>
       </section>
 
-      <section className="panel-section">
-        <div className="panel-tabs">
-          <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>All ({runs.length})</button>
-          <button className={tab === "prompts" ? "active" : ""} onClick={() => setTab("prompts")}>Prompts</button>
-          <button className={tab === "scenarios" ? "active" : ""} onClick={() => setTab("scenarios")}>Scenarios</button>
+      <section className={styles.panelSection}>
+        <div className={styles.panelTabs}>
+          <button className={tab === "all" ? styles.tabActive : ""} onClick={() => setTab("all")}>All ({runs.length})</button>
+          <button className={tab === "prompts" ? styles.tabActive : ""} onClick={() => setTab("prompts")}>Prompts</button>
+          <button className={tab === "scenarios" ? styles.tabActive : ""} onClick={() => setTab("scenarios")}>Scenarios</button>
         </div>
-        <div className="panel-runs" key={tab}>
+        <div className={styles.panelRuns} key={tab}>
           {filtered.map((r) => (
             <button
               key={`${r.prompt_name}·${r.temperature}·${r.quant}·${r.runtime}`}
-              className="panel-run"
+              className={styles.panelRun}
               onClick={() => navigate({ to: "/run/$model/$name", params: { model, name: r.prompt_name } })}
             >
               <span>{r.prompt_name}</span>
-              <span className="panel-run-tier">t{r.tier}</span>
-              <span className={`cap-${scoreBand(r.score)} panel-run-score`}>{r.score.toFixed(2)}</span>
+              <span className={styles.panelRunTier}>t{r.tier}</span>
+              <span className={styles.panelRunScore} data-band={scoreBand(r.score)}>{r.score.toFixed(2)}</span>
             </button>
           ))}
         </div>

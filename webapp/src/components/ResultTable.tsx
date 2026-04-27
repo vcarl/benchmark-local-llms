@@ -1,3 +1,4 @@
+import styles from "./ResultTable.module.css";
 import type { ListRow } from "../lib/pipeline";
 import { ResultRow } from "./ResultRow";
 
@@ -20,31 +21,31 @@ const sortRows = (rows: ListRow[], key: ListSortKey): ListRow[] => {
 
 export function ResultTable({ rows, sortKey, onSortChange, onRowClick }: Props) {
   if (rows.length === 0) {
-    return <div className="result-empty">No results match the current filters.</div>;
+    return <div className={styles.resultEmpty}>No results match the current filters.</div>;
   }
   const sorted = sortRows(rows, sortKey);
   return (
-    <div className="result-table">
-      <div className="result-controls">
-        <span className="result-count">{rows.length} rows</span>
-        <div className="result-sort">
-          <span className="result-sort-label">sort by:</span>
+    <div className={styles.resultTable}>
+      <div className={styles.resultControls}>
+        <span className={styles.resultCount}>{rows.length} rows</span>
+        <div className={styles.resultSort}>
+          <span className={styles.resultSortLabel}>sort by:</span>
           <button
-            className={`result-sort-btn${sortKey === "best" ? " result-sort-btn--active" : ""}`}
+            className={`${styles.resultSortBtn}${sortKey === "best" ? ` ${styles.resultSortBtnActive}` : ""}`}
             onClick={() => onSortChange("best")}
             type="button"
           >
             best
           </button>
           <button
-            className={`result-sort-btn${sortKey === "efficiency" ? " result-sort-btn--active" : ""}`}
+            className={`${styles.resultSortBtn}${sortKey === "efficiency" ? ` ${styles.resultSortBtnActive}` : ""}`}
             onClick={() => onSortChange("efficiency")}
             type="button"
           >
             efficiency
           </button>
           <button
-            className={`result-sort-btn${sortKey === "memory" ? " result-sort-btn--active" : ""}`}
+            className={`${styles.resultSortBtn}${sortKey === "memory" ? ` ${styles.resultSortBtnActive}` : ""}`}
             onClick={() => onSortChange("memory")}
             type="button"
           >
@@ -52,17 +53,17 @@ export function ResultTable({ rows, sortKey, onSortChange, onRowClick }: Props) 
           </button>
         </div>
       </div>
-      <div className="result-header">
-        <div className="result-row-breakdown">
+      <div className={styles.resultHeader}>
+        <div className={styles.resultRowBreakdown}>
           <div>Pass rate by variant</div>
           <div>Capabilities</div>
         </div>
-        <div className="result-row-always">
-          <div className="result-rank">#</div>
+        <div className={styles.resultRowAlways}>
+          <div className={styles.resultRank}>#</div>
           <div>Model</div>
-          <div className="result-score-header">Score / efficiency</div>
-          <div className="result-numeric-header">Memory</div>
-          <div className="result-numeric-header">Tokens</div>
+          <div className={styles.resultScoreHeader}>Score / efficiency</div>
+          <div className={styles.resultNumericHeader}>Memory</div>
+          <div className={styles.resultNumericHeader}>Tokens</div>
         </div>
       </div>
       {sorted.map((r, i) => (

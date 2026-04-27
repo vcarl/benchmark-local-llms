@@ -1,17 +1,18 @@
 import { Link } from "@tanstack/react-router";
+import styles from "./RunHeader.module.css";
 import { scoreBand } from "../lib/constants";
 import type { BenchmarkResult } from "../lib/data";
 
 export function RunHeader({ rec }: { rec: BenchmarkResult }) {
   return (
-    <header className="run-header">
-      <Link to="/" className="run-back">◂ Back</Link>
+    <header className={styles.runHeader}>
+      <Link to="/" className={styles.runBack}>◂ Back</Link>
       <h1>{rec.model} · {rec.prompt_name}</h1>
-      <div className="run-meta">
+      <div className={styles.runMeta}>
         tier {rec.tier} · tags [{rec.tags.join(", ") || "—"}]
-        <span className={`run-score cap-${scoreBand(rec.score)}`}>{rec.score.toFixed(2)}</span>
+        <span className={styles.runScore} data-band={scoreBand(rec.score)}>{rec.score.toFixed(2)}</span>
       </div>
-      <div className="run-meta-small">
+      <div className={styles.runMetaSmall}>
         {rec.runtime} · {rec.quant} · temp {rec.temperature} · {rec.is_scenario ? "scenario" : "prompt"}
       </div>
     </header>

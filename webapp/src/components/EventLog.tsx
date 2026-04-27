@@ -1,7 +1,14 @@
 import { useState } from "react";
+import styles from "./EventLog.module.css";
 import type { AgentEvent } from "../lib/data";
 
 const TYPES: AgentEvent["event"][] = ["tool_call", "tool_result", "tool_error", "turn_end", "error", "connection"];
+
+const eventClassFor = (type: AgentEvent["event"]): string => {
+  if (type === "tool_error") return styles.eventToolError;
+  if (type === "error") return styles.eventError;
+  return "";
+};
 
 export function EventLog({ events }: { events: AgentEvent[] }) {
   const [enabled, setEnabled] = useState<Set<string>>(new Set(TYPES));
@@ -20,27 +27,30 @@ export function EventLog({ events }: { events: AgentEvent[] }) {
   };
 
   return (
-    <div className="event-log">
-      <div className="event-filters">
+    <div className={styles.eventLog}>
+      <div className={styles.eventFilters}>
         {TYPES.map((t) => (
           <label key={t}>
             <input type="checkbox" checked={enabled.has(t)} onChange={() => toggleType(t)} />
             {t}
           </label>
         ))}
-        <span className="event-count">{visible.length} / {events.length} events</span>
+        <span className={styles.eventCount}>{visible.length} / {events.length} events</span>
       </div>
-      <div className="event-rows">
-        {visible.map((e, i) => (
-          <div key={i} className={`event-row event-${e.event}`} onClick={() => toggleRow(i)}>
-            <span className="event-tick">t={e.tick}</span>
-            <span className="event-type">{e.event}</span>
-            <span className="event-summary">{summarize(e)}</span>
-            {expanded.has(i) && (
-              <pre className="event-data">{JSON.stringify(e.data, null, 2)}</pre>
-            )}
-          </div>
-        ))}
+      <div className={styles.eventRows}>
+        {visible.map((e, i) => {
+          const eventCls = eventClassFor(e.event);
+          return (
+            <div key={i} className={`${styles.eventRow}${eventCls ? ` ${eventCls}` : ""}`} onClick={() => toggleRow(i)}>
+              <span className={styles.eventTick}>t={e.tick}</span>
+              <span className={styles.eventType}>{e.event}</span>
+              <span>{summarize(e)}</span>
+              {expanded.has(i) && (
+                <pre className={styles.eventData}>{JSON.stringify(e.data, null, 2)}</pre>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

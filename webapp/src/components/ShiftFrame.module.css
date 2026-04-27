@@ -1,0 +1,105 @@
+/* Shift canvas — horizontally-translating frame for scatter/ranking/details.
+   Uses CSS Grid with grid-template-areas for the lane structure, and a CSS
+   container (container-type: inline-size) so the narrow-viewport variant is
+   driven by the frame's own width — not the viewport, not the scrollbar. */
+
+.shiftFrame {
+  position: relative;
+  overflow: clip;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  min-height: 500px;
+  /* When placed in a grid row that's `1fr`, stretch to fill. */
+  height: 100%;
+  container-type: inline-size;
+  container-name: shiftFrame;
+}
+
+/* The canvas is wider than the frame: scatter (1fr) + ranking (2fr) + details (3fr).
+   Together that's 6fr. We let two of those columns (1+2 = 3/6 = 50%) fit in
+   the visible frame; the panel sits beyond the right edge until shifted in. */
+.shiftCanvas {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 2fr 3fr;
+  grid-template-areas: "scatter ranking details";
+  width: calc(100% * 6 / 3);
+  --shift-x: 0px;
+  transform: translateX(var(--shift-x));
+  transition: transform 0.4s ease-out;
+  will-change: transform;
+
+  &[data-shifted="true"] {
+    --shift-x: calc(-3 / 6 * 100%);
+
+    & .backOverlay {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}
+
+.regionScatter { grid-area: scatter; overflow-y: auto; min-width: 0; }
+.regionRanking { grid-area: ranking; overflow-y: auto; min-width: 0; z-index: var(--z-raised); }
+.regionDetails { grid-area: details; overflow-y: auto; min-width: 0; }
+
+.backOverlay {
+  position: absolute;
+  top: var(--space-6);
+  /* place above the details region — same coordinate space as the canvas */
+  left: calc(3 / 6 * 100% + var(--space-6));
+  z-index: var(--z-overlay);
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-4);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--fz-12);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+
+  &:hover { background: var(--surface-4); }
+}
+
+/* Narrow frame: container query, not viewport media query.
+   Single-column stack; details becomes a fixed overlay sliding in from the right.
+   :where() keeps specificity flat so the unshifted state below can revert without
+   reaching for !important. */
+@container shiftFrame (max-width: 899px) {
+  :where(.shiftFrame) { overflow: visible; min-height: 0; margin: 0; border: none; }
+  :where(.shiftCanvas) {
+    width: 100%;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "scatter"
+      "ranking";
+    --shift-x: 0px;
+  }
+  :where(.regionRanking) { z-index: auto; }
+  :where(.regionDetails) {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 90vw;
+    background: var(--surface-2);
+    border-left: 1px solid var(--border-default);
+    z-index: var(--z-modal);
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease-out;
+  }
+  :where(.shiftCanvas[data-shifted="true"]) .regionDetails { transform: translateX(0); }
+  :where(.backOverlay) {
+    position: fixed;
+    top: var(--space-6);
+    left: var(--space-6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shiftCanvas { transition: none; }
+  .regionDetails { transition: none; }
+}

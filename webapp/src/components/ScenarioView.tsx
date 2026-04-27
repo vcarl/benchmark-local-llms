@@ -1,3 +1,4 @@
+import styles from "./ScenarioView.module.css";
 import type { BenchmarkResult } from "../lib/data";
 import { EventLog } from "./EventLog";
 
@@ -10,8 +11,8 @@ const terminationBand = (r: BenchmarkResult["termination_reason"]): string => {
 export function ScenarioView({ rec }: { rec: BenchmarkResult }) {
   const events = rec.events ?? [];
   return (
-    <div className="scenario-view">
-      <section className="scenario-stats">
+    <div className={styles.scenarioView}>
+      <section className={`${styles.section} ${styles.scenarioStats}`}>
         <Stat label="Score" value={rec.score.toFixed(2)} />
         <Stat label="Termination" value={rec.termination_reason ?? "—"} bandColor={terminationBand(rec.termination_reason)} />
         <Stat label="Tool calls" value={rec.tool_call_count !== null ? String(rec.tool_call_count) : "—"} />
@@ -19,23 +20,23 @@ export function ScenarioView({ rec }: { rec: BenchmarkResult }) {
       </section>
 
       {events.length > 0 && (
-        <section>
+        <section className={styles.section}>
           <h3>Timeline ({events.length} events)</h3>
           <TimelineScrubber events={events} />
         </section>
       )}
 
       {events.length > 0 && (
-        <section>
+        <section className={styles.section}>
           <h3>Event log</h3>
           <EventLog events={events} />
         </section>
       )}
 
       {rec.final_player_stats !== null && (
-        <section>
+        <section className={styles.section}>
           <h3>Final player stats</h3>
-          <pre className="run-text">{JSON.stringify(rec.final_player_stats, null, 2)}</pre>
+          <pre className={styles.runText}>{JSON.stringify(rec.final_player_stats, null, 2)}</pre>
         </section>
       )}
     </div>
@@ -44,9 +45,9 @@ export function ScenarioView({ rec }: { rec: BenchmarkResult }) {
 
 function Stat({ label, value, bandColor }: { label: string; value: string; bandColor?: string }) {
   return (
-    <div className="scenario-stat">
-      <div className="scenario-stat-label">{label}</div>
-      <div className={`scenario-stat-value ${bandColor ? `cap-${bandColor}` : ""}`}>{value}</div>
+    <div className={styles.scenarioStat}>
+      <div className={styles.scenarioStatLabel}>{label}</div>
+      <div className={styles.scenarioStatValue} data-band={bandColor}>{value}</div>
     </div>
   );
 }
@@ -60,11 +61,11 @@ function TimelineScrubber({ events }: { events: BenchmarkResult["events"] }) {
       : t === "connection" ? "#60a5fa"
       : "#4ade80";
   return (
-    <div className="timeline">
+    <div className={styles.timeline}>
       {events.map((e, i) => (
         <div
           key={i}
-          className="timeline-tick"
+          className={styles.timelineTick}
           style={{
             left: `${(i / Math.max(events.length - 1, 1)) * 100}%`,
             background: typeColor(e.event),

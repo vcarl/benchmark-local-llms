@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import styles from "./ShiftFrame.module.css";
 import { isShifted } from "../lib/shift-state";
 
 interface Props {
@@ -22,14 +23,14 @@ export function ShiftFrame({ model, onClose, scatter, ranking, details }: Props)
   }, [shifted, onClose]);
 
   return (
-    <div className="shift-frame">
-      <div className={shifted ? "shift-canvas shifted" : "shift-canvas"}>
-        <div className="region-scatter">{scatter}</div>
-        <div className="region-ranking">{ranking}</div>
-        <div className="region-details">{details}</div>
+    <div className={styles.shiftFrame}>
+      <div className={styles.shiftCanvas} data-shifted={shifted}>
+        <div className={styles.regionScatter}>{scatter}</div>
+        <div className={styles.regionRanking}>{ranking}</div>
+        <div className={styles.regionDetails}>{details}</div>
         <button
           type="button"
-          className="back-overlay"
+          className={styles.backOverlay}
           onClick={onClose}
           aria-label="Back to overview"
         >

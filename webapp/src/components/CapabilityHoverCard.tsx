@@ -1,3 +1,4 @@
+import styles from "./CapabilityHoverCard.module.css";
 import type { ListCapability } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
 
@@ -8,27 +9,28 @@ interface Props {
 
 export function CapabilityHoverCard({ title, capability }: Props) {
   return (
-    <div className="cap-hover-card" role="tooltip">
-      <div className="cap-hover-title">{title} · capability profile</div>
-      <table className="cap-hover-table">
+    <div className={styles.capHoverCard} role="tooltip">
+      <div className={styles.capHoverTitle}>{title} · capability profile</div>
+      <table className={styles.capHoverTable}>
         <tbody>
           {capability.map((c) => (
             <tr key={c.tag}>
-              <td className="ct-tag">{c.tag}</td>
-              <td className="ct-bar">
-                <div className="ct-bar-track">
+              <td className={styles.ctTag}>{c.tag}</td>
+              <td className={styles.ctBar}>
+                <div className={styles.ctBarTrack}>
                   {c.pass !== null && (
                     <div
-                      className={`ct-bar-fill cap-${scoreBand(c.pass)}`}
+                      className={styles.ctBarFill}
+                      data-band={scoreBand(c.pass)}
                       style={{ width: `${c.pass * 100}%` }}
                     />
                   )}
                 </div>
               </td>
-              <td className="ct-val">
+              <td className={styles.ctVal}>
                 {c.pass === null ? "—" : `${Math.round(c.pass * 100)}%`}
               </td>
-              <td className="ct-runs">
+              <td className={styles.ctRuns}>
                 {c.runs === 0 ? "no data" : `${c.runs} runs`}
               </td>
             </tr>

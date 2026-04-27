@@ -1,8 +1,11 @@
 import { useMemo, useState, useRef } from "react";
+import styles from "./Scatter.module.css";
 import type { BenchmarkResult } from "../lib/data";
 import {
   aggregateForScatter,
-  starPointsForTokens,
+  computeTpsDomain,
+  opacityForTps,
+  starPointsForWallTime,
   type ScatterDot,
 } from "../lib/pipeline";
 import { ScatterLegend } from "./ScatterLegend";
@@ -82,6 +85,7 @@ export function Scatter({ data }: Props) {
   const dots = useMemo(() => aggregateForScatter(data), [data]);
   const xDomain = useMemo(() => computeXDomain(dots), [dots]);
   const xScale = useMemo(() => xScaleFor(xDomain), [xDomain]);
+  const tpsDomain = useMemo(() => computeTpsDomain(dots), [dots]);
   const hovered = useHoveredModel();
   const [tip, setTip] = useState<{ dot: ScatterDot; x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -117,40 +121,40 @@ export function Scatter({ data }: Props) {
 
   if (dots.length === 0) {
     return (
-      <div className="scatter-wrap" ref={wrapRef}>
-        <div className="scatter-empty">No data matches the current filters.</div>
+      <div className={styles.scatterWrap} ref={wrapRef}>
+        <div className={styles.scatterEmpty}>No data matches the current filters.</div>
       </div>
     );
   }
 
   return (
-    <div className="scatter-wrap" ref={wrapRef}>
+    <div className={styles.scatterWrap} ref={wrapRef}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        className="scatter-svg"
+        className={styles.scatterSvg}
       >
         {yTicks.map((v) => (
           <g key={`y${v}`}>
-            <line className="scatter-grid" x1={M.left} x2={M.left + IW} y1={yScale(v)} y2={yScale(v)} />
-            <text className="scatter-tick" x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{v}%</text>
+            <line className={styles.scatterGrid} x1={M.left} x2={M.left + IW} y1={yScale(v)} y2={yScale(v)} />
+            <text className={styles.scatterTick} x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{v}%</text>
           </g>
         ))}
         {xDomain.ticks.map((v) => (
           <g key={`x${v}`}>
-            <line className="scatter-grid" x1={xScale(v)} x2={xScale(v)} y1={M.top} y2={M.top + IH} />
-            <text className="scatter-tick" x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">
+            <line className={styles.scatterGrid} x1={xScale(v)} x2={xScale(v)} y1={M.top} y2={M.top + IH} />
+            <text className={styles.scatterTick} x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">
               {formatTick(v)}
             </text>
           </g>
         ))}
-        <line className="scatter-axis" x1={M.left} x2={M.left} y1={M.top} y2={M.top + IH} />
-        <line className="scatter-axis" x1={M.left} x2={M.left + IW} y1={M.top + IH} y2={M.top + IH} />
-        <text className="scatter-axis-title" x={M.left + IW / 2} y={H - 10} textAnchor="middle">
+        <line className={styles.scatterAxis} x1={M.left} x2={M.left} y1={M.top} y2={M.top + IH} />
+        <line className={styles.scatterAxis} x1={M.left} x2={M.left + IW} y1={M.top + IH} y2={M.top + IH} />
+        <text className={styles.scatterAxisTitle} x={M.left + IW / 2} y={H - 10} textAnchor="middle">
           Avg tokens per run (log)
         </text>
         <text
-          className="scatter-axis-title"
+          className={styles.scatterAxisTitle}
           x={16}
           y={M.top + IH / 2}
           textAnchor="middle"
@@ -166,7 +170,7 @@ export function Scatter({ data }: Props) {
           return (
             <polyline
               key={t.model}
-              className="scatter-trajectory"
+              className={styles.scatterTrajectory}
               points={points}
               stroke={familyColor(t.family)}
               style={{ opacity: dim ? 0.2 : 0.55 }}
@@ -177,16 +181,19 @@ export function Scatter({ data }: Props) {
         {dots.map((d) => {
           const outerR = rScale(d.mem);
           const innerR = outerR * 0.75;
-          const n = starPointsForTokens(d.tokens);
+          const n = starPointsForWallTime(d.wallTime);
           const dim = hovered !== null && hovered !== d.baseModel;
           const active = hovered === d.baseModel;
+          const baseOpacity = opacityForTps(d.gen_tps, tpsDomain);
+          const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
+          const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
           return (
             <path
               key={`${d.baseModel}|${d.runtime}|${d.quant}|${d.temperature}`}
-              className="scatter-dot"
+              className={styles.scatterDot}
               d={starPath(xScale(d.tokens), yScale(d.score), n, outerR, innerR)}
               fill={familyColor(d.family)}
-              fillOpacity={dim ? 0.35 : active ? 0.95 : 0.85}
+              fillOpacity={fillOpacity}
               onMouseEnter={(ev) => {
                 setHoveredModel(d.baseModel);
                 const rect = wrapRef.current?.getBoundingClientRect();
@@ -206,10 +213,10 @@ export function Scatter({ data }: Props) {
       </svg>
 
       {tip && (
-        <div className="scatter-tip" style={{ left: tip.x + 12, top: tip.y + 12 }}>
-          <div className="scatter-tip-title">{tip.dot.baseModel}</div>
-          <div className="scatter-tip-meta">
-            {tip.dot.quant} · {tip.dot.runtime} · t{tip.dot.temperature}
+        <div className={styles.scatterTip} style={{ left: tip.x + 12, top: tip.y + 12 }}>
+          <div className={styles.scatterTipTitle}>{tip.dot.baseModel}</div>
+          <div className={styles.scatterTipMeta}>
+            {tip.dot.quant} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.gen_tps.toFixed(0)} tok/s · {tip.dot.wallTime.toFixed(0)}s
             {tip.dot.executedAt ? ` · ${tip.dot.executedAt.slice(0, 10)}` : ""}
           </div>
           <div>
@@ -218,7 +225,7 @@ export function Scatter({ data }: Props) {
         </div>
       )}
 
-      <ScatterLegend families={families} />
+      <ScatterLegend families={families} tpsDomain={tpsDomain} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import styles from "./PromptView.module.css";
 import type { BenchmarkResult } from "../lib/data";
 import { stripThinkingTags, extractThinkBlock } from "../lib/strip-thinking";
 
@@ -8,26 +9,26 @@ export function PromptView({ rec }: { rec: BenchmarkResult }) {
   const stripped = stripThinkingTags(rec.output);
 
   return (
-    <div className="prompt-view">
-      <section>
+    <div className={styles.promptView}>
+      <section className={styles.section}>
         <h3>Score detail</h3>
-        <pre className="run-details">{rec.score_details || "(none)"}</pre>
+        <pre className={styles.runDetails}>{rec.score_details || "(none)"}</pre>
       </section>
-      <section>
+      <section className={styles.section}>
         <h3>Prompt</h3>
-        <pre className="run-text">{rec.prompt_text || "(prompt not archived)"}</pre>
+        <pre className={styles.runText}>{rec.prompt_text || "(prompt not archived)"}</pre>
       </section>
-      <section>
+      <section className={styles.section}>
         <h3>Output</h3>
         {reasoning !== null && (
-          <div className="thinking">
+          <div className={styles.thinking}>
             <button onClick={() => setShowThink((v) => !v)}>
               {showThink ? "▾" : "▸"} reasoning ({reasoning.length} chars)
             </button>
-            {showThink && <pre className="run-text run-thinking">{reasoning}</pre>}
+            {showThink && <pre className={`${styles.runText} ${styles.runThinking}`}>{reasoning}</pre>}
           </div>
         )}
-        <pre className="run-text">{stripped}</pre>
+        <pre className={styles.runText}>{stripped}</pre>
       </section>
     </div>
   );

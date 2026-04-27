@@ -1,0 +1,200 @@
+/* Wrapper around a row + its (optional, sibling) expand toggle.
+   The toggle is absolutely positioned within this wrapper so we never
+   nest a <button> inside the row's <button>. */
+.runRowWrap { position: relative; }
+
+/* Shared 7-column track for header + lead row + compact row.
+   Inner half-grids (.resultRowBreakdown, .resultRowAlways) consume these tracks
+   via `grid-template-columns: subgrid` so headers always align with cells.
+
+   Track legend:
+     1. variants block (1fr, may be wide)
+     2. capability strip (auto)
+     3. rank        (--col-rank)
+     4. model       (1fr)
+     5. score       (--col-score)
+     6. memory      (--col-num)
+     7. tokens      (--col-num)
+*/
+.resultRow,
+.resultRowCompact,
+.resultHeader {
+  --col-rank: 24px;
+  --col-score: 78px;
+  --col-num: 60px;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) auto
+    var(--col-rank) minmax(0, 1fr) var(--col-score) var(--col-num) var(--col-num);
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.resultRow {
+  padding: var(--space-5) var(--space-6);
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.1s, opacity 0.1s;
+  font: inherit;
+  font-size: var(--fz-13);
+  color: var(--text-primary);
+  background: transparent;
+  text-align: inherit;
+  width: 100%;
+
+  &:hover { background: var(--surface-hover); }
+  /* Group expand/collapse anchor — lead row in a multi-run group */
+  &.runRow { position: relative; }
+}
+
+/* Breakdown half: spans tracks 1-2 (variants + capability) and adopts those
+   tracks via subgrid. The dashed divider lives on this element. */
+.resultRowBreakdown {
+  grid-column: 1 / 3;
+  display: grid;
+  grid-template-columns: subgrid;
+  gap: var(--space-6);
+  align-items: center;
+  padding-right: var(--space-6);
+  border-right: 1px dashed var(--border-subtle);
+  min-width: 0;
+}
+
+/* Always-visible half: spans tracks 3-7 via subgrid. */
+.resultRowAlways {
+  grid-column: 3 / 8;
+  display: grid;
+  grid-template-columns: subgrid;
+  gap: var(--space-4);
+  align-items: center;
+  padding-left: var(--space-6);
+  min-width: 0;
+}
+
+.resultRank { text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; font-size: var(--fz-12); }
+.resultModel { min-width: 0; }
+.resultModelName { font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resultModelFamily { font-size: var(--fz-11); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resultScoreCell { text-align: right; }
+.resultScore { font-size: var(--fz-15); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; color: var(--band, var(--text-primary)); }
+.resultEfficiency { font-size: var(--fz-11); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
+.resultEfficiencyBroken { color: var(--warn-orange); text-decoration: underline dashed rgba(217, 119, 6, 0.6); text-underline-offset: var(--space-1); cursor: help; }
+.resultVariants { display: flex; flex-direction: column; gap: var(--space-1); }
+.resultVariant { display: flex; align-items: center; gap: var(--space-4); font-size: var(--fz-10); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.resultVariantLabel { flex: 0 0 96px; white-space: nowrap; text-align: right; font-family: ui-monospace, SFMono-Regular, monospace; overflow: hidden; text-overflow: ellipsis; }
+.resultVariantTrack { position: relative; flex: 1 1 auto; height: 12px; background: var(--surface); border: 1px solid var(--gray-850); border-radius: var(--r-2); overflow: hidden; min-width: 60px; }
+.resultVariantFill { display: block; position: absolute; top: 0; left: 0; height: 8px; border-radius: 2px 2px 0 0; }
+.resultVariantTokens { display: block; position: absolute; bottom: 0; left: 0; height: 3px; border-radius: 1px; filter: brightness(1.25) saturate(1.15); }
+.resultVariantScore { flex: 0 0 34px; text-align: right; color: var(--text-primary); }
+.resultCapability { display: flex; gap: var(--space-1); position: relative; }
+.resultCapCell {
+  width: 14px;
+  height: 20px;
+  border-radius: var(--r-2);
+  cursor: default;
+  background: var(--band, var(--gray-600));
+  background-image: var(--band-pattern, none);
+}
+.resultNumeric { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-size: var(--fz-13); color: var(--text-primary); }
+.resultNumericSub { font-size: var(--fz-10); color: var(--text-muted); }
+.resultNumericBroken { color: var(--warn-orange); cursor: help; }
+.resultNumericBroken > span:first-child { text-decoration: underline dashed rgba(217, 119, 6, 0.6); text-underline-offset: var(--space-1); }
+
+/* Run-grouped table — model groups with lead + collapsed rows.
+   Rows are wrapped in `.runRowWrap` (so the expand toggle can sit alongside
+   without nesting buttons); the divider between consecutive runs targets the
+   wrappers, not the buttons themselves. */
+.resultGroup { border-bottom: 1px solid var(--gray-850); }
+.resultGroup:last-child { border-bottom: none; }
+.resultGroup .runRowWrap + .runRowWrap > .runRow { border-top: 1px solid var(--gray-890); }
+
+/* Compact (collapsed-style) row inside a group.
+   `.resultRowCompact` is always applied alongside `.resultRow`, so it only
+   overrides the visual/density properties that differ. */
+.resultRowCompact {
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--fz-12);
+  background: var(--gray-975);
+  color: var(--text-secondary);
+
+  & .resultRank          { visibility: hidden; }
+  & .resultScore         { font-size: var(--fz-13); }
+  & .resultNumeric       { font-size: var(--fz-12); color: var(--gray-150); }
+  & .resultCapability    { transform: scale(0.85); transform-origin: left center; }
+  & .resultVariantTrack  { height: 8px; }
+  & .resultVariantFill   { height: 5px; }
+  & .resultVariantTokens { height: 2px; }
+}
+.runRowVariant { font-family: ui-monospace, SFMono-Regular, monospace; font-size: var(--fz-11); color: var(--text-secondary); }
+
+/* Single-bar score visualization for run rows (replaces the multi-variant strip) */
+.runBar { display: flex; align-items: center; min-width: 0; }
+.runBar .resultVariantTrack { flex: 1 1 auto; min-width: 60px; }
+
+/* Group expand/collapse toggle, anchored to lead row */
+.resultGroupToggle {
+  position: absolute;
+  right: var(--space-6);
+  bottom: var(--space-2);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  border: 1px solid var(--gray-700);
+  border-radius: var(--r-10);
+  padding: 1px var(--space-4);
+  font-size: var(--fz-10);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  line-height: 1.4;
+
+  &:hover { background: var(--surface-4); color: var(--text-primary); border-color: var(--gray-650); }
+}
+.resultGroupToggleCaret { font-size: var(--fz-9); }
+
+/* Two-axis sort UI */
+.resultSortGroup { display: inline-flex; align-items: center; gap: var(--space-2); }
+.resultSortSelect {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-4);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--fz-11);
+  cursor: pointer;
+
+  &:hover { background: var(--surface-4); border-color: var(--gray-550); }
+}
+
+/* Result table */
+.resultTable { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--r-8); padding: 0; margin: 0 var(--space-8) var(--space-8); }
+.resultControls { display: flex; justify-content: space-between; align-items: center; padding: var(--space-5) var(--space-8); font-size: var(--fz-12); color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); background: var(--gray-955); }
+.resultCount { font-variant-numeric: tabular-nums; }
+.resultSort { display: flex; gap: var(--space-3); align-items: center; }
+.resultSortLabel { color: var(--text-faint); }
+.resultSortBtn {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--r-4);
+  border: 1px solid var(--border-default);
+  background: var(--surface-3);
+  color: var(--text-primary);
+  font-size: var(--fz-11);
+  cursor: pointer;
+
+  &:hover { background: var(--surface-4); }
+}
+.resultSortBtnActive { background: var(--accent-700); border-color: var(--accent-300); color: var(--gray-50); }
+.resultHeader {
+  padding: var(--space-5) var(--space-6);
+  font-size: var(--fz-10);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--gray-955);
+}
+.resultScoreHeader, .resultNumericHeader { text-align: right; }
+.resultEmpty { padding: var(--space-16) var(--space-12); text-align: center; color: var(--text-faint); }

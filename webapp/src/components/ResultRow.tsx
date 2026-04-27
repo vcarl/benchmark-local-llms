@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import styles from "./ResultTable.module.css";
 import type { ListRow } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
 import { CapabilityHoverCard } from "./CapabilityHoverCard";
@@ -16,7 +17,7 @@ const abbrevRuntime = (runtime: string): string =>
 
 export function ResultRow({ row, rank, onClick }: Props) {
   const [capTip, setCapTip] = useState<{ x: number; y: number } | null>(null);
-  const rowRef = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLButtonElement | null>(null);
   const rowColor = familyColor(row.family);
   const maxVariantTokens = Math.max(1, ...row.variants.map((v) => v.tokens));
   const anyBrokenTokens = row.variants.some((v) => v.tokens === 0 && v.score > 0);
@@ -30,41 +31,41 @@ export function ResultRow({ row, rank, onClick }: Props) {
   };
 
   return (
-    <div
+    <button
+      type="button"
       ref={rowRef}
-      className="result-row"
+      className={styles.resultRow}
       onClick={onClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      role="button"
     >
-      <div className="result-row-breakdown">
-        <div className="result-variants">
+      <div className={styles.resultRowBreakdown}>
+        <div className={styles.resultVariants}>
           {row.variants.map((v, i) => {
             const opacity = 0.55 + 0.45 * (1 - i / Math.max(1, row.variants.length - 1));
             const tokenPct = Math.max(0, Math.min(100, (v.tokens / maxVariantTokens) * 100));
             const variantTitle = `${Math.round(v.tokens).toLocaleString()} tokens/run`;
             return (
-              <div key={`${v.runtime}|${v.quant}|${v.temperature}`} className="result-variant">
-                <span className="result-variant-label">{abbrevRuntime(v.runtime)} {v.quant} t{v.temperature}</span>
-                <span className="result-variant-track" title={variantTitle}>
+              <div key={`${v.runtime}|${v.quant}|${v.temperature}`} className={styles.resultVariant}>
+                <span className={styles.resultVariantLabel}>{abbrevRuntime(v.runtime)} {v.quant} t{v.temperature}</span>
+                <span className={styles.resultVariantTrack} title={variantTitle}>
                   <span
-                    className="result-variant-fill"
+                    className={styles.resultVariantFill}
                     style={{ width: `${Math.max(0, Math.min(100, v.score))}%`, background: rowColor, opacity }}
                   />
                   <span
-                    className="result-variant-tokens"
+                    className={styles.resultVariantTokens}
                     style={{ width: `${tokenPct}%`, background: rowColor, boxShadow: `0 0 6px ${rowColor}` }}
                   />
                 </span>
-                <span className="result-variant-score">{v.score.toFixed(0)}%</span>
+                <span className={styles.resultVariantScore}>{v.score.toFixed(0)}%</span>
               </div>
             );
           })}
         </div>
 
         <div
-          className="result-capability"
+          className={styles.resultCapability}
           onMouseEnter={(ev) => {
             const rect = rowRef.current?.getBoundingClientRect();
             if (rect) setCapTip({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
@@ -78,7 +79,8 @@ export function ResultRow({ row, rank, onClick }: Props) {
           {row.capability.map((c) => (
             <div
               key={c.tag}
-              className={c.pass === null ? "result-cap-cell cap-absent" : `result-cap-cell cap-${scoreBand(c.pass)}`}
+              className={styles.resultCapCell}
+              data-band={c.pass === null ? "absent" : scoreBand(c.pass)}
               title={c.pass === null ? `${c.tag}: no runs` : `${c.tag}: ${Math.round(c.pass * 100)}%`}
             />
           ))}
@@ -90,35 +92,35 @@ export function ResultRow({ row, rank, onClick }: Props) {
         </div>
       </div>
 
-      <div className="result-row-always">
-        <div className="result-rank">{rank}</div>
-        <div className="result-model">
-          <div className="result-model-name">{row.key}</div>
-          {row.family !== null && <div className="result-model-family">{row.family}</div>}
+      <div className={styles.resultRowAlways}>
+        <div className={styles.resultRank}>{rank}</div>
+        <div className={styles.resultModel}>
+          <div className={styles.resultModelName}>{row.key}</div>
+          {row.family !== null && <div className={styles.resultModelFamily}>{row.family}</div>}
         </div>
-        <div className="result-score-cell">
-          <div className={`result-score cap-${scoreBand(row.bestScore / 100)}`}>
+        <div className={styles.resultScoreCell}>
+          <div className={styles.resultScore} data-band={scoreBand(row.bestScore / 100)}>
             {row.bestScore.toFixed(0)}%
           </div>
           <div
-            className={`result-efficiency${anyBrokenTokens ? " result-efficiency--broken" : ""}`}
+            className={`${styles.resultEfficiency}${anyBrokenTokens ? ` ${styles.resultEfficiencyBroken}` : ""}`}
             title={anyBrokenTokens ? brokenTitle : undefined}
           >
             {row.efficiency} tok/pt
           </div>
         </div>
-        <div className="result-numeric">
+        <div className={styles.resultNumeric}>
           <span>{row.mem.toFixed(1)} GB</span>
-          <span className="result-numeric-sub">{row.bestVariant.quant}</span>
+          <span className={styles.resultNumericSub}>{row.bestVariant.quant}</span>
         </div>
         <div
-          className={`result-numeric${anyBrokenTokens ? " result-numeric--broken" : ""}`}
+          className={`${styles.resultNumeric}${anyBrokenTokens ? ` ${styles.resultNumericBroken}` : ""}`}
           title={anyBrokenTokens ? brokenTitle : undefined}
         >
           <span>{Math.round(row.avgTokens).toLocaleString()}</span>
-          <span className="result-numeric-sub">avg/run</span>
+          <span className={styles.resultNumericSub}>avg/run</span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
