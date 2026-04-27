@@ -12,6 +12,7 @@ import { ShiftFrame } from "../components/ShiftFrame";
 import type { GroupBy, ListRow, RunRow, RunSortKey } from "../lib/pipeline";
 import {
   applyFilters,
+  applyVariantFilters,
   aggregateForList,
   aggregateForRunList,
   groupRunsByModel,
@@ -40,9 +41,18 @@ function HomePage() {
     quants: uniqueSorted(DATA, "quant") as string[],
     temperatures: (uniqueSorted(DATA, "temperature") as number[]).sort((a, b) => a - b),
     durationDomain: (() => {
-      const ws = DATA.map((d) => d.wall_time_sec).filter((s) => Number.isFinite(s) && s > 0);
-      if (ws.length === 0) return { min: 0, max: 0 };
-      return { min: Math.floor(Math.min(...ws)), max: Math.ceil(Math.max(...ws)) };
+      // Slider operates on whole-benchmark duration (sum of wall_time_sec
+      // across each variant's prompts), so the domain is min/max of those
+      // per-variant totals — not min/max of individual record wall_times.
+      const totals = new Map<string, number>();
+      for (const d of DATA) {
+        if (!Number.isFinite(d.wall_time_sec) || d.wall_time_sec <= 0) continue;
+        const k = `${d.model}|${d.runtime}|${d.quant}|${d.temperature}`;
+        totals.set(k, (totals.get(k) ?? 0) + d.wall_time_sec);
+      }
+      const vals = Array.from(totals.values());
+      if (vals.length === 0) return { min: 0, max: 0 };
+      return { min: Math.floor(Math.min(...vals)), max: Math.ceil(Math.max(...vals)) };
     })(),
   }), []);
 
@@ -54,7 +64,10 @@ function HomePage() {
   const sortPrimary: RunSortKey = isRunSortKey(search.sortPrimary) ? search.sortPrimary : "score";
   const sortSecondary: RunSortKey = isRunSortKey(search.sortSecondary) ? search.sortSecondary : "score";
 
-  const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
+  const filtered = useMemo(
+    () => applyVariantFilters(applyFilters(DATA, filters), filters),
+    [filters],
+  );
 
   const runGroups = useMemo(
     () => isGroupedRunView

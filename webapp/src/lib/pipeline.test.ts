@@ -4,6 +4,7 @@ import {
   aggregateForRunList,
   aggregateForScatter,
   applyFilters,
+  applyVariantFilters,
   groupRunsByModel,
 } from "./pipeline";
 import type { BenchmarkResult } from "./data";
@@ -39,11 +40,11 @@ describe("applyFilters", () => {
   });
   it("AND across chips", () => {
     const data = [
-      mk({ wall_time_sec: 5, runtime: "llamacpp" }),
-      mk({ wall_time_sec: 30, runtime: "llamacpp" }),
-      mk({ wall_time_sec: 5, runtime: "mlx" }),
+      mk({ category: "code", runtime: "llamacpp" }),
+      mk({ category: "math", runtime: "llamacpp" }),
+      mk({ category: "code", runtime: "mlx" }),
     ];
-    expect(applyFilters(data, { durationRange: { min: 0, max: 10 }, runtime: ["llamacpp"] }).length).toBe(1);
+    expect(applyFilters(data, { category: ["code"], runtime: ["llamacpp"] }).length).toBe(1);
   });
   it("excludes via negative filter", () => {
     const data = [mk({ tags: ["TODO"] }), mk({ tags: ["code-synthesis"] })];
@@ -67,6 +68,26 @@ describe("applyFilters", () => {
     ];
     const out = applyFilters(data, { tempRange: { min: 0.5, max: 1.0 } });
     expect(out.map((r) => r.temperature)).toEqual([0.7]);
+  });
+});
+
+describe("applyVariantFilters", () => {
+  it("drops whole variants by total wall_time, keeping all records of variants in range", () => {
+    const data = [
+      // llamacpp variant: total wall_time = 5+7 = 12 — in [0,30]
+      mk({ runtime: "llamacpp", wall_time_sec: 5, prompt_name: "a" }),
+      mk({ runtime: "llamacpp", wall_time_sec: 7, prompt_name: "b" }),
+      // mlx variant: total wall_time = 10+90 = 100 — out of [0,30]
+      mk({ runtime: "mlx", wall_time_sec: 10, prompt_name: "a" }),
+      mk({ runtime: "mlx", wall_time_sec: 90, prompt_name: "b" }),
+    ];
+    const out = applyVariantFilters(data, { durationRange: { min: 0, max: 30 } });
+    expect(out.length).toBe(2);
+    expect(out.every((r) => r.runtime === "llamacpp")).toBe(true);
+  });
+  it("returns input unchanged when no variant-level filter is set", () => {
+    const data = [mk({ wall_time_sec: 5 }), mk({ wall_time_sec: 999 })];
+    expect(applyVariantFilters(data, {})).toBe(data);
   });
 });
 

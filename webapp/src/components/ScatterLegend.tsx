@@ -11,11 +11,11 @@ interface Props {
 }
 
 const WALL_TIME_REFS: Array<{ seconds: number; label: string }> = [
-  { seconds: 1, label: "1s" },
-  { seconds: 10, label: "10s" },
-  { seconds: 60, label: "1m" },
+  { seconds: 30, label: "30s" },
   { seconds: 300, label: "5m" },
   { seconds: 1800, label: "30m" },
+  { seconds: 7200, label: "2h" },
+  { seconds: 36000, label: "10h" },
 ];
 
 const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: number): string => {
