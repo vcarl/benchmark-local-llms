@@ -78,7 +78,7 @@ Ref: `src/schema/execution.ts`.
 Each manifest embeds the corpus that was used at execution time:
 
 - Re-scoring an old archive does not require the original `prompts/` corpus to still exist on disk.
-- A corpus change (renaming a prompt, editing a constraint) does not retroactively change historical archive scoring unless `--scoring current` is passed to `./bench report`.
+- A corpus change (renaming a prompt, editing a constraint) drops affected cells from the report rather than retroactively rescoring historical archives — see `docs/superpowers/specs/2026-04-27-archive-cache-semantics.md` for drop semantics.
 
 See [`GUARANTEES.md`](./GUARANTEES.md) for the full self-contained-archives invariant.
 
@@ -94,15 +94,12 @@ The state file is created on a fresh start, read on subsequent invocations to re
 
 Cache lookup is scoped to the active `runId` — only results carrying that id satisfy a hit, so resume produces a complete dataset under one id rather than mixing in older archives.
 
-Legacy archives written before the `runId` → `archiveId` rename are translated by the loader: `archiveId` is synthesized from the old `runId`, and the new `runId` is set to `legacy-{archiveId}`. They are readable by reports but cannot satisfy a cache lookup for any non-legacy run.
-
 ## Re-scoring CLIs
 
 | Command | Behavior |
 |---|---|
 | `./bench score --archive FILE` | Score one archive against its embedded corpus. |
-| `./bench report --scoring as-run` | Render report, scoring each archive against its own embedded corpus. |
-| `./bench report --scoring current` | Render report, scoring each archive against the current `prompts/` on disk. |
+| `./bench report` | Render report, scoring each archive against the current `prompts/` corpus and dropping cells whose prompt/scenario hash no longer matches. |
 
 ## Implementation pointers
 

@@ -44,44 +44,6 @@ const parseJsonLine = (
     catch: () => new JsonlCorruptLine({ filePath, lineNumber, rawLine }),
   });
 
-/**
- * Legacy archive shape compatibility. Archives written before the runId →
- * archiveId rename carry `runId` in the per-archive sense and have no
- * `archiveId`. We synthesize on read: `archiveId = oldRunId`,
- * `runId = "legacy-{oldRunId}"`. Legacy archives therefore can never satisfy
- * a cache lookup for a real (non-legacy) runId, which is the intended
- * semantic — old data exists but doesn't auto-cache into new logical runs.
- *
- * Detection: presence of the `archiveId` key. New writes always include it;
- * legacy writes never did.
- *
- * Also translates legacy `temperatures: number[]` to `temperature: number` on
- * read — the first element is taken and the array key is deleted. Empty arrays
- * should never occur in real legacy data.
- */
-const translateLegacyShape = (raw: unknown): unknown => {
-  if (typeof raw !== "object" || raw === null) return raw;
-  const obj = { ...(raw as Record<string, unknown>) };
-
-  // Existing: archiveId synthesis
-  if (typeof obj["archiveId"] !== "string") {
-    const legacyId = obj["runId"];
-    if (typeof legacyId === "string") {
-      obj["archiveId"] = legacyId;
-      obj["runId"] = `legacy-${legacyId}`;
-    }
-  }
-
-  // New: temperatures: number[] → temperature: number
-  if (Array.isArray(obj["temperatures"]) && obj["temperature"] === undefined) {
-    // empty arrays should not occur in real legacy data; 0 is a defensive fallback
-    obj["temperature"] = (obj["temperatures"] as number[])[0] ?? 0;
-    delete obj["temperatures"];
-  }
-
-  return obj;
-};
-
 const corruptFromDecodeError =
   (filePath: string, lineNumber: number, rawLine: string) =>
   (_cause: unknown): JsonlCorruptLine =>
@@ -125,8 +87,7 @@ export const loadManifest = (
     const headerLine = lines[headerIndex] ?? "";
     const headerLineNumber = headerIndex + 1;
     const headerJson = yield* parseJsonLine(path, headerLineNumber, headerLine);
-    const headerTranslated = translateLegacyShape(headerJson);
-    const manifest = yield* decodeManifest(headerTranslated).pipe(
+    const manifest = yield* decodeManifest(headerJson).pipe(
       Effect.mapError(corruptFromDecodeError(path, headerLineNumber, headerLine)),
     );
 
@@ -136,8 +97,7 @@ export const loadManifest = (
       if (raw.length === 0) continue;
       const lineNumber = i + 1;
       const parsed = yield* parseJsonLine(path, lineNumber, raw);
-      const translated = translateLegacyShape(parsed);
-      const result = yield* decodeResult(translated).pipe(
+      const result = yield* decodeResult(parsed).pipe(
         Effect.mapError(corruptFromDecodeError(path, lineNumber, raw)),
       );
       results.push(result);

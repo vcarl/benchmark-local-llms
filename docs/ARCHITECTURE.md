@@ -9,7 +9,7 @@ The harness is layered so that each layer can be reasoned about (and tested) ind
 ```
 src/cli/        — @effect/cli entry, flag parsing, dep wiring
 ├── main.ts                        Command composition + NodeRuntime.runMain
-├── commands/{run,report,score,list,migrate}.ts
+├── commands/{run,report,score,list}.ts
 ├── config/build.ts                Flag → RunLoopConfig
 ├── deps.ts                        makeRunDeps: llmServer / admiral / gameSession factories
 └── paths.ts
@@ -78,7 +78,6 @@ src/errors/     — Data.TaggedError classes per domain
 └── index.ts
 
 src/report/     — Archive → webapp/src/data/data.js
-src/migrate/    — prototype jsonl → RunManifest
 ```
 
 ## Lifecycle: one `run` invocation

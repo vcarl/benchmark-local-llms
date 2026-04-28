@@ -226,8 +226,10 @@ export const runLoop = (
       // Loader rejects active models missing temperature, so this is a programmer
       // error if it fires (e.g., a future code path bypasses the loader).
       if (model.temperature === undefined) {
-        throw new Error(
-          `runLoop: model '${model.artifact}' has no temperature; this should have been caught by the models.yaml loader.`,
+        return yield* Effect.die(
+          new Error(
+            `runLoop: model '${model.artifact}' has no temperature; this should have been caught by the models.yaml loader.`,
+          ),
         );
       }
       const modelTemperature = model.temperature;

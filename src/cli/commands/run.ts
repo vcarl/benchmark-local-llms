@@ -167,54 +167,57 @@ const resolveRunId = (archiveDir: string, fresh: boolean, noSave: boolean) =>
  */
 const enumeratePlannedCells = (
   config: import("../../orchestration/run-loop.js").RunLoopConfig,
-): ReadonlyArray<PlannedCell> => {
-  const out: PlannedCell[] = [];
-  for (const m of config.models) {
-    if (config.modelNameFilter !== undefined) {
-      const needle = config.modelNameFilter.toLowerCase();
-      const haystackName = (m.name ?? "").toLowerCase();
-      const haystackArtifact = m.artifact.toLowerCase();
-      if (!haystackName.includes(needle) && !haystackArtifact.includes(needle)) continue;
-    }
-    if (config.quantFilter !== undefined) {
-      const needle = config.quantFilter.toLowerCase();
-      if (m.quant === undefined || !m.quant.toLowerCase().includes(needle)) continue;
-    }
-    if (config.paramsFilter !== undefined) {
-      const needle = config.paramsFilter.toLowerCase();
-      if (m.params === undefined || !m.params.toLowerCase().includes(needle)) continue;
-    }
-    // Loader rejects active models missing temperature, so this is a programmer
-    // error if it fires (e.g., enumerating cells for an unvalidated config).
-    if (m.temperature === undefined) {
-      throw new Error(
-        `enumeratePlannedCells: model '${m.artifact}' has no temperature; this should have been caught by the models.yaml loader.`,
-      );
-    }
-    const modelTemp = m.temperature;
-    if (config.scenariosOnly !== true) {
-      for (const p of config.promptCorpus) {
+): Effect.Effect<ReadonlyArray<PlannedCell>> =>
+  Effect.gen(function* () {
+    const out: PlannedCell[] = [];
+    for (const m of config.models) {
+      if (config.modelNameFilter !== undefined) {
+        const needle = config.modelNameFilter.toLowerCase();
+        const haystackName = (m.name ?? "").toLowerCase();
+        const haystackArtifact = m.artifact.toLowerCase();
+        if (!haystackName.includes(needle) && !haystackArtifact.includes(needle)) continue;
+      }
+      if (config.quantFilter !== undefined) {
+        const needle = config.quantFilter.toLowerCase();
+        if (m.quant === undefined || !m.quant.toLowerCase().includes(needle)) continue;
+      }
+      if (config.paramsFilter !== undefined) {
+        const needle = config.paramsFilter.toLowerCase();
+        if (m.params === undefined || !m.params.toLowerCase().includes(needle)) continue;
+      }
+      // Loader rejects active models missing temperature, so this is a programmer
+      // error if it fires (e.g., enumerating cells for an unvalidated config).
+      if (m.temperature === undefined) {
+        return yield* Effect.die(
+          new Error(
+            `enumeratePlannedCells: model '${m.artifact}' has no temperature; this should have been caught by the models.yaml loader.`,
+          ),
+        );
+      }
+      const modelTemp = m.temperature;
+      if (config.scenariosOnly !== true) {
+        for (const p of config.promptCorpus) {
+          out.push({
+            artifact: m.artifact,
+            promptName: p.name,
+            promptHash: p.promptHash,
+            temperature: modelTemp,
+            kind: "prompt",
+          });
+        }
+      }
+      for (const s of config.scenarioCorpus) {
         out.push({
           artifact: m.artifact,
-          promptName: p.name,
-          promptHash: p.promptHash,
+          promptName: s.name,
+          promptHash: s.scenarioHash,
           temperature: modelTemp,
-          kind: "prompt",
+          kind: "scenario",
         });
       }
     }
-    for (const s of config.scenarioCorpus) {
-      out.push({
-        artifact: m.artifact,
-        promptName: s.name,
-        promptHash: s.scenarioHash,
-        temperature: modelTemp,
-        kind: "scenario",
-      });
-    }
-  }
-  return out;
-};
+    return out;
+  });
 
 // ── Handler ────────────────────────────────────────────────────────────────
 
@@ -294,7 +297,7 @@ export const runCommand = Command.make("run", runOptions, (raw) => {
     }
 
     if (!ephemeral) {
-      const planned = enumeratePlannedCells(config);
+      const planned = yield* enumeratePlannedCells(config);
       const verdict = yield* checkCompletion({
         archiveDir,
         runId,
