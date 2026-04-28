@@ -16,23 +16,28 @@
   container-name: shiftFrame;
 }
 
-/* The canvas is wider than the frame: scatter (1fr) + ranking (2fr) + details (3fr).
-   Together that's 6fr. We let two of those columns (1+2 = 3/6 = 50%) fit in
-   the visible frame; the panel sits beyond the right edge until shifted in. */
+/* The canvas is wider than the frame so the shift can sweep most — but not all —
+   of the visible content out of view, leaving the right portion of the ranking
+   row in sight while details slides in.
+     scatter  : 50/170 of canvas  → 50% of frame
+     ranking  : 50/170 of canvas  → 50% of frame  (right 60% stays visible after shift)
+     details  : 70/170 of canvas  → 70% of frame
+   Shift is -70/170 of canvas (= -70% of frame), so the visible window moves
+   from canvas[0..100%] to canvas[70%..170%] of the frame's width. */
 .shiftCanvas {
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 2fr 3fr;
+  grid-template-columns: 5fr 5fr 7fr;
   grid-template-areas: "scatter ranking details";
-  width: calc(100% * 6 / 3);
+  width: calc(100% * 17 / 10);
   --shift-x: 0px;
   transform: translateX(var(--shift-x));
   transition: transform 0.4s ease-out;
   will-change: transform;
 
   &[data-shifted="true"] {
-    --shift-x: calc(-3 / 6 * 100%);
+    --shift-x: calc(-7 / 17 * 100%);
 
     & .backOverlay {
       opacity: 1;
@@ -49,7 +54,7 @@
   position: absolute;
   top: var(--space-6);
   /* place above the details region — same coordinate space as the canvas */
-  left: calc(3 / 6 * 100% + var(--space-6));
+  left: calc(10 / 17 * 100% + var(--space-6));
   z-index: var(--z-overlay);
   background: var(--surface-3);
   color: var(--text-primary);
