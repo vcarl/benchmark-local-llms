@@ -13,7 +13,7 @@ export const CAPABILITY_TAGS = [
 
 export type CapabilityTag = typeof CAPABILITY_TAGS[number];
 
-export const PASS_THRESHOLD = 0.5;
+export const PASS_THRESHOLD = 0.7;
 
 export const scoreBand = (
   score: number,

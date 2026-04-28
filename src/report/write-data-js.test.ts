@@ -35,6 +35,7 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   events: null,
   run_id: "r-2026-04-14-deadbe",
   executed_at: "2026-04-14T12:34:56.000Z",
+  archive_id: "2026-04-14_test_4bit_deadbe",
   ...overrides,
 });
 

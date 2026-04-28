@@ -64,7 +64,7 @@ const baseInput = (): RunModelInput => ({
       nodeVersion: "u",
       benchmarkGitSha: "u",
     },
-    temperatures: [0.7],
+    temperature: 0.7,
     promptCorpus: {},
     scenarioCorpus: {},
     stats: {
@@ -79,7 +79,7 @@ const baseInput = (): RunModelInput => ({
   archivePath: "/tmp/archive.jsonl",
   prompts: [prompt],
   scenarios: [],
-  temperatures: [0.7],
+  temperature: 0.7,
   archiveDir: "/tmp",
   fresh: true,
   maxTokens: 16,

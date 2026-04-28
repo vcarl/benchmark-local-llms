@@ -96,7 +96,7 @@ NodeRuntime.runMain
           writeManifestHeader
           addFinalizer(finalizeArchive)       ─ rewrites line 1 at scope close
           llmServer(model)                    ─── scope A: llama-server / MLX ───
-          runPromptPhase                      ─ prompts × temperatures, cache lookup
+          runPromptPhase                      ─ one cell per (model × prompt), cache lookup
           if scenarios:
             admiral()                         ─── scope A: Admiral ───
             runScenarioPhase                  ─ per-scenario scope (gameserver, profile)

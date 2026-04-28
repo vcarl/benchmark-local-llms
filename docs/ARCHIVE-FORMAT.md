@@ -26,12 +26,12 @@ Interior blank lines are tolerated by the loader; the trailing `\n` on every app
 | `runtime` | `"llamacpp" \| "mlx"` | Server runtime that produced the results. |
 | `quant` | `string` | Quantization tag (e.g. `Q4_K_M`). |
 | `env` | `RunEnv` | `{ hostname, platform, runtimeVersion, nodeVersion, benchmarkGitSha }`. |
-| `temperatures` | `ReadonlyArray<number>` | Sampling temperatures executed in this run. |
+| `temperature` | `number` | Sampling temperature executed in this run. |
 | `promptCorpus` | `Record<string, PromptCorpusEntry>` | Embedded prompt corpus keyed by prompt `name`. |
 | `scenarioCorpus` | `Record<string, ScenarioCorpusEntry>` | Embedded scenario corpus keyed by scenario `name`. |
 | `stats` | `RunStats` | `{ totalPrompts, totalExecutions, completed, skippedCached, errors, totalWallTimeSec }`; zeroed in the header, filled at finalize. |
 
-The trailer rewrite in `src/orchestration/finalize-archive.ts` re-encodes the whole header from a finalized `RunManifest` and appends the preserved body byte-for-byte. In practice the only fields that change between header and trailer are `finishedAt`, `interrupted`, and `stats`. Everything else — `startedAt`, `env`, `temperatures`, the embedded corpora, identity fields — is set once at header-write time and is not touched again. The body (lines 2+) is never round-tripped through the decoder during finalize.
+The trailer rewrite in `src/orchestration/finalize-archive.ts` re-encodes the whole header from a finalized `RunManifest` and appends the preserved body byte-for-byte. In practice the only fields that change between header and trailer are `finishedAt`, `interrupted`, and `stats`. Everything else — `startedAt`, `env`, `temperature`, the embedded corpora, identity fields — is set once at header-write time and is not touched again. The body (lines 2+) is never round-tripped through the decoder during finalize.
 
 Ref: `src/schema/run-manifest.ts`.
 

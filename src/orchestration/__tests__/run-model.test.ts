@@ -39,7 +39,7 @@ const baseManifest = (overrides: Partial<Parameters<typeof openManifest>[0]> = {
     model: "Test Model",
     runtime: "mlx",
     quant: "4bit",
-    temperatures: [0.3, 0.7],
+    temperature: 0.7,
     ...overrides,
   });
 
@@ -55,11 +55,11 @@ describe("runModel — prompt phase", () => {
     await removeDir(dir);
   });
 
-  it("happy path: 2 prompts × 2 temperatures produces 4 results + finalized manifest", async () => {
+  it("happy path: 2 prompts produces 2 results + finalized manifest", async () => {
     const archivePath = path.join(dir, "run.jsonl");
     const manifest = baseManifest({
       runId: "run-1",
-      temperatures: [0.3, 0.7],
+      temperature: 0.3,
       promptCorpus: {
         p1: samplePromptExact({ name: "p1" }),
         p2: samplePromptExact({ name: "p2", promptHash: "hash-p2" }),
@@ -79,7 +79,7 @@ describe("runModel — prompt phase", () => {
             samplePromptExact({ name: "p2", promptHash: "hash-p2" }),
           ],
           scenarios: [],
-          temperatures: [0.3, 0.7],
+          temperature: 0.3,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -90,23 +90,23 @@ describe("runModel — prompt phase", () => {
     );
 
     expect(outcome.interrupted).toBe(false);
-    expect(outcome.stats.completed).toBe(4);
-    expect(outcome.stats.totalExecutions).toBe(4);
+    expect(outcome.stats.completed).toBe(2);
+    expect(outcome.stats.totalExecutions).toBe(2);
     expect(outcome.stats.errors).toBe(0);
 
     const lines = await readArchiveLines(archivePath);
-    // Header + 4 results = 5 lines
-    expect(lines.length).toBe(5);
+    // Header + 2 results = 3 lines
+    expect(lines.length).toBe(3);
 
     const header = decodeManifest(JSON.parse(lines[0] ?? "{}"));
     expect(header.finishedAt).not.toBeNull();
     expect(header.interrupted).toBe(false);
-    expect(header.stats.completed).toBe(4);
-    expect(header.stats.totalExecutions).toBe(4);
+    expect(header.stats.completed).toBe(2);
+    expect(header.stats.totalExecutions).toBe(2);
 
     const results = lines.slice(1).map((l) => decodeResult(JSON.parse(l)));
     const names = results.map((r) => `${r.promptName}@${r.temperature}`).sort();
-    expect(names).toEqual(["p1@0.3", "p1@0.7", "p2@0.3", "p2@0.7"]);
+    expect(names).toEqual(["p1@0.3", "p2@0.3"]);
     for (const r of results) {
       expect(r.runId).toBe("run-1");
       expect(r.error).toBeNull();
@@ -117,7 +117,7 @@ describe("runModel — prompt phase", () => {
     const archivePath = path.join(dir, "run.jsonl");
     const manifest = baseManifest({
       runId: "run-err",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: {
         p1: samplePromptExact({ name: "p1" }),
         p2: samplePromptExact({ name: "p2", promptHash: "hash-p2" }),
@@ -141,7 +141,7 @@ describe("runModel — prompt phase", () => {
             samplePromptExact({ name: "p2", promptHash: "hash-p2" }),
           ],
           scenarios: [],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -161,9 +161,11 @@ describe("runModel — prompt phase", () => {
     expect(byName.get("p2")?.error).toBeNull();
   });
 
-  it("same-runId cache hit (resume): skips execution and carries result into the new archive", async () => {
+  it("same-runId cache hit (resume): skips execution; new archive contains only the manifest header", async () => {
     // Seed a prior archive sharing the run-id we're about to execute under —
     // this models a resumed run picking up a previously-completed cell.
+    // With the new semantics, a cache hit does NOT carry the result forward
+    // into the new archive — the new archive gets only the manifest header.
     const priorPath = path.join(dir, "prior.jsonl");
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -188,7 +190,7 @@ describe("runModel — prompt phase", () => {
     const archivePath = path.join(dir, "new.jsonl");
     const manifest = baseManifest({
       runId: "shared-run",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
     });
@@ -201,7 +203,7 @@ describe("runModel — prompt phase", () => {
           archivePath,
           prompts: [samplePromptExact({ name: "p1" })],
           scenarios: [],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -215,10 +217,64 @@ describe("runModel — prompt phase", () => {
     expect(mock.log.calls.length).toBe(0);
 
     const lines = await readArchiveLines(archivePath);
-    expect(lines.length).toBe(2);
-    const carried = decodeResult(JSON.parse(lines[1] ?? "{}"));
-    expect(carried.output).toBe("prior-output");
-    expect(carried.runId).toBe("shared-run");
+    expect(lines.length).toBe(1); // header only — no result line written on cache hit
+  });
+
+  it("cache hit does not add cached wall time to totalWallTimeSec", async () => {
+    // Seed a prior archive with a result that has a non-zero wallTimeSec.
+    // After a cache hit the new run's totalWallTimeSec should remain 0 —
+    // the cached cell did no work in this run.
+    const priorPath = path.join(dir, "prior.jsonl");
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeManifestHeader(
+          priorPath,
+          openManifest({ artifact: "art-1", runId: "wall-run" }),
+        );
+        yield* appendResult(
+          priorPath,
+          sampleExistingResult({
+            runId: "wall-run",
+            promptName: "p1",
+            promptHash: "hash-p1",
+            temperature: 0.7,
+            wallTimeSec: 7,
+            output: "prior-output",
+            error: null,
+          }),
+        );
+      }).pipe(Effect.provide(runtimeLayer)),
+    );
+
+    const archivePath = path.join(dir, "new.jsonl");
+    const manifest = baseManifest({
+      runId: "wall-run",
+      temperature: 0.7,
+      promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
+      scenarioCorpus: {},
+    });
+    const mock = makeChatCompletionMock({});
+
+    const outcome = await Effect.runPromise(
+      runModel(
+        {
+          manifest,
+          archivePath,
+          prompts: [samplePromptExact({ name: "p1" })],
+          scenarios: [],
+          temperature: 0.7,
+          archiveDir: dir,
+          fresh: false,
+          maxTokens: 256,
+          noSave: false,
+        },
+        fakeDeps(),
+      ).pipe(Effect.provide(mock.layer), Effect.provide(runtimeLayer)),
+    );
+
+    expect(outcome.stats.skippedCached).toBe(1);
+    // The cached cell's wallTimeSec must NOT be folded into this run's total.
+    expect(outcome.stats.totalWallTimeSec).toBe(0);
   });
 
   it("different-runId archive does not produce a cache hit", async () => {
@@ -248,7 +304,7 @@ describe("runModel — prompt phase", () => {
     const archivePath = path.join(dir, "new.jsonl");
     const manifest = baseManifest({
       runId: "new-run",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
     });
@@ -272,7 +328,7 @@ describe("runModel — prompt phase", () => {
           archivePath,
           prompts: [samplePromptExact({ name: "p1" })],
           scenarios: [],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -311,7 +367,7 @@ describe("runModel — prompt phase", () => {
     const archivePath = path.join(dir, "new.jsonl");
     const manifest = baseManifest({
       runId: "fresh-run",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
     });
@@ -335,7 +391,7 @@ describe("runModel — prompt phase", () => {
           archivePath,
           prompts: [samplePromptExact({ name: "p1" })],
           scenarios: [],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: true,
           maxTokens: 256,
@@ -355,7 +411,7 @@ describe("runModel — prompt phase", () => {
     const archivePath = path.join(dir, "run-nosave.jsonl");
     const manifest = baseManifest({
       runId: "nosave-run",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
     });
@@ -368,7 +424,7 @@ describe("runModel — prompt phase", () => {
           archivePath,
           prompts: [samplePromptExact({ name: "p1" })],
           scenarios: [],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -391,7 +447,7 @@ describe("runModel — prompt phase", () => {
     const archivePath = path.join(dir, "run.jsonl");
     const manifest = baseManifest({
       runId: "scen-only",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: { s1: sampleScenario({ name: "s1" }) },
     });
@@ -404,7 +460,7 @@ describe("runModel — prompt phase", () => {
           archivePath,
           prompts: [samplePromptExact({ name: "p1" })],
           scenarios: [sampleScenario({ name: "s1" })],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -433,11 +489,11 @@ describe("runModel — scenario phase", () => {
     await removeDir(dir);
   });
 
-  it("scenarios run only at the first temperature", async () => {
+  it("scenarios run at the model's configured temperature", async () => {
     const archivePath = path.join(dir, "run.jsonl");
     const manifest = baseManifest({
       runId: "run-sc",
-      temperatures: [0.3, 0.7],
+      temperature: 0.3,
       promptCorpus: {},
       scenarioCorpus: { s1: sampleScenario({ name: "s1" }) },
     });
@@ -449,7 +505,7 @@ describe("runModel — scenario phase", () => {
           archivePath,
           prompts: [],
           scenarios: [sampleScenario({ name: "s1" })],
-          temperatures: [0.3, 0.7],
+          temperature: 0.3,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,
@@ -462,7 +518,7 @@ describe("runModel — scenario phase", () => {
         }),
       ).pipe(Effect.provide(mock.layer), Effect.provide(runtimeLayer)),
     );
-    // Exactly one scenario execution, not two.
+    // Exactly one scenario execution.
     expect(outcome.stats.totalExecutions).toBe(1);
     const lines = await readArchiveLines(archivePath);
     const results = lines.slice(1).map((l) => decodeResult(JSON.parse(l)));
@@ -485,7 +541,7 @@ describe("runModel — interrupt", () => {
     const archivePath = path.join(dir, "run-interrupt.jsonl");
     const manifest = baseManifest({
       runId: "run-int",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
     });
@@ -501,7 +557,7 @@ describe("runModel — interrupt", () => {
         archivePath,
         prompts: [samplePromptExact({ name: "p1" })],
         scenarios: [],
-        temperatures: [0.7],
+        temperature: 0.7,
         archiveDir: dir,
         fresh: false,
         maxTokens: 256,

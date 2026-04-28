@@ -71,6 +71,7 @@ export const sampleModel = (overrides: Partial<ModelConfig> = {}): ModelConfig =
   runtime: "mlx",
   name: "Test Model",
   quant: "4bit",
+  temperature: 0.7,
   ...overrides,
 });
 

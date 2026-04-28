@@ -39,7 +39,7 @@ describe("runModel — summary block emission", () => {
       model: "Test Model",
       runtime: "mlx",
       quant: "4bit",
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: { p1: samplePromptExact({ name: "p1" }) },
       scenarioCorpus: {},
     });
@@ -54,7 +54,7 @@ describe("runModel — summary block emission", () => {
           archivePath,
           prompts: [samplePromptExact({ name: "p1" })],
           scenarios: [],
-          temperatures: [0.7],
+          temperature: 0.7,
           archiveDir: dir,
           fresh: false,
           maxTokens: 256,

@@ -68,6 +68,7 @@ export interface WebappRecord {
   readonly final_player_stats: Record<string, unknown> | null;
   readonly events: ReadonlyArray<AgentEvent> | null;
   readonly run_id: string;
+  readonly archive_id: string;
   readonly executed_at: string;
 }
 
@@ -117,6 +118,7 @@ export const toWebappRecord = (
     final_player_stats: result.finalPlayerStats as Record<string, unknown> | null,
     events: result.events,
     run_id: result.runId,
+    archive_id: result.archiveId,
     executed_at: result.executedAt,
   };
 };

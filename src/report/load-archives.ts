@@ -17,7 +17,11 @@ import { FileIOError, type JsonlCorruptLine } from "../errors/index.js";
 
 export interface ArchiveLoadResult {
   /** Archives that loaded cleanly. */
-  readonly archives: ReadonlyArray<{ readonly path: string; readonly data: LoadedArchive }>;
+  readonly archives: ReadonlyArray<{
+    readonly path: string;
+    readonly mtime: Date;
+    readonly data: LoadedArchive;
+  }>;
   /** Archives that failed to load — reported, not fatal. */
   readonly issues: ReadonlyArray<ReportLoadIssue>;
 }
@@ -63,17 +67,31 @@ export const loadAllArchives = (
   archiveDir: string,
 ): Effect.Effect<ArchiveLoadResult, FileIOError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
     const paths = yield* discoverArchives(archiveDir);
-    const archives: Array<{ path: string; data: LoadedArchive }> = [];
+    const archives: Array<{ path: string; mtime: Date; data: LoadedArchive }> = [];
     const issues: ReportLoadIssue[] = [];
 
     for (const path of paths) {
       const outcome: Effect.Effect<
-        { path: string; data: LoadedArchive } | ReportLoadIssue,
+        { path: string; mtime: Date; data: LoadedArchive } | ReportLoadIssue,
         never,
         FileSystem.FileSystem
-      > = loadManifest(path).pipe(
-        Effect.map((data) => ({ path, data })),
+      > = Effect.gen(function* () {
+        const data = yield* loadManifest(path);
+        const stat = yield* fs.stat(path).pipe(
+          Effect.mapError(
+            (cause) =>
+              new FileIOError({
+                path,
+                operation: "stat-archive",
+                cause: String(cause),
+              }),
+          ),
+        );
+        const mtime = stat.mtime._tag === "Some" ? stat.mtime.value : new Date(0);
+        return { path, mtime, data };
+      }).pipe(
         Effect.catchAll((err: FileIOError | JsonlCorruptLine) =>
           Effect.succeed({ path, reason: formatLoadError(err) } satisfies ReportLoadIssue),
         ),

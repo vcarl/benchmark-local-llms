@@ -59,7 +59,7 @@ export const openManifest = (overrides: Partial<RunManifest> = {}): RunManifest 
     nodeVersion: "v22.0.0",
     benchmarkGitSha: "abcdef0",
   },
-  temperatures: [0.7],
+  temperature: 0.7,
   promptCorpus: { hello_prompt: samplePrompt },
   scenarioCorpus: { bootstrap_grind: sampleScenario },
   stats: {

@@ -33,7 +33,6 @@ export interface RunLoopConfig {
   readonly promptCorpus: ReadonlyArray<PromptCorpusEntry>;
   readonly scenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
   readonly systemPrompts: Record<string, string>;
-  readonly temperatures: ReadonlyArray<number>;
   readonly archiveDir: string;
   readonly fresh: boolean;
   readonly maxTokens: number;
@@ -132,7 +131,7 @@ export const makeOpenManifest = (params: {
   readonly startedAt: string;
   readonly model: ModelConfig;
   readonly env: RunEnv;
-  readonly temperatures: ReadonlyArray<number>;
+  readonly temperature: number;
   readonly promptCorpus: ReadonlyArray<PromptCorpusEntry>;
   readonly scenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
 }): RunManifest => ({
@@ -147,7 +146,7 @@ export const makeOpenManifest = (params: {
   runtime: params.model.runtime,
   quant: params.model.quant ?? "",
   env: params.env,
-  temperatures: params.temperatures,
+  temperature: params.temperature,
   promptCorpus: toCorpusRecord(params.promptCorpus),
   scenarioCorpus: toCorpusRecord(params.scenarioCorpus),
   stats: {
@@ -224,13 +223,21 @@ export const runLoop = (
     for (const model of eligible) {
       modelIndex += 1;
       const { archiveId, startedAt } = yield* makeArchiveId(model);
+      // Loader rejects active models missing temperature, so this is a programmer
+      // error if it fires (e.g., a future code path bypasses the loader).
+      if (model.temperature === undefined) {
+        throw new Error(
+          `runLoop: model '${model.artifact}' has no temperature; this should have been caught by the models.yaml loader.`,
+        );
+      }
+      const modelTemperature = model.temperature;
       const manifest = makeOpenManifest({
         archiveId,
         runId: config.runId,
         startedAt,
         model,
         env,
-        temperatures: config.temperatures,
+        temperature: modelTemperature,
         promptCorpus: config.promptCorpus,
         scenarioCorpus: config.scenarioCorpus,
       });
@@ -249,7 +256,7 @@ export const runLoop = (
             archivePath,
             prompts: config.promptCorpus,
             scenarios: config.scenarioCorpus,
-            temperatures: config.temperatures,
+            temperature: modelTemperature,
             archiveDir: config.archiveDir,
             fresh: config.fresh,
             maxTokens: config.maxTokens,

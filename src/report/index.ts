@@ -17,7 +17,6 @@ import type { CommandExecutor, FileSystem, Path } from "@effect/platform";
 import { Effect } from "effect";
 import type { FileIOError } from "../errors/index.js";
 import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
-import type { ScoringMode } from "./aggregate.js";
 import { aggregateAll } from "./aggregate.js";
 import { loadAllArchives, type ReportLoadIssue } from "./load-archives.js";
 import type { WebappRecord } from "./webapp-contract.js";
@@ -31,12 +30,10 @@ export interface ReportOptions {
    * `webapp/src/data/data.js` relative to the archive dir's parent.
    */
   readonly outputPath?: string;
-  /** Scoring mode: "as-run" (default) or "current". */
-  readonly scoringMode?: ScoringMode;
-  /** Required when scoringMode === "current". */
-  readonly currentPromptCorpus?: ReadonlyArray<PromptCorpusEntry>;
-  /** Required when scoringMode === "current". */
-  readonly currentScenarioCorpus?: ReadonlyArray<ScenarioCorpusEntry>;
+  /** Current prompt corpus (array; indexed by name internally). Required. */
+  readonly currentPromptCorpus: ReadonlyArray<PromptCorpusEntry>;
+  /** Current scenario corpus (array; indexed by name internally). Required. */
+  readonly currentScenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
   /** If true, skip the write step (useful for tests / dry-run). */
   readonly dryRun?: boolean;
 }
@@ -47,19 +44,15 @@ export interface ReportSummary {
   readonly archivesLoaded: number;
   readonly recordCount: number;
   readonly loadIssues: ReadonlyArray<ReportLoadIssue>;
-  readonly unmatched: ReadonlyArray<{
-    readonly archivePath: string;
-    readonly promptName: string;
-  }>;
+  readonly dropped: { readonly promptAbsent: number; readonly promptDrifted: number };
   readonly dryRun: boolean;
   /** Records returned for caller inspection (tests, CLI preview). */
   readonly records: ReadonlyArray<WebappRecord>;
 }
 
 const asIndex = <T extends { readonly name: string }>(
-  entries: ReadonlyArray<T> | undefined,
-): Record<string, T> | undefined => {
-  if (entries === undefined) return undefined;
+  entries: ReadonlyArray<T>,
+): Record<string, T> => {
   const out: Record<string, T> = {};
   for (const e of entries) out[e.name] = e;
   return out;
@@ -71,8 +64,9 @@ const defaultOutputPath = (archiveDir: string): string => {
 };
 
 /**
- * Top-level report command. Loads archives, scores results, writes
- * `data.js`. Returns a {@link ReportSummary} for CLI formatting.
+ * Top-level report command. Loads archives, scores results against the
+ * current on-disk corpus, writes `data.js`. Returns a {@link ReportSummary}
+ * for CLI formatting.
  */
 export const runReport = (
   options: ReportOptions,
@@ -84,31 +78,18 @@ export const runReport = (
   Effect.gen(function* () {
     const archiveDir = options.archiveDir;
     const outputPath = options.outputPath ?? defaultOutputPath(archiveDir);
-    const scoringMode: ScoringMode = options.scoringMode ?? "as-run";
     const dryRun = options.dryRun ?? false;
 
     const loaded = yield* loadAllArchives(archiveDir);
 
-    const aggregateOpts = {
-      scoringMode,
-      ...(asIndex(options.currentPromptCorpus) !== undefined
-        ? {
-            currentPromptCorpus: asIndex(options.currentPromptCorpus) as Record<
-              string,
-              PromptCorpusEntry
-            >,
-          }
-        : {}),
-      ...(asIndex(options.currentScenarioCorpus) !== undefined
-        ? {
-            currentScenarioCorpus: asIndex(options.currentScenarioCorpus) as Record<
-              string,
-              ScenarioCorpusEntry
-            >,
-          }
-        : {}),
-    };
-    const { records, unmatched } = yield* aggregateAll(loaded.archives, aggregateOpts);
+    const currentPromptCorpus = asIndex(options.currentPromptCorpus);
+    const currentScenarioCorpus = asIndex(options.currentScenarioCorpus);
+
+    const { records, dropped } = yield* aggregateAll({
+      archives: loaded.archives,
+      currentPromptCorpus,
+      currentScenarioCorpus,
+    });
 
     if (!dryRun) {
       yield* writeDataJs(outputPath, records);
@@ -120,7 +101,7 @@ export const runReport = (
       archivesLoaded: loaded.archives.length,
       recordCount: records.length,
       loadIssues: loaded.issues,
-      unmatched,
+      dropped,
       dryRun,
       records,
     };

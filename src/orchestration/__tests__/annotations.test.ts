@@ -22,7 +22,6 @@ const baseConfig = (dir: string, overrides: Partial<RunLoopConfig> = {}): RunLoo
   promptCorpus: [samplePromptExact({ name: "p1" })],
   scenarioCorpus: [],
   systemPrompts: { direct: "Be brief." },
-  temperatures: [0.7],
   archiveDir: dir,
   fresh: false,
   maxTokens: 256,

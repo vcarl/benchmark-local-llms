@@ -119,8 +119,8 @@ export interface ReconstructInput {
   readonly group: PrototypeGroup;
   readonly currentPromptCorpus: Record<string, PromptCorpusEntry>;
   readonly currentScenarioCorpus: Record<string, ScenarioCorpusEntry>;
-  /** Temperatures to stamp on the reconstructed manifest. Default [0.7]. */
-  readonly temperatures?: ReadonlyArray<number>;
+  /** Temperature to stamp on the reconstructed manifest. Default 0.7. */
+  readonly temperature?: number;
 }
 
 export interface ReconstructedArchive {
@@ -353,7 +353,7 @@ export const reconstructArchive = (
       runtime: group.key.runtime,
       quant: group.key.quant,
       env: defaultEnv,
-      temperatures: input.temperatures ?? [0.7],
+      temperature: input.temperature ?? 0.7,
       promptCorpus,
       scenarioCorpus,
       stats: {

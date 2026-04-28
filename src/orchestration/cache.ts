@@ -4,8 +4,10 @@
  * Thin shim around {@link findCachedResult}: if `fresh` is set, the cache is
  * disabled wholesale; otherwise we consult the archive directory for a prior
  * `(artifact, promptName, promptHash, temperature)` hit. A successful hit is
- * returned as `Some<ExecutionResult>` so the run loop can carry it into the
- * new archive (choice (a) from the task brief — rationale in the C4 summary).
+ * returned as `Some<ExecutionResult>` so the run loop can skip re-execution.
+ * On a cache hit the run loop tallies the result and continues; it does NOT
+ * write the cached result into the new archive — the prior archive that owns
+ * the result remains the durable record.
  *
  * A result is considered a valid cache hit only if it has no `error`, a
  * non-empty `output` (for prompts) OR non-null `finalPlayerStats`/non-empty

@@ -213,7 +213,7 @@ describe("aggregateForList", () => {
       mkRec({ tags: ["tool-use"], score: 0.9 }),
     ], "model");
     const toolUse = rows[0].capability.find((c) => c.tag === "tool-use");
-    expect(toolUse?.pass).toBeCloseTo(1.0); // score 0.9 >= PASS_THRESHOLD (0.5)
+    expect(toolUse?.pass).toBeCloseTo(1.0); // score 0.9 >= PASS_THRESHOLD (0.7)
     expect(toolUse?.runs).toBe(1);
     const factualRecall = rows[0].capability.find((c) => c.tag === "factual-recall");
     expect(factualRecall?.pass).toBeNull();

@@ -35,7 +35,6 @@ const baseConfig = (dir: string, overrides: Partial<RunLoopConfig> = {}): RunLoo
   promptCorpus: [samplePromptExact({ name: "p1" })],
   scenarioCorpus: [],
   systemPrompts: { direct: "Be brief." },
-  temperatures: [0.7],
   archiveDir: dir,
   fresh: false,
   maxTokens: 256,
@@ -108,7 +107,10 @@ describe("runLoop", () => {
     const config = baseConfig(dir, {
       models: [
         sampleModel({ name: "Qwen 3.5 9B", artifact: "unsloth/Qwen3.5-9B-GGUF" }),
-        sampleModel({ name: "Qwen 3.5 9B", artifact: "mlx-community/Qwen3.5-9B-4bit" }),
+        sampleModel({
+          name: "Qwen 3.5 9B",
+          artifact: "mlx-community/Qwen3.5-9B-4bit",
+        }),
       ],
       modelNameFilter: "unsloth",
     });

@@ -1,63 +1,44 @@
 /**
  * Report aggregation (§7.1 step 3-4). For each loaded archive, every
- * {@link ExecutionResult} is matched to its corpus entry and re-scored via
- * B3's {@link scoreExecution}. The resulting {model × prompt × temperature}
- * webapp records are returned flat — the webapp does all slice-and-dice
- * aggregation browser-side (§7.2), so the backend emits one record per
- * execution, not pre-averaged buckets.
+ * {@link ExecutionResult} is matched against the current on-disk corpus and
+ * re-scored via B3's {@link scoreExecution}. Results whose prompt or scenario
+ * is absent from the current corpus, or whose hash no longer matches, are
+ * dropped and counted in {@link AggregateResult.dropped}.
  *
- * Scoring failures are non-fatal: if lookup misses or the scorer errors,
- * we emit the record with `score=0` and an explanatory `score_details`
- * (requirements §7 + "If you hit a wall" in the task spec). One bad
- * prompt doesn't sink the report.
+ * The resulting {model × prompt × temperature} webapp records are returned
+ * flat — the webapp does all slice-and-dice aggregation browser-side (§7.2),
+ * so the backend emits one record per execution, not pre-averaged buckets.
+ *
+ * Scoring failures are non-fatal: if the scorer errors, we emit the record
+ * with `score=0` and an explanatory `score_details` (requirements §7 +
+ * "If you hit a wall" in the task spec). One bad prompt doesn't sink the
+ * report.
  */
 import type { CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
 import type { LoadedArchive } from "../archive/loader.js";
-import type {
-  ExecutionResult,
-  PromptCorpusEntry,
-  RunManifest,
-  ScenarioCorpusEntry,
-} from "../schema/index.js";
+import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
 import type { Score } from "../scoring/score-result.js";
 import { scoreExecution } from "../scoring/score-result.js";
 import { toWebappRecord, type WebappRecord } from "./webapp-contract.js";
 
-/**
- * Scoring strategy:
- * - `as-run`: use the manifest's embedded corpus (the "re-score as run"
- *   guarantee of §2.4).
- * - `current`: use a caller-provided corpus from freshly-loaded YAML. Only
- *   valid if the caller can supply it; when omitted, falls back to `as-run`.
- */
-export type ScoringMode = "as-run" | "current";
-
-export interface AggregateOptions {
-  readonly scoringMode: ScoringMode;
-  /** Provided only when scoringMode === "current". Keyed by prompt/scenario name. */
-  readonly currentPromptCorpus?: Record<string, PromptCorpusEntry>;
-  readonly currentScenarioCorpus?: Record<string, ScenarioCorpusEntry>;
+export interface AggregateInput {
+  readonly archives: ReadonlyArray<{
+    readonly path: string;
+    readonly mtime: Date;
+    readonly data: LoadedArchive;
+  }>;
+  readonly currentPromptCorpus: Record<string, PromptCorpusEntry>;
+  readonly currentScenarioCorpus: Record<string, ScenarioCorpusEntry>;
 }
 
-const pickEntry = (
-  manifest: RunManifest,
-  result: ExecutionResult,
-  options: AggregateOptions,
-): PromptCorpusEntry | ScenarioCorpusEntry | null => {
-  const isScenario = result.scenarioName !== null;
-  if (options.scoringMode === "current") {
-    if (isScenario) {
-      return options.currentScenarioCorpus?.[result.promptName] ?? null;
-    }
-    return options.currentPromptCorpus?.[result.promptName] ?? null;
-  }
-  // as-run: use the manifest's embedded corpus
-  if (isScenario) {
-    return manifest.scenarioCorpus[result.promptName] ?? null;
-  }
-  return manifest.promptCorpus[result.promptName] ?? null;
-};
+export interface AggregateResult {
+  readonly records: ReadonlyArray<WebappRecord>;
+  readonly dropped: {
+    readonly promptAbsent: number;
+    readonly promptDrifted: number;
+  };
+}
 
 /**
  * Score one {@link ExecutionResult}; on scorer error, produce a sentinel
@@ -89,86 +70,127 @@ const errorScore = (result: ExecutionResult): Score => ({
 });
 
 /**
- * Result of aggregating one archive.
+ * Determine whether a prompt result's hash matches the current corpus entry.
+ * Only call when `result.scenarioName === null`.
  */
-export interface AggregatedArchive {
-  readonly records: ReadonlyArray<WebappRecord>;
-  readonly unmatched: ReadonlyArray<{
-    readonly promptName: string;
-    readonly reason: "no-corpus-entry";
-  }>;
+const promptHashMatches = (result: ExecutionResult, entry: PromptCorpusEntry): boolean =>
+  entry.promptHash === result.promptHash;
+
+/**
+ * Determine whether a scenario result's hash matches the current corpus entry.
+ * Only call when `result.scenarioName !== null`.
+ *
+ * If `result.scenarioHash` is null the stored record is corrupt — it carries a
+ * non-null `scenarioName` but no hash to compare. Return `false` so the record
+ * is counted as `promptDrifted` (the nearest existing drop bucket). The
+ * null-hash path is explicit here so callers don't silently evaluate
+ * `null === someHash` as `false` through an opaque comparison.
+ */
+const scenarioHashMatches = (result: ExecutionResult, entry: ScenarioCorpusEntry): boolean => {
+  if (result.scenarioHash === null) {
+    // Corrupt result: scenarioName set but no scenarioHash recorded. Drop it.
+    return false;
+  }
+  return entry.scenarioHash === result.scenarioHash;
+};
+
+type CellKey = string;
+const cellKeyOf = (r: ExecutionResult): CellKey =>
+  `${r.model}|${r.runtime}|${r.quant}|${r.promptName}|${r.promptHash}|${r.temperature}`;
+
+interface Candidate {
+  readonly archivePath: string;
+  readonly mtime: Date;
+  readonly result: ExecutionResult;
+  readonly entry: PromptCorpusEntry | ScenarioCorpusEntry;
+  readonly score: Score;
 }
 
-/**
- * Turn one loaded archive into the corresponding webapp records plus
- * diagnostic lists. `unmatched` entries had no corpus match under the
- * requested scoring mode and are dropped (no valid record can be built
- * without a corpus entry — there's no `category`, `tier`, or `promptText`
- * to fill).
- */
-export const aggregateArchive = (
-  archive: LoadedArchive,
-  options: AggregateOptions,
-): Effect.Effect<AggregatedArchive, never, CommandExecutor.CommandExecutor> =>
-  Effect.gen(function* () {
-    const records: WebappRecord[] = [];
-    const unmatched: AggregatedArchive["unmatched"] =
-      [] as unknown as AggregatedArchive["unmatched"];
-    const unmatchedMut = unmatched as Array<{
-      readonly promptName: string;
-      readonly reason: "no-corpus-entry";
-    }>;
-
-    for (const result of archive.results) {
-      const entry = pickEntry(archive.manifest, result, options);
-      if (entry === null) {
-        unmatchedMut.push({ promptName: result.promptName, reason: "no-corpus-entry" });
-        continue;
-      }
-      const score =
-        result.error !== null && result.error.length > 0
-          ? errorScore(result)
-          : yield* safeScore(result, entry);
-      const currentTagsEntry =
-        result.scenarioName !== null
-          ? options.currentScenarioCorpus?.[result.promptName]
-          : options.currentPromptCorpus?.[result.promptName];
-      const base = toWebappRecord(result, entry, score);
-      records.push(
-        currentTagsEntry !== undefined ? { ...base, tags: currentTagsEntry.tags ?? [] } : base,
-      );
-    }
-    return { records, unmatched };
-  });
+const pickWinner = (a: Candidate, b: Candidate): Candidate => {
+  if (a.result.executedAt !== b.result.executedAt) {
+    return a.result.executedAt > b.result.executedAt ? a : b;
+  }
+  if (a.mtime.getTime() !== b.mtime.getTime()) {
+    return a.mtime.getTime() > b.mtime.getTime() ? a : b;
+  }
+  return a.archivePath < b.archivePath ? a : b;
+};
 
 /**
- * Aggregate multiple archives. Concatenates the per-archive results in input
- * order. Unmatched entries across archives are collected into one flat list
- * tagged with the source archive path.
+ * Aggregate multiple archives against the current on-disk corpus. Results
+ * whose prompt/scenario is absent or whose hash has drifted are dropped and
+ * counted in `dropped`. Duplicate cells (same model × prompt × temperature)
+ * across archives are collapsed to one record using a deterministic tie-break:
+ * latest executedAt wins; on tie, latest archive mtime wins; on tie, smaller
+ * archive path wins.
  */
 export const aggregateAll = (
-  archives: ReadonlyArray<{ readonly path: string; readonly data: LoadedArchive }>,
-  options: AggregateOptions,
-): Effect.Effect<
-  {
-    readonly records: ReadonlyArray<WebappRecord>;
-    readonly unmatched: ReadonlyArray<{
-      readonly archivePath: string;
-      readonly promptName: string;
-    }>;
-  },
-  never,
-  CommandExecutor.CommandExecutor
-> =>
+  input: AggregateInput,
+): Effect.Effect<AggregateResult, never, CommandExecutor.CommandExecutor> =>
   Effect.gen(function* () {
-    const records: WebappRecord[] = [];
-    const unmatched: Array<{ readonly archivePath: string; readonly promptName: string }> = [];
-    for (const a of archives) {
-      const out = yield* aggregateArchive(a.data, options);
-      records.push(...out.records);
-      for (const u of out.unmatched) {
-        unmatched.push({ archivePath: a.path, promptName: u.promptName });
+    const candidates = new Map<CellKey, Candidate>();
+    let promptAbsent = 0;
+    let promptDrifted = 0;
+
+    for (const archive of input.archives) {
+      for (const result of archive.data.results) {
+        if (result.scenarioName !== null) {
+          // --- Scenario path ---
+          const entry = input.currentScenarioCorpus[result.promptName];
+          if (entry === undefined) {
+            promptAbsent += 1;
+            continue;
+          }
+          if (!scenarioHashMatches(result, entry)) {
+            promptDrifted += 1;
+            continue;
+          }
+          const score =
+            result.error !== null && result.error.length > 0
+              ? errorScore(result)
+              : yield* safeScore(result, entry);
+          const candidate: Candidate = {
+            archivePath: archive.path,
+            mtime: archive.mtime,
+            result,
+            entry,
+            score,
+          };
+          const key = cellKeyOf(result);
+          const existing = candidates.get(key);
+          candidates.set(key, existing === undefined ? candidate : pickWinner(existing, candidate));
+        } else {
+          // --- Prompt path ---
+          const entry = input.currentPromptCorpus[result.promptName];
+          if (entry === undefined) {
+            promptAbsent += 1;
+            continue;
+          }
+          if (!promptHashMatches(result, entry)) {
+            promptDrifted += 1;
+            continue;
+          }
+          const score =
+            result.error !== null && result.error.length > 0
+              ? errorScore(result)
+              : yield* safeScore(result, entry);
+          const candidate: Candidate = {
+            archivePath: archive.path,
+            mtime: archive.mtime,
+            result,
+            entry,
+            score,
+          };
+          const key = cellKeyOf(result);
+          const existing = candidates.get(key);
+          candidates.set(key, existing === undefined ? candidate : pickWinner(existing, candidate));
+        }
       }
     }
-    return { records, unmatched };
+
+    const records: WebappRecord[] = [];
+    for (const c of candidates.values()) {
+      records.push(toWebappRecord(c.result, c.entry, c.score));
+    }
+    return { records, dropped: { promptAbsent, promptDrifted } };
   });

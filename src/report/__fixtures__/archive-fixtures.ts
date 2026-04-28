@@ -80,7 +80,7 @@ export const fixtureManifest = (
       nodeVersion: "v22.0.0",
       benchmarkGitSha: "deadbeef",
     },
-    temperatures: [0.3],
+    temperature: 0.3,
     promptCorpus,
     scenarioCorpus,
     stats: {

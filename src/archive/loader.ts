@@ -54,19 +54,31 @@ const parseJsonLine = (
  *
  * Detection: presence of the `archiveId` key. New writes always include it;
  * legacy writes never did.
+ *
+ * Also translates legacy `temperatures: number[]` to `temperature: number` on
+ * read — the first element is taken and the array key is deleted. Empty arrays
+ * should never occur in real legacy data.
  */
 const translateLegacyShape = (raw: unknown): unknown => {
   if (typeof raw !== "object" || raw === null) return raw;
-  const obj = raw as Record<string, unknown>;
-  if (typeof obj["archiveId"] === "string") return obj;
-  const legacyId = obj["runId"];
-  if (typeof legacyId === "string") {
-    return {
-      ...obj,
-      archiveId: legacyId,
-      runId: `legacy-${legacyId}`,
-    };
+  const obj = { ...(raw as Record<string, unknown>) };
+
+  // Existing: archiveId synthesis
+  if (typeof obj["archiveId"] !== "string") {
+    const legacyId = obj["runId"];
+    if (typeof legacyId === "string") {
+      obj["archiveId"] = legacyId;
+      obj["runId"] = `legacy-${legacyId}`;
+    }
   }
+
+  // New: temperatures: number[] → temperature: number
+  if (Array.isArray(obj["temperatures"]) && obj["temperature"] === undefined) {
+    // empty arrays should not occur in real legacy data; 0 is a defensive fallback
+    obj["temperature"] = (obj["temperatures"] as number[])[0] ?? 0;
+    delete obj["temperatures"];
+  }
+
   return obj;
 };
 

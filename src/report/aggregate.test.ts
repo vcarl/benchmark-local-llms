@@ -7,16 +7,89 @@ import {
   fixtureResult,
   fixtureScenario,
 } from "./__fixtures__/archive-fixtures.js";
-import { aggregateArchive } from "./aggregate.js";
+import { aggregateAll } from "./aggregate.js";
 
-describe("aggregateArchive: as-run mode", () => {
-  it("scores a prompt result and produces a webapp record", async () => {
-    const manifest = fixtureManifest();
-    const result = fixtureResult({ output: "the answer is 4183" });
+/** Build an archive-shaped input for aggregateAll from a flat results array. */
+const makeArchiveWithResults = (
+  results: ReturnType<typeof fixtureResult>[],
+): { manifest: ReturnType<typeof fixtureManifest>; results: typeof results } => ({
+  manifest: fixtureManifest(),
+  results,
+});
+
+/** Build a PromptCorpusEntry for use in currentPromptCorpus. */
+const fixturePromptEntry = (
+  overrides: Partial<{ name: string; promptHash: string; tags: string[] }> = {},
+): ReturnType<typeof fixturePrompt> => ({
+  ...fixturePrompt(),
+  name: overrides.name ?? "p1",
+  promptHash: overrides.promptHash ?? "hashP",
+  tags: overrides.tags,
+});
+
+describe("aggregateAll: prompt-side current-corpus filter", () => {
+  it("drops result when promptName is absent from current corpus", async () => {
+    const archive = makeArchiveWithResults([
+      fixtureResult({ promptName: "ghost-prompt", promptHash: "h1" }),
+    ]);
     const out = await Effect.runPromise(
-      aggregateArchive({ manifest, results: [result] }, { scoringMode: "as-run" }).pipe(
-        Effect.provide(NodeContext.layer),
-      ),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {}, // empty
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.records).toHaveLength(0);
+    expect(out.dropped.promptAbsent).toBe(1);
+  });
+
+  it("drops result when promptHash differs from current corpus entry", async () => {
+    const archive = makeArchiveWithResults([
+      fixtureResult({ promptName: "p1", promptHash: "old-hash" }),
+    ]);
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "new-hash" }) };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.records).toHaveLength(0);
+    expect(out.dropped.promptDrifted).toBe(1);
+  });
+
+  it("keeps result whose model is not in current models.yaml", async () => {
+    // The aggregator does not consult models.yaml at all.
+    const archive = makeArchiveWithResults([
+      fixtureResult({ promptName: "p1", promptHash: "hashP", model: "ghost-model" }),
+    ]);
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "hashP" }) };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.records).toHaveLength(1);
+    expect(out.records[0]?.model).toBe("ghost-model");
+  });
+});
+
+describe("aggregateAll: basic scoring", () => {
+  it("scores a prompt result and produces a webapp record", async () => {
+    const archive = {
+      manifest: fixtureManifest(),
+      results: [fixtureResult({ output: "the answer is 4183" })],
+    };
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "hashP" }) };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
@@ -26,16 +99,22 @@ describe("aggregateArchive: as-run mode", () => {
     expect(rec.category).toBe("math");
     expect(rec.tier).toBe(1);
     expect(rec.prompt_text).toBe("What is 47*89?");
-    expect(out.unmatched).toHaveLength(0);
+    expect(out.dropped.promptAbsent).toBe(0);
+    expect(out.dropped.promptDrifted).toBe(0);
   });
 
   it("records execution errors as score=0 with error details", async () => {
-    const manifest = fixtureManifest();
-    const result = fixtureResult({ error: "LLM timeout", output: "" });
+    const archive = {
+      manifest: fixtureManifest(),
+      results: [fixtureResult({ error: "LLM timeout", output: "" })],
+    };
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "hashP" }) };
     const out = await Effect.runPromise(
-      aggregateArchive({ manifest, results: [result] }, { scoringMode: "as-run" }).pipe(
-        Effect.provide(NodeContext.layer),
-      ),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
@@ -45,19 +124,26 @@ describe("aggregateArchive: as-run mode", () => {
   });
 
   it("scores as 0 (with reason) when a scenario uses an unknown game scorer", async () => {
-    const manifest = fixtureManifest({
-      scenarios: [fixtureScenario({ scorer: "does_not_exist" })],
-    });
-    const result = fixtureResult({
-      promptName: "s1",
-      scenarioName: "s1",
-      finalPlayerStats: { stats: {} },
-      events: [],
-    });
+    const scenario = fixtureScenario({ scorer: "does_not_exist" });
+    const archive = {
+      manifest: fixtureManifest({ scenarios: [scenario] }),
+      results: [
+        fixtureResult({
+          promptName: "s1",
+          scenarioName: "s1",
+          scenarioHash: "hashS",
+          finalPlayerStats: { stats: {} },
+          events: [],
+        }),
+      ],
+    };
+    const scenarioCorpus = { s1: { ...scenario } };
     const out = await Effect.runPromise(
-      aggregateArchive({ manifest, results: [result] }, { scoringMode: "as-run" }).pipe(
-        Effect.provide(NodeContext.layer),
-      ),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {},
+        currentScenarioCorpus: scenarioCorpus,
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
@@ -68,34 +154,29 @@ describe("aggregateArchive: as-run mode", () => {
     expect(rec.prompt_text).toBe("");
   });
 
-  it("collects unmatched records (no corpus entry) without emitting them", async () => {
-    const manifest = fixtureManifest();
-    const result = fixtureResult({ promptName: "unknown_prompt" });
-    const out = await Effect.runPromise(
-      aggregateArchive({ manifest, results: [result] }, { scoringMode: "as-run" }).pipe(
-        Effect.provide(NodeContext.layer),
-      ),
-    );
-    expect(out.records).toHaveLength(0);
-    expect(out.unmatched).toHaveLength(1);
-    expect(out.unmatched[0]?.promptName).toBe("unknown_prompt");
-  });
-
   it("passes scenario fields through to WebappRecord", async () => {
     const scenario = fixtureScenario({ tags: ["long-term-planning", "spatial-reasoning"] });
-    const manifest = fixtureManifest({ scenarios: [scenario] });
-    const result = fixtureResult({
-      promptName: "s1",
-      scenarioName: "s1",
-      terminationReason: "completed",
-      toolCallCount: 47,
-      finalPlayerStats: { stats: { score: 100 } },
-      events: [],
-    });
+    const archive = {
+      manifest: fixtureManifest({ scenarios: [scenario] }),
+      results: [
+        fixtureResult({
+          promptName: "s1",
+          scenarioName: "s1",
+          scenarioHash: "hashS",
+          terminationReason: "completed",
+          toolCallCount: 47,
+          finalPlayerStats: { stats: { score: 100 } },
+          events: [],
+        }),
+      ],
+    };
+    const scenarioCorpus = { s1: { ...scenario } };
     const out = await Effect.runPromise(
-      aggregateArchive({ manifest, results: [result] }, { scoringMode: "as-run" }).pipe(
-        Effect.provide(NodeContext.layer),
-      ),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {},
+        currentScenarioCorpus: scenarioCorpus,
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
@@ -111,22 +192,19 @@ describe("aggregateArchive: as-run mode", () => {
   });
 });
 
-describe("aggregateArchive: tag backfill", () => {
-  it("overlays tags from currentPromptCorpus while preserving as-run scoring", async () => {
-    const manifest = fixtureManifest({
-      prompts: [fixturePrompt()],
-    });
-    const result = fixtureResult({ output: "the answer is 4183" });
+describe("aggregateAll: tag overlay from current corpus", () => {
+  it("uses tags from currentPromptCorpus", async () => {
     const fresh = { ...fixturePrompt(), tags: ["math-reasoning", "arithmetic"] };
-
+    const archive = {
+      manifest: fixtureManifest({ prompts: [fixturePrompt()] }),
+      results: [fixtureResult({ output: "the answer is 4183" })],
+    };
     const out = await Effect.runPromise(
-      aggregateArchive(
-        { manifest, results: [result] },
-        {
-          scoringMode: "as-run",
-          currentPromptCorpus: { p1: fresh },
-        },
-      ).pipe(Effect.provide(NodeContext.layer)),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: { p1: fresh },
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     const rec = out.records[0];
     expect(rec).toBeDefined();
@@ -135,89 +213,171 @@ describe("aggregateArchive: tag backfill", () => {
     expect(rec.tags).toEqual(["math-reasoning", "arithmetic"]);
   });
 
-  it("overlays tags from currentScenarioCorpus for scenario records", async () => {
-    const manifest = fixtureManifest({ scenarios: [fixtureScenario()] });
-    const result = fixtureResult({
-      promptName: "s1",
-      scenarioName: "s1",
-      finalPlayerStats: { stats: {} },
-      events: [],
-    });
+  it("uses tags from currentScenarioCorpus for scenario records", async () => {
     const fresh = { ...fixtureScenario(), tags: ["long-term-planning"] };
-
+    const archive = {
+      manifest: fixtureManifest({ scenarios: [fixtureScenario()] }),
+      results: [
+        fixtureResult({
+          promptName: "s1",
+          scenarioName: "s1",
+          scenarioHash: "hashS",
+          finalPlayerStats: { stats: {} },
+          events: [],
+        }),
+      ],
+    };
     const out = await Effect.runPromise(
-      aggregateArchive(
-        { manifest, results: [result] },
-        {
-          scoringMode: "as-run",
-          currentScenarioCorpus: { s1: fresh },
-        },
-      ).pipe(Effect.provide(NodeContext.layer)),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {},
+        currentScenarioCorpus: { s1: fresh },
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     const rec = out.records[0];
     expect(rec).toBeDefined();
     if (rec === undefined) return;
     expect(rec.tags).toEqual(["long-term-planning"]);
   });
+});
 
-  it("falls back to manifest tags when current corpus entry missing", async () => {
-    const manifest = fixtureManifest({
-      prompts: [{ ...fixturePrompt(), tags: ["manifest-tag"] }],
+describe("aggregateAll: cell-level dedup", () => {
+  it("dedups same cell across archives, latest executedAt wins", async () => {
+    const olderResult = fixtureResult({
+      promptName: "p1",
+      promptHash: "h1",
+      executedAt: "2026-01-01T00:00:00.000Z",
+      output: "old-output",
     });
-    const result = fixtureResult({ output: "the answer is 4183" });
+    const newerResult = fixtureResult({
+      promptName: "p1",
+      promptHash: "h1",
+      executedAt: "2026-01-02T00:00:00.000Z",
+      output: "new-output",
+    });
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "h1" }) };
     const out = await Effect.runPromise(
-      aggregateArchive(
-        { manifest, results: [result] },
-        { scoringMode: "as-run", currentPromptCorpus: {} },
-      ).pipe(Effect.provide(NodeContext.layer)),
+      aggregateAll({
+        archives: [
+          { path: "a.jsonl", mtime: new Date(0), data: makeArchiveWithResults([olderResult]) },
+          { path: "b.jsonl", mtime: new Date(0), data: makeArchiveWithResults([newerResult]) },
+        ],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
-    const rec = out.records[0];
-    expect(rec).toBeDefined();
-    if (rec === undefined) return;
-    expect(rec.tags).toEqual(["manifest-tag"]);
+    expect(out.records).toHaveLength(1);
+    expect(out.records[0]?.executed_at).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  it("tie-breaks identical executedAt by archive mtime descending", async () => {
+    const sameTime = "2026-01-01T00:00:00.000Z";
+    const r1 = fixtureResult({
+      promptName: "p1",
+      promptHash: "h1",
+      executedAt: sameTime,
+      archiveId: "a",
+    });
+    const r2 = fixtureResult({
+      promptName: "p1",
+      promptHash: "h1",
+      executedAt: sameTime,
+      archiveId: "b",
+    });
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "h1" }) };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [
+          { path: "older.jsonl", mtime: new Date(1000), data: makeArchiveWithResults([r1]) },
+          { path: "newer.jsonl", mtime: new Date(2000), data: makeArchiveWithResults([r2]) },
+        ],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.records).toHaveLength(1);
+    expect(out.records[0]?.archive_id).toBe("b");
   });
 });
 
-describe("aggregateArchive: current mode", () => {
-  it("uses the supplied current corpus, ignoring manifest embedding", async () => {
-    // Manifest has an exact_match scorer expecting "4183"
-    const manifest = fixtureManifest();
-    const result = fixtureResult({ output: "the answer is 42" });
-
-    // Current corpus re-maps the same prompt to expect "42" — demonstrates
-    // that current-mode routing is honored (score flips from 0 to 1).
-    const currentPrompt = fixturePrompt({ name: "p1" });
-    const remapped = {
-      ...currentPrompt,
-      scorer: {
-        type: "exact_match" as const,
-        expected: "42",
-        extract: "(\\d+)",
-      },
+describe("aggregateAll: scenario hash filter", () => {
+  it("drops corrupt scenario result (scenarioName set but scenarioHash null) as promptDrifted", async () => {
+    // A result that has scenarioName !== null but scenarioHash === null is a
+    // corrupt/old-format record. scenarioHashMatches must return false explicitly
+    // rather than evaluating `null === "hashS"` silently.
+    const scenario = fixtureScenario();
+    const archive = {
+      manifest: fixtureManifest({ scenarios: [scenario] }),
+      results: [
+        fixtureResult({
+          promptName: "s1",
+          scenarioName: "s1",
+          scenarioHash: null, // corrupt: scenario identified but hash missing
+          finalPlayerStats: { stats: {} },
+          events: [],
+        }),
+      ],
     };
-
     const out = await Effect.runPromise(
-      aggregateArchive(
-        { manifest, results: [result] },
-        {
-          scoringMode: "current",
-          currentPromptCorpus: { p1: remapped },
-        },
-      ).pipe(Effect.provide(NodeContext.layer)),
-    );
-    expect(out.records[0]?.score).toBe(1);
-  });
-
-  it("treats missing current-corpus entries as unmatched", async () => {
-    const manifest = fixtureManifest();
-    const result = fixtureResult();
-    const out = await Effect.runPromise(
-      aggregateArchive(
-        { manifest, results: [result] },
-        { scoringMode: "current" }, // no corpus supplied
-      ).pipe(Effect.provide(NodeContext.layer)),
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {},
+        currentScenarioCorpus: { s1: scenario },
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(out.records).toHaveLength(0);
-    expect(out.unmatched).toHaveLength(1);
+    expect(out.dropped.promptDrifted).toBe(1);
+    expect(out.dropped.promptAbsent).toBe(0);
+  });
+
+  it("drops scenario result when scenarioHash differs from current corpus entry", async () => {
+    const scenario = fixtureScenario();
+    const archive = {
+      manifest: fixtureManifest({ scenarios: [scenario] }),
+      results: [
+        fixtureResult({
+          promptName: "s1",
+          scenarioName: "s1",
+          scenarioHash: "old-hash",
+          finalPlayerStats: { stats: {} },
+          events: [],
+        }),
+      ],
+    };
+    const driftedScenario = { ...scenario, scenarioHash: "new-hash" };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {},
+        currentScenarioCorpus: { s1: driftedScenario },
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.records).toHaveLength(0);
+    expect(out.dropped.promptDrifted).toBe(1);
+  });
+
+  it("drops scenario result when scenarioName is absent from current corpus", async () => {
+    const scenario = fixtureScenario();
+    const archive = {
+      manifest: fixtureManifest({ scenarios: [scenario] }),
+      results: [
+        fixtureResult({
+          promptName: "s1",
+          scenarioName: "s1",
+          scenarioHash: "hashS",
+          finalPlayerStats: { stats: {} },
+          events: [],
+        }),
+      ],
+    };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [{ path: "a.jsonl", mtime: new Date(0), data: archive }],
+        currentPromptCorpus: {},
+        currentScenarioCorpus: {}, // empty
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.records).toHaveLength(0);
+    expect(out.dropped.promptAbsent).toBe(1);
   });
 });

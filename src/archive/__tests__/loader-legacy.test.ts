@@ -87,6 +87,46 @@ describe("loader: legacy archive translation", () => {
     expect(loaded.results[0]?.runId).toBe("legacy-2025-12-01_qwen_q4_aa11bb");
   });
 
+  it("translates legacy temperatures: number[] to temperature: number", async () => {
+    const file = path.join(dir, "legacy-temps.jsonl");
+    const legacyManifest = {
+      schemaVersion: 1,
+      archiveId: "a1",
+      runId: "r1",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      finishedAt: null,
+      interrupted: false,
+      artifact: "test/m",
+      model: "Test",
+      runtime: "mlx",
+      quant: "4bit",
+      env: {
+        hostname: "h",
+        platform: "p",
+        runtimeVersion: "0",
+        nodeVersion: "0",
+        benchmarkGitSha: "0",
+      },
+      temperatures: [0.3],
+      promptCorpus: {},
+      scenarioCorpus: {},
+      stats: {
+        totalPrompts: 0,
+        totalExecutions: 0,
+        completed: 0,
+        skippedCached: 0,
+        errors: 0,
+        totalWallTimeSec: 0,
+      },
+    };
+    await fs.writeFile(file, `${JSON.stringify(legacyManifest)}\n`);
+    const loaded = await Effect.runPromise(
+      loadManifest(file).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(loaded.manifest.temperature).toBe(0.3);
+    expect((loaded.manifest as Record<string, unknown>)["temperatures"]).toBeUndefined();
+  });
+
   it("passes through new-shape archives unchanged", async () => {
     const file = path.join(dir, "new.jsonl");
     const manifest = {
@@ -107,7 +147,7 @@ describe("loader: legacy archive translation", () => {
         nodeVersion: "v22",
         benchmarkGitSha: "abc",
       },
-      temperatures: [0.7],
+      temperature: 0.7,
       promptCorpus: {},
       scenarioCorpus: {},
       stats: {

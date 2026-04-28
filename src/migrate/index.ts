@@ -33,8 +33,8 @@ export interface MigrateOptions {
   readonly currentPromptCorpus: ReadonlyArray<PromptCorpusEntry>;
   /** Current scenario corpus from freshly-loaded YAML. */
   readonly currentScenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
-  /** Temperatures to stamp on each reconstructed manifest. Default [0.7]. */
-  readonly temperatures?: ReadonlyArray<number>;
+  /** Temperature to stamp on each reconstructed manifest. Default 0.7. */
+  readonly temperature?: number;
   /** If true, skip the write + validate steps (plan only). */
   readonly dryRun?: boolean;
 }
@@ -114,7 +114,7 @@ export const runMigrate = (
         group,
         currentPromptCorpus: promptCorpus,
         currentScenarioCorpus: scenarioCorpus,
-        ...(options.temperatures !== undefined ? { temperatures: options.temperatures } : {}),
+        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
       });
 
       if (options.dryRun === true) {

@@ -49,4 +49,21 @@ describe("ModelConfig", () => {
     };
     expect(roundTrip(ModelConfig, v)).toEqual(v);
   });
+
+  it("accepts a model with explicit temperature", () => {
+    const decoded = Schema.decodeUnknownSync(ModelConfig)({
+      artifact: "test/m",
+      runtime: "mlx",
+      temperature: 0.7,
+    });
+    expect(decoded.temperature).toBe(0.7);
+  });
+
+  it("accepts a model without temperature when not validated", () => {
+    const decoded = Schema.decodeUnknownSync(ModelConfig)({
+      artifact: "test/m",
+      runtime: "mlx",
+    });
+    expect(decoded.temperature).toBeUndefined();
+  });
 });

@@ -34,11 +34,10 @@ const tallyResult = (stats: RunStats, result: ExecutionResult): RunStats => {
   return { ...next, completed: next.completed + 1 };
 };
 
-const tallySkipped = (stats: RunStats, result: ExecutionResult): RunStats => ({
+const tallySkipped = (stats: RunStats, _result: ExecutionResult): RunStats => ({
   ...stats,
   totalExecutions: stats.totalExecutions + 1,
   skippedCached: stats.skippedCached + 1,
-  totalWallTimeSec: stats.totalWallTimeSec + result.wallTimeSec,
 });
 
 const modelFromManifest = (manifest: RunManifest): ModelConfig => ({
@@ -72,8 +71,8 @@ const toFileIO =
 // ── Prompt phase ───────────────────────────────────────────────────────────
 
 /**
- * Iterate `prompts × temperatures`, honour the cross-run cache, and append
- * results to the archive. Updates `statsRef` with completed / errored /
+ * Iterate prompts at `input.temperature`, honour the cross-run cache, and
+ * append results to the archive. Updates `statsRef` with completed / errored /
  * skipped counts. No-op when `scenariosOnly` is set.
  */
 export const runPromptPhase = (
@@ -89,58 +88,51 @@ export const runPromptPhase = (
     if (input.scenariosOnly === true) return;
 
     const model = modelFromManifest(input.manifest);
-    const total = input.prompts.length * input.temperatures.length;
+    const temperature = input.temperature;
+    const total = input.prompts.length;
     let promptIndex = 0;
 
     for (const prompt of input.prompts) {
-      for (const temperature of input.temperatures) {
-        promptIndex += 1;
-        const cached = yield* lookupCache({
-          archiveDir: input.archiveDir,
-          artifact: input.manifest.artifact,
-          runId: input.manifest.runId,
-          promptName: prompt.name,
-          promptHash: prompt.promptHash,
-          temperature,
-          fresh: input.fresh,
-        });
+      promptIndex += 1;
+      const cached = yield* lookupCache({
+        archiveDir: input.archiveDir,
+        artifact: input.manifest.artifact,
+        runId: input.manifest.runId,
+        promptName: prompt.name,
+        promptHash: prompt.promptHash,
+        temperature,
+        fresh: input.fresh,
+      });
 
-        if (Option.isSome(cached)) {
-          const carried: ExecutionResult = {
-            ...cached.value,
-            archiveId: input.manifest.archiveId,
-            runId: input.manifest.runId,
-          };
-          yield* appendIfSaving(carried, input.archivePath, input.noSave);
-          yield* Ref.update(statsRef, (s) => tallySkipped(s, carried));
-          yield* Ref.update(aggRef, (a) => recordPrompt(a, carried, true));
-          yield* Effect.logInfo(
-            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — cache hit (archiveId=${carried.archiveId}, executedAt=${carried.executedAt})`,
-          ).pipe(Effect.annotateLogs("scope", "prompt"));
-          continue;
-        }
+      if (Option.isSome(cached)) {
+        yield* Ref.update(statsRef, (s) => tallySkipped(s, cached.value));
+        yield* Ref.update(aggRef, (a) => recordPrompt(a, cached.value, true));
+        yield* Effect.logInfo(
+          `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — cache hit (existing archiveId=${cached.value.archiveId}, executedAt=${cached.value.executedAt})`,
+        ).pipe(Effect.annotateLogs("scope", "prompt"));
+        continue;
+      }
 
-        const result = yield* runPrompt({
-          archiveId: input.manifest.archiveId,
-          runId: input.manifest.runId,
-          model,
-          prompt,
-          temperature,
-          maxTokens: input.maxTokens,
-          ...(input.requestTimeoutSec !== undefined ? { timeoutSec: input.requestTimeoutSec } : {}),
-        });
-        yield* appendIfSaving(result, input.archivePath, input.noSave);
-        yield* Ref.update(statsRef, (s) => tallyResult(s, result));
-        yield* Ref.update(aggRef, (a) => recordPrompt(a, result, false));
-        if (result.error !== null) {
-          yield* Effect.logInfo(
-            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — ERROR: ${result.error}`,
-          ).pipe(Effect.annotateLogs("scope", "prompt"));
-        } else {
-          yield* Effect.logInfo(
-            `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} → ${result.generationTokens} gen tok, ${result.generationTps.toFixed(1)} tps gen, ${result.promptTps.toFixed(1)} tps prompt, ${result.wallTimeSec.toFixed(1)}s`,
-          ).pipe(Effect.annotateLogs("scope", "prompt"));
-        }
+      const result = yield* runPrompt({
+        archiveId: input.manifest.archiveId,
+        runId: input.manifest.runId,
+        model,
+        prompt,
+        temperature,
+        maxTokens: input.maxTokens,
+        ...(input.requestTimeoutSec !== undefined ? { timeoutSec: input.requestTimeoutSec } : {}),
+      });
+      yield* appendIfSaving(result, input.archivePath, input.noSave);
+      yield* Ref.update(statsRef, (s) => tallyResult(s, result));
+      yield* Ref.update(aggRef, (a) => recordPrompt(a, result, false));
+      if (result.error !== null) {
+        yield* Effect.logInfo(
+          `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} — ERROR: ${result.error}`,
+        ).pipe(Effect.annotateLogs("scope", "prompt"));
+      } else {
+        yield* Effect.logInfo(
+          `prompt ${promptIndex}/${total} ${prompt.name} @${temperature} → ${result.generationTokens} gen tok, ${result.generationTps.toFixed(1)} tps gen, ${result.promptTps.toFixed(1)} tps prompt, ${result.wallTimeSec.toFixed(1)}s`,
+        ).pipe(Effect.annotateLogs("scope", "prompt"));
       }
     }
   }).pipe(Effect.annotateLogs("phase", "prompt"));
@@ -148,9 +140,9 @@ export const runPromptPhase = (
 // ── Scenario phase ─────────────────────────────────────────────────────────
 
 /**
- * Scenarios execute only at the first configured temperature. Each scenario
- * opens its own scope for the gameserver + runSession; Admiral is already
- * held by the caller (shared across all scenarios for this model).
+ * Scenarios execute at the per-model temperature. Each scenario opens its own
+ * scope for the gameserver + runSession; Admiral is already held by the caller
+ * (shared across all scenarios for this model).
  */
 export const runScenarioPhase = (
   input: RunModelInput,
@@ -170,9 +162,7 @@ export const runScenarioPhase = (
 > =>
   Effect.gen(function* () {
     if (input.scenarios.length === 0) return;
-    if (input.temperatures.length === 0) return;
-    const temperature = input.temperatures[0];
-    if (temperature === undefined) return;
+    const temperature = input.temperature;
 
     const llmBaseUrl = llmBaseUrlFor(llmHandle);
     const model = modelFromManifest(input.manifest);
@@ -192,16 +182,10 @@ export const runScenarioPhase = (
       });
 
       if (Option.isSome(cached)) {
-        const carried: ExecutionResult = {
-          ...cached.value,
-          archiveId: input.manifest.archiveId,
-          runId: input.manifest.runId,
-        };
-        yield* appendIfSaving(carried, input.archivePath, input.noSave);
-        yield* Ref.update(statsRef, (s) => tallySkipped(s, carried));
-        yield* Ref.update(aggRef, (a) => recordScenario(a, carried, true));
+        yield* Ref.update(statsRef, (s) => tallySkipped(s, cached.value));
+        yield* Ref.update(aggRef, (a) => recordScenario(a, cached.value, true));
         yield* Effect.logInfo(
-          `scenario ${scenarioIndex}/${total} ${scenario.name} — cache hit (archiveId=${carried.archiveId}, executedAt=${carried.executedAt})`,
+          `scenario ${scenarioIndex}/${total} ${scenario.name} — cache hit (existing archiveId=${cached.value.archiveId}, executedAt=${cached.value.executedAt})`,
         ).pipe(Effect.annotateLogs("scope", "scenario"));
         continue;
       }

@@ -54,7 +54,7 @@ export const RunManifest = Schema.Struct({
 
   env: RunEnv,
 
-  temperatures: Schema.Array(Schema.Number),
+  temperature: Schema.Number,
 
   promptCorpus: Schema.Record({ key: Schema.String, value: PromptCorpusEntry }),
   scenarioCorpus: Schema.Record({ key: Schema.String, value: ScenarioCorpusEntry }),

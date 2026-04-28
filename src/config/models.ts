@@ -1,6 +1,6 @@
 import { FileSystem } from "@effect/platform";
 import { Effect, Schema } from "effect";
-import { SchemaDecodeError, type YamlParseError } from "../errors/config.js";
+import { ConfigError, SchemaDecodeError, type YamlParseError } from "../errors/config.js";
 import { ModelConfig } from "../schema/model.js";
 import { parseYaml } from "./yaml.js";
 
@@ -24,7 +24,7 @@ export const loadModels = (
   path: string,
 ): Effect.Effect<
   ReadonlyArray<ModelConfig>,
-  YamlParseError | SchemaDecodeError | import("@effect/platform/Error").PlatformError,
+  YamlParseError | SchemaDecodeError | ConfigError | import("@effect/platform/Error").PlatformError,
   FileSystem.FileSystem
 > =>
   Effect.gen(function* () {
@@ -34,5 +34,16 @@ export const loadModels = (
     const decoded = yield* Schema.decodeUnknown(ModelConfigArray)(parsed).pipe(
       Effect.mapError((cause) => new SchemaDecodeError({ typeName: "ModelConfig[]", cause })),
     );
+    for (const entry of decoded) {
+      const effectivelyActive = entry.active !== false;
+      if (effectivelyActive && entry.temperature === undefined) {
+        return yield* Effect.fail(
+          new ConfigError({
+            path,
+            message: `Model '${entry.artifact}' is active but has no 'temperature'. Run scripts/inventory.ts and add a value to models.yaml.`,
+          }),
+        );
+      }
+    }
     return decoded;
   });

@@ -1,14 +1,14 @@
 /**
  * Middle orchestration layer: one model × one runtime run. Opens a scope
- * over the LLM server, writes the manifest header, iterates prompts ×
- * temperatures, optionally starts Admiral + runs scenarios at the first
- * temperature, and writes the trailer on exit (including on interrupt).
+ * over the LLM server, writes the manifest header, iterates prompts at the
+ * per-model temperature, optionally starts Admiral + runs scenarios at the
+ * model's temperature, and writes the trailer on exit (including on interrupt).
  *
  * Scope nesting (§5.1):
  *
  *   ModelScope (this function, via `Effect.scoped`)
  *     ├── LlmServer (llamacpp or mlx, acquired up-front)
- *     ├── [prompt × temperature loop]
+ *     ├── [prompt loop at per-model temperature]
  *     │     — uses ChatCompletion over the LLM server
  *     └── [scenario loop, only if scenarios present]
  *           ├── AdmiralServer (acquired once, reused across scenarios)
@@ -116,7 +116,7 @@ export interface RunModelInput {
   readonly archivePath: string;
   readonly prompts: ReadonlyArray<PromptCorpusEntry>;
   readonly scenarios: ReadonlyArray<ScenarioCorpusEntry>;
-  readonly temperatures: ReadonlyArray<number>;
+  readonly temperature: number;
   readonly archiveDir: string;
   readonly fresh: boolean;
   readonly maxTokens: number;

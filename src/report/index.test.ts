@@ -5,7 +5,7 @@ import path from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { fixtureManifest, fixtureResult } from "./__fixtures__/archive-fixtures.js";
+import { fixtureManifest, fixturePrompt, fixtureResult } from "./__fixtures__/archive-fixtures.js";
 import { runReport } from "./index.js";
 import type { WebappRecord } from "./webapp-contract.js";
 
@@ -37,14 +37,22 @@ describe("runReport (integration)", () => {
 
     const outputPath = path.join(dir, "webapp", "src", "data", "data.js");
 
+    // Supply the current corpus (matches the fixture's embedded promptHash "hashP")
+    const currentPrompt = fixturePrompt();
     const summary = await Effect.runPromise(
-      runReport({ archiveDir, outputPath }).pipe(Effect.provide(NodeContext.layer)),
+      runReport({
+        archiveDir,
+        outputPath,
+        currentPromptCorpus: [currentPrompt],
+        currentScenarioCorpus: [],
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
 
     expect(summary.archivesLoaded).toBe(2);
     expect(summary.recordCount).toBe(2);
     expect(summary.loadIssues).toHaveLength(0);
-    expect(summary.unmatched).toHaveLength(0);
+    expect(summary.dropped.promptAbsent).toBe(0);
+    expect(summary.dropped.promptDrifted).toBe(0);
 
     // Read the written file and verify shape
     const written = readFileSync(outputPath, "utf-8");
@@ -77,8 +85,15 @@ describe("runReport (integration)", () => {
     writeArchive(path.join(archiveDir, "r1.jsonl"), manifest, results);
 
     const outputPath = path.join(dir, "webapp", "src", "data", "data.js");
+    const currentPrompt = fixturePrompt();
     const summary = await Effect.runPromise(
-      runReport({ archiveDir, outputPath, dryRun: true }).pipe(Effect.provide(NodeContext.layer)),
+      runReport({
+        archiveDir,
+        outputPath,
+        dryRun: true,
+        currentPromptCorpus: [currentPrompt],
+        currentScenarioCorpus: [],
+      }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(summary.dryRun).toBe(true);
     expect(summary.recordCount).toBe(1);

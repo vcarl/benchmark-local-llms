@@ -7,7 +7,6 @@
  *   --scenarios           benchmark.py:95-98
  *   --no-save             benchmark.py:83-86
  *   --fresh               new in rewrite (§8.2 + §5.3.2)
- *   --temperatures        new in rewrite (§8.2 + §5.3.1)
  *   --idle-timeout        new in rewrite (§5.4)
  *   --archive-dir         new — configurable output location (default ./benchmark-archive)
  *   --scenarios-only      new — run only scenarios, skip prompt corpus
@@ -37,7 +36,7 @@ import { checkCompletion, type PlannedCell } from "../../orchestration/completio
 import { runLoop } from "../../orchestration/run-loop.js";
 import { averageGenTps } from "../../orchestration/summary.js";
 import { clearRunState, generateRunId, loadRunState, saveRunState } from "../../state/run-state.js";
-import { buildRunLoopConfig, parseTemperatures, type RunFlags } from "../config/build.js";
+import { buildRunLoopConfig, type RunFlags } from "../config/build.js";
 import { makeRunDeps } from "../deps.js";
 import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
@@ -85,7 +84,6 @@ type RunOptionsParsed = {
   readonly scenarios: string;
   readonly noSave: boolean;
   readonly fresh: boolean;
-  readonly temperatures: Option.Option<string>;
   readonly idleTimeout: Option.Option<number>;
   readonly archiveDir: string;
   readonly scenariosOnly: boolean;
@@ -106,13 +104,6 @@ export const normalizeRunOptions = (
 ):
   | { readonly ok: true; readonly flags: RunFlags }
   | { readonly ok: false; readonly error: string } => {
-  const temps = parseTemperatures(Option.getOrUndefined(parsed.temperatures));
-  if (temps === null) {
-    return {
-      ok: false,
-      error: `invalid --temperatures value: expected comma-separated floats, e.g. '0.7,1.0'`,
-    };
-  }
   const flags: RunFlags = {
     ...(Option.isSome(parsed.modelName) ? { modelName: parsed.modelName.value } : {}),
     ...(Option.isSome(parsed.quant) ? { quant: parsed.quant.value } : {}),
@@ -121,7 +112,6 @@ export const normalizeRunOptions = (
     scenarios: parsed.scenarios,
     noSave: parsed.noSave,
     fresh: parsed.fresh,
-    temperatures: temps,
     ...(Option.isSome(parsed.idleTimeout) ? { idleTimeoutSec: parsed.idleTimeout.value } : {}),
     archiveDir: parsed.archiveDir,
     scenariosOnly: parsed.scenariosOnly,
@@ -194,30 +184,33 @@ const enumeratePlannedCells = (
       const needle = config.paramsFilter.toLowerCase();
       if (m.params === undefined || !m.params.toLowerCase().includes(needle)) continue;
     }
+    // Loader rejects active models missing temperature, so this is a programmer
+    // error if it fires (e.g., enumerating cells for an unvalidated config).
+    if (m.temperature === undefined) {
+      throw new Error(
+        `enumeratePlannedCells: model '${m.artifact}' has no temperature; this should have been caught by the models.yaml loader.`,
+      );
+    }
+    const modelTemp = m.temperature;
     if (config.scenariosOnly !== true) {
       for (const p of config.promptCorpus) {
-        for (const t of config.temperatures) {
-          out.push({
-            artifact: m.artifact,
-            promptName: p.name,
-            promptHash: p.promptHash,
-            temperature: t,
-            kind: "prompt",
-          });
-        }
-      }
-    }
-    const t0 = config.temperatures[0];
-    if (t0 !== undefined) {
-      for (const s of config.scenarioCorpus) {
         out.push({
           artifact: m.artifact,
-          promptName: s.name,
-          promptHash: s.scenarioHash,
-          temperature: t0,
-          kind: "scenario",
+          promptName: p.name,
+          promptHash: p.promptHash,
+          temperature: modelTemp,
+          kind: "prompt",
         });
       }
+    }
+    for (const s of config.scenarioCorpus) {
+      out.push({
+        artifact: m.artifact,
+        promptName: s.name,
+        promptHash: s.scenarioHash,
+        temperature: modelTemp,
+        kind: "scenario",
+      });
     }
   }
   return out;

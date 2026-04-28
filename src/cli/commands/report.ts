@@ -1,11 +1,11 @@
 /**
- * `report` subcommand — loads archives, scores results, emits the webapp's
- * `data.js` file. Delegates to `runReport` (D2) in `src/report/`.
+ * `report` subcommand — loads archives, scores results against the current
+ * on-disk corpus, and emits the webapp's `data.js` file. Delegates to
+ * `runReport` (D2) in `src/report/`.
  *
- * `--scoring=as-run` uses each archive's embedded corpus (self-contained
- * re-score). `--scoring=current` loads `prompts/` fresh via B1 and scores
- * against that — useful when the scoring logic or corpus has changed since
- * the archive was written.
+ * Results whose prompt or scenario content has changed since the run
+ * (hash drift) or has been removed from the corpus are dropped and reported
+ * in the summary.
  */
 import path from "node:path";
 import { Command, Options } from "@effect/cli";
@@ -14,10 +14,28 @@ import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { FileIOError } from "../../errors/index.js";
-import { runReport } from "../../report/index.js";
-import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../../schema/index.js";
+import { type ReportSummary, runReport } from "../../report/index.js";
 import { makeLoggerLayer } from "../logger.js";
 import { scenariosSubdir, systemPromptsPath } from "../paths.js";
+
+/**
+ * Emit the three-line audit block for a completed report run.
+ *
+ * Always prints — even when all counters are zero — so operators have a clear
+ * read on what was loaded, what was dropped and why, and what was written.
+ *
+ * Line 1: how many archives were loaded
+ * Line 2: how many results were dropped (and why)
+ * Line 3: how many cells were written and where
+ */
+export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    yield* Effect.logInfo(`report: loaded ${summary.archivesLoaded} archives`);
+    yield* Effect.logInfo(
+      `report: dropped ${summary.dropped.promptAbsent} (prompt absent), ${summary.dropped.promptDrifted} (prompt drifted)`,
+    );
+    yield* Effect.logInfo(`report: wrote ${summary.recordCount} cells → ${summary.outputPath}`);
+  });
 
 /**
  * True when a {@link FileIOError} indicates the archive directory itself is
@@ -37,18 +55,13 @@ const archiveDir = Options.directory("archive-dir").pipe(
   Options.withDefault("./benchmark-archive"),
 );
 
-const scoring = Options.choice("scoring", ["as-run", "current"] as const).pipe(
-  Options.withDescription("Which corpus to score against: as-run (embedded) or current (disk)"),
-  Options.withDefault("as-run"),
-);
-
 const output = Options.directory("output").pipe(
   Options.withDescription("Output directory for data.js (e.g. webapp/src/data)"),
   Options.withDefault("./webapp/src/data"),
 );
 
 const promptsDir = Options.directory("prompts-dir").pipe(
-  Options.withDescription("Prompts directory (only used when --scoring=current)"),
+  Options.withDescription("Prompts directory containing the current corpus"),
   Options.withDefault("prompts"),
 );
 
@@ -60,30 +73,25 @@ const verbose = Options.boolean("verbose").pipe(
 
 export const reportCommand = Command.make(
   "report",
-  { archiveDir, scoring, output, promptsDir, verbose },
+  { archiveDir, output, promptsDir, verbose },
   (args) =>
     Effect.gen(function* () {
       const outputPath = path.join(args.output, "data.js");
-      const useCurrent = args.scoring === "current";
       const registry = Layer.effect(
         SystemPromptRegistry,
         loadSystemPrompts(systemPromptsPath(args.promptsDir)),
       );
       const loadPrompts = loadPromptCorpus(args.promptsDir).pipe(Effect.provide(registry));
       const loadScenarios = loadScenarioCorpus(scenariosSubdir(args.promptsDir));
-      const currentPromptCorpus: ReadonlyArray<PromptCorpusEntry> | undefined = useCurrent
-        ? yield* loadPrompts
-        : yield* loadPrompts.pipe(Effect.catchAll(() => Effect.succeed(undefined)));
-      const currentScenarioCorpus: ReadonlyArray<ScenarioCorpusEntry> | undefined = useCurrent
-        ? yield* loadScenarios
-        : yield* loadScenarios.pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+
+      const currentPromptCorpus = yield* loadPrompts;
+      const currentScenarioCorpus = yield* loadScenarios;
 
       const summary = yield* runReport({
         archiveDir: args.archiveDir,
         outputPath,
-        scoringMode: args.scoring,
-        ...(currentPromptCorpus !== undefined ? { currentPromptCorpus } : {}),
-        ...(currentScenarioCorpus !== undefined ? { currentScenarioCorpus } : {}),
+        currentPromptCorpus,
+        currentScenarioCorpus,
       }).pipe(
         Effect.tapError((err) =>
           err instanceof FileIOError && isMissingArchiveDirError(err)
@@ -92,14 +100,9 @@ export const reportCommand = Command.make(
         ),
       );
 
-      yield* Effect.logInfo(
-        `report: wrote ${summary.recordCount} records from ${summary.archivesLoaded} archives → ${summary.outputPath}`,
-      );
       if (summary.loadIssues.length > 0) {
         yield* Effect.logWarning(`report: ${summary.loadIssues.length} archive load issue(s)`);
       }
-      if (summary.unmatched.length > 0) {
-        yield* Effect.logWarning(`report: ${summary.unmatched.length} unmatched prompt(s)`);
-      }
+      yield* logAuditBlock(summary);
     }).pipe(Effect.provide(makeLoggerLayer(args.verbose))),
 ).pipe(Command.withDescription("Generate webapp report data from archive files"));
