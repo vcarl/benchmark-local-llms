@@ -43,9 +43,12 @@ export interface CreateProfileInput {
   readonly username: string;
   readonly password: string;
   /**
-   * Bare model identifier (e.g. `unsloth/Qwen3-Coder-30B`). Admiral prefixes
-   * with `custom/` itself in the wire payload — preserved here for fidelity
-   * with `admiral_runner.py::create_profile` (line 165).
+   * Bare model identifier (e.g. `mlx-community/Qwen2.5-7B-Instruct-4bit`).
+   * Admiral pairs this with `provider` internally when resolving the model —
+   * we send it bare in the `model` field so the OpenAI-compat request body
+   * Admiral ships to a local llamacpp/mlx server has the actual repo id (no
+   * `custom/` prefix), which mlx_lm.server otherwise rejects with a 404
+   * "Repo id must be in the form 'repo_name' or 'namespace/repo_name'".
    */
   readonly model: string;
   readonly serverUrl: string;
@@ -165,9 +168,15 @@ export const makeAdmiralClient = (
           username: input.username,
           password: input.password,
           provider: input.provider,
-          // Wire convention: Admiral expects `custom/<bare model>`; mirrors
-          // `admiral_runner.py::create_profile` line 165.
-          model: `${input.provider}/${input.model}`,
+          // Wire convention: Admiral expects the bare model id and combines
+          // it with `provider` internally as `${provider}/${model}` when
+          // dispatching to pi-ai (see admiral src/server/lib/agent.ts where
+          // it calls resolveModel(`${profile.provider}/${profile.model}`)).
+          // The previous `${provider}/${model}` we sent here resulted in a
+          // double-prefixed `custom/custom/<repo>` reaching mlx_lm.server,
+          // which rejects it with HTTP 404 because the repo id has too
+          // many path segments.
+          model: input.model,
           directive: input.directive,
           server_url: input.serverUrl,
           connection_mode: input.connectionMode,

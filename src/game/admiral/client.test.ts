@@ -101,7 +101,11 @@ describe("makeAdmiralClient", () => {
     expect(req?.method).toBe("POST");
     expect(req?.path).toBe("/api/profiles");
     const parsed = JSON.parse(req?.body ?? "{}");
-    expect(parsed.model).toBe("custom/qwen3");
+    // Bare model id — Admiral pairs it with `provider` internally when
+    // building the upstream OpenAI-compat request. Sending `${provider}/${model}`
+    // here led to a double-prefix that mlx_lm.server rejected with 404.
+    expect(parsed.model).toBe("qwen3");
+    expect(parsed.provider).toBe("custom");
     expect(parsed.connection_mode).toBe("http_v2");
   });
 
