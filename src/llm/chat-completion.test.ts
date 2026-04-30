@@ -240,9 +240,14 @@ describe("ChatCompletion", () => {
     expect(result.output).toBe("<think>7 + 5 = 12, user wants just the number</think>\n\n12");
   });
 
-  it("maps non-2xx HTTP status to LlmRequestError", async () => {
+  it("maps non-2xx HTTP status to LlmRequestError with status + body", async () => {
     const layer = ChatCompletionLive.pipe(
-      Layer.provide(mockClient(() => new Response("internal boom", { status: 500 }))),
+      Layer.provide(
+        mockClient(
+          () =>
+            new Response(JSON.stringify({ error: "tokenizer template failed" }), { status: 404 }),
+        ),
+      ),
     );
 
     const program = Effect.gen(function* () {
@@ -258,7 +263,8 @@ describe("ChatCompletion", () => {
       if (err instanceof LlmRequestError) {
         expect(err.model).toBe("test-model");
         expect(err.promptName).toBe("math_multiply_direct");
-        expect(err.cause).toMatch(/500|StatusCode|internal boom/);
+        expect(err.cause).toContain("HTTP 404");
+        expect(err.cause).toContain("tokenizer template failed");
       }
     }
   });

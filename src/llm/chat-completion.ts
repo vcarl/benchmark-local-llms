@@ -26,7 +26,7 @@
  *   from wall time or recording 0 explicitly — this service does NOT silently
  *   coerce missing timings to 0, because that hides the signal.
  */
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "@effect/platform";
+import { HttpClient, HttpClientRequest } from "@effect/platform";
 import type { HttpClientError } from "@effect/platform/HttpClientError";
 import { Clock, Context, Effect, Layer, Schema } from "effect";
 import type { ParseError } from "effect/ParseResult";
@@ -226,11 +226,31 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
           cause: cause.message ?? String(cause),
         });
 
-      // Issue the request + guard on 2xx status. `filterStatusOk` turns
-      // non-2xx into a `ResponseError` with `reason: "StatusCode"`.
-      const exec = client
-        .execute(request)
-        .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk), Effect.mapError(httpError));
+      // Issue the request and read the body on non-2xx so server errors
+      // surface the actual reason. Notably, `mlx_lm.server` returns 404 with
+      // `{"error": "<exception message>"}` whenever generation throws (see
+      // `server.py::handle_completion`); using `filterStatusOk` would hide
+      // that behind a bare "StatusCode" mapping. Network/transport failures
+      // still flow through `httpError`.
+      const exec = client.execute(request).pipe(
+        Effect.mapError(httpError),
+        Effect.flatMap((resp) =>
+          resp.status >= 200 && resp.status < 300
+            ? Effect.succeed(resp)
+            : resp.text.pipe(
+                Effect.orElseSucceed(() => "<unreadable body>"),
+                Effect.flatMap((body) =>
+                  Effect.fail(
+                    new LlmRequestError({
+                      model: params.model,
+                      promptName: params.promptName,
+                      cause: `HTTP ${resp.status}: ${body.slice(0, 2000)}`,
+                    }),
+                  ),
+                ),
+              ),
+        ),
+      );
 
       const executed =
         params.timeoutSec === undefined
