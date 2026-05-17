@@ -1,0 +1,36 @@
+.DS_Store
+.claude/
+.superpowers/
+llama.cpp/
+models/
+*-backup*/
+benchmark-results/
+webapp/src/data/data.js
+webapp/src/data/events/
+.git-gh-pages/
+.run-state.json
+
+# TypeScript / Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python tooling cruft (bench scripts share the workspace)
+.venv/
+__pycache__/
+
+# Local runtime log captures
+logs.rtf
+
+
+benchmark-archive/
+smoke-archive/
+v1-archive/
+v2-archive/
+v3-archive/
+v4-archive/
+v5-archive/
+v6-archive/
+v7-archive/
+v8-archive/
+

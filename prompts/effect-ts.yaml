@@ -1,0 +1,444 @@
+# Effect-TS general knowledge challenges
+# Tests whether models understand the Effect library's concepts, API, and patterns
+
+# ══════════════════════════════════════════════════════════════════════════
+#  Tier 1: Core concepts — does the model know what Effect is?
+# ══════════════════════════════════════════════════════════════════════════
+
+- name: effect_type_params
+  tier: 1
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, the type `Effect.Effect<A, E, R>` has three type parameters.
+    What do A, E, and R represent? Reply with exactly three short phrases,
+    one per line, in order: A, E, R.
+  scorer: constraint
+  constraints:
+    - name: "mentions success/value for A"
+      check: regex
+      pattern: '(?i)(success|result|value|output|return)'
+    - name: "mentions error for E"
+      check: regex
+      pattern: '(?i)(error|fail)'
+    - name: "mentions requirements/dependencies/context for R"
+      check: regex
+      pattern: '(?i)(require|depend|context|service|environment)'
+
+- name: effect_yield_star
+  tier: 1
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what does `yield*` do inside an `Effect.gen(function* () { ... })` block?
+    Explain in one sentence.
+  scorer: constraint
+  constraints:
+    - name: "mentions unwrapping/extracting the value"
+      check: regex
+      pattern: '(?i)(unwrap|extract|get.*value|like.*await|resolv|run.*effect)'
+    - name: "is a sentence"
+      check: min_length
+      length: 20
+
+- name: effect_gen_pattern
+  tier: 1
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what is the function used to create an Effect from a generator
+    function? Reply with just the function call, e.g. `SomeModule.someFunction`.
+  scorer: constraint
+  constraints:
+    - name: "says Effect.gen"
+      check: contains_exact
+      value: "Effect.gen"
+
+- name: effect_error_class
+  tier: 1
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what base class do you extend to create a tagged error type?
+    Reply with just the class name and module, like `Module.ClassName`.
+  scorer: constraint
+  constraints:
+    - name: "says Data.TaggedError"
+      check: regex
+      pattern: '(?i)Data\.TaggedError'
+
+- name: effect_top_level_exports
+  tier: 1
+  style: direct
+  system: direct
+  prompt: >-
+    The `effect` npm package exports several top-level modules.
+    Name at least 6 of them (e.g. Effect, Stream, ...).
+    One per line, just the module name.
+  scorer: constraint
+  constraints:
+    - name: "lists Effect"
+      check: regex
+      pattern: '(?m)^\s*Effect\s*$'
+    - name: "lists at least 5 valid modules"
+      check: regex_count_min
+      pattern: '(?m)^\s*(Effect|Stream|Sink|Queue|Ref|Layer|Context|Config|Schedule|Schema|Data|Option|Either|Cause|Exit|Fiber|Scope|Runtime|Match|Logger|Chunk|Duration|HashMap|HashSet|STM|PubSub|Pool|Deferred|FiberRef|Metric|Clock|Random|Order|Predicate|String|Number|Boolean|ReadonlyArray|Record|Struct|Tuple|Types|Function|Brand|Encoding|DateTime|Micro|ManagedRuntime|Mailbox|RcRef|Tracer|Cron|Inspectable|Pipeable)\s*$'
+      min: 5
+
+# ══════════════════════════════════════════════════════════════════════════
+#  Tier 2: API knowledge — does the model know specific APIs?
+# ══════════════════════════════════════════════════════════════════════════
+
+- name: effect_try_promise
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what function do you use to wrap a Promise-based API call
+    into an Effect? Reply with just the function name like `Effect.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "says Effect.tryPromise"
+      check: contains_exact
+      value: "Effect.tryPromise"
+
+- name: effect_catch_specific
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, you have tagged errors. What function do you use to catch
+    a specific error by its tag, leaving other error types unhandled?
+    Reply with just the function name like `Effect.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "says Effect.catchTag"
+      check: contains_exact
+      value: "Effect.catchTag"
+
+- name: effect_service_pattern
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what class do you extend to create a service tag
+    for dependency injection? Reply with just `Module.ClassName`.
+  scorer: constraint
+  constraints:
+    - name: "says Context.Tag"
+      check: regex
+      pattern: '(?i)Context\.Tag'
+
+- name: effect_parallel
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what function runs multiple Effects in parallel and returns
+    all results as a tuple? Reply with just the function name like `Effect.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "says Effect.all"
+      check: contains_exact
+      value: "Effect.all"
+
+- name: effect_layer
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what module provides the `effect` function for creating
+    a service implementation from an Effect? Reply as `Module.functionName`.
+  scorer: constraint
+  constraints:
+    - name: "says Layer.effect"
+      check: contains_exact
+      value: "Layer.effect"
+
+- name: effect_constructors
+  tier: 2
+  style: structured
+  system: structured
+  prompt: |-
+    In Effect-TS, match each use case to the correct constructor:
+    1. Wrap a pure value: Effect.???
+    2. Create a failed Effect: Effect.???
+    3. Wrap a side-effectful sync function: Effect.???
+    4. Do nothing (unit): Effect.???
+
+    Reply as JSON: {"pure": "xxx", "fail": "xxx", "sync": "xxx", "unit": "xxx"}
+  scorer: constraint
+  constraints:
+    - name: "valid JSON"
+      check: valid_json
+    - name: "pure = succeed"
+      check: contains
+      value: "succeed"
+    - name: "fail = fail"
+      check: regex
+      pattern: '"fail"\s*:\s*"fail"'
+    - name: "sync = sync"
+      check: regex
+      pattern: '"sync"\s*:\s*"sync"'
+    - name: "unit = void or unit"
+      check: regex
+      pattern: '"unit"\s*:\s*"(void|unit)"'
+
+- name: effect_anti_pattern
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, why is it wrong to call `Effect.runPromise` inside an
+    `Effect.gen` block? Reply in one or two sentences.
+  scorer: constraint
+  constraints:
+    - name: "mentions breaking the chain or losing types"
+      check: regex
+      pattern: '(?i)(break|lose|bypass|escape).*(chain|type|error|composition|context)'
+
+- name: effect_stream_create
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, how do you create a Stream from an array?
+    Reply with just the function call, like `Module.functionName`.
+  scorer: constraint
+  constraints:
+    - name: "says Stream.fromIterable"
+      check: regex
+      pattern: '(?i)Stream\.(fromIterable|from)'
+
+- name: effect_queue_bounded
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what function creates a bounded queue with a maximum capacity?
+    Reply with just the function call, like `Module.functionName`.
+  scorer: constraint
+  constraints:
+    - name: "says Queue.bounded"
+      check: contains_exact
+      value: "Queue.bounded"
+
+- name: effect_ref
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, the `Ref` module provides mutable references.
+    What are the three main operations on a Ref? Reply with the function names,
+    one per line, like `Ref.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "mentions Ref.make"
+      check: contains_exact
+      value: "Ref.make"
+    - name: "mentions Ref.get"
+      check: contains_exact
+      value: "Ref.get"
+    - name: "mentions Ref.set or Ref.update"
+      check: regex
+      pattern: 'Ref\.(set|update)'
+
+- name: effect_option_either
+  tier: 2
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what are the two main modules for representing
+    optional values and values that can be one of two types?
+    Reply with just the two module names, one per line.
+  scorer: constraint
+  constraints:
+    - name: "mentions Option"
+      check: contains_exact
+      value: "Option"
+    - name: "mentions Either"
+      check: contains_exact
+      value: "Either"
+
+# ══════════════════════════════════════════════════════════════════════════
+#  Tier 3: Pattern recognition and advanced knowledge
+# ══════════════════════════════════════════════════════════════════════════
+
+- name: effect_service_3_parts
+  tier: 3
+  style: structured
+  system: structured
+  prompt: |-
+    In Effect-TS, a service has three parts. Name them in order.
+    Reply as JSON: {"parts": ["first", "second", "third"]}
+  scorer: constraint
+  constraints:
+    - name: "valid JSON"
+      check: valid_json
+    - name: "mentions interface"
+      check: regex
+      pattern: '(?i)interface'
+    - name: "mentions tag"
+      check: regex
+      pattern: '(?i)tag'
+    - name: "mentions implementation or layer"
+      check: regex
+      pattern: '(?i)(implement|layer|live)'
+
+- name: effect_schedule_types
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, name 3 different Schedule types you can use for retry
+    policies. Reply with just the names, one per line, like `Schedule.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "mentions at least 2 schedule types"
+      check: regex_count_min
+      pattern: 'Schedule\.\w+'
+      min: 2
+
+- name: effect_fiber_fork
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what function do you use to fork an Effect as a background
+    fiber? And what function waits for a fiber to complete? Reply with both
+    function names, one per line.
+  scorer: constraint
+  constraints:
+    - name: "mentions Effect.fork"
+      check: contains_exact
+      value: "Effect.fork"
+    - name: "mentions Fiber.join"
+      check: contains_exact
+      value: "Fiber.join"
+
+- name: effect_pipe_vs_gen
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, when would you use `.pipe()` with combinators like
+    Effect.map/Effect.flatMap versus `Effect.gen` with yield*?
+    Reply in 2-3 sentences.
+  scorer: constraint
+  constraints:
+    - name: "mentions pipe for simple transformations"
+      check: regex
+      pattern: '(?i)(pipe|combinator).*(simple|chain|transform|short|linear)'
+    - name: "mentions gen for complex/sequential logic"
+      check: regex
+      pattern: '(?i)(gen|generator).*(complex|sequential|multiple|step|imperative|readable)'
+    - name: "is substantive"
+      check: min_length
+      length: 60
+
+- name: effect_resource_management
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what function provides a safe acquire/use/release pattern
+    for resource management? Reply with just the function name like `Effect.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "says acquireUseRelease or acquireRelease"
+      check: regex
+      pattern: '(?i)Effect\.(acquireUseRelease|acquireRelease)'
+
+- name: effect_stream_pipeline
+  tier: 3
+  style: structured
+  system: structured
+  prompt: |-
+    In Effect-TS, you want to create a Stream from an array, transform each
+    element with an effectful function, then collect all results into an array.
+    Name the three functions you'd chain together.
+    Reply as JSON: {"create": "Stream.xxx", "transform": "Stream.xxx", "collect": "xxx"}
+  scorer: constraint
+  constraints:
+    - name: "create is fromIterable or from"
+      check: regex
+      pattern: '(?i)"create"\s*:\s*"Stream\.(fromIterable|from)"'
+    - name: "transform is mapEffect"
+      check: regex
+      pattern: '(?i)"transform"\s*:\s*"Stream\.mapEffect"'
+    - name: "collect uses Sink or run"
+      check: regex
+      pattern: '(?i)(Sink\.collectAll|Stream\.run|runCollect)'
+
+- name: effect_sink
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what is a `Sink` and what module is it in?
+    What function collects all elements from a Stream into an array?
+    Reply in 1-2 sentences.
+  scorer: constraint
+  constraints:
+    - name: "mentions Sink module"
+      check: contains_exact
+      value: "Sink"
+    - name: "mentions collectAll or collect"
+      check: regex
+      pattern: '(?i)(collectAll|collect)'
+    - name: "mentions consuming/processing a stream"
+      check: regex
+      pattern: '(?i)(consum|process|receiv|terminal|fold|accumulat|run)'
+
+- name: effect_queue_operations
+  tier: 3
+  style: structured
+  system: structured
+  prompt: |-
+    In Effect-TS, a Queue supports producer/consumer patterns.
+    What function does a producer use to add an item?
+    What function does a consumer use to take an item (blocking)?
+    Reply as JSON: {"offer": "Queue.xxx", "take": "Queue.xxx"}
+  scorer: constraint
+  constraints:
+    - name: "valid JSON"
+      check: valid_json
+    - name: "offer function"
+      check: regex
+      pattern: '(?i)"offer"\s*:\s*"Queue\.offer"'
+    - name: "take function"
+      check: regex
+      pattern: '(?i)"take"\s*:\s*"Queue\.take"'
+
+- name: effect_layer_merge
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    In Effect-TS, what function combines multiple independent Layers into one?
+    Reply with just the function name like `Layer.xxx`.
+  scorer: constraint
+  constraints:
+    - name: "says Layer.mergeAll or Layer.merge"
+      check: regex
+      pattern: '(?i)Layer\.(mergeAll|merge)'
+
+- name: effect_schema
+  tier: 3
+  style: direct
+  system: direct
+  prompt: >-
+    The `effect` package exports a `Schema` module (formerly `@effect/schema`).
+    What is its purpose? Name 2 things you can do with it.
+    Reply in 2-3 sentences.
+  scorer: constraint
+  constraints:
+    - name: "mentions validation or parsing"
+      check: regex
+      pattern: '(?i)(validat|pars|decod|encod)'
+    - name: "mentions schema/type definition"
+      check: regex
+      pattern: '(?i)(schema|type|defin|struct|descri)'
+    - name: "is substantive"
+      check: min_length
+      length: 40
