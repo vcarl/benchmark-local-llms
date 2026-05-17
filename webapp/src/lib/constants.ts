@@ -13,7 +13,11 @@ export const CAPABILITY_TAGS = [
 
 export type CapabilityTag = typeof CAPABILITY_TAGS[number];
 
-export const PASS_THRESHOLD = 0.5;
+/**
+ * A run passes only when its score is exactly 1 (a fully correct answer).
+ * Any partial credit, runtime error, or wrong output counts as a fail.
+ */
+export const isPass = (score: number): boolean => score === 1;
 
 export const scoreBand = (
   score: number,

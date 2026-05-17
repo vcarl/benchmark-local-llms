@@ -62,6 +62,17 @@ describe("loadAllArchives", () => {
     expect(out.archives[0]?.data.results).toHaveLength(1);
   });
 
+  it("returns archive mtime alongside loaded data", async () => {
+    const manifest = fixtureManifest({ runId: "mtime-run" });
+    const results = [fixtureResult({ runId: "mtime-run", promptName: "p1" })];
+    writeArchive(path.join(dir, "mtime-run.jsonl"), manifest, results);
+
+    const out = await Effect.runPromise(loadAllArchives(dir).pipe(Effect.provide(FS)));
+    expect(out.archives).toHaveLength(1);
+    expect(out.archives[0]?.mtime).toBeInstanceOf(Date);
+    expect(out.archives[0]?.mtime.getTime()).toBeGreaterThan(0);
+  });
+
   it("collects corrupt files as issues rather than aborting", async () => {
     const manifest = fixtureManifest({ runId: "good" });
     const results = [fixtureResult({ runId: "good" })];

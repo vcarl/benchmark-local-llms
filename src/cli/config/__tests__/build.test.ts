@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ModelConfig } from "../../../schema/model.js";
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
 import type { ScenarioCorpusEntry } from "../../../schema/scenario.js";
-import { buildRunLoopConfig, filterScenarios, parseTemperatures, type RunFlags } from "../build.js";
+import { buildRunLoopConfig, filterScenarios, type RunFlags } from "../build.js";
 
 const makeScenario = (name: string): ScenarioCorpusEntry =>
   ({
@@ -22,34 +22,10 @@ const baseFlags: RunFlags = {
   scenarios: "all",
   noSave: false,
   fresh: false,
-  temperatures: [0.7],
   archiveDir: "./benchmark-archive",
   scenariosOnly: false,
   runId: "r-test",
 };
-
-describe("parseTemperatures", () => {
-  it("defaults to [0.7] on empty/undefined input", () => {
-    expect(parseTemperatures(undefined)).toEqual([0.7]);
-    expect(parseTemperatures("")).toEqual([0.7]);
-  });
-
-  it("parses a single value", () => {
-    expect(parseTemperatures("0.9")).toEqual([0.9]);
-  });
-
-  it("parses a comma-separated list", () => {
-    expect(parseTemperatures("0.7,1.0")).toEqual([0.7, 1.0]);
-  });
-
-  it("ignores whitespace and blank tokens", () => {
-    expect(parseTemperatures(" 0.1 , 0.2 , ")).toEqual([0.1, 0.2]);
-  });
-
-  it("returns null on an unparseable token", () => {
-    expect(parseTemperatures("0.7,not-a-number")).toBeNull();
-  });
-});
 
 describe("filterScenarios", () => {
   const corpus = [
@@ -96,7 +72,6 @@ describe("buildRunLoopConfig", () => {
     expect(config.fresh).toBe(false);
     expect(config.noSave).toBe(false);
     expect(config.scenariosOnly).toBe(false);
-    expect(config.temperatures).toEqual([0.7]);
     expect(config.scenarioCorpus).toHaveLength(1);
     expect(config.promptCorpus).toHaveLength(1);
     expect(config.models).toHaveLength(1);

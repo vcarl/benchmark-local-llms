@@ -15,7 +15,6 @@ import { scoreCodeExec } from "./code-exec.js";
 import { scoreConstraints } from "./constraint.js";
 import { scoreExactMatch } from "./exact-match.js";
 import { GAME_SCORERS } from "./game.js";
-import { stripThinkingTags } from "./strip-thinking.js";
 
 export interface Score {
   readonly score: number;
@@ -35,9 +34,11 @@ const isPromptEntry = (e: CorpusEntry): e is PromptCorpusEntry =>
   "scorer" in e && typeof (e as PromptCorpusEntry).scorer === "object";
 
 /**
- * Top-level scoring dispatch (§4). Given an execution result and its corpus
- * entry, strip thinking tags from the output and route to the appropriate
- * scorer.
+ * Top-level scoring dispatch (§4). Routes the execution to the appropriate
+ * scorer based on the entry type. Reads `result.output` directly — thinking
+ * extraction has already happened upstream in `runPrompt` (the cleaned
+ * answer lands in `result.output`; reasoning lives in `result.reasoning`;
+ * the unmodified API content is in `result.rawOutput` for audit).
  *
  * PromptCorpusEntry carries a ScorerConfig discriminated union; we switch on
  * the `type` tag. ScenarioCorpusEntry carries a bare `scorer` name string;
@@ -52,15 +53,14 @@ export const scoreExecution = (
   CommandExecutor.CommandExecutor
 > => {
   if (isPromptEntry(entry)) {
-    const stripped = stripThinkingTags(result.output);
     const cfg = entry.scorer;
     switch (cfg.type) {
       case "exact_match":
-        return scoreExactMatch(stripped, cfg);
+        return scoreExactMatch(result.output, cfg);
       case "constraint":
-        return scoreConstraints(stripped, cfg);
+        return scoreConstraints(result.output, cfg);
       case "code_exec":
-        return scoreCodeExec(stripped, cfg.testCode);
+        return scoreCodeExec(result.output, cfg.testCode);
       case "game":
         // A `game` ScorerConfig on a *prompt* entry is degenerate per the
         // schema but the union allows it. Treat as ScorerNotFound — game

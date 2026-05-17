@@ -4,6 +4,7 @@ import {
   aggregateForRunList,
   aggregateForScatter,
   applyFilters,
+  applyVariantFilters,
   groupRunsByModel,
 } from "./pipeline";
 import type { BenchmarkResult } from "./data";
@@ -12,7 +13,7 @@ const baseRec: BenchmarkResult = {
   model: "Qwen3 32B", runtime: "llamacpp", quant: "Q4_K_M",
   prompt_name: "p", category: "code", tier: 2, temperature: 0.7,
   tags: ["code-synthesis"], is_scenario: false,
-  score: 0.9, score_details: "",
+  score: 0.9, score_details: "", score_breakdown: null,
   prompt_tokens: 10, generation_tokens: 20,
   prompt_tps: 100, generation_tps: 50,
   wall_time_sec: 1, peak_memory_gb: 16,
@@ -39,11 +40,11 @@ describe("applyFilters", () => {
   });
   it("AND across chips", () => {
     const data = [
-      mk({ wall_time_sec: 5, runtime: "llamacpp" }),
-      mk({ wall_time_sec: 30, runtime: "llamacpp" }),
-      mk({ wall_time_sec: 5, runtime: "mlx" }),
+      mk({ category: "code", runtime: "llamacpp" }),
+      mk({ category: "math", runtime: "llamacpp" }),
+      mk({ category: "code", runtime: "mlx" }),
     ];
-    expect(applyFilters(data, { durationRange: { min: 0, max: 10 }, runtime: ["llamacpp"] }).length).toBe(1);
+    expect(applyFilters(data, { category: ["code"], runtime: ["llamacpp"] }).length).toBe(1);
   });
   it("excludes via negative filter", () => {
     const data = [mk({ tags: ["TODO"] }), mk({ tags: ["code-synthesis"] })];
@@ -70,11 +71,31 @@ describe("applyFilters", () => {
   });
 });
 
+describe("applyVariantFilters", () => {
+  it("drops whole variants by total wall_time, keeping all records of variants in range", () => {
+    const data = [
+      // llamacpp variant: total wall_time = 5+7 = 12 — in [0,30]
+      mk({ runtime: "llamacpp", wall_time_sec: 5, prompt_name: "a" }),
+      mk({ runtime: "llamacpp", wall_time_sec: 7, prompt_name: "b" }),
+      // mlx variant: total wall_time = 10+90 = 100 — out of [0,30]
+      mk({ runtime: "mlx", wall_time_sec: 10, prompt_name: "a" }),
+      mk({ runtime: "mlx", wall_time_sec: 90, prompt_name: "b" }),
+    ];
+    const out = applyVariantFilters(data, { durationRange: { min: 0, max: 30 } });
+    expect(out.length).toBe(2);
+    expect(out.every((r) => r.runtime === "llamacpp")).toBe(true);
+  });
+  it("returns input unchanged when no variant-level filter is set", () => {
+    const data = [mk({ wall_time_sec: 5 }), mk({ wall_time_sec: 999 })];
+    expect(applyVariantFilters(data, {})).toBe(data);
+  });
+});
+
 describe("aggregateForScatter", () => {
   const baseRec = (over: Partial<BenchmarkResult>): BenchmarkResult => ({
     model: "llama-3.1-8b", runtime: "llamacpp", quant: "q8",
     prompt_name: "p1", category: "c", tier: 1, temperature: 0,
-    tags: [], is_scenario: false, score: 0.7, score_details: "",
+    tags: [], is_scenario: false, score: 0.7, score_details: "", score_breakdown: null,
     prompt_tokens: 100, generation_tokens: 400, prompt_tps: 0, generation_tps: 0,
     wall_time_sec: 0, peak_memory_gb: 8.5, output: "", prompt_text: "",
     scenario_name: null, termination_reason: null, tool_call_count: null,
@@ -84,24 +105,33 @@ describe("aggregateForScatter", () => {
 
   it("one dot per (model, runtime, quant, temperature) combo", () => {
     const data = [
-      baseRec({ score: 0.7 }),
-      baseRec({ score: 0.8 }), // same variant → same dot
-      baseRec({ runtime: "mlx", score: 0.6 }),
-      baseRec({ quant: "q4", score: 0.5 }),
-      baseRec({ temperature: 0.7, score: 0.65 }),
+      baseRec({ score: 1 }),
+      baseRec({ score: 0 }), // same variant → same dot
+      baseRec({ runtime: "mlx", score: 1 }),
+      baseRec({ quant: "q4", score: 0 }),
+      baseRec({ temperature: 0.7, score: 1 }),
     ];
     const dots = aggregateForScatter(data);
     expect(dots).toHaveLength(4);
   });
 
-  it("averages score and tokens within a variant", () => {
+  it("score is the pass rate (proportion of runs with score===1) and tokens are averaged", () => {
     const data = [
-      baseRec({ score: 0.6, prompt_tokens: 100, generation_tokens: 400 }), // 500 total
-      baseRec({ score: 0.8, prompt_tokens: 100, generation_tokens: 600 }), // 700 total
+      baseRec({ score: 0, prompt_tokens: 100, generation_tokens: 400 }), // 500 total — fail
+      baseRec({ score: 1, prompt_tokens: 100, generation_tokens: 600 }), // 700 total — pass
     ];
     const [dot] = aggregateForScatter(data);
-    expect(dot.score).toBeCloseTo(70); // (60+80)/2 as percentage
-    expect(dot.tokens).toBe(600); // (500+700)/2
+    expect(dot.score).toBeCloseTo(50); // 1 of 2 passed
+    expect(dot.tokens).toBe(600);
+  });
+
+  it("partial credit (score < 1) is a fail", () => {
+    const data = [
+      baseRec({ score: 0.99 }),
+      baseRec({ score: 1 }),
+    ];
+    const [dot] = aggregateForScatter(data);
+    expect(dot.score).toBeCloseTo(50);
   });
 
   it("uses max peak_memory_gb across runs in the variant", () => {
@@ -148,7 +178,7 @@ describe("aggregateForList", () => {
   const mkRec = (over: Partial<BenchmarkResult>): BenchmarkResult => ({
     model: "llama-3.1-8b", runtime: "llamacpp", quant: "q8",
     prompt_name: "p", category: "c", tier: 1, temperature: 0,
-    tags: [], is_scenario: false, score: 0.7, score_details: "",
+    tags: [], is_scenario: false, score: 0.7, score_details: "", score_breakdown: null,
     prompt_tokens: 200, generation_tokens: 600, prompt_tps: 0, generation_tps: 0,
     wall_time_sec: 0, peak_memory_gb: 8.5, output: "", prompt_text: "",
     scenario_name: null, termination_reason: null, tool_call_count: null,
@@ -156,30 +186,35 @@ describe("aggregateForList", () => {
     run_id: "", executed_at: "2026-04-01T00:00:00Z", ...over,
   });
 
-  it("bestScore is max across variants", () => {
+  it("bestScore is the highest variant pass rate", () => {
+    // llamacpp: 1/2 pass = 50%; mlx: 0/2 = 0%
     const rows = aggregateForList([
-      mkRec({ runtime: "llamacpp", score: 0.68 }),
-      mkRec({ runtime: "mlx", score: 0.65 }),
+      mkRec({ runtime: "llamacpp", score: 1 }),
+      mkRec({ runtime: "llamacpp", score: 0 }),
+      mkRec({ runtime: "mlx", score: 0 }),
+      mkRec({ runtime: "mlx", score: 0 }),
     ], "model");
-    expect(rows[0].bestScore).toBe(68);
+    expect(rows[0].bestScore).toBe(50);
   });
 
-  it("efficiency = round(tokens / score%) for the best variant", () => {
+  it("efficiency = round(tokens / pass%) for the best variant", () => {
     const rows = aggregateForList([
-      mkRec({ score: 0.8, prompt_tokens: 200, generation_tokens: 2600 }), // 2800 total
+      mkRec({ score: 1, prompt_tokens: 200, generation_tokens: 2600 }), // 2800 total, 100% pass
     ], "model");
-    // 2800 / 80 = 35
-    expect(rows[0].efficiency).toBe(35);
+    // 2800 / 100 = 28
+    expect(rows[0].efficiency).toBe(28);
   });
 
-  it("variants sorted best-first", () => {
+  it("variants sorted best-first by pass rate", () => {
+    // q8: 1/1 = 100%; mlx q4: 1/2 = 50%; q4: 0/1 = 0%
     const rows = aggregateForList([
-      mkRec({ runtime: "llamacpp", quant: "q4", score: 0.63 }),
-      mkRec({ runtime: "llamacpp", quant: "q8", score: 0.68 }),
-      mkRec({ runtime: "mlx", quant: "q4", score: 0.65 }),
+      mkRec({ runtime: "llamacpp", quant: "q4", score: 0 }),
+      mkRec({ runtime: "llamacpp", quant: "q8", score: 1 }),
+      mkRec({ runtime: "mlx", quant: "q4", score: 1 }),
+      mkRec({ runtime: "mlx", quant: "q4", score: 0 }),
     ], "model");
     const scores = rows[0].variants.map((v) => v.score);
-    expect(scores).toEqual([68, 65, 63]);
+    expect(scores).toEqual([100, 50, 0]);
   });
 
   it("capability profile has 10 entries (one per CAPABILITY_TAG)", () => {
@@ -187,13 +222,14 @@ describe("aggregateForList", () => {
     expect(rows[0].capability).toHaveLength(CAPABILITY_TAGS.length);
   });
 
-  it("capability entries with zero runs have pass=null", () => {
+  it("capability pass rate counts only score===1 runs; tags with no runs are null", () => {
     const rows = aggregateForList([
-      mkRec({ tags: ["tool-use"], score: 0.9 }),
+      mkRec({ tags: ["tool-use"], score: 1 }),
+      mkRec({ tags: ["tool-use"], score: 0.99 }), // partial credit = fail
     ], "model");
     const toolUse = rows[0].capability.find((c) => c.tag === "tool-use");
-    expect(toolUse?.pass).toBeCloseTo(1.0); // score 0.9 >= PASS_THRESHOLD (0.5)
-    expect(toolUse?.runs).toBe(1);
+    expect(toolUse?.pass).toBeCloseTo(0.5);
+    expect(toolUse?.runs).toBe(2);
     const factualRecall = rows[0].capability.find((c) => c.tag === "factual-recall");
     expect(factualRecall?.pass).toBeNull();
     expect(factualRecall?.runs).toBe(0);
@@ -204,7 +240,7 @@ describe("aggregateForRunList", () => {
   const mkRec = (over: Partial<BenchmarkResult>): BenchmarkResult => ({
     model: "llama-3.1-8b", runtime: "llamacpp", quant: "q8",
     prompt_name: "p", category: "c", tier: 1, temperature: 0,
-    tags: [], is_scenario: false, score: 0.7, score_details: "",
+    tags: [], is_scenario: false, score: 0.7, score_details: "", score_breakdown: null,
     prompt_tokens: 200, generation_tokens: 600, prompt_tps: 0, generation_tps: 0,
     wall_time_sec: 0, peak_memory_gb: 8.5, output: "", prompt_text: "",
     scenario_name: null, termination_reason: null, tool_call_count: null,
@@ -223,20 +259,20 @@ describe("aggregateForRunList", () => {
     expect(rows).toHaveLength(4);
   });
 
-  it("score and tokens averaged within variant", () => {
+  it("score is the variant pass rate; tokens averaged", () => {
     const [row] = aggregateForRunList([
-      mkRec({ score: 0.6, prompt_tokens: 100, generation_tokens: 400 }),
-      mkRec({ score: 0.8, prompt_tokens: 100, generation_tokens: 600 }),
+      mkRec({ score: 0, prompt_tokens: 100, generation_tokens: 400 }),
+      mkRec({ score: 1, prompt_tokens: 100, generation_tokens: 600 }),
     ]);
-    expect(row.score).toBeCloseTo(70);
+    expect(row.score).toBeCloseTo(50);
     expect(row.tokens).toBe(600);
   });
 
-  it("efficiency = round(tokens / score)", () => {
+  it("efficiency = round(tokens / pass%)", () => {
     const [row] = aggregateForRunList([
-      mkRec({ score: 0.8, prompt_tokens: 200, generation_tokens: 2600 }),
+      mkRec({ score: 1, prompt_tokens: 200, generation_tokens: 2600 }),
     ]);
-    expect(row.efficiency).toBe(35); // 2800 / 80 = 35
+    expect(row.efficiency).toBe(28); // 2800 / 100 = 28
   });
 
   it("mem falls back to model-level max when variant lacks it", () => {
@@ -250,8 +286,8 @@ describe("aggregateForRunList", () => {
 
   it("capability scoped to this variant only", () => {
     const rows = aggregateForRunList([
-      mkRec({ runtime: "llamacpp", tags: ["tool-use"], score: 0.9 }),
-      mkRec({ runtime: "mlx", tags: ["tool-use"], score: 0.1 }),
+      mkRec({ runtime: "llamacpp", tags: ["tool-use"], score: 1 }),
+      mkRec({ runtime: "mlx", tags: ["tool-use"], score: 0 }),
     ]);
     const llama = rows.find((r) => r.runtime === "llamacpp");
     const mlx = rows.find((r) => r.runtime === "mlx");
@@ -266,7 +302,7 @@ describe("groupRunsByModel", () => {
   const mkRec = (over: Partial<BenchmarkResult>): BenchmarkResult => ({
     model: "llama-3.1-8b", runtime: "llamacpp", quant: "q8",
     prompt_name: "p", category: "c", tier: 1, temperature: 0,
-    tags: [], is_scenario: false, score: 0.7, score_details: "",
+    tags: [], is_scenario: false, score: 0.7, score_details: "", score_breakdown: null,
     prompt_tokens: 200, generation_tokens: 600, prompt_tps: 0, generation_tps: 0,
     wall_time_sec: 0, peak_memory_gb: 8.5, output: "", prompt_text: "",
     scenario_name: null, termination_reason: null, tool_call_count: null,
@@ -275,33 +311,42 @@ describe("groupRunsByModel", () => {
   });
 
   it("groups variants by baseModel; orders groups by primary", () => {
+    // A llamacpp: 1/1 = 100%; A mlx: 0/1 = 0%
+    // B llamacpp: 1/1 = 100%, B mlx: 1/1 = 100% — but tie broken by name (A=100% lead vs B=100% lead)
+    // To make B win we use B llamacpp 1/1 = 100, B mlx = 100, A llamacpp = 100, A mlx = 0.
+    // Lead row by score within each group: A→100, B→100. Tie broken by baseModel asc → A first.
+    // So make A's best = 0%, B's best = 100% to force B leading.
     const rows = aggregateForRunList([
-      mkRec({ model: "A", runtime: "llamacpp", score: 0.6 }),
-      mkRec({ model: "A", runtime: "mlx", score: 0.5 }),
-      mkRec({ model: "B", runtime: "llamacpp", score: 0.8 }),
-      mkRec({ model: "B", runtime: "mlx", score: 0.4 }),
+      mkRec({ model: "A", runtime: "llamacpp", score: 0 }),
+      mkRec({ model: "A", runtime: "mlx", score: 0 }),
+      mkRec({ model: "B", runtime: "llamacpp", score: 1 }),
+      mkRec({ model: "B", runtime: "mlx", score: 0 }),
     ]);
     const groups = groupRunsByModel(rows, "score", "score");
     expect(groups.map((g) => g.baseModel)).toEqual(["B", "A"]);
   });
 
   it("sorts rows within a group by secondary", () => {
+    // Use multi-run variants so pass rates differ: mlx 100% > vllm 50% > llamacpp 0%
     const rows = aggregateForRunList([
-      mkRec({ model: "A", runtime: "llamacpp", score: 0.6 }),
-      mkRec({ model: "A", runtime: "mlx", score: 0.8 }),
-      mkRec({ model: "A", runtime: "vllm", score: 0.7 }),
+      mkRec({ model: "A", runtime: "llamacpp", score: 0 }),
+      mkRec({ model: "A", runtime: "llamacpp", score: 0 }),
+      mkRec({ model: "A", runtime: "mlx", score: 1 }),
+      mkRec({ model: "A", runtime: "mlx", score: 1 }),
+      mkRec({ model: "A", runtime: "vllm", score: 1 }),
+      mkRec({ model: "A", runtime: "vllm", score: 0 }),
     ]);
     const groups = groupRunsByModel(rows, "score", "score");
     expect(groups[0].rows.map((r) => r.runtime)).toEqual(["mlx", "vllm", "llamacpp"]);
   });
 
   it("efficiency sort orders ascending (lower = better)", () => {
-    // Two variants with same score but different token counts → different efficiency
+    // Two variants with same pass rate but different token counts → different efficiency
     const rows = aggregateForRunList([
-      // efficiency = round(800 / 80) = 10
-      mkRec({ model: "A", runtime: "llamacpp", score: 0.8, prompt_tokens: 100, generation_tokens: 700 }),
-      // efficiency = round(2400 / 80) = 30
-      mkRec({ model: "A", runtime: "mlx", score: 0.8, prompt_tokens: 100, generation_tokens: 2300 }),
+      // efficiency = round(800 / 100) = 8
+      mkRec({ model: "A", runtime: "llamacpp", score: 1, prompt_tokens: 100, generation_tokens: 700 }),
+      // efficiency = round(2400 / 100) = 24
+      mkRec({ model: "A", runtime: "mlx", score: 1, prompt_tokens: 100, generation_tokens: 2300 }),
     ]);
     const groups = groupRunsByModel(rows, "score", "efficiency");
     expect(groups[0].rows.map((r) => r.runtime)).toEqual(["llamacpp", "mlx"]);
@@ -319,13 +364,13 @@ describe("groupRunsByModel", () => {
   });
 
   it("primary uses lead row's metric AFTER secondary sort within group", () => {
-    // Within A: secondary=score → mlx leads (0.9). A's primaryValue (memory) = 20 (mlx)
-    // Within B: secondary=score → llamacpp leads (0.8). B's primaryValue (memory) = 4
+    // Within A: secondary=score → mlx leads (100%). A's primaryValue (memory) = 20 (mlx)
+    // Within B: secondary=score → llamacpp leads (100%). B's primaryValue (memory) = 4
     // Primary asc → B first
     const rows = aggregateForRunList([
-      mkRec({ model: "A", runtime: "llamacpp", score: 0.5, peak_memory_gb: 8 }),
-      mkRec({ model: "A", runtime: "mlx", score: 0.9, peak_memory_gb: 20 }),
-      mkRec({ model: "B", runtime: "llamacpp", score: 0.8, peak_memory_gb: 4 }),
+      mkRec({ model: "A", runtime: "llamacpp", score: 0, peak_memory_gb: 8 }),
+      mkRec({ model: "A", runtime: "mlx", score: 1, peak_memory_gb: 20 }),
+      mkRec({ model: "B", runtime: "llamacpp", score: 1, peak_memory_gb: 4 }),
     ]);
     const groups = groupRunsByModel(rows, "memory", "score");
     expect(groups.map((g) => g.baseModel)).toEqual(["B", "A"]);

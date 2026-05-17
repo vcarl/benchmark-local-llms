@@ -90,6 +90,7 @@ describe("ChatCompletion", () => {
     });
     expect(result).toEqual({
       output: "The answer is 4.",
+      reasoning: null,
       promptTokens: 10,
       generationTokens: 5,
       promptTps: 120.5,
@@ -152,10 +153,12 @@ describe("ChatCompletion", () => {
     expect(capturedBody.max_tokens).toBe(2048);
   });
 
-  it("wraps reasoning_content in <think>...</think> when content is empty", async () => {
-    // Matches the Python prototype behaviour: some llama-server builds split
+  it("captures reasoning_content as result.reasoning when content is empty", async () => {
+    // Some llama-server builds (`--reasoning-format deepseek`) split
     // reasoning into `message.reasoning_content` and leave `content` empty.
-    // The scoring layer's thinking-tag stripper expects <think>...</think>.
+    // The chat-completion service surfaces that body verbatim on
+    // `result.reasoning`; downstream code is responsible for any further
+    // handling (the scoring path treats it as separated thinking).
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
@@ -180,10 +183,11 @@ describe("ChatCompletion", () => {
     });
 
     const result = await Effect.runPromise(Effect.provide(program, layer));
-    expect(result.output).toBe("<think>hmm let me think… the answer is 4</think>");
+    expect(result.output).toBe("");
+    expect(result.reasoning).toBe("hmm let me think… the answer is 4");
   });
 
-  it("wraps mlx_lm's `reasoning` field in <think>...</think> when content is empty", async () => {
+  it("captures mlx_lm's `reasoning` field as result.reasoning when content is empty", async () => {
     // mlx_lm.server exposes reasoning on `message.reasoning` (not
     // `reasoning_content`). Verified against a live server with
     // DeepSeek-R1-0528-Qwen3-8B-4bit.
@@ -204,15 +208,16 @@ describe("ChatCompletion", () => {
     });
 
     const result = await Effect.runPromise(Effect.provide(program, layer));
-    expect(result.output).toBe("<think>thinking it through</think>");
+    expect(result.output).toBe("");
+    expect(result.reasoning).toBe("thinking it through");
   });
 
-  it("preserves both reasoning and visible content when both are populated", async () => {
+  it("preserves reasoning and content as separate fields when both are populated", async () => {
     // When `reasoning_content` (or mlx_lm's `reasoning`) co-exists with
     // non-empty `content`, the archive must capture both — otherwise the
     // thought trace is lost on any reasoning-model run that also produced
-    // a visible answer. We prepend `<think>…</think>` so the downstream
-    // stripper yields the same scored answer.
+    // a visible answer. We surface both verbatim on `CompletionResult` so
+    // downstream consumers can record/score them independently.
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
@@ -237,12 +242,18 @@ describe("ChatCompletion", () => {
     });
 
     const result = await Effect.runPromise(Effect.provide(program, layer));
-    expect(result.output).toBe("<think>7 + 5 = 12, user wants just the number</think>\n\n12");
+    expect(result.output).toBe("12");
+    expect(result.reasoning).toBe("7 + 5 = 12, user wants just the number");
   });
 
-  it("maps non-2xx HTTP status to LlmRequestError", async () => {
+  it("maps non-2xx HTTP status to LlmRequestError with status + body", async () => {
     const layer = ChatCompletionLive.pipe(
-      Layer.provide(mockClient(() => new Response("internal boom", { status: 500 }))),
+      Layer.provide(
+        mockClient(
+          () =>
+            new Response(JSON.stringify({ error: "tokenizer template failed" }), { status: 404 }),
+        ),
+      ),
     );
 
     const program = Effect.gen(function* () {
@@ -258,7 +269,8 @@ describe("ChatCompletion", () => {
       if (err instanceof LlmRequestError) {
         expect(err.model).toBe("test-model");
         expect(err.promptName).toBe("math_multiply_direct");
-        expect(err.cause).toMatch(/500|StatusCode|internal boom/);
+        expect(err.cause).toContain("HTTP 404");
+        expect(err.cause).toContain("tokenizer template failed");
       }
     }
   });
@@ -400,6 +412,7 @@ describe("ChatCompletion", () => {
     const result = await Effect.runPromise(Effect.provide(program, layer));
     expect(result).toEqual({
       output: "ok",
+      reasoning: null,
       promptTokens: 7,
       generationTokens: 3,
       promptTps: null,

@@ -1,12 +1,20 @@
 # Scoring
 
-> _Last verified: 2026-04-19 against commit `eae465c`._
+> _Last verified: 2026-05-06 against commit `da6d8d7`._
 
 ## Dispatch
 
 `scoreExecution(result, entry)` picks a scorer by whether the corpus entry is a prompt or a scenario. Prompt entries carry a `ScorerConfig` discriminated union (`type`); scenario entries carry a bare `scorer` name resolved against the game scorer registry at scoring time.
 
-Prompt output is passed through [`stripThinkingTags`](#exact_match) before any scorer sees it. Scenario scorers read structured event streams, not raw output, so no pre-processing applies.
+Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit.
+
+Why the split lives in orchestration, not scoring:
+
+- **Structured runtime signals must not be re-stripped.** When the runtime returns `reasoning_content` as its own API field, `output` is already clean. Running `stripThinkingTags` over it again would corrupt answers that legitimately contain `<think>`-shaped or `<|...|>`-shaped substrings.
+- **`thinking_truncated` is an execution-level outcome, not a scoring one.** If a `<think>` opener never closes, the budget was exhausted before the model produced an answer. That fact belongs on the result line (`error: "thinking_truncated"`, `output: ""`) so the report layer treats it like any other LLM failure, instead of being re-derived by every scorer.
+- **The scoring catalog stays presentation-free.** Channel parsers, control-token regexes, and DeepSeek-R1 quirks are concerns of the LLM/runtime layer. Scorers express semantics ("does this match the expected answer?"); they don't re-parse model output formats.
+
+Scenario scorers read structured event streams (`result.events`, `result.finalPlayerStats`), not raw output, so no pre-processing applies.
 
 | Entry type | Scorer variant | Handler |
 |---|---|---|
@@ -40,6 +48,27 @@ interface ConstraintBreakdown {
 
 Ref: `src/schema/scorer.ts`, `src/scoring/score-result.ts`.
 
+## Per-execution score vs webapp pass rate
+
+The `[0, 1]` values above are **per-execution** scores. The webapp aggregates them by counting only fully-correct runs:
+
+```ts
+// webapp/src/lib/constants.ts
+export const isPass = (score: number): boolean => score === 1;
+```
+
+For any group of runs (a model+runtime+quant+temperature variant, a capability tag, a prompt, etc.) the displayed score is `count(score === 1) / total * 100` — a 0–100 pass rate, not a mean. The aggregation lives in `webapp/src/lib/pipeline.ts` (`aggregateForScatter`, `aggregateForRunList`, `computeVariants`, `computeCapability`).
+
+Why binary instead of a mean:
+
+- **Constraint scorers can produce arbitrary partial credit** (`passed.length / total`). Averaging those with `exact_match`'s `{0, 1}` outputs would weight prompts unequally and reward "almost right" on a 4-constraint prompt the same as "fully right" on a 1-constraint one.
+- **The benchmark question is "did the model solve this?"**, not "how close did it get?". Partial credit is useful for diagnosing _why_ a run failed (the `breakdown` field) but not for ranking models against each other.
+- **Inverted pass rates are an interpretable signal.** A model that's correct 25% of the time on a tier-3 prompt is a meaningfully different finding from one that scrapes 0.6 partial-credit on every run; a mean would smear those together.
+
+Per-execution scores in `[0, 1)` still flow into the archive — the webapp just doesn't count them as wins. See `webapp/src/lib/constants.ts::isPass` and the `score: number; // 0..100` comments in `pipeline.ts`.
+
+Ref: `webapp/src/lib/constants.ts`, `webapp/src/lib/pipeline.ts`, `src/report/webapp-contract.ts`.
+
 ## Failure handling
 
 Scorers return `Effect<Score, ScorerNotFound | CodeExecTimeout | CodeExecFailed, CommandExecutor>`. Errors do **not** become `Score` values inside the scorer — they propagate on the error channel. The layer above catches them and collapses them to a sentinel score:
@@ -55,21 +84,22 @@ Ref: `src/errors/scorer.ts`, `src/report/aggregate.ts`, `src/cli/commands/score.
 
 ## `exact_match`
 
-1. Strip thinking/meta tokens from the output (`stripThinkingTags`): if a Harmony `<|channel|>final<|message|>...<|end|>` block exists, replace the text with its body; strip any remaining `<|...|>` control tokens; strip a leading `.*?</think>\s*` block (DeepSeek R1 style); trim.
-2. Compile `config.extract` as a global regex and collect every match against the stripped output.
-3. Take the **last** match (models commonly show work before the final answer). Prefer capture group 1; fall back to the whole match if the pattern has no group.
-4. Strip commas from the extracted string (for `2,395,912`-style numerics).
-5. Compare to `config.expected` with case-sensitive string equality. `1` on match, `0` otherwise.
+Operates on `result.output` (already cleaned of `<think>` and Harmony control tokens upstream — see [Dispatch](#dispatch)).
+
+1. Compile `config.extract` as a global regex and collect every match against the output.
+2. Take the **last** match (models commonly show work before the final answer). Prefer capture group 1; fall back to the whole match if the pattern has no group.
+3. Strip commas from the extracted string (for `2,395,912`-style numerics).
+4. Compare to `config.expected` with case-sensitive string equality. `1` on match, `0` otherwise.
 
 No match and no-capture-group patterns both degrade to `score: 0` with a descriptive `details`; the scorer is total and has no failure channel.
 
 The `extract` regex is defined by the `exact_match` scorer config in the prompt YAML (see [`CONFIG.md` § `prompts/*.yaml`](./CONFIG.md#promptsyaml)) and is only consulted by this scorer.
 
-Ref: `src/scoring/exact-match.ts`, `src/scoring/strip-thinking.ts`.
+Ref: `src/scoring/exact-match.ts`. Reasoning extraction (the upstream pre-process this scorer relies on): `src/orchestration/run-prompt.ts::resolveOutputFields` and `src/scoring/strip-thinking.ts`.
 
 ## `constraint`
 
-Iterate over `config.constraints`. For each, dispatch on the `check` discriminator to a pure predicate over the thinking-stripped output. Predicate → `true` adds the constraint's `name` to `passed`; `false` adds it to `failed`; a thrown exception (wrapped as `ConstraintEvalError`) adds it to `errored`. Final score is `passed.length / total`; an empty constraint list scores `0`.
+Iterate over `config.constraints`. For each, dispatch on the `check` discriminator to a pure predicate over `result.output` (already cleaned upstream — see [Dispatch](#dispatch)). Predicate → `true` adds the constraint's `name` to `passed`; `false` adds it to `failed`; a thrown exception (wrapped as `ConstraintEvalError`) adds it to `errored`. Final score is `passed.length / total`; an empty constraint list scores `0`.
 
 `errored` is kept distinct from `failed` — an evaluator that throws (e.g. malformed regex pattern) is not the same signal as a predicate returning false. The distinction surfaces via `breakdown`.
 
@@ -106,7 +136,7 @@ Ref: schema `src/schema/constraints.ts`, handlers `src/scoring/constraint-checks
 
 ## `code_exec`
 
-1. Extract a Python snippet from the thinking-stripped output (`extractCode`): prefer a ```` ```python ```` or ```` ```py ```` fenced block; otherwise collect lines starting from the first `def`/`import`/`from` up to a prose-looking stop line (`^[A-Z][a-z].*[.:]$`); otherwise fall back to the whole trimmed output.
+1. Extract a Python snippet from `result.output` via `extractCode` (output is already cleaned upstream — see [Dispatch](#dispatch)): prefer a ```` ```python ```` or ```` ```py ```` fenced block; otherwise collect lines starting from the first `def`/`import`/`from` up to a prose-looking stop line (`^[A-Z][a-z].*[.:]$`); otherwise fall back to the whole trimmed output.
 2. Build a program: `<extracted>\n\n<testCode>\nprint('ALL_TESTS_PASSED')\n`.
 3. Spawn `python3 -c <program>` via `@effect/platform` `Command.start`, inside an `Effect.scoped` block so the subprocess is torn down on interrupt.
 4. Collect stdout, stderr, and exit code concurrently. Race the whole thing against a 10-second timeout (`DEFAULT_TIMEOUT_MS`).

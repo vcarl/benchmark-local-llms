@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Refresh webapp/src/data/data.js from benchmark-archive/ and build the
-# static report bundle into webapp/dist/. No deployment, no git operations.
+# static report bundle into webapp/dist/. The output is a portable bundle
+# that works at any mount point on gh-pages without rebuild.
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"

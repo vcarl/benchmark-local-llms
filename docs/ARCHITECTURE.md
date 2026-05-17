@@ -1,6 +1,6 @@
 # Architecture
 
-> _Last verified: 2026-04-19 against commit `eae465c`. Update this line when edits to the doc are prompted by code changes._
+> _Last verified: 2026-05-06 against commit `da6d8d7`. Update this line when edits to the doc are prompted by code changes._
 
 The harness is layered so that each layer can be reasoned about (and tested) independently. All I/O and lifecycle is managed through Effect's `Scope` — opening a scope is the only way to acquire a subprocess or HTTP session, and closing it is the only way to tear one down. Errors travel through typed `Data.TaggedError` classes in the Effect error channel; `try`/`catch`/`throw`/`console.*` are banned outside `src/cli/` by `scripts/lint-strict.sh`.
 
@@ -9,7 +9,7 @@ The harness is layered so that each layer can be reasoned about (and tested) ind
 ```
 src/cli/        — @effect/cli entry, flag parsing, dep wiring
 ├── main.ts                        Command composition + NodeRuntime.runMain
-├── commands/{run,report,score,list,migrate}.ts
+├── commands/{run,report,score,list}.ts
 ├── config/build.ts                Flag → RunLoopConfig
 ├── deps.ts                        makeRunDeps: llmServer / admiral / gameSession factories
 └── paths.ts
@@ -44,8 +44,8 @@ src/game/       — Admiral + gameserver + session
     └── watchdog.ts                CutoffWatchdog: wall-clock fiber + token/tool-call ref
 
 src/scoring/    — dispatch by scorer type
-├── score-result.ts                scoreExecution: pick scorer by corpus entry
-├── strip-thinking.ts              Remove <think> / reasoning_content blocks
+├── score-result.ts                scoreExecution: pick scorer by corpus entry; reads result.output (already cleaned upstream)
+├── strip-thinking.ts              Splits {output, reasoning, error} from a raw completion (Harmony channels, <think>…</think>, unclosed-think detection); called from src/orchestration/run-prompt.ts at completion time, NOT from scorers
 ├── exact-match.ts
 ├── constraint.ts                  Constraint scorer entry point
 ├── constraint-checks.ts           20 check-type handlers
@@ -78,7 +78,6 @@ src/errors/     — Data.TaggedError classes per domain
 └── index.ts
 
 src/report/     — Archive → webapp/src/data/data.js
-src/migrate/    — prototype jsonl → RunManifest
 ```
 
 ## Lifecycle: one `run` invocation
@@ -96,7 +95,7 @@ NodeRuntime.runMain
           writeManifestHeader
           addFinalizer(finalizeArchive)       ─ rewrites line 1 at scope close
           llmServer(model)                    ─── scope A: llama-server / MLX ───
-          runPromptPhase                      ─ prompts × temperatures, cache lookup
+          runPromptPhase                      ─ one cell per (model × prompt), cache lookup
           if scenarios:
             admiral()                         ─── scope A: Admiral ───
             runScenarioPhase                  ─ per-scenario scope (gameserver, profile)
@@ -119,14 +118,27 @@ On Ctrl-C the same teardown happens, except `interruptedRef` is never flipped to
 CLI flag parsing
   → orchestration (run loop, per-model scope)
     → llm (server supervisor + ChatCompletion client)
+      ↳ run-prompt.ts::resolveOutputFields splits the completion into
+        {output, reasoning, rawOutput, error} before the result line is
+        written; scorers downstream see result.output already cleaned.
     → game (Admiral, gameserver, session) [scenarios only]
     → scoring (dispatch by corpus entry + scorer)
     → archive (manifest header + appended results)
 report subcommand
   → archive (read .jsonl)
     → scoring (re-score against embedded or current corpus)
-    → webapp data.js
+    → webapp data.js  (per-execution score in [0, 1]; webapp aggregates
+                       to a 0–100 pass rate via score===1)
 ```
+
+### Reasoning lives in its own field, stripped once
+
+A completion is split into `output` / `reasoning` / `rawOutput` / `error` in `src/orchestration/run-prompt.ts::resolveOutputFields`, and the four fields are persisted on the `ExecutionResult` line. Two paths feed it:
+
+1. **Structured runtime signal.** When the runtime returns a separate `reasoning` field (`reasoning_content` on the OpenAI shape), trust it: `output = completion.output`, `reasoning = completion.reasoning`, `rawOutput = completion.output`. No stripping runs — re-running it on already-clean text would risk corrupting genuine `<think>`-shaped content in the answer.
+2. **Inlined.** When `completion.reasoning === null`, the model probably embedded reasoning in the answer (DeepSeek-R1 `<think>…</think>`, Harmony `<|channel|>analysis<|message|>…`). `stripThinkingTags` extracts the reasoning body and surfaces a `thinking_truncated` error when an unclosed `<think>` is detected — that branch matters because without it a budget-exhausted CoT silently flowed to the scorer as the "answer".
+
+The scoring layer never re-strips. It reads `result.output` and trusts it. That separation matters: it keeps presentation logic (channel parsers, control-token regexes) out of the scoring catalog, and it makes the archive line auditable — `rawOutput` preserves the original API content even when stripping rewrote `output`.
 
 ## Where to look when…
 
@@ -140,6 +152,8 @@ report subcommand
 | Cache miss when expected | `src/archive/cache.ts` (scan) + `src/orchestration/cache.ts` (validate) |
 | CLI flag plumbing | `src/cli/commands/<cmd>.ts` → `src/cli/commands/<cmd>-options.ts` → `src/cli/config/build.ts` |
 | New report field | `src/report/webapp-contract.ts::WebappRecord` + `toWebappRecord` |
+| What counts as a "pass" in the webapp | `webapp/src/lib/constants.ts::isPass` (`score === 1` only); aggregations live in `webapp/src/lib/pipeline.ts` |
+| Reasoning extraction (Harmony channels, `<think>` blocks, truncation) | `src/orchestration/run-prompt.ts::resolveOutputFields` → `src/scoring/strip-thinking.ts` |
 
 ## Conventions
 

@@ -20,6 +20,8 @@ const executionResult = (overrides: Partial<ExecutionResult> = {}): ExecutionRes
     peakMemoryGb: 0,
     wallTimeSec: 0,
     output: "",
+    reasoning: null,
+    rawOutput: "",
     error: null,
     promptHash: "h",
     scenarioHash: null,

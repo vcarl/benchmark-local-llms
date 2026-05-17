@@ -83,6 +83,15 @@ export const scoreCommand = Command.make(
           yield* printLine(formatScoredLine(result, null));
           continue;
         }
+        if (result.error !== null && result.error.length > 0) {
+          yield* printLine(
+            formatScoredLine(result, {
+              score: 0,
+              details: `execution error: ${result.error.slice(0, 80)}`,
+            }),
+          );
+          continue;
+        }
         const scoreOutcome = yield* scoreExecution(result, entry).pipe(Effect.either);
         if (scoreOutcome._tag === "Left") {
           yield* printLine(

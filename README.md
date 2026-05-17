@@ -1,6 +1,6 @@
 # llm-bench
 
-> _Last verified: 2026-04-19 against commit `eae465c`. Update this line when edits to the doc are prompted by code changes._
+> _Last verified: 2026-05-06 against commit `da6d8d7`. Update this line when edits to the doc are prompted by code changes._
 
 TypeScript + Effect-TS harness for benchmarking local LLMs.
 

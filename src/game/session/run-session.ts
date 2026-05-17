@@ -310,6 +310,8 @@ const buildResult = (
     peakMemoryGb: 0,
     wallTimeSec: elapsed,
     output: "",
+    reasoning: null,
+    rawOutput: "",
     error,
     promptHash: input.scenario.scenarioHash,
     scenarioHash: input.scenario.scenarioHash,

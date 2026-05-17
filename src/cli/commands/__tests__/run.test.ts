@@ -10,7 +10,6 @@ const baseParsed = {
   scenarios: "all",
   noSave: false,
   fresh: false,
-  temperatures: Option.none() as Option.Option<string>,
   idleTimeout: Option.none() as Option.Option<number>,
   archiveDir: "./benchmark-archive",
   scenariosOnly: false,
@@ -26,26 +25,11 @@ describe("normalizeRunOptions", () => {
     const out = normalizeRunOptions(baseParsed);
     expect(out.ok).toBe(true);
     if (!out.ok) return;
-    expect(out.flags.temperatures).toEqual([0.7]);
     expect(out.flags.fresh).toBe(false);
     expect(out.flags.noSave).toBe(false);
     expect(out.flags.scenariosOnly).toBe(false);
     expect(out.flags.modelName).toBeUndefined();
     expect(out.flags.idleTimeoutSec).toBeUndefined();
-  });
-
-  it("parses --temperatures '0.7,1.0'", () => {
-    const out = normalizeRunOptions({ ...baseParsed, temperatures: Option.some("0.7,1.0") });
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.flags.temperatures).toEqual([0.7, 1.0]);
-  });
-
-  it("fails on a malformed --temperatures value", () => {
-    const out = normalizeRunOptions({ ...baseParsed, temperatures: Option.some("one,two") });
-    expect(out.ok).toBe(false);
-    if (out.ok) return;
-    expect(out.error).toContain("--temperatures");
   });
 
   it("threads --model-name through to RunFlags.modelName", () => {

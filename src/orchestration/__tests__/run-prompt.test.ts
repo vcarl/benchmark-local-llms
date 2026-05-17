@@ -11,6 +11,7 @@ describe("runPrompt", () => {
         kind: "ok",
         result: {
           output: "The answer is 4",
+          reasoning: null,
           promptTokens: 42,
           generationTokens: 13,
           promptTps: 95.5,
@@ -32,6 +33,8 @@ describe("runPrompt", () => {
     expect(result.temperature).toBe(0.7);
     expect(result.error).toBeNull();
     expect(result.output).toBe("The answer is 4");
+    expect(result.reasoning).toBeNull();
+    expect(result.rawOutput).toBe("The answer is 4");
     expect(result.promptTokens).toBe(42);
     expect(result.generationTokens).toBe(13);
     expect(result.promptTps).toBeCloseTo(95.5);
@@ -40,6 +43,96 @@ describe("runPrompt", () => {
     expect(result.runId).toBe("run-1");
     expect(result.promptHash).toBe("hash-p1");
     expect(result.scenarioName).toBeNull();
+  });
+
+  it("preserves reasoning as a separate field when the completion carries it (structured path)", async () => {
+    const { layer } = makeChatCompletionMock({
+      "p1:0.7": {
+        kind: "ok",
+        result: {
+          output: "12",
+          reasoning: "7 + 5 = 12, user wants just the number",
+          promptTokens: 10,
+          generationTokens: 5,
+          promptTps: 100,
+          generationTps: 20,
+        },
+      },
+    });
+    const result = await Effect.runPromise(
+      runPrompt({
+        archiveId: "archive-1",
+        runId: "run-1",
+        model: sampleModel(),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(result.output).toBe("12");
+    expect(result.reasoning).toBe("7 + 5 = 12, user wants just the number");
+    expect(result.rawOutput).toBe("12");
+    expect(result.error).toBeNull();
+  });
+
+  it("strips inlined thinking and populates rawOutput when the completion is unsplit (inlined path)", async () => {
+    const { layer } = makeChatCompletionMock({
+      "p1:0.7": {
+        kind: "ok",
+        result: {
+          output: "<think>let me reason</think>The answer is 4",
+          reasoning: null,
+          promptTokens: 10,
+          generationTokens: 5,
+          promptTps: 100,
+          generationTps: 20,
+        },
+      },
+    });
+    const result = await Effect.runPromise(
+      runPrompt({
+        archiveId: "archive-1",
+        runId: "run-1",
+        model: sampleModel(),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(result.output).toBe("The answer is 4");
+    expect(result.reasoning).toBe("let me reason");
+    expect(result.rawOutput).toBe("<think>let me reason</think>The answer is 4");
+    expect(result.error).toBeNull();
+  });
+
+  it("flags unclosed thinking as error=thinking_truncated with empty output", async () => {
+    const { layer } = makeChatCompletionMock({
+      "p1:0.7": {
+        kind: "ok",
+        result: {
+          output: "<think>I was reasoning when budget ran o",
+          reasoning: null,
+          promptTokens: 10,
+          generationTokens: 5,
+          promptTps: 100,
+          generationTps: 20,
+        },
+      },
+    });
+    const result = await Effect.runPromise(
+      runPrompt({
+        archiveId: "archive-1",
+        runId: "run-1",
+        model: sampleModel(),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(result.output).toBe("");
+    expect(result.reasoning).toBe("I was reasoning when budget ran o");
+    expect(result.rawOutput).toBe("<think>I was reasoning when budget ran o");
+    expect(result.error).toBe("thinking_truncated");
   });
 
   it("folds LlmRequestError into a result with error text", async () => {
@@ -164,6 +257,7 @@ describe("runPrompt", () => {
       },
       {
         output: "ok",
+        reasoning: null,
         promptTokens: 40,
         generationTokens: 200,
         promptTps: null,
@@ -190,6 +284,7 @@ describe("runPrompt", () => {
       },
       {
         output: "ok",
+        reasoning: null,
         promptTokens: 40,
         generationTokens: 200,
         promptTps: 113.01,

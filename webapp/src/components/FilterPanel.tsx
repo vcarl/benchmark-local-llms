@@ -23,9 +23,14 @@ interface Props {
 
 const formatDuration = (s: number): string => {
   if (s < 60) return `${Math.round(s)}s`;
-  const m = Math.floor(s / 60);
-  const sec = Math.round(s - m * 60);
-  return sec === 0 ? `${m}m` : `${m}m ${sec}s`;
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s - m * 60);
+    return sec === 0 ? `${m}m` : `${m}m ${sec}s`;
+  }
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s - h * 3600) / 60);
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
 // Helper to clamp a number into [lo, hi].
@@ -44,8 +49,10 @@ export function FilterPanel({ allValues }: Props) {
   // controlled input. Suppress unused-warning below by referencing it.
   void presetName;
 
+  // Stay on the current route — filters apply on /run/$model/$variant too,
+  // and the user shouldn't be kicked back to / when toggling a tag.
   const setSearch = useCallback((patch: Partial<SearchState>) => {
-    navigate({ to: "/", search: (prev) => ({ ...prev, ...patch }) as never });
+    navigate({ search: (prev) => ({ ...prev, ...patch }) as never });
   }, [navigate]);
 
   const updateMulti = (key: keyof SearchState) => (values: string[]) =>
@@ -132,7 +139,7 @@ export function FilterPanel({ allValues }: Props) {
             const body = presets[name];
             if (!body) return;
             const parsed = Object.fromEntries(new URLSearchParams(body));
-            navigate({ to: "/", search: { ...parsed, preset: name } as never });
+            navigate({ search: { ...parsed, preset: name } as never });
           }}>
             <option value="">— preset —</option>
             {Object.keys(presets).sort().map((n) => (

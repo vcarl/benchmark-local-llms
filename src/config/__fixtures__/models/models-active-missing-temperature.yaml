@@ -1,0 +1,3 @@
+- artifact: test/m
+  runtime: mlx
+  active: true

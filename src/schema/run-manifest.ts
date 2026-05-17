@@ -35,9 +35,7 @@ export type RunStats = typeof RunStats.Type;
  * every archive produced by one `./bench run` invocation, and across resume
  * invocations of the same logical run.
  *
- * `schemaVersion` stays at literal `1`; legacy archives (which carry only
- * the old `runId`) are translated by the loader rather than being version-
- * bumped on disk.
+ * `schemaVersion` stays at literal `1`.
  */
 export const RunManifest = Schema.Struct({
   schemaVersion: Schema.Literal(1),
@@ -54,7 +52,7 @@ export const RunManifest = Schema.Struct({
 
   env: RunEnv,
 
-  temperatures: Schema.Array(Schema.Number),
+  temperature: Schema.Number,
 
   promptCorpus: Schema.Record({ key: Schema.String, value: PromptCorpusEntry }),
   scenarioCorpus: Schema.Record({ key: Schema.String, value: ScenarioCorpusEntry }),

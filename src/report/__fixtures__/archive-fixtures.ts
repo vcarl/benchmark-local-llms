@@ -80,7 +80,7 @@ export const fixtureManifest = (
       nodeVersion: "v22.0.0",
       benchmarkGitSha: "deadbeef",
     },
-    temperatures: [0.3],
+    temperature: 0.3,
     promptCorpus,
     scenarioCorpus,
     stats: {
@@ -110,6 +110,8 @@ export const fixtureResult = (overrides: Partial<ExecutionResult> = {}): Executi
   peakMemoryGb: overrides.peakMemoryGb ?? 3.14,
   wallTimeSec: overrides.wallTimeSec ?? 1,
   output: overrides.output ?? "the answer is 4183",
+  reasoning: overrides.reasoning ?? null,
+  rawOutput: overrides.rawOutput ?? overrides.output ?? "the answer is 4183",
   error: overrides.error ?? null,
   promptHash: overrides.promptHash ?? "hashP",
   scenarioHash: overrides.scenarioHash ?? null,

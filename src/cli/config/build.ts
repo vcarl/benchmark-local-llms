@@ -11,6 +11,9 @@
  *   - `"none"` → no scenarios (empty array)
  *   - `"all"`  → every scenario
  *   - any other substring → scenarios whose `.name` contains it
+ *
+ * Temperature is no longer a CLI flag — each model in `models.yaml` carries
+ * its own `temperature: number` and the run loop reads it directly.
  */
 
 import type { RunLoopConfig } from "../../orchestration/run-loop.js";
@@ -30,7 +33,6 @@ export interface RunFlags {
   readonly scenarios: string;
   readonly noSave: boolean;
   readonly fresh: boolean;
-  readonly temperatures: ReadonlyArray<number>;
   readonly idleTimeoutSec?: number | undefined;
   readonly archiveDir: string;
   readonly scenariosOnly: boolean;
@@ -41,29 +43,6 @@ export interface RunFlags {
    */
   readonly runId: string;
 }
-
-/**
- * Parse `--temperatures 0.7,1.0` into a number array. Empty / missing input
- * returns `[0.7]` per requirements §8.2.
- *
- * Returns `null` when any token fails to parse — caller turns that into a
- * user-facing validation error.
- */
-export const parseTemperatures = (raw: string | undefined): ReadonlyArray<number> | null => {
-  if (raw === undefined || raw.length === 0) return [0.7];
-  const parts = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  if (parts.length === 0) return [0.7];
-  const out: number[] = [];
-  for (const p of parts) {
-    const n = Number(p);
-    if (!Number.isFinite(n)) return null;
-    out.push(n);
-  }
-  return out;
-};
 
 /** Filter the scenario corpus per the `--scenarios` flag semantics. */
 export const filterScenarios = (
@@ -93,7 +72,6 @@ export const buildRunLoopConfig = (params: {
     promptCorpus: params.promptCorpus,
     scenarioCorpus: scenarios,
     systemPrompts: params.systemPrompts,
-    temperatures: params.flags.temperatures,
     archiveDir: params.flags.archiveDir,
     fresh: params.flags.fresh,
     maxTokens: params.flags.maxTokens,

@@ -28,9 +28,11 @@ describe("list-models subcommand handler (e2e)", () => {
         "  runtime: llamacpp",
         "  name: Qwen 2.5 72B",
         "  quant: Q4_K_M",
+        "  temperature: 0.7",
         "- artifact: mlx-community/mistral-7b",
         "  runtime: mlx",
         "  name: Mistral 7B",
+        "  temperature: 0.7",
         "",
       ].join("\n"),
     );

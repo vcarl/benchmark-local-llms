@@ -36,6 +36,19 @@ import type { Score } from "../scoring/score-result.js";
  * terminal shape: we serialize to it and write to disk as JSON. No decode
  * path — the webapp decodes client-side.
  */
+/**
+ * Per-rubric pass/fail/error breakdown carried alongside `score_details`.
+ * Only constraint scorers populate this — exact_match, code_exec, and game
+ * scorers leave it `null`. Keeps the names of every rubric in each bucket so
+ * the webapp can render the full rubric without re-parsing the formatted
+ * `score_details` string.
+ */
+export interface WebappScoreBreakdown {
+  readonly passed: ReadonlyArray<string>;
+  readonly failed: ReadonlyArray<string>;
+  readonly errored: ReadonlyArray<string>;
+}
+
 export interface WebappRecord {
   readonly model: string;
   readonly runtime: string;
@@ -48,6 +61,7 @@ export interface WebappRecord {
   readonly is_scenario: boolean;
   readonly score: number;
   readonly score_details: string;
+  readonly score_breakdown: WebappScoreBreakdown | null;
   readonly prompt_tokens: number;
   readonly generation_tokens: number;
   readonly prompt_tps: number;
@@ -68,6 +82,7 @@ export interface WebappRecord {
   readonly final_player_stats: Record<string, unknown> | null;
   readonly events: ReadonlyArray<AgentEvent> | null;
   readonly run_id: string;
+  readonly archive_id: string;
   readonly executed_at: string;
 }
 
@@ -103,6 +118,13 @@ export const toWebappRecord = (
     is_scenario: !isPrompt,
     score: score.score,
     score_details: score.details,
+    score_breakdown: score.breakdown
+      ? {
+          passed: score.breakdown.passed,
+          failed: score.breakdown.failed,
+          errored: score.breakdown.errored,
+        }
+      : null,
     prompt_tokens: result.promptTokens,
     generation_tokens: result.generationTokens,
     prompt_tps: round2(result.promptTps),
@@ -117,6 +139,7 @@ export const toWebappRecord = (
     final_player_stats: result.finalPlayerStats as Record<string, unknown> | null,
     events: result.events,
     run_id: result.runId,
+    archive_id: result.archiveId,
     executed_at: result.executedAt,
   };
 };

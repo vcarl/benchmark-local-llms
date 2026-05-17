@@ -1,18 +1,15 @@
 import { useEffect, type ReactNode } from "react";
 import styles from "./ShiftFrame.module.css";
-import { isShifted } from "../lib/shift-state";
 
 interface Props {
-  model: string | undefined;
+  shifted: boolean;
   onClose: () => void;
   scatter: ReactNode;
   ranking: ReactNode;
   details: ReactNode;
 }
 
-export function ShiftFrame({ model, onClose, scatter, ranking, details }: Props) {
-  const shifted = isShifted(model);
-
+export function ShiftFrame({ shifted, onClose, scatter, ranking, details }: Props) {
   useEffect(() => {
     if (!shifted) return;
     const onKey = (e: KeyboardEvent) => {

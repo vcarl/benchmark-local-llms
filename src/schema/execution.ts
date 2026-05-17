@@ -33,6 +33,16 @@ export type AgentEvent = typeof AgentEvent.Type;
  * Cache key for cross-run dedup: `(artifact, promptName, promptHash, temperature)`.
  * `scenarioHash` is non-null for scenario runs; `promptHash` carries the same
  * value when the execution is a scenario (there is no distinct prompt hash).
+ *
+ * `output` is the final answer that scorers consume. `reasoning` is the
+ * separated thinking, populated either from the runtime's structured
+ * reasoning field (`reasoning_content` / `reasoning` in the OpenAI shape)
+ * or extracted from inlined `<think>…</think>` / Harmony channel markers.
+ * `rawOutput` is the unmodified `content` field from the API response,
+ * always populated for audit; it equals `output` when no stripping
+ * happened. Scenario rows use `output: ""`, `reasoning: null`,
+ * `rawOutput: ""` because scenario results record agent-event traces
+ * rather than text answers.
  */
 export const ExecutionResult = Schema.Struct({
   archiveId: Schema.String,
@@ -53,6 +63,8 @@ export const ExecutionResult = Schema.Struct({
   wallTimeSec: Schema.Number,
 
   output: Schema.String,
+  reasoning: Schema.NullOr(Schema.String),
+  rawOutput: Schema.String,
   error: Schema.NullOr(Schema.String),
 
   promptHash: Schema.String,

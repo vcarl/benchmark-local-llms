@@ -1,6 +1,137 @@
-.promptView { }
-.section { padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--border-subtle); }
-.section h3 { font-size: var(--fz-11); text-transform: uppercase; color: var(--text-muted); margin: 0 0 var(--space-3); }
-.runText, .runDetails { background: var(--surface); border: 1px solid var(--border-subtle); padding: var(--space-4); border-radius: var(--r-3); font-size: var(--fz-12); white-space: pre-wrap; word-break: break-word; color: var(--text-primary); margin: 0; max-height: 600px; overflow-y: auto; }
-.runThinking { color: var(--text-muted); }
-.thinking button { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 0; font-size: var(--fz-11); margin-bottom: var(--space-3); }
+.row {
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-2);
+}
+.row[data-focused="true"] {
+  background: var(--surface-3);
+}
+
+.collapsedRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-8);
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: var(--fz-12);
+}
+.collapsedRow:hover { background: var(--surface-3); }
+
+.scorePill {
+  background: var(--band);
+  color: var(--gray-1000);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--r-3);
+  font-size: var(--fz-11);
+  min-width: 36px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.collapsedName {
+  color: var(--text-primary);
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+
+.collapsedSummary {
+  flex: 1;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.collapsedSummary::before {
+  content: "— ";
+  color: var(--text-faint);
+}
+
+/* Row-internal section: padding + bottom border, fully collapses borders
+   on the last child to prevent doubling against the row's outer border. */
+.section {
+  padding: var(--space-5) var(--space-8);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.row > .section:last-child { border-bottom: 0; }
+
+/* Mini-label block: tiny uppercase label in a fixed-width left column,
+   content flowing in a flexed right column. Used for prompt + output. */
+.miniLabelBlock {
+  display: flex;
+  gap: var(--space-5);
+}
+.miniLabel {
+  flex: 0 0 auto;
+  font-size: var(--fz-11);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding-top: 2px;
+  min-width: 60px;
+}
+.miniBody {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fz-12);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  background: transparent;
+  min-width: 0;
+}
+.miniBody[data-tone="muted"] { color: var(--text-muted); }
+
+/* Reasoning section uses an inline button instead of a label, since it
+   toggles open/closed independently of the page-level expand/collapse. */
+.reasoningToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fz-11);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+.reasoningToggle:hover { color: var(--text-primary); }
+
+/* Rubric footer: parsed pass/fail/error breakdown. Sits at the bottom of an
+   expanded row; small, muted, not the main content. */
+.rubricFooter {
+  padding: var(--space-3) var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+.rubricRow {
+  font-size: var(--fz-11);
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: flex;
+  gap: var(--space-3);
+}
+.rubricLabel {
+  display: inline-block;
+  min-width: 60px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--fz-9);
+}
+.rubricRaw {
+  font-size: var(--fz-11);
+  color: var(--text-faint);
+  font-style: italic;
+}

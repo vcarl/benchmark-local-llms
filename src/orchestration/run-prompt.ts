@@ -23,6 +23,7 @@ import {
 import type { ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
+import { stripThinkingTags } from "../scoring/strip-thinking.js";
 
 export interface RunPromptInput {
   readonly archiveId: string;
@@ -78,6 +79,51 @@ export const deriveTps = (
 };
 
 /**
+ * Resolve the final-answer / reasoning / raw-output triplet from a
+ * completion. Two paths:
+ *
+ *   1. Structured signal: the runtime split reasoning into a separate
+ *      field (`completion.reasoning !== null`). Trust it: `output =
+ *      completion.output`, `reasoning = completion.reasoning`,
+ *      `rawOutput = completion.output`. No stripping.
+ *
+ *   2. Inlined: `completion.reasoning === null`. The model may have
+ *      inlined thinking into the answer (`<think>…</think>`, Harmony
+ *      channels). Run `stripThinkingTags`; the result carries the
+ *      cleaned `output`, the extracted `reasoning`, and an `error`
+ *      (`"thinking_truncated"`) when an unclosed think block was
+ *      detected. `rawOutput` always equals the original
+ *      `completion.output` so the audit field stays meaningful even
+ *      when stripping rewrote the answer.
+ */
+const resolveOutputFields = (
+  completion: CompletionResult,
+): {
+  output: string;
+  reasoning: string | null;
+  rawOutput: string;
+  error: string | null;
+} => {
+  if (completion.reasoning !== null) {
+    return {
+      output: completion.output,
+      reasoning: completion.reasoning,
+      // The runtime already split reasoning out of the API response, so
+      // there's no pre-strip "raw" body distinct from `output` to preserve.
+      rawOutput: completion.output,
+      error: null,
+    };
+  }
+  const stripped = stripThinkingTags(completion.output);
+  return {
+    output: stripped.output,
+    reasoning: stripped.reasoning,
+    rawOutput: completion.output,
+    error: stripped.error,
+  };
+};
+
+/**
  * Build an `ExecutionResult` from a successful {@link CompletionResult}. This
  * is extracted from `runPrompt` so tests can exercise the assembly path
  * directly without round-tripping through `ChatCompletion`.
@@ -87,40 +133,45 @@ export const makeSuccessResult = (
   completion: CompletionResult,
   startedAt: string,
   wallTimeSec: number,
-): ExecutionResult => ({
-  archiveId: input.archiveId,
-  runId: input.runId,
-  executedAt: startedAt,
-  promptName: input.prompt.name,
-  temperature: input.temperature,
-  model: displayName(input.model),
-  runtime: input.model.runtime,
-  quant: quantLabel(input.model),
-  promptTokens: completion.promptTokens,
-  generationTokens: completion.generationTokens,
-  // llamacpp reports both; mlx_lm.server reports neither. When the server
-  // doesn't, compute generationTps from wall time (see `deriveTps`). We
-  // can't derive promptTps without prefill timing, so it stays 0 for MLX.
-  promptTps: completion.promptTps ?? 0,
-  generationTps: deriveTps(completion.generationTps, completion.generationTokens, wallTimeSec),
-  // TODO: peakMemoryGb — the Python prototype reads this from the MLX
-  // `stream_generate` response's `peak_memory` attribute, which is only
-  // available in subprocess mode. The rewrite eliminates subprocess mode
-  // (requirements §1.2 / §9.1) in favour of HTTP, and neither llama-server
-  // nor mlx_lm.server expose peak memory over HTTP. Stub to 0 until we add
-  // an out-of-band probe (e.g. `ps`-derived RSS or Metal memory API).
-  peakMemoryGb: 0,
-  wallTimeSec,
-  output: completion.output,
-  error: null,
-  promptHash: input.prompt.promptHash,
-  scenarioHash: null,
-  scenarioName: null,
-  terminationReason: null,
-  toolCallCount: null,
-  finalPlayerStats: null,
-  events: null,
-});
+): ExecutionResult => {
+  const fields = resolveOutputFields(completion);
+  return {
+    archiveId: input.archiveId,
+    runId: input.runId,
+    executedAt: startedAt,
+    promptName: input.prompt.name,
+    temperature: input.temperature,
+    model: displayName(input.model),
+    runtime: input.model.runtime,
+    quant: quantLabel(input.model),
+    promptTokens: completion.promptTokens,
+    generationTokens: completion.generationTokens,
+    // llamacpp reports both; mlx_lm.server reports neither. When the server
+    // doesn't, compute generationTps from wall time (see `deriveTps`). We
+    // can't derive promptTps without prefill timing, so it stays 0 for MLX.
+    promptTps: completion.promptTps ?? 0,
+    generationTps: deriveTps(completion.generationTps, completion.generationTokens, wallTimeSec),
+    // TODO: peakMemoryGb — the Python prototype reads this from the MLX
+    // `stream_generate` response's `peak_memory` attribute, which is only
+    // available in subprocess mode. The rewrite eliminates subprocess mode
+    // (requirements §1.2 / §9.1) in favour of HTTP, and neither llama-server
+    // nor mlx_lm.server expose peak memory over HTTP. Stub to 0 until we add
+    // an out-of-band probe (e.g. `ps`-derived RSS or Metal memory API).
+    peakMemoryGb: 0,
+    wallTimeSec,
+    output: fields.output,
+    reasoning: fields.reasoning,
+    rawOutput: fields.rawOutput,
+    error: fields.error,
+    promptHash: input.prompt.promptHash,
+    scenarioHash: null,
+    scenarioName: null,
+    terminationReason: null,
+    toolCallCount: null,
+    finalPlayerStats: null,
+    events: null,
+  };
+};
 
 export const makeErrorResult = (
   input: RunPromptInput,
@@ -143,6 +194,8 @@ export const makeErrorResult = (
   peakMemoryGb: 0,
   wallTimeSec,
   output: "",
+  reasoning: null,
+  rawOutput: "",
   error,
   promptHash: input.prompt.promptHash,
   scenarioHash: null,

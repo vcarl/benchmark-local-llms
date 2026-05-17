@@ -5,6 +5,12 @@ export interface AgentEvent {
   data: unknown;
 }
 
+export interface ScoreBreakdown {
+  passed: string[];
+  failed: string[];
+  errored: string[];
+}
+
 export interface BenchmarkResult {
   model: string;
   runtime: string;
@@ -17,6 +23,7 @@ export interface BenchmarkResult {
   is_scenario: boolean;
   score: number;
   score_details: string;
+  score_breakdown: ScoreBreakdown | null;
   prompt_tokens: number;
   generation_tokens: number;
   prompt_tps: number;
@@ -55,6 +62,7 @@ export const normalizeRecord = (raw: Partial<BenchmarkResult>): BenchmarkResult 
   is_scenario: raw.is_scenario ?? (raw.scenario_name != null),
   score: raw.score ?? 0,
   score_details: raw.score_details ?? "",
+  score_breakdown: raw.score_breakdown ?? null,
   prompt_tokens: raw.prompt_tokens ?? 0,
   generation_tokens: raw.generation_tokens ?? 0,
   prompt_tps: raw.prompt_tps ?? 0,

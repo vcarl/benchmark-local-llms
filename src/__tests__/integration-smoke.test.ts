@@ -71,6 +71,8 @@ describe("integration smoke: YAML -> score pipeline", () => {
         peakMemoryGb: 4,
         wallTimeSec: 1,
         output: "The answer is 4183",
+        reasoning: null,
+        rawOutput: "The answer is 4183",
         error: null,
         promptHash: prompt.promptHash,
         scenarioHash: null,

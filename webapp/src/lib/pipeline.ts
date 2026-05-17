@@ -1,6 +1,7 @@
 import type { BenchmarkResult } from "./data";
-import { CAPABILITY_TAGS, PASS_THRESHOLD } from "./constants";
+import { CAPABILITY_TAGS, isPass } from "./constants";
 import { modelFamily, modelSizeB } from "./data";
+import { maxPeakMemoryGb } from "./run-summary";
 
 export interface NumRange { min: number; max: number }
 
@@ -32,6 +33,29 @@ const passesDim = <T>(selected: T[] | undefined, v: T): boolean =>
 const inRange = (range: NumRange | undefined, v: number): boolean =>
   range === undefined || (v >= range.min && v <= range.max);
 
+// Some filters apply to whole variants rather than individual records — e.g.
+// the duration filter compares the variant's total benchmark wall_time
+// (summed across prompts) against a range, because filtering wall_time
+// per-record would change the variant's averaged score and tokens by
+// silently dropping long-running prompts.
+export const applyVariantFilters = (data: BenchmarkResult[], f: Filters): BenchmarkResult[] => {
+  if (f.durationRange === undefined) return data;
+  const key = (r: BenchmarkResult) => `${r.model}|${r.runtime}|${r.quant}|${r.temperature}`;
+  const buckets = new Map<string, BenchmarkResult[]>();
+  for (const r of data) {
+    const k = key(r);
+    const arr = buckets.get(k);
+    if (arr) arr.push(r);
+    else buckets.set(k, [r]);
+  }
+  const keep = new Set<string>();
+  for (const [k, runs] of buckets) {
+    const total = runs.reduce((s, r) => s + r.wall_time_sec, 0);
+    if (inRange(f.durationRange, total)) keep.add(k);
+  }
+  return data.filter((r) => keep.has(key(r)));
+};
+
 export const applyFilters = (data: BenchmarkResult[], f: Filters): BenchmarkResult[] =>
   data.filter((r) => {
     if (f.tags !== undefined && f.tags.length > 0 && !r.tags.some((t) => f.tags!.includes(t)))
@@ -49,7 +73,6 @@ export const applyFilters = (data: BenchmarkResult[], f: Filters): BenchmarkResu
     }
     if (!passesDim(f.quant, r.quant)) return false;
     if (!inRange(f.tempRange, r.temperature)) return false;
-    if (!inRange(f.durationRange, r.wall_time_sec)) return false;
     if (f.isScenario !== undefined && r.is_scenario !== f.isScenario) return false;
     return true;
   });
@@ -100,18 +123,19 @@ export interface ScatterDot {
   quant: string;
   temperature: number;
   executedAt: string;
-  score: number;       // 0..100 (mean * 100)
+  score: number;       // 0..100 — pass rate: % of runs with score===1
   tokens: number;      // mean (prompt_tokens + generation_tokens)
   gen_tps: number;     // mean generation_tps across the variant's runs
-  wallTime: number;    // mean wall_time_sec across the variant's runs
+  wallTime: number;    // total wall_time_sec for the variant (sum across prompts)
   mem: number;         // max peak_memory_gb, with fallback to sibling variants
 }
 
-// Wall-time (seconds) → star-point count. Log-scaled, anchored at 1s = 5
-// points; clamped to [5, 15] so very long runs stay distinguishable.
+// Wall-time (seconds) → star-point count. Log-scaled across the typical
+// per-variant total range (~30s to many hours); clamped to [5, 15] so the
+// shape stays legible at both ends.
 export const starPointsForWallTime = (seconds: number): number => {
   const s = Math.max(seconds, 1);
-  const n = 5 + Math.floor(Math.log2(s) * 1.0);
+  const n = 5 + Math.floor(Math.log2(s) * 0.7);
   return Math.max(5, Math.min(15, n));
 };
 
@@ -169,11 +193,11 @@ export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
     const first = runs[0];
     if (first === undefined) continue;
     const n = runs.length;
-    const meanScore = runs.reduce((s, r) => s + r.score, 0) / n;
+    const passRate = runs.filter((r) => isPass(r.score)).length / n;
     const meanTokens = runs.reduce((s, r) => s + (r.prompt_tokens + r.generation_tokens), 0) / n;
     const meanGenTps = runs.reduce((s, r) => s + r.generation_tps, 0) / n;
-    const meanWallTime = runs.reduce((s, r) => s + r.wall_time_sec, 0) / n;
-    const variantMem = runs.reduce((m, r) => Math.max(m, r.peak_memory_gb), 0);
+    const totalWallTime = runs.reduce((s, r) => s + r.wall_time_sec, 0);
+    const variantMem = maxPeakMemoryGb(runs);
     const mem = variantMem > 0 ? variantMem : (memByBaseModel.get(first.model) ?? 0);
     if (mem <= 0) continue;
     const executedAt = runs.reduce(
@@ -187,10 +211,10 @@ export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
       quant: first.quant,
       temperature: first.temperature,
       executedAt,
-      score: meanScore * 100,
+      score: passRate * 100,
       tokens: meanTokens,
       gen_tps: meanGenTps,
-      wallTime: meanWallTime,
+      wallTime: totalWallTime,
       mem,
     });
   }
@@ -201,7 +225,7 @@ export interface ListVariant {
   runtime: string;
   quant: string;
   temperature: number;
-  score: number;   // 0..100 percentage
+  score: number;   // 0..100 — pass rate: % of runs with score===1
   tokens: number;  // mean total tokens per run in this variant
 }
 
@@ -230,7 +254,7 @@ const computeCapability = (runs: BenchmarkResult[]): ListCapability[] =>
   CAPABILITY_TAGS.map((tag) => {
     const tagRuns = runs.filter((r) => r.tags.includes(tag));
     if (tagRuns.length === 0) return { tag, pass: null, runs: 0 };
-    const pass = tagRuns.filter((r) => r.score >= PASS_THRESHOLD).length / tagRuns.length;
+    const pass = tagRuns.filter((r) => isPass(r.score)).length / tagRuns.length;
     return { tag, pass, runs: tagRuns.length };
   });
 
@@ -248,13 +272,13 @@ const computeVariants = (runs: BenchmarkResult[]): ListVariant[] => {
     const first = vRuns[0];
     if (first === undefined) continue;
     const n = vRuns.length;
-    const mean = vRuns.reduce((s, r) => s + r.score, 0) / n;
+    const passRate = vRuns.filter((r) => isPass(r.score)).length / n;
     const tokens = vRuns.reduce((s, r) => s + tokensOf(r), 0) / n;
     variants.push({
       runtime: first.runtime,
       quant: first.quant,
       temperature: first.temperature,
-      score: mean * 100,
+      score: passRate * 100,
       tokens,
     });
   }
@@ -268,7 +292,7 @@ export interface RunRow {
   runtime: string;
   quant: string;
   temperature: number;
-  score: number;        // 0..100
+  score: number;        // 0..100 — pass rate: % of runs with score===1
   tokens: number;       // mean prompt+generation per record
   efficiency: number;   // round(tokens / score), 0 when score is 0
   mem: number;          // max peak_memory_gb for this variant, falls back to model max
@@ -316,10 +340,10 @@ export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
     const first = runs[0];
     if (first === undefined) continue;
     const n = runs.length;
-    const meanScore = (runs.reduce((s, r) => s + r.score, 0) / n) * 100;
+    const passRate = (runs.filter((r) => isPass(r.score)).length / n) * 100;
     const meanTokens = runs.reduce((s, r) => s + tokensOf(r), 0) / n;
-    const efficiency = meanScore > 0 ? Math.round(meanTokens / meanScore) : 0;
-    const variantMem = runs.reduce((m, r) => Math.max(m, r.peak_memory_gb), 0);
+    const efficiency = passRate > 0 ? Math.round(meanTokens / passRate) : 0;
+    const variantMem = maxPeakMemoryGb(runs);
     const mem = variantMem > 0 ? variantMem : (memByBaseModel.get(first.model) ?? 0);
     rows.push({
       baseModel: first.model,
@@ -327,7 +351,7 @@ export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
       runtime: first.runtime,
       quant: first.quant,
       temperature: first.temperature,
-      score: meanScore,
+      score: passRate,
       tokens: meanTokens,
       efficiency,
       mem,
@@ -401,7 +425,7 @@ export const aggregateForList = (data: BenchmarkResult[], groupBy: GroupBy): Lis
     const bestScore = best.score;
     const efficiency = bestScore > 0 ? Math.round(best.tokens / bestScore) : 0;
     const capability = computeCapability(runs);
-    const mem = runs.reduce((m, r) => Math.max(m, r.peak_memory_gb), 0);
+    const mem = maxPeakMemoryGb(runs);
     const avgTokens = runs.reduce((s, r) => s + tokensOf(r), 0) / runs.length;
     const isModelGroup = groupBy === "model" || groupBy === "modelOnly";
     const firstRun = runs[0];

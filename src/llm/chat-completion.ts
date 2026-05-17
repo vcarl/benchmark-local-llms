@@ -12,12 +12,16 @@
  * orchestration flow (§5.3). SSE is used by the game-session layer for
  * Admiral's log stream, which is unrelated to this service.
  *
- * Response parsing mirrors `runner.py::_chat_completion`:
- * - `choices[0].message.content` is the generated text.
- * - When `content` is empty and `reasoning_content` is present (some
- *   llama-server builds split reasoning out), the reasoning is wrapped in
- *   `<think>…</think>` so the scoring layer's thinking-tag stripper sees a
- *   consistent shape.
+ * Response parsing:
+ * - `choices[0].message.content` is the final-answer text.
+ * - When the runtime separates reasoning from the answer it does so via a
+ *   distinct field — `reasoning_content` on llama.cpp built with
+ *   `--reasoning-format deepseek`, or `reasoning` on `mlx_lm.server`. The
+ *   service surfaces that body verbatim in `CompletionResult.reasoning` and
+ *   leaves `output` as the answer alone. When neither field is populated,
+ *   `reasoning` is `null` and downstream code (the inline-strip path in
+ *   `src/scoring/strip-thinking.ts`) recovers any thinking the runtime
+ *   inlined into `content` with `<think>…</think>` tags.
  * - `usage.prompt_tokens`/`usage.completion_tokens` → tokens counters.
  * - `timings.prompt_per_second`/`timings.predicted_per_second` → tps
  *   counters when the server reports them (llamacpp). `mlx_lm.server` does
@@ -26,7 +30,7 @@
  *   from wall time or recording 0 explicitly — this service does NOT silently
  *   coerce missing timings to 0, because that hides the signal.
  */
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "@effect/platform";
+import { HttpClient, HttpClientRequest } from "@effect/platform";
 import type { HttpClientError } from "@effect/platform/HttpClientError";
 import { Clock, Context, Effect, Layer, Schema } from "effect";
 import type { ParseError } from "effect/ParseResult";
@@ -58,8 +62,17 @@ export interface CompletionParams {
 
 /** Decoded response body from a successful completion. */
 export interface CompletionResult {
-  /** Generated text. Thinking-tag stripping is NOT applied here — see §4.1. */
+  /** Generated final-answer text (no thinking). */
   readonly output: string;
+  /**
+   * Separated reasoning when the runtime exposes it as a distinct field
+   * (`reasoning_content` from llamacpp `--reasoning-format deepseek`,
+   * `reasoning` from mlx_lm.server). `null` when the runtime did not
+   * separate reasoning out of the answer; in that case, downstream code
+   * must apply the inline-strip path (`stripThinkingTags`) to recover any
+   * thinking inlined into `output`.
+   */
+  readonly reasoning: string | null;
   readonly promptTokens: number;
   readonly generationTokens: number;
   /**
@@ -106,9 +119,10 @@ export class ChatCompletion extends Context.Tag("llm/ChatCompletion")<
  *                          or populated (reasoning + visible answer both fit).
  *
  * When a split-reasoning field is populated alongside `content`, both are
- * preserved in the archived output (`<think>…</think>\n\ncontent`) so the
- * archive stays lossless. `extractOutput` rejects the all-empty case with
- * `LlmEmptyResponse` downstream.
+ * surfaced separately on `CompletionResult` (reasoning verbatim, content
+ * verbatim) so the archive stays lossless. `extractOutput` rejects the
+ * all-empty case (no content and no reasoning) with `LlmEmptyResponse`
+ * downstream.
  */
 const MessageSchema = Schema.Struct({
   content: Schema.optional(Schema.NullOr(Schema.String)),
@@ -169,24 +183,21 @@ export const extractOutput = (
       readonly reasoning?: string | null | undefined;
     };
   }>,
-): string => {
-  if (choices.length === 0) return "";
+): { readonly content: string; readonly reasoning: string | null } => {
+  if (choices.length === 0) return { content: "", reasoning: null };
   const first = choices[0];
-  if (first === undefined) return "";
+  if (first === undefined) return { content: "", reasoning: null };
   const content = (first.message.content ?? "").trim();
   const reasoningContent = (first.message.reasoning_content ?? "").trim();
   const reasoning = (first.message.reasoning ?? "").trim();
   // Providers that split reasoning out of `content` use either
   // `reasoning_content` (llama.cpp `--reasoning-format deepseek`) or
-  // `reasoning` (mlx_lm.server); never both on the same response. Wrapping
-  // the split text in `<think>…</think>` matches what llama.cpp emits with
-  // `--reasoning-format none`, so archives stay lossless and the downstream
-  // thinking-tag stripper in `src/scoring/strip-thinking.ts` peels it off
-  // uniformly regardless of which runtime produced the output.
-  const splitReasoning = reasoningContent.length > 0 ? reasoningContent : reasoning;
-  if (splitReasoning.length === 0) return content;
-  const wrapped = `<think>${splitReasoning}</think>`;
-  return content.length === 0 ? wrapped : `${wrapped}\n\n${content}`;
+  // `reasoning` (mlx_lm.server); never both on the same response.
+  const split = reasoningContent.length > 0 ? reasoningContent : reasoning;
+  return {
+    content,
+    reasoning: split.length > 0 ? split : null,
+  };
 };
 
 // ── Layer ───────────────────────────────────────────────────────────────────
@@ -226,11 +237,31 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
           cause: cause.message ?? String(cause),
         });
 
-      // Issue the request + guard on 2xx status. `filterStatusOk` turns
-      // non-2xx into a `ResponseError` with `reason: "StatusCode"`.
-      const exec = client
-        .execute(request)
-        .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk), Effect.mapError(httpError));
+      // Issue the request and read the body on non-2xx so server errors
+      // surface the actual reason. Notably, `mlx_lm.server` returns 404 with
+      // `{"error": "<exception message>"}` whenever generation throws (see
+      // `server.py::handle_completion`); using `filterStatusOk` would hide
+      // that behind a bare "StatusCode" mapping. Network/transport failures
+      // still flow through `httpError`.
+      const exec = client.execute(request).pipe(
+        Effect.mapError(httpError),
+        Effect.flatMap((resp) =>
+          resp.status >= 200 && resp.status < 300
+            ? Effect.succeed(resp)
+            : resp.text.pipe(
+                Effect.orElseSucceed(() => "<unreadable body>"),
+                Effect.flatMap((body) =>
+                  Effect.fail(
+                    new LlmRequestError({
+                      model: params.model,
+                      promptName: params.promptName,
+                      cause: `HTTP ${resp.status}: ${body.slice(0, 2000)}`,
+                    }),
+                  ),
+                ),
+              ),
+        ),
+      );
 
       const executed =
         params.timeoutSec === undefined
@@ -285,8 +316,8 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
         ),
       );
 
-      const output = extractOutput(decoded.choices);
-      if (output.length === 0) {
+      const extracted = extractOutput(decoded.choices);
+      if (extracted.content.length === 0 && extracted.reasoning === null) {
         return yield* Effect.fail(
           new LlmEmptyResponse({
             model: params.model,
@@ -307,7 +338,8 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
       // would make MLX runs look like they completed at 0 tokens/sec.
       const timings = decoded.timings;
       return {
-        output,
+        output: extracted.content,
+        reasoning: extracted.reasoning,
         promptTokens: decoded.usage.prompt_tokens,
         generationTokens: decoded.usage.completion_tokens,
         promptTps: timings === undefined ? null : timings.prompt_per_second,

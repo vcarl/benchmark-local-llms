@@ -42,11 +42,6 @@ export const fresh = Options.boolean("fresh").pipe(
   Options.withDefault(false),
 );
 
-export const temperatures = Options.text("temperatures").pipe(
-  Options.withDescription("Comma-separated list of temperatures, e.g. '0.7,1.0' (default '0.7')"),
-  Options.optional,
-);
-
 export const idleTimeout = Options.integer("idle-timeout").pipe(
   Options.withDescription("SSE idle timeout in seconds for scenarios (default 120)"),
   Options.optional,
@@ -96,7 +91,6 @@ export const runOptions = {
   scenarios,
   noSave,
   fresh,
-  temperatures,
   idleTimeout,
   archiveDir,
   scenariosOnly,

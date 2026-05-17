@@ -81,6 +81,18 @@ const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: num
 
 const yTicks = [0, 20, 40, 60, 80, 100];
 
+const formatWallTime = (s: number): string => {
+  if (s < 60) return `${Math.round(s)}s`;
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s - m * 60);
+    return sec === 0 ? `${m}m` : `${m}m ${sec}s`;
+  }
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s - h * 3600) / 60);
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+};
+
 export function Scatter({ data }: Props) {
   const dots = useMemo(() => aggregateForScatter(data), [data]);
   const xDomain = useMemo(() => computeXDomain(dots), [dots]);
@@ -216,7 +228,7 @@ export function Scatter({ data }: Props) {
         <div className={styles.scatterTip} style={{ left: tip.x + 12, top: tip.y + 12 }}>
           <div className={styles.scatterTipTitle}>{tip.dot.baseModel}</div>
           <div className={styles.scatterTipMeta}>
-            {tip.dot.quant} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.gen_tps.toFixed(0)} tok/s · {tip.dot.wallTime.toFixed(0)}s
+            {tip.dot.quant} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.gen_tps.toFixed(0)} tok/s · {formatWallTime(tip.dot.wallTime)}
             {tip.dot.executedAt ? ` · ${tip.dot.executedAt.slice(0, 10)}` : ""}
           </div>
           <div>

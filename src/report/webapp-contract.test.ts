@@ -3,32 +3,37 @@ import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "..
 import type { Score } from "../scoring/score-result.js";
 import { toWebappRecord, type WebappRecord } from "./webapp-contract.js";
 
-const makeExecution = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => ({
-  archiveId: "a1",
-  runId: "r1",
-  executedAt: "2026-01-01T00:00:00.000Z",
-  promptName: "math_multiply_direct",
-  temperature: 0.3,
-  model: "Test Model",
-  runtime: "mlx",
-  quant: "4bit",
-  promptTokens: 10,
-  generationTokens: 5,
-  promptTps: 123.456789,
-  generationTps: 42.1111,
-  peakMemoryGb: 3.141599,
-  wallTimeSec: 1.999999,
-  output: "the answer is 4183",
-  error: null,
-  promptHash: "abc123",
-  scenarioHash: null,
-  scenarioName: null,
-  terminationReason: null,
-  toolCallCount: null,
-  finalPlayerStats: null,
-  events: null,
-  ...overrides,
-});
+const makeExecution = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => {
+  const output = overrides.output ?? "the answer is 4183";
+  return {
+    archiveId: "a1",
+    runId: "r1",
+    executedAt: "2026-01-01T00:00:00.000Z",
+    promptName: "math_multiply_direct",
+    temperature: 0.3,
+    model: "Test Model",
+    runtime: "mlx",
+    quant: "4bit",
+    promptTokens: 10,
+    generationTokens: 5,
+    promptTps: 123.456789,
+    generationTps: 42.1111,
+    peakMemoryGb: 3.141599,
+    wallTimeSec: 1.999999,
+    output,
+    reasoning: null,
+    rawOutput: output,
+    error: null,
+    promptHash: "abc123",
+    scenarioHash: null,
+    scenarioName: null,
+    terminationReason: null,
+    toolCallCount: null,
+    finalPlayerStats: null,
+    events: null,
+    ...overrides,
+  };
+};
 
 const promptEntry: PromptCorpusEntry = {
   name: "math_multiply_direct",
@@ -170,5 +175,23 @@ describe("toWebappRecord", () => {
   it("includes run_id from ExecutionResult.runId", () => {
     const rec = toWebappRecord(makeExecution({ runId: "r-2026-04-14-deadbe" }), promptEntry, score);
     expect(rec.run_id).toBe("r-2026-04-14-deadbe");
+  });
+
+  it("emits score_breakdown when the score carries a constraint breakdown", () => {
+    const rec = toWebappRecord(makeExecution(), promptEntry, {
+      score: 0.5,
+      details: "1/2: failed [check_b]",
+      breakdown: { passed: ["check_a"], failed: ["check_b"], errored: [] },
+    });
+    expect(rec.score_breakdown).toEqual({
+      passed: ["check_a"],
+      failed: ["check_b"],
+      errored: [],
+    });
+  });
+
+  it("nulls score_breakdown when the score has none (non-constraint scorers)", () => {
+    const rec = toWebappRecord(makeExecution(), promptEntry, score);
+    expect(rec.score_breakdown).toBeNull();
   });
 });

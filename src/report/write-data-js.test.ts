@@ -20,6 +20,7 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   is_scenario: false,
   score: 1,
   score_details: "ok",
+  score_breakdown: null,
   prompt_tokens: 10,
   generation_tokens: 5,
   prompt_tps: 100,
@@ -35,6 +36,7 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   events: null,
   run_id: "r-2026-04-14-deadbe",
   executed_at: "2026-04-14T12:34:56.000Z",
+  archive_id: "2026-04-14_test_4bit_deadbe",
   ...overrides,
 });
 

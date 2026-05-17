@@ -28,6 +28,8 @@ const baseResult: ExecutionResult = {
   peakMemoryGb: 0,
   wallTimeSec: 2,
   output: "x",
+  reasoning: null,
+  rawOutput: "x",
   error: null,
   promptHash: "h",
   scenarioHash: null,

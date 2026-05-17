@@ -71,6 +71,7 @@ export const sampleModel = (overrides: Partial<ModelConfig> = {}): ModelConfig =
   runtime: "mlx",
   name: "Test Model",
   quant: "4bit",
+  temperature: 0.7,
   ...overrides,
 });
 
@@ -122,6 +123,7 @@ export const makeChatCompletionMock = (
     kind: "ok",
     result: {
       output: "default-output",
+      reasoning: null,
       promptTokens: 10,
       generationTokens: 5,
       promptTps: 100,
@@ -261,34 +263,37 @@ export const agentEvent = (
   data,
 });
 
-export const sampleExistingResult = (
-  overrides: Partial<ExecutionResult> = {},
-): ExecutionResult => ({
-  archiveId: "prior-archive",
-  runId: "prior-run",
-  executedAt: "2026-04-01T00:00:00Z",
-  promptName: "p1",
-  temperature: 0.7,
-  model: "Test Model",
-  runtime: "mlx",
-  quant: "4bit",
-  promptTokens: 1,
-  generationTokens: 1,
-  promptTps: 1,
-  generationTps: 1,
-  peakMemoryGb: 0,
-  wallTimeSec: 1,
-  output: "prior-output",
-  error: null,
-  promptHash: "hash-p1",
-  scenarioHash: null,
-  scenarioName: null,
-  terminationReason: null,
-  toolCallCount: null,
-  finalPlayerStats: null,
-  events: null,
-  ...overrides,
-});
+export const sampleExistingResult = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => {
+  const output = overrides.output ?? "prior-output";
+  return {
+    archiveId: "prior-archive",
+    runId: "prior-run",
+    executedAt: "2026-04-01T00:00:00Z",
+    promptName: "p1",
+    temperature: 0.7,
+    model: "Test Model",
+    runtime: "mlx",
+    quant: "4bit",
+    promptTokens: 1,
+    generationTokens: 1,
+    promptTps: 1,
+    generationTps: 1,
+    peakMemoryGb: 0,
+    wallTimeSec: 1,
+    output,
+    reasoning: null,
+    rawOutput: output,
+    error: null,
+    promptHash: "hash-p1",
+    scenarioHash: null,
+    scenarioName: null,
+    terminationReason: null,
+    toolCallCount: null,
+    finalPlayerStats: null,
+    events: null,
+    ...overrides,
+  };
+};
 
 // ── Re-export platform layers commonly combined by tests ───────────────────
 

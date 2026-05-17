@@ -1,19 +1,20 @@
 /**
- * Strip reasoning / meta tokens so scorers see only the final answer.
+ * Strip reasoning / meta tokens and return a structured result.
  *
- * Ported byte-for-byte from `runner.py:_strip_thinking_tags` (the pattern
- * literals match the Python regexes, translated to JS syntax). The order of
- * operations matches exactly:
+ * Returns `{ output, reasoning, error }` where:
+ *   - `output`   — the final answer text, ready for scorer consumption.
+ *   - `reasoning`— the separated thinking body, or `null` if none was detected.
+ *   - `error`    — `"thinking_truncated"` when a `<think>` opener has no
+ *                  corresponding `</think>`; `null` otherwise.
  *
- *   1. If a Harmony `final` channel exists, replace the text with its body.
- *   2. Strip any remaining `<|...|>` harmony control tokens.
- *   3. Strip a leading `.*?</think>\s*` block (DeepSeek style).
- *   4. Trim leading/trailing whitespace.
- *
- * The Python regexes use `re.DOTALL`; in JS we use the `s` flag for the same
- * semantics (`.` matches newlines). The DeepSeek strip pattern is anchored to
- * the start of the input (`^`), matching Python's `re.sub` applied once with
- * a leading `^.*?</think>`.
+ * Processing order (Harmony input is checked first because Harmony outputs
+ * can embed `<think>` inside the final-channel body):
+ *   1. If a Harmony `final` channel exists, extract its body as `output` and
+ *      the `analysis` channel body (if present) as `reasoning`.
+ *   2. Strip any remaining `<|...|>` Harmony control tokens from `output`.
+ *   3. Try a closed `<think>…</think>` block: body → `reasoning`, remainder → `output`.
+ *   4. Try an unclosed `<think>` block: return `error="thinking_truncated"`.
+ *   5. No markers found: entire input (trimmed) is `output`, `reasoning=null`.
  */
 
 /**
@@ -37,21 +38,88 @@ const HARMONY_FINAL_RE = /<\|channel\|>\s*final\s*<\|message\|>(.*?)(?:<\|end\|>
 const HARMONY_TOKEN_RE = /<\|[^|]*\|>/g;
 
 /**
- * Leading think-block strip (DeepSeek R1 style).
- * Python: `re.compile(r"^.*?</think>\s*", re.DOTALL)` applied with `.sub(..., text)`
- * which replaces only the first match. The `^` anchor with DOTALL means the
- * whole document up to (and through) the first `</think>` plus trailing
- * whitespace.
+ * Match the analysis channel body, terminated by `<|end|>` or end-of-string.
+ * Used to capture reasoning when the model emits Harmony channel markers.
  */
-const THINK_RE = /^.*?<\/think>\s*/s;
+const HARMONY_ANALYSIS_RE =
+  /<\|channel\|>\s*analysis\s*<\|message\|>(.*?)(?:<\|end\|>|<\|return\|>|$)/s;
 
-export const stripThinkingTags = (text: string): string => {
-  let t = text;
-  const m = HARMONY_FINAL_RE.exec(t);
-  if (m && m[1] !== undefined) {
-    t = m[1];
+/**
+ * Detect a `<think>` opener with no matching `</think>` anywhere downstream.
+ * If this matches, the body is everything after `<think>` to end-of-input —
+ * i.e. a truncated reasoning block. Without this branch the closed-tag regex
+ * fails to match and the entire CoT silently flows to the scorer.
+ */
+const UNCLOSED_THINK_RE = /<think>([\s\S]*)$/;
+
+export interface StripResult {
+  readonly output: string;
+  readonly reasoning: string | null;
+  readonly error: string | null;
+}
+
+export const stripThinkingTags = (text: string): StripResult => {
+  // Harmony format: try the channel pattern first because Harmony outputs
+  // can also embed `<think>` inside the final-channel body, and we want the
+  // outer extraction to win.
+  const finalMatch = HARMONY_FINAL_RE.exec(text);
+  if (finalMatch && finalMatch[1] !== undefined) {
+    const analysisMatch = HARMONY_ANALYSIS_RE.exec(text);
+    const analysisBody = analysisMatch?.[1] ?? null;
+    let body = finalMatch[1];
+    body = body.replace(HARMONY_TOKEN_RE, "");
+    // The body may itself contain a <think>...</think>; recurse once on the
+    // body so the inner block is split out. The recursion is bounded — we
+    // pass `body` to a non-Harmony branch so it can't loop.
+    const inner = stripThinkInline(body);
+    return {
+      output: inner.output.trim(),
+      reasoning:
+        inner.reasoning ??
+        (analysisBody !== null ? analysisBody.replace(HARMONY_TOKEN_RE, "").trim() : null),
+      error: null,
+    };
   }
-  t = t.replace(HARMONY_TOKEN_RE, "");
-  t = t.replace(THINK_RE, "");
-  return t.trim();
+  return stripThinkInline(text);
+};
+
+const stripThinkInline = (text: string): StripResult => {
+  // Closed <think>...</think>: capture everything before+inside the tag as
+  // reasoning, everything after as output. The regex anchors to start so
+  // only the leading thinking block is consumed (mirrors prior behavior).
+  const closed = /^([\s\S]*?)<\/think>\s*([\s\S]*)$/.exec(text);
+  if (closed && closed[1] !== undefined && closed[2] !== undefined && text.includes("<think>")) {
+    // The reasoning body is everything before </think>. Strip a leading
+    // `<think>` opener if it sits at the very start of the input; if the
+    // opener appears after other text, keep it verbatim so the pre-tag
+    // prefix and the literal `<think>` are both preserved (mirrors the
+    // prior `^.*?</think>` behavior which captured all leading content).
+    const beforeClose = closed[1];
+    const reasoning = beforeClose.startsWith("<think>")
+      ? beforeClose.slice("<think>".length)
+      : beforeClose;
+    return {
+      output: closed[2].trim(),
+      reasoning,
+      error: null,
+    };
+  }
+  // Unclosed <think>: budget exhausted before the model closed the tag.
+  // No answer was produced. Any pre-opener content is dropped — if the
+  // model started thinking mid-response, the prior text was a partial
+  // attempt that's no longer trustworthy.
+  const unclosed = UNCLOSED_THINK_RE.exec(text);
+  if (unclosed && unclosed[1] !== undefined) {
+    return {
+      output: "",
+      reasoning: unclosed[1],
+      error: "thinking_truncated",
+    };
+  }
+  // No think markers anywhere — the entire input is the answer.
+  return {
+    output: text.replace(HARMONY_TOKEN_RE, "").trim(),
+    reasoning: null,
+    error: null,
+  };
 };

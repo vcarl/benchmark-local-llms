@@ -23,5 +23,6 @@ export const ModelConfig = Schema.Struct({
   ctxSize: Schema.optional(Schema.Number),
   scenarioCtxSize: Schema.optional(Schema.Number),
   active: Schema.optional(Schema.Boolean),
+  temperature: Schema.optional(Schema.Number),
 });
 export type ModelConfig = typeof ModelConfig.Type;
