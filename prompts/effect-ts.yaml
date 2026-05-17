@@ -34,9 +34,9 @@
     Explain in one sentence.
   scorer: constraint
   constraints:
-    - name: "mentions unwrapping/extracting the value"
+    - name: "mentions unwrapping/extracting the value or delegation/composition"
       check: regex
-      pattern: '(?i)(unwrap|extract|get.*value|like.*await|resolv|run.*effect)'
+      pattern: '(?i)(unwrap|extract|get.*value|like.*await|resolv|run.*effect|delegat|compos)'
     - name: "is a sentence"
       check: min_length
       length: 20
@@ -147,8 +147,8 @@
   style: direct
   system: direct
   prompt: >-
-    In Effect-TS, what module provides the `effect` function for creating
-    a service implementation from an Effect? Reply as `Module.functionName`.
+    In Effect-TS, what function constructs a Layer from a service tag and
+    an Effect that produces the service? Reply as `Module.functionName`.
   scorer: constraint
   constraints:
     - name: "says Layer.effect"
@@ -195,7 +195,7 @@
   constraints:
     - name: "mentions breaking the chain or losing types"
       check: regex
-      pattern: '(?i)(break|lose|bypass|escape).*(chain|type|error|composition|context)'
+      pattern: '(?i)(break|lose|bypass|escape).*(chain|type|error|composition|context|pur[ei]|transparenc)'
 
 - name: effect_stream_create
   tier: 2

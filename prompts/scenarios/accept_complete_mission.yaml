@@ -1,0 +1,15 @@
+name: accept_complete_mission
+fixture: benchmark
+scenario_md: bench-accept-complete-mission.md
+players:
+  - id: bench_adventurer
+    controlled_by: llm
+scorer: generic
+scorer_params: {}
+tier: 2
+cutoffs:
+  wall_clock_sec: 600
+  total_tokens: 150000
+  tool_calls: 200
+commander:
+  max_turns: 150

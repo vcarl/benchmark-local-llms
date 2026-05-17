@@ -45,7 +45,7 @@ llama-cli and llama-server can download models directly using `-hf`:
 ./llama-cli -hf Qwen/Qwen2.5-72B-Instruct-GGUF --hf-file qwen2.5-72b-instruct-q4_k_m-00001-of-00003.gguf --conversation
 ```
 
-Models are cached in `~/Library/Caches/llama.cpp/` on macOS and reused on subsequent runs.
+Models are cached in `~/.cache/huggingface/hub/` and reused on subsequent runs. Downloads automatically resume if interrupted.
 
 ### Option 2: Manual download with `hf` CLI
 

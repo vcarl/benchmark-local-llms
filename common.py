@@ -8,6 +8,7 @@ used by both the runner and report modules.
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -18,9 +19,19 @@ from typing import Optional
 LLAMA_CPP_DIR = Path(__file__).parent / "llama.cpp" / "llama-b8400"
 LLAMA_CLI = LLAMA_CPP_DIR / "llama-cli"
 LLAMA_SERVER = LLAMA_CPP_DIR / "llama-server"
-LLAMA_CACHE_DIR = Path.home() / "Library" / "Caches" / "llama.cpp"
 EXECUTION_DIR = Path(__file__).parent / "benchmark-execution"  # per-model cached results
 RESULTS_DIR = Path(__file__).parent / "benchmark-results"  # generated reports (markdown)
+
+# ── External tool paths (gameserver / admiral) ────────────────────────────
+
+# Configured via env vars — no hardcoded defaults. Validated at startup
+# by benchmark.py when scenarios are going to run.
+_GAMESERVER_BINARY_ENV = os.environ.get("TESTBENCH_GAMESERVER_BINARY")
+GAMESERVER_BINARY = Path(_GAMESERVER_BINARY_ENV) if _GAMESERVER_BINARY_ENV else None
+ADMIRAL_DIR = Path(os.environ.get(
+    "TESTBENCH_ADMIRAL_DIR",
+    str(Path.home() / "workspace" / "admiral"),
+))
 
 # Models to benchmark. Each entry has:
 #   - name: display name
@@ -28,82 +39,89 @@ RESULTS_DIR = Path(__file__).parent / "benchmark-results"  # generated reports (
 #   - llamacpp_hf: HuggingFace repo for llama.cpp -hf flag
 #   - llamacpp_quant: quantization to use (default Q4_K_M)
 #   - mlx_model: MLX model ID from mlx-community
+#   - llamacpp_active / mlx_active (optional, default True): set to False to
+#     mark that runtime as inactive. Inactive runtimes are not downloaded
+#     when --download is given and are skipped during benchmark runs.
 MODELS = [
     {
         "name": "Qwen 2.5 7B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-7B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen2.5-7B-Instruct-4bit",
     },
     {
         "name": "Qwen 2.5 32B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-32B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Qwen2.5-32B-Instruct-4bit",
     },
     {
         "name": "Qwen 2.5 72B Instruct",
         "size_class": "large",
         "llamacpp_hf": "Qwen/Qwen2.5-72B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Qwen2.5-72B-Instruct-4bit",
+        "mlx_active": False,
     },
     {
         "name": "Qwen 2.5 Coder 32B Instruct",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
     },
     {
         "name": "QwQ 32B",
         "size_class": "small",
         "llamacpp_hf": "Qwen/QwQ-32B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/QwQ-32B-4bit",
     },
     {
         "name": "Qwen 3 32B",
         "size_class": "small",
         "llamacpp_hf": "Qwen/Qwen3-32B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Qwen3-32B-4bit",
     },
     {
         "name": "Qwen 3.5 9B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3.5-9B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen3.5-9B-4bit",
     },
     {
         "name": "Qwen 3.5 27B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3.5-27B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Qwen3.5-27B-4bit",
     },
     {
         "name": "Qwen 3.5 35B-A3B (MoE)",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3.5-35B-A3B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen3.5-35B-A3B-4bit",
     },
     {
         "name": "Qwen 3 Coder 30B-A3B Instruct (MoE)",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit",
     },
     {
         "name": "Qwen 3 Coder Next 80B-A3B (MoE)",
         "size_class": "large",
         "llamacpp_hf": "Qwen/Qwen3-Coder-Next-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/Qwen3-Coder-Next-4bit",
     },
     # {
@@ -117,7 +135,7 @@ MODELS = [
         "name": "Qwen 3.5 122B-A10B (MoE)",
         "size_class": "xlarge",
         "llamacpp_hf": "bartowski/Qwen_Qwen3.5-122B-A10B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/Qwen3.5-122B-A10B-4bit",
     },
     {
@@ -126,13 +144,17 @@ MODELS = [
         "llamacpp_hf": "bartowski/Mistral-Large-Instruct-2411-GGUF",
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "zachlandes/Mistral-Large-Instruct-2411-Q4-MLX",
+        "ctx_size": 2048,
+        "scenario_ctx_size": 16384,
     },
     {
         "name": "Mistral Small 4 119B (MoE)",
         "size_class": "xlarge",
         "llamacpp_hf": "unsloth/Mistral-Small-4-119B-2603-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "UD-Q5_K_M",
         "mlx_model": None,  # No MLX conversion available yet (released Mar 2026)
+        "ctx_size": 2048,
+        "scenario_ctx_size": 16384,
     },
     {
         "name": "Devstral 2 123B",
@@ -140,83 +162,130 @@ MODELS = [
         "llamacpp_hf": "unsloth/Devstral-2-123B-Instruct-2512-GGUF",
         "llamacpp_quant": "Q4_K_M",
         "mlx_model": "mlx-community/Devstral-2-123B-Instruct-2512-4bit",
+        "ctx_size": 2048,
+        "scenario_ctx_size": 16384,
     },
     {
         "name": "Mistral Small 3.2 24B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
         "mlx_model": "mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit",
     },
     {
         "name": "Magistral Small 1.2 24B",
         "size_class": "small",
         "llamacpp_hf": "mistralai/Magistral-Small-2509-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "lmstudio-community/Magistral-Small-2509-MLX-4bit",
     },
     {
         "name": "Devstral Small 2 24B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit",
     },
     {
         "name": "Llama 3.1 8B Instruct",
         "size_class": "small",
         "llamacpp_hf": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Qwen 7B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Qwen 14B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
     },
     {
         "name": "DeepSeek R1 Distill Qwen 32B",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q6_K",
+        "llamacpp_active": False,
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit",
     },
     {
         "name": "DeepSeek R1-0528 Qwen3 8B",
         "size_class": "small",
         "llamacpp_hf": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit",
     },
     {
         "name": "DeepSeek Coder V2 Lite 16B (MoE)",
         "size_class": "small",
         "llamacpp_hf": "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q8_0",
         "mlx_model": "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit",
     },
     {
         "name": "DeepSeek Coder 33B Instruct",
         "size_class": "small",
-        "llamacpp_hf": "bartowski/deepseek-coder-33b-instruct-GGUF",
-        "llamacpp_quant": "Q4_K_M",
-        "mlx_model": "mlx-community/deepseek-coder-33b-instruct-4bit",
+        "llamacpp_hf": "TheBloke/deepseek-coder-33B-instruct-GGUF",
+        "llamacpp_quant": "Q6_K",
+        "mlx_model": "deepseek-ai/deepseek-coder-33b-instruct",
     },
     {
         "name": "DeepSeek R1 Distill Llama 70B",
         "size_class": "large",
         "llamacpp_hf": "bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF",
-        "llamacpp_quant": "Q4_K_M",
+        "llamacpp_quant": "Q5_K_M",
         "mlx_model": "mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit",
+        "mlx_active": False,
+    },
+    {
+        "name": "GPT-OSS 20B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gpt-oss-20b-GGUF",
+        "llamacpp_quant": "Q8_0",
+        "mlx_model": "mlx-community/gpt-oss-20b-MXFP4-Q4",
+    },
+    {
+        "name": "Gemma 4 E4B Instruct",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gemma-4-E4B-it-GGUF",
+        "llamacpp_quant": "Q8_0",
+        "mlx_model": "mlx-community/gemma-4-e4b-it-4bit",
+    },
+    {
+        "name": "Gemma 4 26B-A4B Instruct (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gemma-4-26B-A4B-it-GGUF",
+        "llamacpp_quant": "Q8_0",
+        "mlx_model": "mlx-community/gemma-4-26b-a4b-it-4bit",
+    },
+    {
+        "name": "Gemma 4 31B Instruct",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/gemma-4-31B-it-GGUF",
+        "llamacpp_quant": "Q6_K",
+        "mlx_model": "mlx-community/gemma-4-31b-it-4bit",
+    },
+    {
+        "name": "GLM 4.7 Flash 31B-A3B (MoE)",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/GLM-4.7-Flash-GGUF",
+        "llamacpp_quant": "Q8_0",
+        "mlx_model": "mlx-community/GLM-4.7-Flash-4bit",
+    },
+    {
+        "name": "Phi-4 14B",
+        "size_class": "small",
+        "llamacpp_hf": "unsloth/phi-4-GGUF",
+        "llamacpp_quant": "Q8_0",
+        "mlx_model": "mlx-community/phi-4-4bit",
     },
     # {
     #     "name": "DeepSeek R1 671B (MoE, 1.58-bit)",
@@ -337,7 +406,7 @@ def evaluate_constraint(output: str, constraint: dict) -> bool:
         lines = [l for l in o.strip().splitlines() if l.strip()]
         return len(lines) == constraint["count"]
     elif check == "word_count_exact":
-        return o.lower().split().count(constraint["word"]) == constraint["count"]
+        return len(re.findall(rf'\b{re.escape(constraint["word"])}\b', o.lower())) == constraint["count"]
     elif check == "all_lines_word_count":
         lines = [l for l in o.strip().splitlines() if l.strip()]
         return all(constraint["min"] <= len(l.split()) <= constraint["max"] for l in lines)
@@ -397,6 +466,17 @@ def _count_sentences(text):
     return len([s for s in sentences if s.strip()])
 
 
+def get_quant_label(model_cfg: dict, runtime: str) -> str:
+    """Extract quantization label from model config for the given runtime."""
+    if runtime == "llamacpp":
+        return model_cfg.get("llamacpp_quant", "")
+    mlx_id = model_cfg.get("mlx_model", "") or ""
+    for part in mlx_id.split("-"):
+        if part in ("4bit", "3bit", "8bit", "16bit", "fp16", "bf16"):
+            return part
+    return "4bit"  # default for MLX community models
+
+
 # ── BenchmarkResult dataclass ──────────────────────────────────────────────
 
 @dataclass
@@ -404,6 +484,7 @@ class BenchmarkResult:
     model: str
     runtime: str
     prompt_name: str
+    quant: str = ""
     prompt_tokens: int = 0
     generation_tokens: int = 0
     prompt_tps: float = 0.0  # prompt processing tokens/sec
@@ -420,6 +501,29 @@ class BenchmarkResult:
     score: Optional[float] = None  # 0.0-1.0, None if not scored
     score_details: str = ""  # human-readable scoring breakdown
     prompt_hash: str = ""  # hash of prompt + system (determines if we need to re-run)
+    # ── Game scenario fields (None for prompt-based runs) ──
+    scenario_name: Optional[str] = None
+    termination_reason: Optional[str] = None  # completed | wall_clock | tokens | tool_calls | error
+    tool_call_count: Optional[int] = None
+    final_state_summary: Optional[dict] = None
+    scenario_hash: Optional[str] = None
+
+
+def result_is_valid(r: BenchmarkResult) -> bool:
+    """Check whether a cached result is usable or should be re-run.
+
+    Invalid results include:
+    - Has an error
+    - No output and no error (empty response)
+    - Zero generation tokens with non-empty output (broken token counting)
+    """
+    if r.error:
+        return False
+    if not r.output:
+        return False
+    if r.generation_tokens == 0 and r.output:
+        return False
+    return True
 
 
 # ── Challenge hashing and result caching ───────────────────────────────────
@@ -432,6 +536,100 @@ def compute_prompt_hash(prompt_cfg: dict) -> str:
     ]
     blob = "|".join(parts).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def compute_scenario_hash(scenario: "Scenario") -> str:
+    """Hash of the scenario inputs that determine the run.
+
+    Includes fixture, scorer config, cutoffs, and player config. Excludes the
+    name (so renaming a scenario file does not invalidate cache).
+    """
+    parts = [
+        scenario.fixture,
+        scenario.scorer,
+        json.dumps(scenario.scorer_params, sort_keys=True),
+        json.dumps(scenario.players, sort_keys=True),
+        f"{scenario.cutoffs.wall_clock_sec}|{scenario.cutoffs.total_tokens}|{scenario.cutoffs.tool_calls}",
+    ]
+    blob = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:12]
+
+
+# ── Scenario loader (game benchmarks) ──────────────────────────────────────
+
+SCENARIOS_DIR = Path(__file__).parent / "prompts" / "scenarios"
+
+
+@dataclass
+class ScenarioCutoffs:
+    wall_clock_sec: float
+    total_tokens: int
+    tool_calls: int
+
+
+@dataclass
+class Scenario:
+    name: str
+    fixture: str
+    players: list[dict]
+    scorer: str
+    cutoffs: ScenarioCutoffs
+    scorer_params: dict = field(default_factory=dict)
+    # Difficulty tier, parallel to the prompt tier system:
+    #   1 = basic functionality  (expected attainable by all local models)
+    #   2 = advanced behaviors   (expected attainable by stronger local models)
+    #   3 = complex strategy     (likely requires a richer harness)
+    tier: int = 1
+    scenario_md: str = ""  # filename of scenario instruction markdown
+
+    @property
+    def llm_player_id(self) -> str:
+        return next(p["id"] for p in self.players if p.get("controlled_by") == "llm")
+
+
+def load_scenarios(scenarios_dir: Path = SCENARIOS_DIR) -> list[Scenario]:
+    """Load all scenario YAML files from a directory.
+
+    Each YAML file contains one scenario (one document, not a list — different
+    from prompts which are lists). Files starting with `_` are skipped.
+    """
+    import yaml
+    scenarios: list[Scenario] = []
+    if not scenarios_dir.exists():
+        return scenarios
+    for yaml_file in sorted(scenarios_dir.glob("*.yaml")):
+        if yaml_file.name.startswith("_"):
+            continue
+        with open(yaml_file) as f:
+            data = yaml.safe_load(f)
+        if not data:
+            continue
+
+        llm_players = [p for p in data.get("players", []) if p.get("controlled_by") == "llm"]
+        if len(llm_players) != 1:
+            raise ValueError(
+                f"Scenario {yaml_file.name}: must have exactly one player with "
+                f"controlled_by: llm (found {len(llm_players)})"
+            )
+
+        cutoffs_raw = data.get("cutoffs", {})
+        cutoffs = ScenarioCutoffs(
+            wall_clock_sec=float(cutoffs_raw["wall_clock_sec"]),
+            total_tokens=int(cutoffs_raw["total_tokens"]),
+            tool_calls=int(cutoffs_raw["tool_calls"]),
+        )
+
+        scenarios.append(Scenario(
+            name=data["name"],
+            fixture=data["fixture"],
+            players=data["players"],
+            scorer=data["scorer"],
+            scorer_params=data.get("scorer_params", {}),
+            cutoffs=cutoffs,
+            tier=int(data.get("tier", 1)),
+            scenario_md=data.get("scenario_md", ""),
+        ))
+    return scenarios
 
 
 # ── File utilities ─────────────────────────────────────────────────────────
@@ -473,8 +671,8 @@ def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResul
     """Load deduplicated results from all JSONL files. Latest entry per prompt wins."""
     if not execution_dir.exists():
         return []
-    # Deduplicate: (model, runtime, prompt_name) -> BenchmarkResult, latest wins
-    by_key: dict[tuple[str, str, str], BenchmarkResult] = {}
+    # Deduplicate: (model, runtime, quant, prompt_name) -> BenchmarkResult, latest wins
+    by_key: dict[tuple[str, str, str, str], BenchmarkResult] = {}
     for f in sorted(execution_dir.glob("*.jsonl")):
         with open(f) as fh:
             for line in fh:
@@ -483,17 +681,20 @@ def load_all_results(execution_dir: Path = EXECUTION_DIR) -> list[BenchmarkResul
                     continue
                 d = json.loads(line)
                 r = BenchmarkResult(**{k: v for k, v in d.items() if k in BenchmarkResult.__dataclass_fields__})
-                by_key[(r.model, r.runtime, r.prompt_name)] = r
+                by_key[(r.model, r.runtime, r.quant, r.prompt_name)] = r
     return list(by_key.values())
 
 
 # Fields persisted to JSONL — execution data only, no scoring
 _EXECUTION_FIELDS = {
-    "model", "runtime", "prompt_name",
+    "model", "runtime", "quant", "prompt_name",
     "prompt_tokens", "generation_tokens", "prompt_tps", "generation_tps",
     "peak_memory_gb", "wall_time_sec",
     "output", "error",
     "prompt_hash",
+    # game scenario fields
+    "scenario_name", "termination_reason", "tool_call_count",
+    "final_state_summary", "scenario_hash",
 }
 
 
@@ -501,8 +702,18 @@ def append_result(result: BenchmarkResult) -> None:
     """Append execution data to the model+runtime JSONL file.
 
     Only writes execution fields — scoring is done at report time.
+    For game scenarios (identified by a ``_game_session`` attribute), the
+    session's event list is serialised and stored under an ``events`` key.
     """
     path = results_file_path(result.model, result.runtime)
     record = {k: v for k, v in asdict(result).items() if k in _EXECUTION_FIELDS}
+
+    session = getattr(result, "_game_session", None)
+    if session is not None:
+        record["events"] = [
+            {"event": e.event, "tick": e.tick, "ts": e.ts, "data": e.data}
+            for e in session.events
+        ]
+
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")

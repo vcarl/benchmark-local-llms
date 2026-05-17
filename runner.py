@@ -20,9 +20,14 @@ from pathlib import Path
 from typing import Optional
 
 from common import (
-    LLAMA_CLI, LLAMA_SERVER, LLAMA_CACHE_DIR,
+    LLAMA_CLI, LLAMA_SERVER,
     BenchmarkResult,
+    Scenario,
+    compute_scenario_hash,
+    get_quant_label,
 )
+from game_session import run_game_session, GameSessionResult
+from game_scorers import score_game, ScorerNotFound
 
 # ── Code extraction and execution ──────────────────────────────────────────
 
@@ -92,13 +97,29 @@ def run_code_with_tests(code: str, test_code: str, timeout: int = 10) -> tuple[b
 
 
 _THINK_RE = re.compile(r"^.*?</think>\s*", re.DOTALL)
+_HARMONY_FINAL_RE = re.compile(
+    r"<\|channel\|>\s*final\s*<\|message\|>(.*?)(?:<\|end\|>|<\|return\|>|\Z)",
+    re.DOTALL,
+)
+_HARMONY_TOKEN_RE = re.compile(r"<\|[^|]*\|>")
 
 
 # ── Scoring ────────────────────────────────────────────────────────────────
 
 def _strip_thinking_tags(text: str) -> str:
-    """Remove <think>...</think> blocks produced by reasoning models (e.g. DeepSeek R1)."""
-    return _THINK_RE.sub("", text)
+    """Strip reasoning/meta tokens so scorers see only the final answer.
+
+    Handles:
+      - <think>...</think> blocks (DeepSeek R1 style)
+      - gpt-oss harmony channels: extracts content inside
+        <|channel|>final<|message|>...<|end|>, then removes any stray
+        <|...|> control tokens.
+    """
+    m = _HARMONY_FINAL_RE.search(text)
+    if m:
+        text = m.group(1)
+    text = _HARMONY_TOKEN_RE.sub("", text)
+    return _THINK_RE.sub("", text).strip()
 
 
 def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
@@ -120,6 +141,10 @@ def score_result(result: BenchmarkResult, prompt_cfg: dict) -> None:
 
     # Strip thinking tokens for scoring without mutating the stored output
     clean_output = _strip_thinking_tags(result.output)
+
+    if scorer == "game":
+        _score_game(result, prompt_cfg)
+        return
 
     if scorer == "exact_match":
         _score_exact_match(result, prompt_cfg, clean_output)
@@ -188,22 +213,54 @@ def _score_code_exec(result: BenchmarkResult, prompt_cfg: dict, output: str) -> 
     result.score_details = details
 
 
+def _score_game(result: BenchmarkResult, prompt_cfg: dict) -> None:
+    session: Optional[GameSessionResult] = getattr(result, "_game_session", None)
+    if session is None:
+        result.score = 0.0
+        result.score_details = "no game session attached"
+        return
+    try:
+        score, details = score_game(
+            prompt_cfg["game_scorer"],
+            session,
+            prompt_cfg.get("scorer_params", {}),
+        )
+    except ScorerNotFound as e:
+        result.score = 0.0
+        result.score_details = str(e)
+        return
+    result.score = score
+    result.score_details = details
+
+
 # ── Cache checking ─────────────────────────────────────────────────────────
 
-def is_llamacpp_cached(model_cfg: dict) -> bool:
-    """Check if a llama.cpp model is already downloaded in the cache."""
-    # llama.cpp caches in ~/Library/Caches/llama.cpp/ with filenames like:
-    # Qwen_Qwen2.5-72B-Instruct-GGUF_qwen2.5-72b-instruct-q4_k_m-00001-of-00003.gguf
-    # The prefix is repo with / replaced by _
+def resolve_llamacpp_gguf(model_cfg: dict) -> Optional[Path]:
+    """Resolve local GGUF file path for a llama.cpp model in the HuggingFace cache.
+
+    Returns the path to the first matching .gguf file, or None if not found.
+    For multi-shard models, returns the first shard (llama-server finds the rest).
+    """
     repo = model_cfg["llamacpp_hf"]
-    prefix = repo.replace("/", "_")
-    quant = model_cfg["llamacpp_quant"].lower()
-    if not LLAMA_CACHE_DIR.exists():
-        return False
-    for f in LLAMA_CACHE_DIR.iterdir():
-        if f.name.startswith(prefix) and quant in f.name.lower() and f.suffix == ".gguf":
-            return True
-    return False
+    quant = model_cfg["llamacpp_quant"]
+    # Strict match: quant preceded by - or . , followed by .gguf or -0 (shard)
+    quant_re = re.compile(rf"(?i)[-\.]{re.escape(quant)}(\.gguf|-\d)")
+
+    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
+    cache_dir_name = "models--" + repo.replace("/", "--")
+    model_cache = hf_cache / cache_dir_name
+    if model_cache.exists():
+        candidates = [f for f in model_cache.rglob("*.gguf") if quant_re.search(f.name)]
+        if candidates:
+            candidates.sort(key=lambda p: p.name)
+            return candidates[0]
+
+    return None
+
+
+def is_llamacpp_cached(model_cfg: dict) -> bool:
+    """Check if a llama.cpp model is already downloaded."""
+    return resolve_llamacpp_gguf(model_cfg) is not None
 
 
 def is_mlx_cached(model_cfg: dict) -> bool:
@@ -261,26 +318,53 @@ def _chat_completion(port: int, system: str, user: str, max_tokens: int,
     return json.loads(resp.read())
 
 
-def start_llamacpp_server(model_cfg: dict) -> Optional[subprocess.Popen]:
-    """Start llama-server and wait until ready. Returns the process or None on failure."""
-    hf_spec = f"{model_cfg['llamacpp_hf']}:{model_cfg['llamacpp_quant']}"
+def start_llamacpp_server(model_cfg: dict, ctx_size_override: Optional[int] = None) -> Optional[subprocess.Popen]:
+    """Start llama-server and wait until ready. Returns the process or None on failure.
+
+    Server output is tee'd to /tmp/testbench-llamacpp.log so we can inspect
+    request-level errors (e.g. 400s from malformed bodies) after the fact.
+
+    Respects model config keys:
+      - ctx_size: context window size (default: server default)
+    ctx_size_override takes precedence over model config if provided.
+    """
+    gguf_path = resolve_llamacpp_gguf(model_cfg)
+    if gguf_path is None:
+        print(f"    GGUF not found locally for {model_cfg['name']}. Run with --download first.", flush=True)
+        return None
     server_cmd = [
         str(LLAMA_SERVER),
-        "-hf", hf_spec,
+        "-m", str(gguf_path),
         "--host", "127.0.0.1",
         "--port", str(LLAMACPP_PORT),
-        "--log-disable",
+        "--verbose",
+        "--cache-type-k", "q8_0",
+        "--cache-type-v", "q8_0",
+        # Keep reasoning tokens inline in message.content so a run that hits
+        # max_tokens still has a visible output. Scoring's _strip_thinking_tags
+        # removes <think> blocks before grading.
+        "--reasoning-format", "none",
     ]
+    ctx_size = ctx_size_override if ctx_size_override is not None else model_cfg.get("ctx_size")
+    if ctx_size is not None:
+        server_cmd.extend(["-c", str(ctx_size)])
 
-    print(f"    Starting llama-server for {model_cfg['name']}...", flush=True)
-    proc = subprocess.Popen(server_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    log_path = Path("/tmp/testbench-llamacpp.log")
+    print(f"    Starting llama-server for {model_cfg['name']}... (logs: {log_path})", flush=True)
+    log_fh = open(log_path, "w")
+    proc = subprocess.Popen(server_cmd, stdout=log_fh, stderr=subprocess.STDOUT)
+    proc._log_fh = log_fh  # keep handle alive; closed by stop_llamacpp_server
 
     if _wait_for_server(LLAMACPP_PORT):
         print(f"    Server ready.", flush=True)
         return proc
     else:
-        stderr = proc.stderr.read().decode() if proc.stderr else ""
-        print(f"    Server failed to start: {stderr[-200:]}", flush=True)
+        try:
+            with open(log_path) as f:
+                tail = f.read()[-400:]
+        except OSError:
+            tail = ""
+        print(f"    Server failed to start. Tail of {log_path}:\n{tail}", flush=True)
         proc.kill()
         proc.wait()
         return None
@@ -295,6 +379,12 @@ def stop_llamacpp_server(proc: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait()
+    log_fh = getattr(proc, "_log_fh", None)
+    if log_fh is not None:
+        try:
+            log_fh.close()
+        except Exception:
+            pass
 
 
 def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
@@ -303,6 +393,7 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
     result = BenchmarkResult(
         model=model_cfg["name"],
         runtime="llamacpp",
+        quant=get_quant_label(model_cfg, "llamacpp"),
         prompt_name=prompt_cfg["name"],
     )
 
@@ -317,7 +408,16 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
         result.wall_time_sec = time.perf_counter() - start
 
         choice = data["choices"][0]
-        result.output = choice["message"]["content"].strip()
+        message = choice["message"]
+        content = (message.get("content") or "").strip()
+        # Some llama-server builds split reasoning into a separate field;
+        # if content is empty, wrap reasoning_content so scoring's thinking-tag
+        # stripper still works and so we can see what the model produced.
+        if not content:
+            reasoning = (message.get("reasoning_content") or "").strip()
+            if reasoning:
+                content = f"<think>{reasoning}</think>"
+        result.output = content
 
         usage = data.get("usage", {})
         result.prompt_tokens = usage.get("prompt_tokens", 0)
@@ -334,6 +434,49 @@ def run_llamacpp_prompt(model_cfg: dict, prompt_cfg: dict,
         result.wall_time_sec = time.perf_counter() - start
         result.error = str(e)[:200]
 
+    return result
+
+
+def run_game_scenario(
+    model_cfg: dict,
+    scenario: Scenario,
+    admiral_model_string: str,
+    scenario_md_path: str,
+    llm_base_url: str,
+    runtime: str = "llamacpp",
+) -> BenchmarkResult:
+    """Run a SpaceMolt scenario against the already-running LLM server.
+
+    Returns a BenchmarkResult with both the standard fields and the new
+    scenario-specific fields. The score is NOT computed here — call
+    score_result() afterward, which will dispatch to the game scorer.
+    """
+    result = BenchmarkResult(
+        model=model_cfg["name"],
+        runtime=runtime,
+        quant=get_quant_label(model_cfg, runtime),
+        prompt_name=scenario.name,
+    )
+    result.scenario_name = scenario.name
+    result.scenario_hash = compute_scenario_hash(scenario)
+
+    session = run_game_session(
+        scenario=scenario,
+        model_name=model_cfg["name"],
+        admiral_model_string=admiral_model_string,
+        scenario_path=scenario_md_path,
+        llm_base_url=llm_base_url,
+    )
+
+    result.wall_time_sec = session.elapsed_sec
+    result.termination_reason = session.termination_reason
+    result.tool_call_count = session.tool_call_count
+    result.generation_tokens = session.total_tokens
+    result.final_state_summary = session.final_player_stats
+    if session.error:
+        result.error = session.error
+
+    result._game_session = session  # type: ignore[attr-defined]
     return result
 
 
@@ -427,6 +570,55 @@ def start_mlx_subprocess(model_cfg: dict) -> Optional[subprocess.Popen]:
     return None
 
 
+# ── MLX HTTP server (for game scenarios — Admiral needs HTTP) ─────────────
+
+MLX_SERVER_PORT = 18081
+
+
+def start_mlx_server(model_cfg: dict) -> Optional[subprocess.Popen]:
+    """Start `python -m mlx_lm.server` and wait until ready. Returns process or None.
+
+    This is separate from the stdin/stdout MLX subprocess used for prompts.
+    Game scenarios need an HTTP endpoint for Admiral to talk to.
+    """
+    if not model_cfg.get("mlx_model"):
+        print(f"    No MLX model available for {model_cfg['name']}.", flush=True)
+        return None
+
+    print(f"    Starting mlx_lm.server for {model_cfg['name']}...", flush=True)
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "mlx_lm.server",
+            "--model", model_cfg["mlx_model"],
+            "--host", "127.0.0.1",
+            "--port", str(MLX_SERVER_PORT),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+    if _wait_for_server(MLX_SERVER_PORT, timeout=600):
+        print(f"    MLX server ready.", flush=True)
+        return proc
+    else:
+        stderr = proc.stderr.read().decode() if proc.stderr else ""
+        print(f"    MLX server failed to start: {stderr[-300:]}", flush=True)
+        proc.kill()
+        proc.wait()
+        return None
+
+
+def stop_mlx_server(proc: subprocess.Popen) -> None:
+    """Stop a running mlx_lm.server."""
+    print(f"    Stopping MLX server...", flush=True)
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
 def stop_mlx_subprocess(proc: subprocess.Popen) -> None:
     """Send quit command and wait for the MLX child to exit."""
     print(f"    Stopping MLX subprocess...", flush=True)
@@ -445,6 +637,7 @@ def run_mlx_prompt(proc: subprocess.Popen, model_cfg: dict,
     result = BenchmarkResult(
         model=model_cfg["name"],
         runtime="mlx",
+        quant=get_quant_label(model_cfg, "mlx"),
         prompt_name=prompt_cfg["name"],
     )
 
@@ -569,31 +762,148 @@ print("OK")
         return False
 
 
-def download_models(models: list[dict], runtimes: list[str]):
-    """Download all models for the selected runtimes."""
-    total = len(models) * len(runtimes)
-    succeeded = 0
-    failed = 0
+def _fetch_llamacpp_files(model_cfg: dict) -> bool:
+    """Download GGUF file(s) for a llama.cpp model via huggingface_hub.
 
-    print(f"Downloading {len(models)} models for {len(runtimes)} runtime(s)...\n")
+    Uses snapshot_download with allow_patterns to grab the right quant,
+    supporting both single-file and multi-shard GGUFs. Automatically
+    resumes interrupted downloads.
+    """
+    from huggingface_hub import snapshot_download
+    repo = model_cfg["llamacpp_hf"]
+    quant = model_cfg["llamacpp_quant"]
+    print(f"    Downloading {repo} ({quant})...", flush=True)
+    try:
+        from huggingface_hub import list_repo_files
+        from huggingface_hub.errors import HfHubHTTPError
+        # Find GGUF files matching the requested quantization.
+        # Naming varies by uploader:
+        #   bartowski/unsloth: Model-Name-Q6_K.gguf  (dash before quant)
+        #   Qwen official:     model-name-q6_k.gguf  (lowercase)
+        #   TheBloke:          model-name.Q6_K.gguf   (dot before quant)
+        #   Multi-shard:       Model-Q6_K/Model-Q6_K-00001-of-00002.gguf
+        all_files = list_repo_files(repo)
+        # Strict match: quant preceded by - or . , followed by .gguf, /, or -0 (shard)
+        quant_re = re.compile(
+            rf"(?i)[-\.]{re.escape(quant)}(\.gguf|/|-\d)"
+        )
+        matches = [f for f in all_files if f.endswith(".gguf") and quant_re.search(f)]
+        if not matches:
+            print(f"    [fetch fail] No GGUF files matching quant '{quant}' in {repo}")
+            return False
+        snapshot_download(repo_id=repo, allow_patterns=matches)
+        return True
+    except HfHubHTTPError as e:
+        if "429" in str(e):
+            print(f"    [rate limited] {repo} — authenticate with `huggingface-cli login` or set HF_TOKEN")
+        else:
+            print(f"    [fetch fail] {e}")
+        return False
+    except Exception as e:
+        print(f"    [fetch fail] {e}")
+        return False
 
-    for model_cfg in models:
-        print(f"{model_cfg['name']}:")
-        for runtime in runtimes:
-            if runtime == "llamacpp":
-                ok = download_llamacpp_model(model_cfg)
-            elif runtime == "mlx":
-                ok = download_mlx_model(model_cfg)
-            else:
-                continue
-            if ok:
-                succeeded += 1
-            else:
-                failed += 1
+
+def _fetch_mlx_files(model_cfg: dict) -> bool:
+    """Pure file fetch for an MLX repo (no model load). Returns True on success."""
+    from huggingface_hub import snapshot_download
+    model_id = model_cfg.get("mlx_model")
+    if not model_id:
+        return False
+    try:
+        print(f"    Downloading {model_id}...", flush=True)
+        snapshot_download(repo_id=model_id)
+        return True
+    except Exception as e:
+        print(f"    [fetch fail] mlx {model_id}: {e}")
+        return False
+
+
+def download_models(models: list[dict], runtimes: list[str], max_workers: int = 4):
+    """Download models concurrently with up to max_workers parallel downloads."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from huggingface_hub.utils import get_token
+    import threading
+
+    if not get_token():
+        print("WARNING: No HuggingFace token found. Downloads may be rate-limited.")
+        print("  Run `huggingface-cli login` or set HF_TOKEN to authenticate.")
         print()
 
-    print(f"Done: {succeeded}/{total} succeeded", end="")
-    if failed:
-        print(f", {failed} failed")
+    # Inventory: what needs downloading vs what's already cached
+    to_fetch: list[tuple[dict, str]] = []
+    cached: list[tuple[str, str]] = []
+    skipped: list[tuple[str, str]] = []
+
+    for model_cfg in models:
+        for runtime in runtimes:
+            if runtime == "llamacpp":
+                if not model_cfg.get("llamacpp_active", True):
+                    skipped.append((model_cfg["name"], runtime))
+                elif is_llamacpp_cached(model_cfg):
+                    cached.append((model_cfg["name"], runtime))
+                else:
+                    to_fetch.append((model_cfg, runtime))
+            elif runtime == "mlx":
+                if not model_cfg.get("mlx_model") or not model_cfg.get("mlx_active", True):
+                    skipped.append((model_cfg["name"], runtime))
+                elif is_mlx_cached(model_cfg):
+                    cached.append((model_cfg["name"], runtime))
+                else:
+                    to_fetch.append((model_cfg, runtime))
+
+    print(f"Download plan: {len(to_fetch)} to fetch, {len(cached)} cached, {len(skipped)} skipped (inactive or no model)")
+    print()
+
+    if skipped:
+        for name, rt in skipped:
+            print(f"  [skipped] {name} / {rt}")
+        print()
+
+    if cached:
+        print(f"Already cached ({len(cached)}):")
+        for name, rt in cached:
+            print(f"  [cached] {name} / {rt}")
+        print()
+
+    if not to_fetch:
+        print("Nothing to download.")
+        return
+
+    print(f"Downloading ({len(to_fetch)}) with {max_workers} parallel workers:")
+    print()
+
+    print_lock = threading.Lock()
+    completed_count = 0
+
+    def _do_fetch(item: tuple[dict, str]) -> tuple[str, str, bool]:
+        nonlocal completed_count
+        model_cfg, runtime = item
+        name = model_cfg["name"]
+        with print_lock:
+            print(f"  [started] {name} / {runtime}", flush=True)
+        fn = _fetch_llamacpp_files if runtime == "llamacpp" else _fetch_mlx_files
+        ok = fn(model_cfg)
+        with print_lock:
+            completed_count += 1
+            status = "OK" if ok else "FAILED"
+            print(f"  [{completed_count}/{len(to_fetch)}] {name} / {runtime} — {status}", flush=True)
+        return (name, runtime, ok)
+
+    fetch_failed: set[tuple[str, str]] = set()
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_do_fetch, item): item for item in to_fetch}
+        for future in as_completed(futures):
+            name, runtime, ok = future.result()
+            if not ok:
+                fetch_failed.add((name, runtime))
+
+    print()
+    succeeded = len(to_fetch) - len(fetch_failed)
+    print(f"Downloads: {succeeded}/{len(to_fetch)} succeeded", end="")
+    if fetch_failed:
+        print(f", {len(fetch_failed)} failed:")
+        for name, rt in sorted(fetch_failed):
+            print(f"  {name} / {rt}")
     else:
         print()
