@@ -1,0 +1,11 @@
+name: logic_sheep_cot
+category: logic
+tier: 2
+system: cot
+prompt: 'A farmer has 17 sheep. All but 9 die. How many sheep are left? Think carefully about the wording, then write ANSWER: followed by the number.'
+scorer: exact_match
+expected: '9'
+extract: ANSWER:\s*(\d+)
+tags:
+  - TODO
+  - logical-deduction

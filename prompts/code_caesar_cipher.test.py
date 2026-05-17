@@ -1,0 +1,6 @@
+assert caesar_cipher("abc", 1) == "bcd"
+assert caesar_cipher("xyz", 3) == "abc"
+assert caesar_cipher("Hello, World!", 13) == "Uryyb, Jbeyq!"
+assert caesar_cipher("Uryyb, Jbeyq!", -13) == "Hello, World!"
+assert caesar_cipher("ABC", 26) == "ABC"
+assert caesar_cipher("abc", 0) == "abc"

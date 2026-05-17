@@ -1,0 +1,16 @@
+name: effect_fiber_fork
+category: effect-ts
+tier: 3
+system: direct
+prompt: In Effect-TS, what function do you use to fork an Effect as a background fiber? And what function waits for a fiber to complete? Reply with both function names, one per line.
+scorer: constraint
+constraints:
+- name: mentions Effect.fork
+  check: contains_exact
+  value: Effect.fork
+- name: mentions Fiber.join
+  check: contains_exact
+  value: Fiber.join
+tags:
+  - TODO
+  - code-synthesis

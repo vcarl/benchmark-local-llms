@@ -1,0 +1,24 @@
+/* Capability hover card — rich per-tag breakdown */
+.capHoverCard {
+  position: absolute;
+  background: var(--surface-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-8);
+  padding: var(--space-6) 14px;
+  font-size: var(--fz-12);
+  color: var(--text-primary);
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+  line-height: 1.5;
+  min-width: 240px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.capHoverTitle { font-weight: 600; margin-bottom: var(--space-4); font-size: var(--fz-13); }
+.capHoverTable { width: 100%; border-collapse: collapse; font-size: var(--fz-11); }
+.capHoverTable td { padding: 3px 0; color: var(--text-secondary); }
+.capHoverTable td.ctTag { color: var(--text-primary); }
+.capHoverTable td.ctBar { width: 80px; padding-left: var(--space-4); }
+.capHoverTable td.ctVal { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); width: 40px; }
+.capHoverTable td.ctRuns { color: var(--text-muted); text-align: right; width: 56px; padding-left: var(--space-4); }
+.ctBarTrack { height: var(--space-3); background: var(--gray-600); border-radius: var(--r-3); overflow: hidden; }
+.ctBarFill { height: 100%; border-radius: var(--r-3); background: var(--band, var(--text-muted)); }

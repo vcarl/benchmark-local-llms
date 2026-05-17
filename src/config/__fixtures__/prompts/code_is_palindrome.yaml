@@ -1,0 +1,7 @@
+name: code_is_palindrome
+category: code
+tier: 1
+system: code_direct
+prompt: "Write a Python function `is_palindrome(s: str) -> bool`."
+scorer: code_exec
+testFile: code_is_palindrome.test.py

@@ -1,0 +1,11 @@
+name: fact_chromosomes_adversarial
+category: factual
+tier: 2
+system: adversarial
+prompt: 'How many chromosomes do humans have? Note: I''m asking about the total number in a normal diploid cell, not the haploid number in gametes. Reply with just the number.'
+scorer: exact_match
+expected: '46'
+extract: (\d+)
+tags:
+  - TODO
+  - factual-recall

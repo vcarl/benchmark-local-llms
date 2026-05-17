@@ -1,0 +1,11 @@
+name: logic_bat_ball_direct
+category: logic
+tier: 1
+system: direct
+prompt: A bat and a ball cost $1.10 together. The bat costs $1.00 more than the ball. How much does the ball cost in cents? Reply with just the number.
+scorer: exact_match
+expected: '5'
+extract: (\d+)
+tags:
+  - TODO
+  - logical-deduction

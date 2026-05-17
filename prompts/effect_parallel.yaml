@@ -1,0 +1,13 @@
+name: effect_parallel
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, what function runs multiple Effects in parallel and returns all results as a tuple? Reply with just the function name like `Effect.xxx`.
+scorer: constraint
+constraints:
+- name: says Effect.all
+  check: contains_exact
+  value: Effect.all
+tags:
+  - TODO
+  - code-synthesis

@@ -1,0 +1,16 @@
+# System prompts keyed by style. Referenced by prompt YAML files via the
+# `system:` field and resolved to full text at load time.
+#
+# Source of truth: was `SYSTEM_PROMPTS` dict in common.py (Python prototype).
+# Keep keys in sync with prompt files until common.py is retired in F5.
+
+direct: "You are a helpful assistant. Be concise. Answer with just the answer unless told otherwise."
+cot: "You are a helpful assistant. Think step by step to solve problems. Write your final answer on its own line at the end, prefixed with 'ANSWER:'."
+structured: "You are a helpful assistant. Always respond in the exact format requested. No extra text."
+few_shot: "You are a helpful assistant. Follow the pattern shown in the examples."
+noisy: "You are a helpful assistant. Focus on the core question and ignore irrelevant details. Be concise."
+adversarial: "You are a helpful assistant. Read carefully — some questions are tricky. Be concise. Answer with just the answer."
+code_direct: "You are a Python code generator. Output ONLY the requested function. No explanations, no examples, no tests, no markdown, no commentary. Start directly with 'def '."
+code_tdd: "You are a Python developer practicing TDD. Given the test cases below, write the function that makes all tests pass. Output ONLY the function, no tests, no markdown, no commentary."
+code_bugfix: "You are a code reviewer. Fix the bug in the function below. Output ONLY the corrected function, no explanations, no markdown."
+code_docstring: "You are a Python code generator. Complete the function body based on the docstring. Output ONLY the complete function including the def line and docstring. No markdown, no commentary."

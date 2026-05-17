@@ -1,0 +1,11 @@
+.eventLog { font-family: monospace; font-size: var(--fz-11); }
+.eventFilters { display: flex; gap: var(--space-4); flex-wrap: wrap; padding: var(--space-3) 0; font-size: var(--fz-11); color: var(--text-secondary); }
+.eventFilters label { display: inline-flex; align-items: center; gap: var(--space-2); }
+.eventCount { margin-left: auto; color: var(--text-faint); font-family: sans-serif; }
+.eventRows { max-height: 500px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--r-3); background: var(--surface); }
+.eventRow { display: grid; grid-template-columns: 50px 90px 1fr; padding: 3px var(--space-3); cursor: pointer; border-bottom: 1px solid var(--gray-850); }
+.eventRow:hover { background: var(--surface-2); }
+.eventTick { color: var(--accent-300); }
+.eventType { color: var(--text-muted); }
+.eventToolError .eventType, .eventError .eventType { color: var(--band-orange); }
+.eventData { grid-column: 1 / -1; margin-top: var(--space-2); background: var(--gray-960); padding: var(--space-3); color: var(--text-secondary); white-space: pre-wrap; }

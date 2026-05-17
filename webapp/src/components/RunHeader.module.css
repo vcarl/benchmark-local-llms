@@ -1,0 +1,6 @@
+.runHeader { padding: var(--space-8); border-bottom: 1px solid var(--border-default); }
+.runHeader h1 { margin: var(--space-2) 0 0; font-size: var(--fz-18); }
+.runBack { color: var(--accent-300); text-decoration: none; font-size: var(--fz-12); }
+.runMeta { margin-top: var(--space-3); font-size: var(--fz-12); color: var(--text-secondary); }
+.runMetaSmall { font-size: var(--fz-11); color: var(--text-faint); margin-top: var(--space-1); }
+.runScore { margin-left: var(--space-6); padding: var(--space-1) var(--space-4); border-radius: var(--r-3); color: var(--band, var(--text-primary)); font-weight: bold; }

@@ -1,0 +1,49 @@
+/* Layer order is declared in tokens.css (loaded first):
+   @layer reset, tokens, base, components, utilities;
+   Per-component .module.css files are unlayered and so beat all layered
+   rules — scoped component styles win over globals. */
+
+@layer reset {
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+}
+
+@layer base {
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  :focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Color-band system — sets a single --band custom property keyed off
+     [data-band]. Components bind whichever channel they need (color,
+     background, border, etc.). */
+  [data-band="green"]        { --band: var(--band-green); }
+  [data-band="yellow-green"] { --band: var(--band-yellow-green); }
+  [data-band="yellow"]       { --band: var(--band-yellow); }
+  [data-band="orange"]       { --band: var(--band-orange); }
+  [data-band="red"]          { --band: var(--band-red); }
+
+  /* The "absent" stripe is special — not a single color but a pattern.
+     --band stays transparent; --band-pattern carries the diagonal stripes. */
+  [data-band="absent"] {
+    --band: transparent;
+    --band-pattern: repeating-linear-gradient(45deg, var(--gray-600) 0 2px, transparent 2px 4px);
+  }
+}

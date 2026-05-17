@@ -1,0 +1,11 @@
+name: ghost
+fixture: none
+scorer: noop
+scorerParams: {}
+players: []
+cutoffs:
+  wallClockSec: 1
+  totalTokens: 1
+  toolCalls: 1
+tier: 1
+scenarioMd: does_not_exist.md

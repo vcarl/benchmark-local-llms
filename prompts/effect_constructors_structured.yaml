@@ -1,0 +1,31 @@
+name: effect_constructors_structured
+category: effect-ts
+tier: 2
+system: structured
+prompt: |-
+  In Effect-TS, match each use case to the correct constructor:
+  1. Wrap a pure value: Effect.???
+  2. Create a failed Effect: Effect.???
+  3. Wrap a side-effectful sync function: Effect.???
+  4. Do nothing (unit): Effect.???
+
+  Reply as JSON: {"pure": "xxx", "fail": "xxx", "sync": "xxx", "unit": "xxx"}
+scorer: constraint
+constraints:
+- name: valid JSON
+  check: valid_json
+- name: pure = succeed
+  check: contains
+  value: succeed
+- name: fail = fail
+  check: regex
+  pattern: '"fail"\s*:\s*"fail"'
+- name: sync = sync
+  check: regex
+  pattern: '"sync"\s*:\s*"sync"'
+- name: unit = void or unit
+  check: regex
+  pattern: '"unit"\s*:\s*"(void|unit)"'
+tags:
+  - TODO
+  - code-synthesis

@@ -1,2 +1,18 @@
-npm run lint:fix
-git add -u
+#!/usr/bin/env sh
+# Format only the files staged for this commit. `git add -u` sweeps in
+# unrelated working-tree changes — never do that; it makes commits include
+# things the author didn't ask for.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^src/.*\.(ts|tsx|js|jsx|json)$' || true)
+
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+# shellcheck disable=SC2086
+npx biome check --write $staged
+
+# Re-stage only the files we started with. Unstaged edits to other files
+# stay unstaged.
+# shellcheck disable=SC2086
+git add -- $staged

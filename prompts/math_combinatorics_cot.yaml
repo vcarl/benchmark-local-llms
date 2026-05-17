@@ -1,0 +1,11 @@
+name: math_combinatorics_cot
+category: math
+tier: 3
+system: cot
+prompt: 'How many ways can you choose 3 items from a set of 7? Think step by step, then write ANSWER: followed by just the number.'
+scorer: exact_match
+expected: '35'
+extract: ANSWER:\s*(\d+)
+tags:
+  - TODO
+  - math-reasoning

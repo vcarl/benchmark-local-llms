@@ -1,0 +1,11 @@
+name: fact_treaty_direct
+category: factual
+tier: 1
+system: direct
+prompt: In what year was the Treaty of Westphalia signed? Reply with just the year.
+scorer: exact_match
+expected: '1648'
+extract: (\d{4})
+tags:
+  - TODO
+  - factual-recall

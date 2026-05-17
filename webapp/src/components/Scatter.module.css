@@ -1,0 +1,34 @@
+/* Scatter chart */
+.scatterWrap {
+  position: relative;
+  background: var(--gray-950);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-8);
+  padding: var(--space-8);
+  margin: var(--space-8);
+}
+.scatterSvg { display: block; width: 100%; height: auto; }
+.scatterAxis { stroke: var(--border-strong); stroke-width: 1; }
+.scatterGrid { stroke: var(--gray-820); stroke-width: 1; }
+.scatterTick { fill: var(--text-muted); font-size: var(--fz-11); }
+.scatterAxisTitle { fill: var(--text-secondary); font-size: var(--fz-12); font-weight: 500; }
+.scatterTrajectory { fill: none; stroke-dasharray: 3 3; stroke-width: 1.2; transition: opacity 0.1s; }
+.scatterDot { stroke: var(--surface); stroke-width: 1.2; cursor: pointer; transition: fill-opacity 0.1s, stroke-width 0.1s; }
+.scatterDot:hover { stroke: var(--gray-50); stroke-width: 2.2; }
+.scatterTip {
+  position: absolute;
+  background: var(--surface-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-6);
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--fz-12);
+  color: var(--text-primary);
+  pointer-events: none;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: var(--z-overlay);
+}
+.scatterTipTitle { font-weight: 600; margin-bottom: var(--space-2); }
+.scatterTipMeta { color: var(--text-secondary); font-size: var(--fz-11); margin-bottom: var(--space-2); }
+.scatterEmpty { text-align: center; padding: 40px var(--space-10); color: var(--text-faint); }

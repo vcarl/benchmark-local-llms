@@ -1,0 +1,8 @@
+name: bad_prompt
+category: math
+tier: 1
+system: nonexistent_key
+prompt: "hi"
+scorer: exact_match
+expected: "yes"
+extract: '(yes|no)'

@@ -1,0 +1,2 @@
+- artifact: mlx-community/Qwen3-32B-4bit
+  runtime: not_a_real_runtime

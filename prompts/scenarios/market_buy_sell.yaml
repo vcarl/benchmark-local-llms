@@ -1,15 +1,18 @@
 name: market_buy_sell
 fixture: benchmark
-scenario_md: bench-market-buy-sell.md
+scenarioMd: market_buy_sell.md
 players:
   - id: bench_trader
-    controlled_by: llm
+    controlledBy: llm
 scorer: market_buy_sell
-scorer_params: {}
+scorerParams: {}
 tier: 1
 cutoffs:
-  wall_clock_sec: 300
-  total_tokens: 100000
-  tool_calls: 150
-commander:
-  max_turns: 120
+  wallClockSec: 300
+  totalTokens: 100000
+  toolCalls: 150
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - resource-management

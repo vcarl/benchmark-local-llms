@@ -1,0 +1,23 @@
+.modelPanel { background: var(--surface-2); border-left: 1px solid var(--border-default); overflow-y: auto; color: var(--text-primary); height: 100%; }
+.modelPanelHeader { padding: var(--space-8); border-bottom: 1px solid var(--border-subtle); position: relative; }
+.modelPanelHeader h2 { margin: 0; font-size: var(--fz-16); }
+.panelSubtitle { color: var(--text-muted); font-size: var(--fz-11); margin-top: var(--space-2); }
+.panelMetrics { margin-top: var(--space-4); display: flex; gap: var(--space-6); font-size: var(--fz-12); }
+/* In this context, red uses the lighter shade for legibility against the panel background. */
+.panelMetrics [data-band="red"] { --band: var(--band-red-light); }
+.panelMetrics [data-band] { color: var(--band); background: transparent; }
+.panelSection { padding: var(--space-8); border-bottom: 1px solid var(--border-subtle); }
+.panelSection h3 { margin: 0 0 var(--space-4); font-size: var(--fz-11); text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+.panelProfileRow { display: grid; grid-template-columns: 130px 1fr 40px; gap: var(--space-4); align-items: center; font-size: var(--fz-11); padding: var(--space-1) 0; }
+.panelProfileName { color: var(--text-secondary); }
+.panelProfileBar { height: 8px; background: var(--surface-4); border-radius: var(--r-2); overflow: hidden; }
+.panelProfileBarFill { background: var(--band, var(--text-muted)); }
+.panelProfileValue { text-align: right; color: var(--text-muted); }
+.panelTabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); }
+.panelTabs button { background: var(--surface-4); color: var(--text-secondary); border: 1px solid var(--border-default); padding: 3px var(--space-5); border-radius: var(--r-3); font-size: var(--fz-11); cursor: pointer; }
+.panelTabs button.tabActive { background: var(--border-default); color: var(--gray-50); }
+.panelRuns { display: flex; flex-direction: column; }
+.panelRun { display: grid; grid-template-columns: 1fr 40px 50px; align-items: center; gap: var(--space-4); background: transparent; border: none; color: var(--text-primary); padding: var(--space-3) var(--space-4); font-size: var(--fz-11); text-align: left; cursor: pointer; border-radius: var(--r-3); }
+.panelRun:hover { background: var(--surface-hover); }
+.panelRunTier { color: var(--text-faint); }
+.panelRunScore { text-align: right; font-weight: bold; padding: 1px var(--space-3); border-radius: var(--r-3); color: var(--surface); background: var(--band, var(--surface-4)); }

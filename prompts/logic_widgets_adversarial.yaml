@@ -1,0 +1,11 @@
+name: logic_widgets_adversarial
+category: logic
+tier: 2
+system: adversarial
+prompt: 'Here''s a tricky one. If it takes 5 machines 5 minutes to make 5 widgets, how many minutes would it take 100 machines to make 100 widgets? Hint: the answer is NOT 100. Reply with just the number.'
+scorer: exact_match
+expected: '5'
+extract: (\d+)
+tags:
+  - TODO
+  - logical-deduction

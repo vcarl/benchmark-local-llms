@@ -1,0 +1,19 @@
+name: effect_schema
+category: effect-ts
+tier: 3
+system: direct
+prompt: The `effect` package exports a `Schema` module (formerly `@effect/schema`). What is its purpose? Name 2 things you can do with it. Reply in 2-3 sentences.
+scorer: constraint
+constraints:
+- name: mentions validation or parsing
+  check: regex
+  pattern: (?i)(validat|pars|decod|encod)
+- name: mentions schema/type definition
+  check: regex
+  pattern: (?i)(schema|type|defin|struct|descri)
+- name: is substantive
+  check: min_length
+  length: 40
+tags:
+  - TODO
+  - code-synthesis

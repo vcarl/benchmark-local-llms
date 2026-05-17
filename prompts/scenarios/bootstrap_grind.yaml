@@ -1,13 +1,18 @@
 name: bootstrap_grind
 fixture: benchmark
+scenarioMd: bootstrap_grind.md
 players:
   - id: bench_rookie
-    controlled_by: llm
+    controlledBy: llm
 scorer: bootstrap_grind
-scorer_params: {}
+scorerParams: {}
 cutoffs:
-  wall_clock_sec: 900       # 15 min hard ceiling
-  total_tokens: 200000      # ~200k token budget
-  tool_calls: 300           # ~10x typical run
-commander:
-  max_turns: 250            # commander's own guard rail (looser)
+  wallClockSec: 900       # 15 min hard ceiling
+  totalTokens: 200000      # ~200k token budget
+  toolCalls: 300           # ~10x typical run
+tier: 1
+tags:
+  - TODO
+  - tool-use
+  - long-term-planning
+  - resource-management

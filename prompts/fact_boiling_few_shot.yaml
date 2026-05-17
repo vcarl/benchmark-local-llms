@@ -1,0 +1,19 @@
+name: fact_boiling_few_shot
+category: factual
+tier: 2
+system: few_shot
+prompt: |-
+  Q: What is the freezing point of water in Fahrenheit?
+  A: 32
+
+  Q: What is the boiling point of water in Celsius?
+  A: 100
+
+  Q: What is the boiling point of water in Fahrenheit?
+  A:
+scorer: exact_match
+expected: '212'
+extract: (\d+)
+tags:
+  - TODO
+  - factual-recall

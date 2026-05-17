@@ -1,0 +1,8 @@
+name: duped
+category: math
+tier: 1
+system: direct
+prompt: "b"
+scorer: exact_match
+expected: "2"
+extract: '(\d)'

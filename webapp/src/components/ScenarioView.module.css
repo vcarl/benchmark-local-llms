@@ -1,0 +1,12 @@
+.scenarioView { }
+.section { padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--border-subtle); }
+.section h3 { font-size: var(--fz-11); text-transform: uppercase; color: var(--text-muted); margin: 0 0 var(--space-3); }
+.runText { background: var(--surface); border: 1px solid var(--border-subtle); padding: var(--space-4); border-radius: var(--r-3); font-size: var(--fz-12); white-space: pre-wrap; word-break: break-word; color: var(--text-primary); margin: 0; max-height: 600px; overflow-y: auto; }
+
+.scenarioStats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.scenarioStat { background: var(--surface-3); padding: var(--space-4) var(--space-5); border-radius: var(--r-4); border: 1px solid var(--border-subtle); }
+.scenarioStatLabel { font-size: var(--fz-9); text-transform: uppercase; color: var(--text-faint); }
+.scenarioStatValue { font-size: var(--fz-14); font-weight: bold; color: var(--band, var(--text-primary)); }
+
+.timeline { position: relative; height: 14px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--r-3); }
+.timelineTick { position: absolute; top: 3px; width: 2px; height: 8px; }

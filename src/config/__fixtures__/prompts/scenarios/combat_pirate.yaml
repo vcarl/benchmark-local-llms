@@ -1,0 +1,13 @@
+name: combat_pirate
+fixture: open_seas
+scorer: survival_score
+scorerParams: {}
+players:
+  - id: captain
+    controlledBy: llm
+cutoffs:
+  wallClockSec: 300
+  totalTokens: 20000
+  toolCalls: 50
+tier: 3
+scenarioMd: combat_pirate.md

@@ -1,0 +1,110 @@
+/* Cascade layer order — set once at first load.
+   Lower layers in this list lose to higher ones; later wins. Per-component
+   `.module.css` files are unlayered (and so beat all layered rules), which is
+   exactly what we want: scoped component styles override global utilities. */
+@layer reset, tokens, base, components, utilities;
+
+@layer tokens {
+  :root {
+    /* Primitive grayscale — name by darkness, low to high */
+    --gray-1000: #0a0a0a;  /* near-black surface */
+    --gray-975:  #070707;
+    --gray-960:  #050505;
+    --gray-955:  #0d0d0d;
+    --gray-950:  #111;
+    --gray-900:  #151515;
+    --gray-890:  #161616;
+    --gray-850:  #1a1a1a;
+    --gray-820:  #1f1f1f;
+    --gray-800:  #222;
+    --gray-700:  #2a2a2a;
+    --gray-650:  #3a3a3a;
+    --gray-600:  #333;
+    --gray-550:  #444;
+    --gray-500:  #555;
+    --gray-400:  #666;
+    --gray-300:  #888;
+    --gray-200:  #aaa;
+    --gray-150:  #ccc;
+    --gray-100:  #ddd;
+    --gray-50:   #fff;
+
+    /* Accent (only one in dark theme — the link/active blue) */
+    --accent-300: #6bf;
+    --accent-700: #2a4a6b;
+
+    /* Color-band primitives (referenced by [data-band], see utilities layer) */
+    --band-green:        #4ade80;
+    --band-yellow-green: #a3e635;
+    --band-yellow:       #facc15;
+    --band-orange:       #fb923c;
+    --band-red:          #ef4444;
+    --band-red-light:    #f87171;  /* used in panel-metrics override */
+
+    /* Warning / annotation (only one current use — the broken-tokens dashed underline) */
+    --warn-orange: #d97706;
+
+    /* Semantic surface tokens — these map primitives to roles */
+    --surface:        var(--gray-1000);
+    --surface-raised: var(--gray-950);
+    --surface-2:      var(--gray-900);
+    --surface-3:      var(--gray-850);
+    --surface-4:      var(--gray-800);
+    --surface-hover:  var(--gray-850);
+    --surface-input:  var(--gray-850);
+
+    --border-subtle:    var(--gray-800);
+    --border-default:   var(--gray-600);
+    --border-strong:    var(--gray-500);
+
+    --text-primary:   var(--gray-100);
+    --text-secondary: var(--gray-200);
+    --text-muted:     var(--gray-300);
+    --text-faint:     var(--gray-400);
+
+    /* Spacing scale (4px grid) */
+    --space-0: 0;
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 10px;
+    --space-6: 12px;
+    --space-8: 16px;
+    --space-10: 20px;
+    --space-12: 24px;
+    --space-16: 32px;
+
+    /* Type scale */
+    --fz-9:  9px;
+    --fz-10: 10px;
+    --fz-11: 11px;
+    --fz-12: 12px;
+    --fz-13: 13px;
+    --fz-14: 14px;
+    --fz-15: 15px;
+    --fz-16: 16px;
+    --fz-18: 18px;
+    --fz-20: 20px;
+
+    /* Radii */
+    --r-2: 2px;
+    --r-3: 3px;
+    --r-4: 4px;
+    --r-6: 6px;
+    --r-8: 8px;
+    --r-10: 10px;
+
+    /* Z-index scale */
+    --z-raised: 2;
+    --z-overlay: 10;
+    --z-tooltip: 40;
+    --z-modal: 51;
+
+    /* Focus ring */
+    --focus-ring: 2px solid var(--accent-300);
+    --focus-ring-offset: 2px;
+  }
+
+  html { color-scheme: dark; }
+}

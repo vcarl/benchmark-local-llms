@@ -1,0 +1,11 @@
+name: math_primes_sum_adversarial
+category: math
+tier: 2
+system: adversarial
+prompt: What is the sum of all prime numbers less than 20? Remember, 1 is not a prime number and 2 is the only even prime. Also note that 20 itself should not be included. Reply with just the number.
+scorer: exact_match
+expected: '77'
+extract: (\d+)
+tags:
+  - TODO
+  - math-reasoning

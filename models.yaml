@@ -1,0 +1,440 @@
+# Model configuration for the Effect-TS benchmark runner.
+#
+# Each entry represents a single artifact served by a single runtime.
+# `name`, `quant`, and `params` can typically be derived from the `artifact`
+# string; overrides below preserve the exact display names from the Python
+# prototype where derivation would differ.
+#
+# Migrated from common.py MODELS. Entries marked `active: false` correspond to
+# `llamacpp_active: False` / `mlx_active: False` in the prototype.
+
+# ── Qwen 2.5 7B Instruct ──────────────────────────────────────────────────
+- artifact: Qwen/Qwen2.5-7B-Instruct-GGUF
+  runtime: llamacpp
+  name: Qwen 2.5 7B Instruct
+  quant: Q8_0
+  params: 7B
+
+- artifact: mlx-community/Qwen2.5-7B-Instruct-4bit
+  runtime: mlx
+  name: Qwen 2.5 7B Instruct
+  quant: 4bit
+  params: 7B
+
+# ── Qwen 2.5 32B Instruct ─────────────────────────────────────────────────
+- artifact: Qwen/Qwen2.5-32B-Instruct-GGUF
+  runtime: llamacpp
+  name: Qwen 2.5 32B Instruct
+  quant: Q6_K
+  params: 32B
+  active: false
+
+- artifact: mlx-community/Qwen2.5-32B-Instruct-4bit
+  runtime: mlx
+  name: Qwen 2.5 32B Instruct
+  quant: 4bit
+  params: 32B
+
+# ── Qwen 2.5 72B Instruct ─────────────────────────────────────────────────
+- artifact: Qwen/Qwen2.5-72B-Instruct-GGUF
+  runtime: llamacpp
+  name: Qwen 2.5 72B Instruct
+  quant: Q5_K_M
+  params: 72B
+  active: false
+
+- artifact: mlx-community/Qwen2.5-72B-Instruct-4bit
+  runtime: mlx
+  name: Qwen 2.5 72B Instruct
+  quant: 4bit
+  params: 72B
+  active: false
+
+# ── Qwen 2.5 Coder 32B Instruct ───────────────────────────────────────────
+- artifact: Qwen/Qwen2.5-Coder-32B-Instruct-GGUF
+  runtime: llamacpp
+  name: Qwen 2.5 Coder 32B Instruct
+  quant: Q6_K
+  params: 32B
+  active: false
+
+- artifact: mlx-community/Qwen2.5-Coder-32B-Instruct-4bit
+  runtime: mlx
+  name: Qwen 2.5 Coder 32B Instruct
+  quant: 4bit
+  params: 32B
+
+# ── QwQ 32B ───────────────────────────────────────────────────────────────
+- artifact: Qwen/QwQ-32B-GGUF
+  runtime: llamacpp
+  name: QwQ 32B
+  quant: Q6_K
+  params: 32B
+
+- artifact: mlx-community/QwQ-32B-4bit
+  runtime: mlx
+  name: QwQ 32B
+  quant: 4bit
+  params: 32B
+
+# ── Qwen 3 32B ────────────────────────────────────────────────────────────
+- artifact: Qwen/Qwen3-32B-GGUF
+  runtime: llamacpp
+  name: Qwen 3 32B
+  quant: Q6_K
+  params: 32B
+
+- artifact: mlx-community/Qwen3-32B-4bit
+  runtime: mlx
+  name: Qwen 3 32B
+  quant: 4bit
+  params: 32B
+
+# ── Qwen 3.5 9B ───────────────────────────────────────────────────────────
+- artifact: unsloth/Qwen3.5-9B-GGUF
+  runtime: llamacpp
+  name: Qwen 3.5 9B
+  quant: Q8_0
+  params: 9B
+
+- artifact: mlx-community/Qwen3.5-9B-4bit
+  runtime: mlx
+  name: Qwen 3.5 9B
+  quant: 4bit
+  params: 9B
+
+# ── Qwen 3.5 27B ──────────────────────────────────────────────────────────
+- artifact: unsloth/Qwen3.5-27B-GGUF
+  runtime: llamacpp
+  name: Qwen 3.5 27B
+  quant: Q6_K
+  params: 27B
+
+- artifact: mlx-community/Qwen3.5-27B-4bit
+  runtime: mlx
+  name: Qwen 3.5 27B
+  quant: 4bit
+  params: 27B
+
+# ── Qwen 3.5 35B-A3B (MoE) ────────────────────────────────────────────────
+- artifact: unsloth/Qwen3.5-35B-A3B-GGUF
+  runtime: llamacpp
+  name: Qwen 3.5 35B-A3B (MoE)
+  quant: Q8_0
+  params: 35B-A3B
+
+- artifact: mlx-community/Qwen3.5-35B-A3B-4bit
+  runtime: mlx
+  name: Qwen 3.5 35B-A3B (MoE)
+  quant: 4bit
+  params: 35B-A3B
+
+# ── Qwen 3 Coder 30B-A3B Instruct (MoE) ───────────────────────────────────
+- artifact: unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF
+  runtime: llamacpp
+  name: Qwen 3 Coder 30B-A3B Instruct (MoE)
+  quant: Q8_0
+  params: 30B-A3B
+
+- artifact: mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit
+  runtime: mlx
+  name: Qwen 3 Coder 30B-A3B Instruct (MoE)
+  quant: 4bit
+  params: 30B-A3B
+
+# ── Qwen 3 Coder Next 80B-A3B (MoE) ───────────────────────────────────────
+- artifact: Qwen/Qwen3-Coder-Next-GGUF
+  runtime: llamacpp
+  name: Qwen 3 Coder Next 80B-A3B (MoE)
+  quant: Q5_K_M
+  params: 80B-A3B
+
+- artifact: mlx-community/Qwen3-Coder-Next-4bit
+  runtime: mlx
+  name: Qwen 3 Coder Next 80B-A3B (MoE)
+  quant: 4bit
+  params: 80B-A3B
+
+# ── Qwen 3.5 122B-A10B (MoE) ──────────────────────────────────────────────
+- artifact: bartowski/Qwen_Qwen3.5-122B-A10B-GGUF
+  runtime: llamacpp
+  name: Qwen 3.5 122B-A10B (MoE)
+  quant: Q5_K_M
+  params: 122B-A10B
+
+- artifact: mlx-community/Qwen3.5-122B-A10B-4bit
+  runtime: mlx
+  name: Qwen 3.5 122B-A10B (MoE)
+  quant: 4bit
+  params: 122B-A10B
+
+# ── Mistral Large 123B ────────────────────────────────────────────────────
+- artifact: bartowski/Mistral-Large-Instruct-2411-GGUF
+  runtime: llamacpp
+  name: Mistral Large 123B
+  quant: Q4_K_M
+  params: 123B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+
+- artifact: zachlandes/Mistral-Large-Instruct-2411-Q4-MLX
+  runtime: mlx
+  name: Mistral Large 123B
+  quant: 4bit
+  params: 123B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+
+# ── Mistral Small 4 119B (MoE) ────────────────────────────────────────────
+# No MLX conversion available yet (released Mar 2026) — llamacpp only.
+- artifact: unsloth/Mistral-Small-4-119B-2603-GGUF
+  runtime: llamacpp
+  name: Mistral Small 4 119B (MoE)
+  quant: UD-Q5_K_M
+  params: 119B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+
+# ── Devstral 2 123B ───────────────────────────────────────────────────────
+- artifact: unsloth/Devstral-2-123B-Instruct-2512-GGUF
+  runtime: llamacpp
+  name: Devstral 2 123B
+  quant: Q4_K_M
+  params: 123B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+
+- artifact: mlx-community/Devstral-2-123B-Instruct-2512-4bit
+  runtime: mlx
+  name: Devstral 2 123B
+  quant: 4bit
+  params: 123B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+
+# ── Mistral Small 3.2 24B ─────────────────────────────────────────────────
+- artifact: bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF
+  runtime: llamacpp
+  name: Mistral Small 3.2 24B
+  quant: Q6_K
+  params: 24B
+
+- artifact: mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit
+  runtime: mlx
+  name: Mistral Small 3.2 24B
+  quant: 4bit
+  params: 24B
+
+# ── Magistral Small 1.2 24B ───────────────────────────────────────────────
+- artifact: mistralai/Magistral-Small-2509-GGUF
+  runtime: llamacpp
+  name: Magistral Small 1.2 24B
+  quant: Q8_0
+  params: 24B
+
+- artifact: lmstudio-community/Magistral-Small-2509-MLX-4bit
+  runtime: mlx
+  name: Magistral Small 1.2 24B
+  quant: 4bit
+  params: 24B
+
+# ── Devstral Small 2 24B ──────────────────────────────────────────────────
+- artifact: unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF
+  runtime: llamacpp
+  name: Devstral Small 2 24B
+  quant: Q6_K
+  params: 24B
+  active: false
+
+- artifact: mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit
+  runtime: mlx
+  name: Devstral Small 2 24B
+  quant: 4bit
+  params: 24B
+
+# ── Llama 3.1 8B Instruct ─────────────────────────────────────────────────
+- artifact: bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
+  runtime: llamacpp
+  name: Llama 3.1 8B Instruct
+  quant: Q8_0
+  params: 8B
+
+- artifact: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit
+  runtime: mlx
+  name: Llama 3.1 8B Instruct
+  quant: 4bit
+  params: 8B
+
+# ── DeepSeek R1 Distill Qwen 7B ───────────────────────────────────────────
+- artifact: bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF
+  runtime: llamacpp
+  name: DeepSeek R1 Distill Qwen 7B
+  quant: Q8_0
+  params: 7B
+
+- artifact: mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit
+  runtime: mlx
+  name: DeepSeek R1 Distill Qwen 7B
+  quant: 4bit
+  params: 7B
+
+# ── DeepSeek R1 Distill Qwen 14B ──────────────────────────────────────────
+- artifact: bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF
+  runtime: llamacpp
+  name: DeepSeek R1 Distill Qwen 14B
+  quant: Q8_0
+  params: 14B
+
+- artifact: mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit
+  runtime: mlx
+  name: DeepSeek R1 Distill Qwen 14B
+  quant: 4bit
+  params: 14B
+
+# ── DeepSeek R1 Distill Qwen 32B ──────────────────────────────────────────
+- artifact: bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF
+  runtime: llamacpp
+  name: DeepSeek R1 Distill Qwen 32B
+  quant: Q6_K
+  params: 32B
+  active: false
+
+- artifact: mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit
+  runtime: mlx
+  name: DeepSeek R1 Distill Qwen 32B
+  quant: 4bit
+  params: 32B
+
+# ── DeepSeek R1-0528 Qwen3 8B ─────────────────────────────────────────────
+- artifact: unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF
+  runtime: llamacpp
+  name: DeepSeek R1-0528 Qwen3 8B
+  quant: Q8_0
+  params: 8B
+
+- artifact: mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit
+  runtime: mlx
+  name: DeepSeek R1-0528 Qwen3 8B
+  quant: 4bit
+  params: 8B
+
+# ── DeepSeek Coder V2 Lite 16B (MoE) ──────────────────────────────────────
+- artifact: bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF
+  runtime: llamacpp
+  name: DeepSeek Coder V2 Lite 16B (MoE)
+  quant: Q8_0
+  params: 16B
+
+- artifact: mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit
+  runtime: mlx
+  name: DeepSeek Coder V2 Lite 16B (MoE)
+  quant: 4bit
+  params: 16B
+
+# ── DeepSeek Coder 33B Instruct ───────────────────────────────────────────
+# Note: the MLX artifact points at the unquantized base repo
+# (deepseek-ai/deepseek-coder-33b-instruct), not an MLX-community quant.
+# Preserved as-is from common.py; quant label matches prototype default (4bit).
+- artifact: TheBloke/deepseek-coder-33B-instruct-GGUF
+  runtime: llamacpp
+  name: DeepSeek Coder 33B Instruct
+  quant: Q6_K
+  params: 33B
+
+- artifact: deepseek-ai/deepseek-coder-33b-instruct
+  runtime: mlx
+  name: DeepSeek Coder 33B Instruct
+  quant: 4bit
+  params: 33B
+
+# ── DeepSeek R1 Distill Llama 70B ─────────────────────────────────────────
+- artifact: bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF
+  runtime: llamacpp
+  name: DeepSeek R1 Distill Llama 70B
+  quant: Q5_K_M
+  params: 70B
+
+- artifact: mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit
+  runtime: mlx
+  name: DeepSeek R1 Distill Llama 70B
+  quant: 4bit
+  params: 70B
+  active: false
+
+# ── GPT-OSS 20B ───────────────────────────────────────────────────────────
+- artifact: unsloth/gpt-oss-20b-GGUF
+  runtime: llamacpp
+  name: GPT-OSS 20B
+  quant: Q8_0
+  params: 20B
+
+- artifact: mlx-community/gpt-oss-20b-MXFP4-Q4
+  runtime: mlx
+  name: GPT-OSS 20B
+  quant: 4bit
+  params: 20B
+
+# ── Gemma 4 E4B Instruct ──────────────────────────────────────────────────
+- artifact: unsloth/gemma-4-E4B-it-GGUF
+  runtime: llamacpp
+  name: Gemma 4 E4B Instruct
+  quant: Q8_0
+  params: E4B
+
+- artifact: mlx-community/gemma-4-e4b-it-4bit
+  runtime: mlx
+  name: Gemma 4 E4B Instruct
+  quant: 4bit
+  params: E4B
+
+# ── Gemma 4 26B-A4B Instruct (MoE) ────────────────────────────────────────
+- artifact: unsloth/gemma-4-26B-A4B-it-GGUF
+  runtime: llamacpp
+  name: Gemma 4 26B-A4B Instruct (MoE)
+  quant: Q8_0
+  params: 26B-A4B
+
+- artifact: mlx-community/gemma-4-26b-a4b-it-4bit
+  runtime: mlx
+  name: Gemma 4 26B-A4B Instruct (MoE)
+  quant: 4bit
+  params: 26B-A4B
+
+# ── Gemma 4 31B Instruct ──────────────────────────────────────────────────
+- artifact: unsloth/gemma-4-31B-it-GGUF
+  runtime: llamacpp
+  name: Gemma 4 31B Instruct
+  quant: Q6_K
+  params: 31B
+
+- artifact: mlx-community/gemma-4-31b-it-4bit
+  runtime: mlx
+  name: Gemma 4 31B Instruct
+  quant: 4bit
+  params: 31B
+
+# ── GLM 4.7 Flash 31B-A3B (MoE) ───────────────────────────────────────────
+- artifact: unsloth/GLM-4.7-Flash-GGUF
+  runtime: llamacpp
+  name: GLM 4.7 Flash 31B-A3B (MoE)
+  quant: Q8_0
+  params: 31B-A3B
+
+- artifact: mlx-community/GLM-4.7-Flash-4bit
+  runtime: mlx
+  name: GLM 4.7 Flash 31B-A3B (MoE)
+  quant: 4bit
+  params: 31B-A3B
+
+# ── Phi-4 14B ─────────────────────────────────────────────────────────────
+- artifact: unsloth/phi-4-GGUF
+  runtime: llamacpp
+  name: Phi-4 14B
+  quant: Q8_0
+  params: 14B
+
+- artifact: mlx-community/phi-4-4bit
+  runtime: mlx
+  name: Phi-4 14B
+  quant: 4bit
+  params: 14B

@@ -1,0 +1,22 @@
+name: code_word_frequency_tdd
+category: code
+tier: 3
+system: code_tdd
+prompt: |-
+  Write the function `word_frequency(text: str) -> dict[str, int]` that makes these tests pass:
+
+  ```python
+  result = word_frequency("the cat sat on the mat")
+  assert result["the"] == 2
+  assert result["cat"] == 1
+  result = word_frequency("Hello, hello, HELLO!")
+  assert result["hello"] == 3
+  assert word_frequency("") == {}
+  ```
+
+  Split on whitespace, strip punctuation from word edges, lowercase everything.
+scorer: code_exec
+testFile: code_word_frequency.test.py
+tags:
+  - TODO
+  - code-synthesis

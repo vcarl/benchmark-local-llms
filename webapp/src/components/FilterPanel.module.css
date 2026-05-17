@@ -1,0 +1,177 @@
+/* Filter panel: lives below the scatter chart in the left lane of ShiftFrame.
+   Compact controls. Sliders for numeric ranges, chips for categorical sets. */
+.panel {
+  padding: var(--space-6) var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--gray-950);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.topStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.topStrip label {
+  font-size: var(--fz-11);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.topStrip select,
+.presetMenu select,
+.presetMenu button {
+  background: var(--surface-4);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-4);
+  font-size: var(--fz-12);
+  cursor: pointer;
+}
+
+.presetMenu {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.chipRow {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chip { position: relative; }
+.chip > button {
+  background: var(--surface-4);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--r-4);
+  cursor: pointer;
+  font-size: var(--fz-12);
+}
+.chipPopover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--border-default);
+  padding: var(--space-4);
+  border-radius: var(--r-4);
+  z-index: var(--z-overlay);
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: var(--space-2);
+}
+.chipPopover label {
+  display: block;
+  font-size: var(--fz-12);
+  padding: var(--space-1) 0;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.chipPopover input { margin-right: var(--space-3); }
+
+.sliderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-6);
+}
+
+.sliderGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sliderLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fz-11);
+  color: var(--text-muted);
+}
+.sliderLabel strong {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: var(--fz-12);
+}
+.sliderValue {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fz-11);
+}
+
+/* Dual-thumb range: two stacked native inputs sharing a track. We absolutely
+   position both <input> elements over a thin track so the thumbs sit on the
+   same line. Sliders ignore pointer events on their track so the lower input
+   can be reached even when the upper input is full-width. */
+.dualRange {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+.dualRange input[type="range"] {
+  position: absolute;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 28px;
+}
+.dualRange input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--surface-4);
+  border-radius: 2px;
+}
+.dualRange input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: var(--surface-4);
+  border-radius: 2px;
+}
+.dualRange input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 1px solid var(--border-default);
+  margin-top: -5px;
+  cursor: pointer;
+}
+.dualRange input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+}
+
+.resetButton {
+  background: transparent;
+  color: var(--text-faint);
+  border: none;
+  padding: 0;
+  font-size: var(--fz-10);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.resetButton:hover { color: var(--text-secondary); }

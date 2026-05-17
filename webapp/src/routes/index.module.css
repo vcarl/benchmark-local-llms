@@ -1,0 +1,11 @@
+/* Page shell: header / frame stacked vertically. Filters now live in the
+   left lane of ShiftFrame, below the scatter chart. */
+.app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  row-gap: var(--space-8);
+  height: 100dvh;
+}
+.appHeader { padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--border-subtle); }
+.appHeader h1 { margin: 0; font-size: var(--fz-16); }
+.appSubtitle { font-size: var(--fz-11); color: var(--text-muted); margin-top: var(--space-1); }

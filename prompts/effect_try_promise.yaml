@@ -1,0 +1,13 @@
+name: effect_try_promise
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, what function do you use to wrap a Promise-based API call into an Effect? Reply with just the function name like `Effect.xxx`.
+scorer: constraint
+constraints:
+- name: says Effect.tryPromise
+  check: contains_exact
+  value: Effect.tryPromise
+tags:
+  - TODO
+  - code-synthesis

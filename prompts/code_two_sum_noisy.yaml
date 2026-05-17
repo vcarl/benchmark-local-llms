@@ -1,0 +1,10 @@
+name: code_two_sum_noisy
+category: code
+tier: 2
+system: code_direct
+prompt: I need a function for a leetcode problem I'm stuck on. Function called two_sum, takes a list of ints and a target int, returns the indices of the two numbers that add up to the target. There's always exactly one answer. Please just give me the function.
+scorer: code_exec
+testFile: code_two_sum.test.py
+tags:
+  - TODO
+  - code-synthesis

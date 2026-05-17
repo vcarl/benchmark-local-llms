@@ -1,0 +1,10 @@
+name: bad_check
+category: constraint
+tier: 1
+system: direct
+prompt: "hi"
+scorer: constraint
+constraints:
+  - name: whatever
+    check: not_a_real_check
+    value: "x"

@@ -1,0 +1,13 @@
+name: effect_service_pattern
+category: effect-ts
+tier: 2
+system: direct
+prompt: In Effect-TS, what class do you extend to create a service tag for dependency injection? Reply with just `Module.ClassName`.
+scorer: constraint
+constraints:
+- name: says Context.Tag
+  check: regex
+  pattern: (?i)Context\.Tag
+tags:
+  - TODO
+  - code-synthesis

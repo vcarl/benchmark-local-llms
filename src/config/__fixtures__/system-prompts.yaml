@@ -1,0 +1,3 @@
+direct: "You are a helpful assistant. Be concise."
+cot: "You are a helpful assistant. Think step by step."
+code_direct: "You are a Python code generator. Output only the function."
