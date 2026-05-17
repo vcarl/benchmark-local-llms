@@ -1,6 +1,6 @@
 # Scoring
 
-> _Last verified: 2026-05-06 against commit `da6d8d7`._
+> _Last verified: 2026-05-06 against commit `8c88551`._
 
 ## Dispatch
 
@@ -50,22 +50,53 @@ Ref: `src/schema/scorer.ts`, `src/scoring/score-result.ts`.
 
 ## Per-execution score vs webapp pass rate
 
-The `[0, 1]` values above are **per-execution** scores. The webapp aggregates them by counting only fully-correct runs:
+The `[0, 1]` values above are **per-execution** scores. The webapp aggregates them into a 0–100 pass rate per displayed cell. Two binary rules govern the math:
 
 ```ts
 // webapp/src/lib/constants.ts
 export const isPass = (score: number): boolean => score === 1;
 ```
 
-For any group of runs (a model+runtime+quant+temperature variant, a capability tag, a prompt, etc.) the displayed score is `count(score === 1) / total * 100` — a 0–100 pass rate, not a mean. The aggregation lives in `webapp/src/lib/pipeline.ts` (`aggregateForScatter`, `aggregateForRunList`, `computeVariants`, `computeCapability`).
+A run "passes" only when its score is exactly 1. Partial credit and execution errors both count as fails.
 
-Why binary instead of a mean:
+### What's a "challenge"?
 
-- **Constraint scorers can produce arbitrary partial credit** (`passed.length / total`). Averaging those with `exact_match`'s `{0, 1}` outputs would weight prompts unequally and reward "almost right" on a 4-constraint prompt the same as "fully right" on a 1-constraint one.
-- **The benchmark question is "did the model solve this?"**, not "how close did it get?". Partial credit is useful for diagnosing _why_ a run failed (the `breakdown` field) but not for ranking models against each other.
-- **Inverted pass rates are an interpretable signal.** A model that's correct 25% of the time on a tier-3 prompt is a meaningfully different finding from one that scrapes 0.6 partial-credit on every run; a mean would smear those together.
+A **challenge** is one prompt (or scenario) attempted at one temperature in a benchmark run. Each `./bench run` invocation gets a `run_id`; the run's challenge set is the union of `(prompt_name, temperature)` pairs every variant in that run attempted.
+
+### The pass-rate formula
+
+For a displayed cell at `(model, runtime, quant, temperature, run_id)`:
+
+```
+                     count of distinct prompt_names this variant passed
+pass rate (0..1)  =  ──────────────────────────────────────────────────────
+                     count of distinct prompt_names attempted in the run
+                     at this temperature, by ANY variant in the dataset
+```
+
+Both sides count distinct prompt names, not records. The denominator is computed once per `(run_id, temperature)` slice and reused for every variant in it — which is the whole point: a flaky variant that crashed at prompt 30 of 50 divides by 50 (assuming any variant in the run completed the corpus), not by 30. A model can't look better by running fewer challenges.
+
+The aggregation lives in `webapp/src/lib/pipeline.ts`:
+
+- `buildChallengeIndex(data)` — builds the `(run_id, temperature) → distinct prompt count` lookup.
+- `countPassingChallenges(runs)` — counts distinct prompt names this variant passed.
+- `aggregateForScatter`, `aggregateForRunList`, `computeVariants` — divide one by the other per variant cell.
+
+Variant grouping keys include `run_id`. Two runs of the same `(model, runtime, quant, temperature)` produce two cells, one per `run_id`, rather than collapsing into a single average — pass rates are only meaningful relative to a single run's challenge set.
+
+### Why these choices
+
+**Why binary `score === 1` instead of a mean.** Constraint scorers produce arbitrary partial credit (`passed.length / total`); averaging those with `exact_match`'s `{0, 1}` outputs would weight prompts unequally and reward "almost right" on a 4-constraint prompt the same as "fully right" on a 1-constraint one. The benchmark question is "did the model solve this?", not "how close did it get?" — partial credit is useful for diagnosing _why_ a run failed (the `breakdown` field) but not for ranking models. Inverted pass rates also stay interpretable: a model that's correct 25% of the time on a tier-3 prompt is meaningfully different from one that scrapes 0.6 partial-credit on every run; a mean would smear those together.
+
+**Why the denominator is "challenges in the run", not "records observed".** Every variant in a run is supposed to attempt the same corpus. A variant that completed only 30 of 50 prompts (interrupt, crash, OOM) used to divide by 30, which made it indistinguishable from a variant that ran all 50 successfully — the pass rate hid coverage. Anchoring the denominator to the run's challenge count makes flaky and complete variants directly comparable. The implicit precondition: at least one variant in each `(run_id, temperature)` slice attempted every challenge — otherwise that challenge is invisible to the union and the denominator silently undercounts. In practice at least one model finishes; if that ever stops being true we'd ship the manifest's planned corpus through `data.js` to anchor the count exogenously.
+
+**Why distinct prompt names on both numerator and denominator.** Defends against pathological inputs where duplicate records exist for the same prompt — record-count math could drive pass rate above 1.0. Set-based math collapses any duplicates to one challenge.
+
+**Why `run_id` is in the variant key.** Without it, two separate `./bench run` invocations of the same variant collapse into one cell and there's no single `(run_id, temperature)` denominator to look up. Splitting cells by `run_id` keeps every displayed pass rate honestly attributable to one benchmark run.
 
 Per-execution scores in `[0, 1)` still flow into the archive — the webapp just doesn't count them as wins. See `webapp/src/lib/constants.ts::isPass` and the `score: number; // 0..100` comments in `pipeline.ts`.
+
+Capability tags (`computeCapability` in `pipeline.ts`) are a display filter, not a pass-rate denominator — they show "of the records carrying tag T, what fraction passed?" and intentionally do not anchor to a per-tag run challenge count.
 
 Ref: `webapp/src/lib/constants.ts`, `webapp/src/lib/pipeline.ts`, `src/report/webapp-contract.ts`.
 

@@ -30,6 +30,7 @@ const baseResult: ExecutionResult = {
   toolCallCount: null,
   finalPlayerStats: null,
   events: null,
+  blobPool: null,
 };
 
 describe("scoreExecution", () => {
@@ -47,7 +48,10 @@ describe("scoreExecution", () => {
     const out = await Effect.runPromise(
       scoreExecution(result, entry).pipe(Effect.provide(NodeContext.layer)),
     );
-    expect(out.score).toBe(1);
+    expect(out.kind).toBe("prompt");
+    if (out.kind === "prompt") {
+      expect(out.score).toBe(1);
+    }
   });
 
   it("dispatches constraint prompt entries", async () => {
@@ -67,7 +71,10 @@ describe("scoreExecution", () => {
     const out = await Effect.runPromise(
       scoreExecution(result, entry).pipe(Effect.provide(NodeContext.layer)),
     );
-    expect(out.score).toBe(1);
+    expect(out.kind).toBe("prompt");
+    if (out.kind === "prompt") {
+      expect(out.score).toBe(1);
+    }
   });
 
   it("dispatches scenario entries via the game scorer registry", async () => {
@@ -80,7 +87,7 @@ describe("scoreExecution", () => {
       name: "s",
       fixture: "f",
       players: [],
-      scorer: "bootstrap_grind",
+      scorer: "generic",
       scorerParams: {},
       cutoffs: { wallClockSec: 0, totalTokens: 0, toolCalls: 0 },
       tier: 1,
@@ -90,9 +97,13 @@ describe("scoreExecution", () => {
     const out = await Effect.runPromise(
       scoreExecution(result, entry).pipe(Effect.provide(NodeContext.layer)),
     );
-    // 1 credit_earned=5000 → credit_score=40; 1 tool call → accuracy=1 → efficiency=20,
-    // activity=clamp(1/30,1)*20≈0.67, ratio=clamp((5000/1)/30,1)*20=20 → 80.67 / 100
-    expect(out.score).toBeCloseTo(0.8066, 3);
+    expect(out.kind).toBe("scenario");
+    if (out.kind === "scenario") {
+      // 1 tool call, zero errors → accuracy=1 → efficiency=50; activity=clamp(1/30)*50≈1.6667
+      // raw=51.6667 → 0.5167 / 100
+      expect(out.value).toBeCloseTo(0.5167, 3);
+      expect(out.scoreField).toBe("generic");
+    }
   });
 
   it("fails with ScorerNotFound for an unknown scenario scorer name", async () => {

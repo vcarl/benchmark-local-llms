@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { DATA, normalizeRecord } from "../lib/data";
+import { DATA } from "../lib/data";
 import { RunHeader } from "../components/RunHeader";
 import { ScenarioView } from "../components/ScenarioView";
 import {
@@ -34,14 +34,14 @@ function ScenarioDetailPage() {
       (r) => r.scenario_name === decodedName,
     );
     if (matches.length === 0) return null;
-    if (matches.length === 1) return normalizeRecord(matches[0]);
+    if (matches.length === 1) return matches[0];
     const sorted = [...matches].sort((a, b) => {
       if (a.executed_at === b.executed_at) return 0;
       if (a.executed_at === "") return 1;
       if (b.executed_at === "") return -1;
       return a.executed_at < b.executed_at ? 1 : -1;
     });
-    return normalizeRecord(sorted[0]);
+    return sorted[0];
   }, [decodedModel, variantKey, decodedName]);
 
   if (variantKey === null) {

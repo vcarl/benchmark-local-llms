@@ -1,4 +1,4 @@
-import type { Filters, GroupBy } from "./pipeline";
+import type { Filters } from "./pipeline";
 
 // Router search state for the home route. Filter chips serialize as comma-
 // separated lists; numeric range sliders serialize as a min/max pair.
@@ -14,10 +14,6 @@ export type SearchState = {
   tempMax?: string;
   durationMin?: string;     // wall-time slider (seconds)
   durationMax?: string;
-  isScenario?: string;
-  groupBy?: GroupBy;
-  preset?: string;
-  model?: string;
   sortPrimary?: string;
   sortSecondary?: string;
 };
@@ -51,5 +47,4 @@ export const parseFilters = (search: SearchState): Filters => ({
   quant: csv(search.quant),
   tempRange: rangeFrom(search.tempMin, search.tempMax, -Infinity),
   durationRange: rangeFrom(search.durationMin, search.durationMax, 0),
-  isScenario: search.isScenario === "true" ? true : search.isScenario === "false" ? false : undefined,
 });

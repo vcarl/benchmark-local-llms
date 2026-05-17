@@ -81,6 +81,7 @@ describe("integration smoke: YAML -> score pipeline", () => {
         toolCallCount: null,
         finalPlayerStats: null,
         events: null,
+        blobPool: null,
       };
 
       const score = yield* scoreExecution(executionResult, prompt);
@@ -107,12 +108,16 @@ describe("integration smoke: YAML -> score pipeline", () => {
     // Prompt corpus non-empty and contains our chosen variant
     expect(prompts.length).toBeGreaterThan(0);
 
-    // Scenario corpus non-empty and parsed all 11 YAMLs
-    expect(scenarios.length).toBe(11);
-    expect(scenarios.map((s) => s.name)).toContain("bootstrap_grind");
+    // Scenario corpus non-empty and parsed all surviving YAMLs (smoke tests)
+    expect(scenarios.length).toBe(3);
+    expect(scenarios.map((s) => s.name)).toContain("dock_and_sell");
 
     // Score in [0, 1] with non-empty details — the synthetic output "4183"
-    // matches the exact_match expected value, so score should be 1
+    // matches the exact_match expected value, so score should be 1.
+    // math_multiply_direct uses an exact_match scorer, which produces a
+    // PromptScore; narrow on `kind` to access `.score`.
+    expect(score.kind).toBe("prompt");
+    if (score.kind !== "prompt") throw new Error("expected prompt score");
     expect(score.score).toBeGreaterThanOrEqual(0);
     expect(score.score).toBeLessThanOrEqual(1);
     expect(score.score).toBe(1);

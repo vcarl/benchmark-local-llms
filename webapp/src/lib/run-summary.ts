@@ -2,7 +2,7 @@
 // tuple. The webapp's URL identifies a run by encoding `runtime~quant~temp`
 // into a single segment so it survives URL paths even when quants contain
 // underscores or hyphens (e.g. "Q4_K_M", "q4-k-m").
-import type { BenchmarkResult } from "./data";
+import type { BenchmarkResult, ScenarioBenchmarkResult } from "./data";
 import { isPass } from "./constants";
 
 export interface VariantKey {
@@ -11,7 +11,7 @@ export interface VariantKey {
   temperature: number;
 }
 
-export const VARIANT_SEPARATOR = "~";
+const VARIANT_SEPARATOR = "~";
 
 export const encodeVariant = (v: VariantKey): string =>
   [v.runtime, v.quant, String(v.temperature)].join(VARIANT_SEPARATOR);
@@ -89,17 +89,24 @@ export const summarizeVariant = (
   const promptTpsValues: number[] = [];
   const generationTpsValues: number[] = [];
 
+  // pass/fail/score accounting is prompt-only after the prompt/scenario split:
+  // scenario records carry a raw `value` rather than a [0,1] score, so they
+  // can't participate in pass-rate or mean-score math. They still count
+  // toward wall_time and tps aggregates.
+  let promptCount = 0;
   for (const r of recs) {
-    if (isExecutionError(r)) error += 1;
-    else if (isPass(r.score)) pass += 1;
-    else fail += 1;
     totalWallSec += r.wall_time_sec;
     totalGenerationTokens += r.generation_tokens;
-    scoreSum += r.score;
     if (Number.isFinite(r.prompt_tps) && r.prompt_tps > 0) promptTpsValues.push(r.prompt_tps);
     if (Number.isFinite(r.generation_tps) && r.generation_tps > 0) {
       generationTpsValues.push(r.generation_tps);
     }
+    if (r.kind !== "prompt") continue;
+    promptCount += 1;
+    if (isExecutionError(r)) error += 1;
+    else if (isPass(r.score)) pass += 1;
+    else fail += 1;
+    scoreSum += r.score;
   }
 
   const recordCount = recs.length;
@@ -108,7 +115,7 @@ export const summarizeVariant = (
   // variant whose archive is partial.
   const scoredCount = pass + fail;
   const passRate = scoredCount === 0 ? 0 : pass / scoredCount;
-  const meanScore = recordCount === 0 ? 0 : scoreSum / recordCount;
+  const meanScore = promptCount === 0 ? 0 : scoreSum / promptCount;
 
   return {
     key,
@@ -136,7 +143,12 @@ export const variantsForModel = (
   const buckets = new Map<string, { key: VariantKey; recs: BenchmarkResult[] }>();
   for (const r of data) {
     if (r.model !== model) continue;
-    if (r.is_scenario) continue;
+    // Don't drop scenarios here: summarizeVariant handles mixed kinds
+    // internally (pass/score math is prompt-only; wall-time and tokens
+    // accumulate over all records, including scenarios). Filtering scenarios
+    // out at this layer would silently strip their contribution to the
+    // variant's totalWallSec and totalGenerationTokens — which the run header
+    // displays.
     const key = variantOf(r);
     const id = encodeVariant(key);
     const slot = buckets.get(id);
@@ -174,5 +186,7 @@ export const scenariosForVariant = (
   data: BenchmarkResult[],
   model: string,
   key: VariantKey,
-): BenchmarkResult[] =>
-  recordsForVariant(data, model, key).filter((r) => r.is_scenario);
+): ScenarioBenchmarkResult[] =>
+  recordsForVariant(data, model, key).filter(
+    (r): r is ScenarioBenchmarkResult => r.kind === "scenario",
+  );

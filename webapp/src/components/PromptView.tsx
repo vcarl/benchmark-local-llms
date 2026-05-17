@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import styles from "./PromptView.module.css";
-import type { BenchmarkResult, ScoreBreakdown } from "../lib/data";
+import type { PromptBenchmarkResult, ScoreBreakdown } from "../lib/data";
 import { stripThinkingTags, extractThinkBlock } from "../lib/strip-thinking";
 import { scoreBand } from "../lib/constants";
 
 interface Props {
-  rec: BenchmarkResult;
+  rec: PromptBenchmarkResult;
   expanded: boolean;
   onToggle: () => void;
   isFocused: boolean;
@@ -114,7 +114,7 @@ function MiniLabelSection({
 // Renders the structured pass/fail/errored breakdown when present; otherwise
 // falls back to the raw `score_details` string for non-constraint scorers
 // (exact_match, code_exec, game) and execution-error sentinel rows.
-function RubricFooter({ rec }: { rec: BenchmarkResult }) {
+function RubricFooter({ rec }: { rec: PromptBenchmarkResult }) {
   const bd = rec.score_breakdown;
   if (bd !== null) return <BreakdownRows bd={bd} />;
   if (!rec.score_details) return null;

@@ -1,6 +1,6 @@
 # Archive Format
 
-> _Last verified: 2026-05-06 against commit `da6d8d7`._
+> _Last verified: 2026-05-12 against the migration commit on `main`._
 
 ## File layout
 
@@ -53,7 +53,7 @@ One line per `(prompt, temperature)` pair for prompt runs; one line per scenario
 | `generationTokens` | `number` | Tokens generated. |
 | `promptTps` | `number` | Prompt-eval throughput (tokens/sec). |
 | `generationTps` | `number` | Generation throughput (tokens/sec). |
-| `peakMemoryGb` | `number` | Peak RSS of the server during the execution, in GB. |
+| `peakMemoryGb` | `number` | Peak RSS of the supervised LLM server, in GB. See note below — `0` is the "unknown" sentinel. |
 | `wallTimeSec` | `number` | End-to-end wall time in seconds. |
 | `output` | `string` | Cleaned final answer the scorers consume; equals `rawOutput` when no thinking-tag stripping happened. Empty string on failure and for scenario rows. |
 | `reasoning` | `string \| null` | Separated thinking, populated either from the runtime's structured reasoning field (`reasoning_content` / `reasoning` in the OpenAI shape) or extracted from inlined `<think>…</think>` / Harmony channel markers. `null` when nothing was stripped and on scenario rows. |
@@ -66,6 +66,7 @@ One line per `(prompt, temperature)` pair for prompt runs; one line per scenario
 | `toolCallCount` | `number \| null` | Tool calls issued during the session; `null` for prompt runs. |
 | `finalPlayerStats` | `Record<string, unknown> \| null` | Opaque game-side snapshot; `null` for prompt runs. |
 | `events` | `ReadonlyArray<AgentEvent> \| null` | Normalized game event stream; `null` for prompt runs. |
+| `blobPool` | `Record<string, unknown> \| null` | Per-row intern table for deduped chat-message bodies referenced from `turn_end.data.context.messagesRef`. Keyed by full SHA-256 hex of canonical JSON. `null` for prompt rows; populated only on scenario rows whose `events` carry refs. Absent in pre-migration archives; defaults to `null` on read. See [Blob pool](#blob-pool). |
 
 `error` is the success discriminator: `null` means the row completed end-to-end; any non-null value is a tagged-error string emitted by the orchestrator. Cache validation rejects rows with `error !== null`; prompt rows additionally require non-empty `output`, scenario rows require non-null `terminationReason`.
 
@@ -73,7 +74,25 @@ One line per `(prompt, temperature)` pair for prompt runs; one line per scenario
 
 `events` is `ReadonlyArray<AgentEvent>` where each `AgentEvent` is `{ event: AgentEventType, tick, ts, data }` — see `src/schema/execution.ts` and the `AgentEventType` literal in `src/schema/enums.ts`.
 
-Ref: `src/schema/execution.ts`.
+`peakMemoryGb` is sampled by the supervisor every 30s via `ps -o rss=` against the LLM server's pid, not measured per-execution. Three caveats follow from that:
+
+- It's a **server-lifetime running peak**, so every result against the same supervised server stamps the same value (rising monotonically as the run progresses), not a per-prompt high-water mark.
+- `0` is the **"unknown" sentinel** — emitted when no sample has landed yet (short runs that finish before the first 30s tick) or when the poller couldn't read `ps`. The webapp renders `0` as `—`.
+- It's **`ps` RSS only**: on Apple Silicon this excludes Metal/MLX wired GPU buffers, so it under-counts MLX peak vs. the Python prototype's `mlx.core.metal.get_peak_memory`.
+
+Ref: `src/schema/execution.ts`, `src/llm/servers/peak-rss.ts`.
+
+## Blob pool
+
+The mapped `llm_call → turn_end` event carries the admiral `detail` body verbatim, including a `context` object of shape `{ messageCount, estimatedTokens, systemPromptTokens, messages }`. The `messages` array grows by ~two entries per turn (assistant reply + tool result) and dominates archive size — sampling 245 archives showed ~97% of event bytes were duplicated chat history. Each message is interned into a per-row `blobPool` to remove the quadratic duplication.
+
+- **Scope**: per-`ExecutionResult` row. Pool entries do not cross row boundaries. Prompt rows store `blobPool: null`.
+- **Hash**: full SHA-256 hex (64 lowercase chars, no truncation), computed over canonical JSON of the value (object keys sorted ascending, no whitespace). Full hashes eliminate collision risk at row scope.
+- **What gets pooled**: each entry of `turn_end.data.context.messages` is hashed individually and interned. Inside the rewritten event, `context.messages` is replaced by `context.messagesRef: string[]` — ordered pool hashes, one per message. The scalar context fields (`messageCount`, `estimatedTokens`, `systemPromptTokens`) stay inlined.
+- **Absent context / messages**: if the source `llm_call` carried no `context` object, or its `context.messages` was missing or not an array, the detail is passed through unchanged. Absent fields are never encoded as empty arrays.
+- **Other detail fields** (`usage`, `response`, `model`, sampler params, …) stay inlined per turn. The `totalTokensIn` / `totalTokensOut` overlay still wins over duplicate keys.
+
+Existing archives written before the migration carry inline `messages` inside `turn_end.data.context` and have no `blobPool` field on the row. The one-shot rewriter at `scripts/migrate-scenario-events.ts` migrates them in place; the script is idempotent (re-running it on a migrated file is a byte-identical no-op).
 
 ## Self-contained archives
 
@@ -103,6 +122,18 @@ The writer's lifecycle is `writeManifestHeader` → N × `appendResult` → `fin
 - **Header-only stubs** — process killed before the first `appendResult` completes. The file is one line: the manifest with `interrupted: true`, `finishedAt: null`, and `stats` zeroed. The loader reads it as a successful load with `results: []`. The report's audit block currently counts these in `loaded N archives` but they contribute zero cells, so a directory full of stubs reports as a healthy load with zero output. Cleanup is manual: identify by `data.results.length === 0` after loading, then delete by exact path.
 - **Header + partial body** — interrupted mid-run after some results were appended. The manifest stays in its initial `interrupted: true` state because `finalizeArchive` never ran. The body lines are valid; the loader returns them and the report uses them. The only signal that the run didn't finish is the `interrupted` flag on the header, which the report does not currently surface.
 - **Stale-schema archives** — written under a previous schema and rendered unreadable by a later required-field addition to `ExecutionResult`. The loader reports each as one corrupt-line load issue (it short-circuits at the first decode failure). Recovery is in-place rewrite to add the missing fields; there is no in-tree migration tool.
+
+## Duplicate-archive rejection
+
+`archiveId` is the per-(model × invocation) identity that matches the filename stem; it must be unique across the loaded set. When the report finds two archives sharing one `manifest.archiveId` — almost always a `cp` / restore / migration mistake — both copies are rejected wholesale (none of their results contribute to the report) and the collision is logged at error level:
+
+```
+report: archive schema violation — duplicate archiveId <id> in N archives, all rejected: <path>, <path>, ...
+```
+
+Note that `runId` is **not** the uniqueness key: by design every per-model archive produced by one `./bench run` invocation shares a runId. A multi-model run legitimately has many archives sharing one runId with distinct `archiveId`s, and that's a healthy load. Cleanup is manual: keep the canonical copy, delete the rest by exact path, re-run `./bench report`.
+
+Ref: `src/report/aggregate.ts` (`partitionByArchiveId`), `src/cli/commands/report.ts` (`logAuditBlock`).
 
 ## Re-scoring CLIs
 

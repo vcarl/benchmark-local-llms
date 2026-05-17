@@ -92,8 +92,9 @@ describe("prompt phase logging", () => {
     const sink: string[] = [];
     const statsRef = await Effect.runPromise(Ref.make<RunStats>(baseInput().manifest.stats));
     const aggRef = await Effect.runPromise(Ref.make<ModelAggregate>(emptyAggregate()));
+    const llmHandle = await Effect.runPromise(fakeServerHandle(18081));
     await Effect.runPromise(
-      runPromptPhase(baseInput(), statsRef, aggRef).pipe(
+      runPromptPhase(baseInput(), llmHandle, statsRef, aggRef).pipe(
         Effect.provide(Layer.merge(captureLogs(sink, LogLevel.Info), chatLayer)),
         Effect.provide(NodeContext.layer),
       ),
@@ -113,8 +114,9 @@ describe("prompt phase logging", () => {
     const sink: string[] = [];
     const statsRef = await Effect.runPromise(Ref.make<RunStats>(baseInput().manifest.stats));
     const aggRef = await Effect.runPromise(Ref.make<ModelAggregate>(emptyAggregate()));
+    const llmHandle = await Effect.runPromise(fakeServerHandle(18081));
     await Effect.runPromise(
-      runPromptPhase(baseInput(), statsRef, aggRef).pipe(
+      runPromptPhase(baseInput(), llmHandle, statsRef, aggRef).pipe(
         Effect.provide(
           Layer.merge(
             captureLogs(sink, LogLevel.Info),

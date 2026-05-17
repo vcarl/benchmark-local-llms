@@ -38,6 +38,7 @@ const baseResult: ExecutionResult = {
   toolCallCount: null,
   finalPlayerStats: null,
   events: null,
+  blobPool: null,
 };
 
 describe("aggregator", () => {

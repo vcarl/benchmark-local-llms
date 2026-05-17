@@ -9,11 +9,15 @@
  * No cell-level deduplication. The webapp aggregates across runs per variant
  * (mean / pass rate) downstream.
  *
- * Schema-compliance check: each archive's `manifest.runId` must be unique
- * across the loaded set. A collision means a copy/migration mistake. We don't
- * try to disambiguate — every archive sharing the duplicated runId is rejected
- * (none of its results contribute), and the violation is surfaced in
- * {@link AggregateResult.duplicateRunIds}. The rest of the report still runs.
+ * Schema-compliance check: each archive's `manifest.archiveId` must be unique
+ * across the loaded set. `archiveId` is the per-(model × invocation) identity
+ * that matches the filename stem (see `run-manifest.ts`); two archives sharing
+ * one means a copy/migration mistake. (Don't check `runId` here — by design,
+ * every archive produced by one `./bench run` invocation shares a runId, so
+ * a multi-model run legitimately has many archives sharing one.) Every archive
+ * sharing a duplicated `archiveId` is rejected (none of its results contribute)
+ * and the violation is surfaced in {@link AggregateResult.duplicateArchiveIds}.
+ * The rest of the report still runs.
  *
  * Scoring failures are non-fatal: if the scorer errors, we emit the record
  * with `score=0` and an explanatory `score_details` (requirements §7 +
@@ -24,7 +28,7 @@ import type { CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
 import type { LoadedArchive } from "../archive/loader.js";
 import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
-import type { Score } from "../scoring/score-result.js";
+import type { PromptScore, ScenarioScore } from "../scoring/score-result.js";
 import { scoreExecution } from "../scoring/score-result.js";
 import { toWebappRecord, type WebappRecord } from "./webapp-contract.js";
 
@@ -38,8 +42,8 @@ export interface AggregateInput {
   readonly currentScenarioCorpus: Record<string, ScenarioCorpusEntry>;
 }
 
-export interface DuplicateRunIdIssue {
-  readonly runId: string;
+export interface DuplicateArchiveIdIssue {
+  readonly archiveId: string;
   readonly paths: ReadonlyArray<string>;
 }
 
@@ -50,40 +54,65 @@ export interface AggregateResult {
     readonly promptDrifted: number;
   };
   /**
-   * Archives whose `manifest.runId` was not unique across the loaded set.
+   * Archives whose `manifest.archiveId` was not unique across the loaded set.
    * All copies are rejected; their results are not in `records`.
    */
-  readonly duplicateRunIds: ReadonlyArray<DuplicateRunIdIssue>;
+  readonly duplicateArchiveIds: ReadonlyArray<DuplicateArchiveIdIssue>;
 }
 
 /**
  * Score one {@link ExecutionResult}; on scorer error, produce a sentinel
- * {@link Score} describing the failure. Errors are captured as score=0 so
- * the report still emits the record (operator still sees the metrics).
+ * describing the failure. Errors are captured with a zero-equivalent value so
+ * the report still emits the record (operator still sees the metrics). The
+ * sentinel's `kind` matches the entry kind so downstream
+ * {@link toWebappRecord} can route to the correct arm.
+ *
+ * Two overloads keep the kind statically linked to the entry type so the
+ * typed `toWebappRecord` overloads accept the result without a cast.
  */
-const safeScore = (
+function safeScore(
+  result: ExecutionResult,
+  entry: PromptCorpusEntry,
+): Effect.Effect<PromptScore, never, CommandExecutor.CommandExecutor>;
+function safeScore(
+  result: ExecutionResult,
+  entry: ScenarioCorpusEntry,
+): Effect.Effect<ScenarioScore, never, CommandExecutor.CommandExecutor>;
+function safeScore(
   result: ExecutionResult,
   entry: PromptCorpusEntry | ScenarioCorpusEntry,
-): Effect.Effect<Score, never, CommandExecutor.CommandExecutor> =>
-  scoreExecution(result, entry).pipe(
-    Effect.catchAll((err) =>
-      Effect.succeed<Score>({
-        score: 0,
-        details: `scorer error: ${err._tag}`,
-      }),
-    ),
+): Effect.Effect<PromptScore | ScenarioScore, never, CommandExecutor.CommandExecutor> {
+  return scoreExecution(result, entry).pipe(
+    Effect.catchAll((err) => {
+      const details = `scorer error: ${err._tag}`;
+      const sentinel: PromptScore | ScenarioScore =
+        "promptText" in entry
+          ? ({ kind: "prompt", score: 0, details } satisfies PromptScore)
+          : ({ kind: "scenario", value: 0, scoreField: "", details } satisfies ScenarioScore);
+      return Effect.succeed(sentinel);
+    }),
   );
+}
 
 /**
  * If the execution itself errored (LLM failure, wall-clock cutoff with no
  * output, etc.), skip scoring and emit a zero-score record marked with the
  * error. This matches the Python prototype's `r.error` → display-as-error
- * behavior.
+ * behavior. Two overloads tie the returned kind to the entry kind for the
+ * same reason as {@link safeScore}.
  */
-const errorScore = (result: ExecutionResult): Score => ({
-  score: 0,
-  details: `execution error: ${(result.error ?? "").slice(0, 160)}`,
-});
+function errorScore(result: ExecutionResult, entry: PromptCorpusEntry): PromptScore;
+function errorScore(result: ExecutionResult, entry: ScenarioCorpusEntry): ScenarioScore;
+function errorScore(
+  result: ExecutionResult,
+  entry: PromptCorpusEntry | ScenarioCorpusEntry,
+): PromptScore | ScenarioScore {
+  const details = `execution error: ${(result.error ?? "").slice(0, 160)}`;
+  if ("promptText" in entry) {
+    return { kind: "prompt", score: 0, details };
+  }
+  return { kind: "scenario", value: 0, scoreField: "", details };
+}
 
 /**
  * Determine whether a prompt result's hash matches the current corpus entry.
@@ -111,31 +140,33 @@ const scenarioHashMatches = (result: ExecutionResult, entry: ScenarioCorpusEntry
 };
 
 /**
- * Group archives by `manifest.runId` and split out collisions. Compliant
+ * Group archives by `manifest.archiveId` and split out collisions. Compliant
  * archives have a singleton group; collided archives have ≥2 paths sharing
- * the same runId.
+ * the same archiveId (the per-(model × invocation) identity, which matches
+ * the filename stem — so a collision means two physical files carry the
+ * same identity, almost always a copy/migration mistake).
  */
-const partitionByRunId = (
+const partitionByArchiveId = (
   archives: AggregateInput["archives"],
 ): {
   readonly compliant: AggregateInput["archives"];
-  readonly duplicates: ReadonlyArray<DuplicateRunIdIssue>;
+  readonly duplicates: ReadonlyArray<DuplicateArchiveIdIssue>;
 } => {
-  const byRunId = new Map<string, AggregateInput["archives"][number][]>();
+  const byArchiveId = new Map<string, AggregateInput["archives"][number][]>();
   for (const a of archives) {
-    const id = a.data.manifest.runId;
-    const arr = byRunId.get(id);
+    const id = a.data.manifest.archiveId;
+    const arr = byArchiveId.get(id);
     if (arr) arr.push(a);
-    else byRunId.set(id, [a]);
+    else byArchiveId.set(id, [a]);
   }
   const compliant: AggregateInput["archives"][number][] = [];
-  const duplicates: DuplicateRunIdIssue[] = [];
-  for (const [runId, group] of byRunId) {
+  const duplicates: DuplicateArchiveIdIssue[] = [];
+  for (const [archiveId, group] of byArchiveId) {
     if (group.length === 1) {
       compliant.push(...group);
     } else {
       duplicates.push({
-        runId,
+        archiveId,
         paths: group.map((g) => g.path).sort(),
       });
     }
@@ -146,15 +177,15 @@ const partitionByRunId = (
 /**
  * Aggregate multiple archives against the current on-disk corpus. Results
  * whose prompt/scenario is absent or whose hash has drifted are dropped and
- * counted in `dropped`. Archives that share a `manifest.runId` with another
- * archive are rejected wholesale and surfaced in `duplicateRunIds`. Every
- * surviving result becomes one record (no cell-level dedup).
+ * counted in `dropped`. Archives that share a `manifest.archiveId` with
+ * another archive are rejected wholesale and surfaced in `duplicateArchiveIds`.
+ * Every surviving result becomes one record (no cell-level dedup).
  */
 export const aggregateAll = (
   input: AggregateInput,
 ): Effect.Effect<AggregateResult, never, CommandExecutor.CommandExecutor> =>
   Effect.gen(function* () {
-    const { compliant, duplicates } = partitionByRunId(input.archives);
+    const { compliant, duplicates } = partitionByArchiveId(input.archives);
 
     const records: WebappRecord[] = [];
     let promptAbsent = 0;
@@ -175,7 +206,7 @@ export const aggregateAll = (
           }
           const score =
             result.error !== null && result.error.length > 0
-              ? errorScore(result)
+              ? errorScore(result, entry)
               : yield* safeScore(result, entry);
           records.push(toWebappRecord(result, entry, score));
         } else {
@@ -191,7 +222,7 @@ export const aggregateAll = (
           }
           const score =
             result.error !== null && result.error.length > 0
-              ? errorScore(result)
+              ? errorScore(result, entry)
               : yield* safeScore(result, entry);
           records.push(toWebappRecord(result, entry, score));
         }
@@ -201,6 +232,6 @@ export const aggregateAll = (
     return {
       records,
       dropped: { promptAbsent, promptDrifted },
-      duplicateRunIds: duplicates,
+      duplicateArchiveIds: duplicates,
     };
   });

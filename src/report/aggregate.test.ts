@@ -94,6 +94,8 @@ describe("aggregateAll: basic scoring", () => {
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
     if (rec === undefined) return;
+    expect(rec.kind).toBe("prompt");
+    if (rec.kind !== "prompt") return;
     expect(rec.score).toBe(1);
     expect(rec.prompt_name).toBe("p1");
     expect(rec.category).toBe("math");
@@ -119,6 +121,8 @@ describe("aggregateAll: basic scoring", () => {
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
     if (rec === undefined) return;
+    expect(rec.kind).toBe("prompt");
+    if (rec.kind !== "prompt") return;
     expect(rec.score).toBe(0);
     expect(rec.score_details).toContain("LLM timeout");
   });
@@ -148,7 +152,9 @@ describe("aggregateAll: basic scoring", () => {
     expect(out.records).toHaveLength(1);
     const rec = out.records[0];
     if (rec === undefined) return;
-    expect(rec.score).toBe(0);
+    expect(rec.kind).toBe("scenario");
+    if (rec.kind !== "scenario") return;
+    expect(rec.value).toBe(0);
     expect(rec.score_details).toContain("ScorerNotFound");
     expect(rec.category).toBe("game");
     expect(rec.prompt_text).toBe("");
@@ -209,6 +215,8 @@ describe("aggregateAll: tag overlay from current corpus", () => {
     const rec = out.records[0];
     expect(rec).toBeDefined();
     if (rec === undefined) return;
+    expect(rec.kind).toBe("prompt");
+    if (rec.kind !== "prompt") return;
     expect(rec.score).toBe(1);
     expect(rec.tags).toEqual(["math-reasoning", "arithmetic"]);
   });
@@ -291,15 +299,15 @@ describe("aggregateAll: one run = one record", () => {
       "2026-01-01T00:00:00.000Z",
       "2026-01-02T00:00:00.000Z",
     ]);
-    expect(out.duplicateRunIds).toHaveLength(0);
+    expect(out.duplicateArchiveIds).toHaveLength(0);
   });
 });
 
-describe("aggregateAll: duplicate runId schema violation", () => {
-  it("rejects every archive sharing a runId and reports the violation", async () => {
-    // Two archives with the same manifest.runId — copy/migration error.
-    const r1 = fixtureResult({ runId: "dup", promptName: "p1", promptHash: "h1" });
-    const r2 = fixtureResult({ runId: "dup", promptName: "p1", promptHash: "h1" });
+describe("aggregateAll: duplicate archiveId schema violation", () => {
+  it("rejects every archive sharing an archiveId and reports the violation", async () => {
+    // Two archives with the same manifest.archiveId — copy/migration error.
+    const r1 = fixtureResult({ archiveId: "dup", promptName: "p1", promptHash: "h1" });
+    const r2 = fixtureResult({ archiveId: "dup", promptName: "p1", promptHash: "h1" });
     const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "h1" }) };
     const out = await Effect.runPromise(
       aggregateAll({
@@ -307,12 +315,12 @@ describe("aggregateAll: duplicate runId schema violation", () => {
           {
             path: "a.jsonl",
             mtime: new Date(0),
-            data: { manifest: fixtureManifest({ runId: "dup" }), results: [r1] },
+            data: { manifest: fixtureManifest({ archiveId: "dup" }), results: [r1] },
           },
           {
             path: "b.jsonl",
             mtime: new Date(0),
-            data: { manifest: fixtureManifest({ runId: "dup" }), results: [r2] },
+            data: { manifest: fixtureManifest({ archiveId: "dup" }), results: [r2] },
           },
         ],
         currentPromptCorpus: corpus,
@@ -321,13 +329,13 @@ describe("aggregateAll: duplicate runId schema violation", () => {
     );
     // Both copies dropped — neither contributes to records.
     expect(out.records).toHaveLength(0);
-    expect(out.duplicateRunIds).toEqual([{ runId: "dup", paths: ["a.jsonl", "b.jsonl"] }]);
+    expect(out.duplicateArchiveIds).toEqual([{ archiveId: "dup", paths: ["a.jsonl", "b.jsonl"] }]);
   });
 
   it("isolates duplicates from compliant archives", async () => {
-    const dupA = fixtureResult({ runId: "dup", promptName: "p1", promptHash: "h1" });
-    const dupB = fixtureResult({ runId: "dup", promptName: "p1", promptHash: "h1" });
-    const fine = fixtureResult({ runId: "ok", promptName: "p1", promptHash: "h1" });
+    const dupA = fixtureResult({ archiveId: "dup", promptName: "p1", promptHash: "h1" });
+    const dupB = fixtureResult({ archiveId: "dup", promptName: "p1", promptHash: "h1" });
+    const fine = fixtureResult({ archiveId: "ok", promptName: "p1", promptHash: "h1" });
     const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "h1" }) };
     const out = await Effect.runPromise(
       aggregateAll({
@@ -335,17 +343,17 @@ describe("aggregateAll: duplicate runId schema violation", () => {
           {
             path: "dup-a.jsonl",
             mtime: new Date(0),
-            data: { manifest: fixtureManifest({ runId: "dup" }), results: [dupA] },
+            data: { manifest: fixtureManifest({ archiveId: "dup" }), results: [dupA] },
           },
           {
             path: "dup-b.jsonl",
             mtime: new Date(0),
-            data: { manifest: fixtureManifest({ runId: "dup" }), results: [dupB] },
+            data: { manifest: fixtureManifest({ archiveId: "dup" }), results: [dupB] },
           },
           {
             path: "ok.jsonl",
             mtime: new Date(0),
-            data: { manifest: fixtureManifest({ runId: "ok" }), results: [fine] },
+            data: { manifest: fixtureManifest({ archiveId: "ok" }), results: [fine] },
           },
         ],
         currentPromptCorpus: corpus,
@@ -353,8 +361,53 @@ describe("aggregateAll: duplicate runId schema violation", () => {
       }).pipe(Effect.provide(NodeContext.layer)),
     );
     expect(out.records).toHaveLength(1);
-    expect(out.duplicateRunIds).toHaveLength(1);
-    expect(out.duplicateRunIds[0]?.paths).toEqual(["dup-a.jsonl", "dup-b.jsonl"]);
+    expect(out.duplicateArchiveIds).toHaveLength(1);
+    expect(out.duplicateArchiveIds[0]?.paths).toEqual(["dup-a.jsonl", "dup-b.jsonl"]);
+  });
+
+  it("does not flag distinct archives that share a runId (the multi-model run case)", async () => {
+    // One ./bench run invocation produces N per-model archives; all share
+    // the same runId by design, with distinct archiveIds. Must NOT trip
+    // the dup check — that was the original false positive.
+    const a = fixtureResult({
+      archiveId: "arch-a",
+      runId: "shared-run",
+      promptName: "p1",
+      promptHash: "h1",
+    });
+    const b = fixtureResult({
+      archiveId: "arch-b",
+      runId: "shared-run",
+      promptName: "p1",
+      promptHash: "h1",
+    });
+    const corpus = { p1: fixturePromptEntry({ name: "p1", promptHash: "h1" }) };
+    const out = await Effect.runPromise(
+      aggregateAll({
+        archives: [
+          {
+            path: "arch-a.jsonl",
+            mtime: new Date(0),
+            data: {
+              manifest: fixtureManifest({ runId: "shared-run", archiveId: "arch-a" }),
+              results: [a],
+            },
+          },
+          {
+            path: "arch-b.jsonl",
+            mtime: new Date(0),
+            data: {
+              manifest: fixtureManifest({ runId: "shared-run", archiveId: "arch-b" }),
+              results: [b],
+            },
+          },
+        ],
+        currentPromptCorpus: corpus,
+        currentScenarioCorpus: {},
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(out.duplicateArchiveIds).toHaveLength(0);
+    expect(out.records).toHaveLength(2);
   });
 });
 

@@ -74,9 +74,13 @@ const toFileIO =
  * Iterate prompts at `input.temperature`, honour the cross-run cache, and
  * append results to the archive. Updates `statsRef` with completed / errored /
  * skipped counts. No-op when `scenariosOnly` is set.
+ *
+ * `llmHandle` carries the supervised server's peak-RSS reader, which we
+ * thread into `runPrompt` so each result records the running peak.
  */
 export const runPromptPhase = (
   input: RunModelInput,
+  llmHandle: ServerHandle,
   statsRef: Ref.Ref<RunStats>,
   aggRef: Ref.Ref<ModelAggregate>,
 ): Effect.Effect<
@@ -121,6 +125,7 @@ export const runPromptPhase = (
         temperature,
         maxTokens: input.maxTokens,
         ...(input.requestTimeoutSec !== undefined ? { timeoutSec: input.requestTimeoutSec } : {}),
+        peakRssKb: llmHandle.peakRssKb,
       });
       yield* appendIfSaving(result, input.archivePath, input.noSave);
       yield* Ref.update(statsRef, (s) => tallyResult(s, result));
@@ -208,6 +213,7 @@ export const runScenarioPhase = (
               llmBaseUrl,
               ...(input.idleTimeoutSec !== undefined ? { sseIdleSec: input.idleTimeoutSec } : {}),
               ...(game.sseOverride !== undefined ? { sseOverride: game.sseOverride } : {}),
+              peakRssKb: llmHandle.peakRssKb,
             },
             { admiral: admiral.client, admin: game.admin },
           );

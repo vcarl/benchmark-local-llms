@@ -1,32 +1,95 @@
+import { useEffect, useState } from "react";
 import styles from "./ScenarioView.module.css";
-import type { BenchmarkResult } from "../lib/data";
+import type { AgentEvent, ScenarioBenchmarkResult } from "../lib/data";
 import { EventLog } from "./EventLog";
 
-const terminationBand = (r: BenchmarkResult["termination_reason"]): string => {
+const terminationBand = (r: ScenarioBenchmarkResult["termination_reason"]): string => {
   if (r === "completed") return "green";
   if (r === "error") return "red";
   return "yellow";
 };
 
-export function ScenarioView({ rec }: { rec: BenchmarkResult }) {
-  const events = rec.events ?? [];
+type EventsState =
+  | { kind: "idle" }                         // record has no events
+  | { kind: "loading" }
+  | { kind: "ready"; events: AgentEvent[] }
+  | { kind: "error"; message: string };
+
+const eventsUrl = (rec: ScenarioBenchmarkResult): string =>
+  // base-relative so it works under /benchmark-local-llms/ and at the root
+  `./events/${rec.archive_id}__${rec.prompt_name}.json`;
+
+export function ScenarioView({ rec }: { rec: ScenarioBenchmarkResult }) {
+  const [state, setState] = useState<EventsState>(() =>
+    rec.has_events ? { kind: "loading" } : { kind: "idle" },
+  );
+
+  useEffect(() => {
+    if (!rec.has_events) {
+      setState({ kind: "idle" });
+      return;
+    }
+    let cancelled = false;
+    setState({ kind: "loading" });
+    fetch(eventsUrl(rec))
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<AgentEvent[]>;
+      })
+      .then((events) => {
+        if (!cancelled) setState({ kind: "ready", events });
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setState({
+            kind: "error",
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rec.archive_id, rec.prompt_name, rec.has_events]);
+
+  const events = state.kind === "ready" ? state.events : [];
+
   return (
     <div className={styles.scenarioView}>
       <section className={`${styles.section} ${styles.scenarioStats}`}>
-        <Stat label="Score" value={rec.score.toFixed(2)} />
+        <Stat
+          label={rec.score_field || "Score"}
+          value={rec.value.toFixed(0)}
+        />
         <Stat label="Termination" value={rec.termination_reason ?? "—"} bandColor={terminationBand(rec.termination_reason)} />
         <Stat label="Tool calls" value={rec.tool_call_count !== null ? String(rec.tool_call_count) : "—"} />
         <Stat label="Wall time" value={`${rec.wall_time_sec.toFixed(0)}s`} />
       </section>
 
-      {events.length > 0 && (
+      {state.kind === "loading" && (
+        <section className={styles.section}>
+          <h3>Timeline</h3>
+          <div style={{ color: "var(--text-muted)" }}>Loading events…</div>
+        </section>
+      )}
+
+      {state.kind === "error" && (
+        <section className={styles.section}>
+          <h3>Timeline</h3>
+          <div style={{ color: "var(--text-muted)" }}>
+            Could not load events: {state.message}
+          </div>
+        </section>
+      )}
+
+      {state.kind === "ready" && events.length > 0 && (
         <section className={styles.section}>
           <h3>Timeline ({events.length} events)</h3>
           <TimelineScrubber events={events} />
         </section>
       )}
 
-      {events.length > 0 && (
+      {state.kind === "ready" && events.length > 0 && (
         <section className={styles.section}>
           <h3>Event log</h3>
           <EventLog events={events} />
@@ -52,8 +115,8 @@ function Stat({ label, value, bandColor }: { label: string; value: string; bandC
   );
 }
 
-function TimelineScrubber({ events }: { events: BenchmarkResult["events"] }) {
-  if (events === null || events.length === 0) return null;
+function TimelineScrubber({ events }: { events: AgentEvent[] }) {
+  if (events.length === 0) return null;
   const typeColor = (t: string) =>
     t === "tool_error" ? "#fb923c"
       : t === "error" ? "#ef4444"

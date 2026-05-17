@@ -101,6 +101,7 @@ export const sampleResult = (overrides: Partial<ExecutionResult> = {}): Executio
     toolCallCount: null,
     finalPlayerStats: null,
     events: null,
+    blobPool: null,
     ...overrides,
   };
 };

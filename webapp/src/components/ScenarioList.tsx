@@ -1,16 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import styles from "./ScenarioList.module.css";
-import type { BenchmarkResult } from "../lib/data";
-import { scoreBand } from "../lib/constants";
+import type { ScenarioBenchmarkResult } from "../lib/data";
 
 interface Props {
   model: string;
   variantKey: string;
-  scenarios: BenchmarkResult[];
+  scenarios: ScenarioBenchmarkResult[];
 }
 
 const terminationBand = (
-  r: BenchmarkResult["termination_reason"],
+  r: ScenarioBenchmarkResult["termination_reason"],
 ): "green" | "red" | "yellow" | undefined => {
   if (r === "completed") return "green";
   if (r === "error") return "red";
@@ -37,8 +36,8 @@ export function ScenarioList({ model, variantKey, scenarios }: Props) {
             }}
             className={styles.row}
           >
-            <span className={styles.scorePill} data-band={scoreBand(rec.score)}>
-              {rec.score.toFixed(2)}
+            <span className={styles.scorePill}>
+              {rec.value.toFixed(0)}
             </span>
             <span className={styles.name}>{name}</span>
             <span

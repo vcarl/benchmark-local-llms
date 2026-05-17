@@ -41,6 +41,12 @@ export interface RunScenarioInput {
     AgentEvent,
     SseConnectionError | SseParseError | SseIdleTimeout
   >;
+  /**
+   * Reader for the supervised LLM server's running peak RSS (KB),
+   * threaded down to `runSession::buildResult` so the scenario record
+   * carries `peakMemoryGb`. Production wires `ServerHandle.peakRssKb`.
+   */
+  readonly peakRssKb?: Effect.Effect<number>;
 }
 
 export interface RunScenarioDeps {
@@ -70,6 +76,7 @@ export const runScenario = (
       llmBaseUrl: input.llmBaseUrl,
       ...(input.sseIdleSec !== undefined ? { sseIdleSec: input.sseIdleSec } : {}),
       ...(input.sseOverride !== undefined ? { sseOverride: input.sseOverride } : {}),
+      ...(input.peakRssKb !== undefined ? { peakRssKb: input.peakRssKb } : {}),
     },
     deps,
   );

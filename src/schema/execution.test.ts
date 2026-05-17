@@ -66,6 +66,7 @@ describe("ExecutionResult", () => {
       toolCallCount: null,
       finalPlayerStats: null,
       events: null,
+      blobPool: null,
     };
     expect(roundTrip(ExecutionResult, v)).toEqual(v);
   });
@@ -104,8 +105,45 @@ describe("ExecutionResult", () => {
           data: { tool: "dock" },
         },
       ],
+      blobPool: { abc123: { role: "user", content: "hi" } },
     };
     expect(roundTrip(ExecutionResult, v)).toEqual(v);
+  });
+
+  it("decodes a pre-migration archive missing the blobPool field as null", () => {
+    // Older prompt-only archives, written before `blobPool` existed, have no
+    // such field at all. Schema must accept the absence and default to null
+    // so the loader doesn't short-circuit the archive on the first row.
+    const encoded = {
+      archiveId: "archive-old",
+      runId: "run-old",
+      executedAt: "2026-04-14T00:00:00Z",
+      promptName: "math_multiply_cot",
+      temperature: 0.7,
+      model: "Qwen 3 32B",
+      runtime: "mlx",
+      quant: "4bit",
+      promptTokens: 42,
+      generationTokens: 128,
+      promptTps: 100.5,
+      generationTps: 42.3,
+      peakMemoryGb: 18.7,
+      wallTimeSec: 3.14,
+      output: "ANSWER: 4183",
+      reasoning: null,
+      rawOutput: "ANSWER: 4183",
+      error: null,
+      promptHash: "abc123def456",
+      scenarioHash: null,
+      scenarioName: null,
+      terminationReason: null,
+      toolCallCount: null,
+      finalPlayerStats: null,
+      events: null,
+      // intentionally no blobPool key
+    };
+    const decoded = Schema.decodeUnknownSync(ExecutionResult)(encoded);
+    expect(decoded.blobPool).toBeNull();
   });
 
   it("round-trips a result with a non-null error string", () => {
@@ -135,6 +173,7 @@ describe("ExecutionResult", () => {
       toolCallCount: null,
       finalPlayerStats: null,
       events: null,
+      blobPool: null,
     };
     expect(roundTrip(ExecutionResult, v)).toEqual(v);
   });

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import styles from "./ResultTable.module.css";
+import styles from "./RunTable.module.css";
 import type { RunGroup, RunRow, RunSortKey } from "../lib/pipeline";
 import { RunRowItem } from "./RunRowItem";
 
@@ -131,7 +131,7 @@ export function RunGroupTable({
             />
             {open && rest.map((r) => (
               <RunRowItem
-                key={`${r.runtime}|${r.quant}|${r.temperature}`}
+                key={`${r.runtime}|${r.quant}|${r.temperature}|${r.run_id}`}
                 row={r}
                 compact
                 groupSize={g.rows.length}

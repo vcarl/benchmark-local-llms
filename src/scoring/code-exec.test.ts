@@ -10,6 +10,7 @@ describe("scoreCodeExec", () => {
     const out = await Effect.runPromise(
       scoreCodeExec(generated, test).pipe(Effect.provide(NodeContext.layer)),
     );
+    expect(out.kind).toBe("prompt");
     expect(out.score).toBe(1.0);
     expect(out.details).toBe("all tests passed");
   });

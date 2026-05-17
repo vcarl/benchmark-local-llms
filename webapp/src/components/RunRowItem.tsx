@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import styles from "./ResultTable.module.css";
+import styles from "./RunTable.module.css";
 import type { RunRow } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
 import { CapabilityHoverCard } from "./CapabilityHoverCard";
@@ -29,7 +29,7 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
   const rowColor = familyColor(row.family);
   const tokenPct = Math.max(0, Math.min(100, (row.tokens / Math.max(1, maxTokens)) * 100));
   const scoreClamped = Math.max(0, Math.min(100, row.score));
-  const tokensTitle = `${Math.round(row.tokens).toLocaleString()} tokens/run`;
+  const tokensTitle = `${Math.round(row.tokens).toLocaleString()} gen tokens (total)`;
 
   const handleMouseEnter = () => setHoveredModel(row.baseModel);
   const handleMouseLeave = () => clearHoveredModel();
@@ -119,7 +119,7 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
         </div>
         <div className={styles.resultNumeric}>
           <span>{Math.round(row.tokens).toLocaleString()}</span>
-          {!compact && <span className={styles.resultNumericSub}>/run</span>}
+          {!compact && <span className={styles.resultNumericSub}>gen total</span>}
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
         onClick={handleToggleClick}
       >
         <span className={styles.resultGroupToggleCaret}>{expanded ? "▾" : "▸"}</span>
-        <span className={styles.resultGroupToggleCount}>{groupSize - 1} more</span>
+        {groupSize - 1} more
       </button>
     )}
     </div>

@@ -71,6 +71,13 @@ export interface SseStreamParams {
   readonly admiralBaseUrl: string;
   /** Idle timeout in seconds — fail with `SseIdleTimeout` after this gap. */
   readonly idleSec: number;
+  /**
+   * Optional mapper instance. When supplied, the SSE stream feeds into it
+   * directly so callers can later read `mapper.pool` after the stream drains
+   * (used by `run-session.ts` to attach the blob pool to the result row).
+   * Omit for the historical behaviour (mapper is constructed internally).
+   */
+  readonly mapper?: EntryMapper;
 }
 
 export interface SseStreamFromBodyParams {
@@ -169,7 +176,7 @@ export const consumeAdmiralSse = (
             }),
         ),
       );
-      const mapper = yield* makeMapper();
+      const mapper = params.mapper ?? (yield* makeMapper());
       return eventsFromBody({ profileId: params.profileId, body, idleSec: params.idleSec }, mapper);
     }),
   );

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { ExactMatchConfig } from "../schema/scorer.js";
-import type { Score } from "./score-result.js";
+import type { PromptScore } from "./score-result.js";
 
 /**
  * exact_match scorer (requirements §4.2 / runner.py:_score_exact_match).
@@ -21,23 +21,30 @@ import type { Score } from "./score-result.js";
  * returns a zero score with a descriptive `details` message, matching the
  * prototype's non-error return.
  */
-export const scoreExactMatch = (output: string, config: ExactMatchConfig): Effect.Effect<Score> =>
+export const scoreExactMatch = (
+  output: string,
+  config: ExactMatchConfig,
+): Effect.Effect<PromptScore> =>
   Effect.sync(() => {
     const re = new RegExp(config.extract, "g");
     const matches = Array.from(output.matchAll(re));
     if (matches.length === 0) {
-      return { score: 0, details: "no match for pattern in output" };
+      return { kind: "prompt", score: 0, details: "no match for pattern in output" };
     }
     // Last match (prototype behavior). Prefer first capture group; fall back
     // to whole match if the pattern has none (matches Python's re.findall).
     const last = matches[matches.length - 1];
     if (last === undefined) {
-      return { score: 0, details: "no match for pattern in output" };
+      return { kind: "prompt", score: 0, details: "no match for pattern in output" };
     }
     const raw = last[1] ?? last[0];
     const extracted = raw.replace(/,/g, "");
     if (extracted === config.expected) {
-      return { score: 1, details: `correct: ${extracted}` };
+      return { kind: "prompt", score: 1, details: `correct: ${extracted}` };
     }
-    return { score: 0, details: `expected ${config.expected}, got ${extracted}` };
+    return {
+      kind: "prompt",
+      score: 0,
+      details: `expected ${config.expected}, got ${extracted}`,
+    };
   });

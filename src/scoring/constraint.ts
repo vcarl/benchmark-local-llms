@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import type { ConstraintConfig } from "../schema/scorer.js";
 import { evaluateConstraint } from "./constraint-checks.js";
-import type { ConstraintBreakdown, Score } from "./score-result.js";
+import type { ConstraintBreakdown, PromptScore } from "./score-result.js";
 
 /**
  * constraint scorer (requirements §4.3 / runner.py:_score_constraints).
@@ -18,7 +18,10 @@ import type { ConstraintBreakdown, Score } from "./score-result.js";
  * (§4.3: "record as errored (distinct from failed)"). This is the one
  * documented behavioral departure from the prototype for this scorer.
  */
-export const scoreConstraints = (output: string, config: ConstraintConfig): Effect.Effect<Score> =>
+export const scoreConstraints = (
+  output: string,
+  config: ConstraintConfig,
+): Effect.Effect<PromptScore> =>
   Effect.gen(function* () {
     const passed: string[] = [];
     const failed: string[] = [];
@@ -39,7 +42,7 @@ export const scoreConstraints = (output: string, config: ConstraintConfig): Effe
     const breakdown: ConstraintBreakdown = { passed, failed, errored };
 
     const details = formatDetails(passed.length, total, failed, errored);
-    return { score, details, breakdown };
+    return { kind: "prompt", score, details, breakdown };
   });
 
 const formatDetails = (

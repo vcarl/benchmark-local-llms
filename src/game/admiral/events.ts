@@ -10,14 +10,15 @@
  *   tool_call        | tool_call          | tool name from detail.tool / detail.name / summary
  *   tool_result      | tool_result        | success path
  *   tool_result(err) | tool_error         | detail.status === "error" or "error" in summary
- *   llm_call         | turn_end           | cumulative input/output tokens
+ *   llm_call         | turn_end           | cumulative input/output tokens; detail body passed through alongside totals
  *   error            | error              |
  *   connection       | connection         |
- *   llm_thought      | (dropped)
+ *   llm_thought      | llm_thought        | summary + detail body preserved for diagnostics
  *   notification     | (dropped)
  *   system           | (dropped)
  *   server_message   | (dropped)
  */
+import { createHash } from "node:crypto";
 import { Effect, Option, Ref, Schema } from "effect";
 import type { AgentEvent } from "../../schema/execution.js";
 
@@ -54,6 +55,12 @@ interface MapperState {
   readonly tick: number;
   readonly cumulativeIn: number;
   readonly cumulativeOut: number;
+  /**
+   * Per-row blob pool used to dedup `messages` payloads inside
+   * `turn_end.data.context`. A `Map` for ordered iteration in tests; the
+   * caller serializes to a plain `Record` at emit time.
+   */
+  readonly blobPool: Map<string, unknown>;
 }
 
 const initialState = (): MapperState => ({
@@ -61,7 +68,47 @@ const initialState = (): MapperState => ({
   tick: 0,
   cumulativeIn: 0,
   cumulativeOut: 0,
+  blobPool: new Map<string, unknown>(),
 });
+
+/**
+ * Stable JSON encoding: object keys sorted ascending, no whitespace. Arrays
+ * keep input order. Identical to the one used by the one-shot migration
+ * script in commit 1 so production-emitted hashes match migrated archives.
+ */
+const canonicalize = (value: unknown): string => {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalize).join(",")}]`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  const parts = keys.map((k) => `${JSON.stringify(k)}:${canonicalize(obj[k])}`);
+  return `{${parts.join(",")}}`;
+};
+
+const hashBlob = (value: unknown): string =>
+  createHash("sha256").update(canonicalize(value)).digest("hex");
+
+/**
+ * Intern `value` into `state.blobPool`. Returns the existing hash on cache
+ * hit; otherwise extends the pool with a fresh entry. The returned state
+ * shares the same pool instance — we mutate the Map in place because each
+ * `stepMapper` call already builds a fresh state object and the pool is
+ * tied to that state's lifecycle.
+ */
+export const internBlob = (
+  state: MapperState,
+  value: unknown,
+): { readonly hash: string; readonly state: MapperState } => {
+  const hash = hashBlob(value);
+  if (state.blobPool.has(hash)) return { hash, state };
+  const next = new Map(state.blobPool);
+  next.set(hash, value);
+  return { hash, state: { ...state, blobPool: next } };
+};
 
 /**
  * Coerce `detail` (JSON string or object or undefined) to a plain record.
@@ -182,6 +229,37 @@ export const stepMapper = (state: MapperState, entry: AdmiralLogEntryWire): MapR
       const usage = detail["usage"];
       const cumulativeIn = state.cumulativeIn + intFromUsage(usage, "input");
       const cumulativeOut = state.cumulativeOut + intFromUsage(usage, "output");
+
+      // Dedup `detail.context.messages` into the row-scoped blob pool. The
+      // admiral runner emits context as `{ messageCount, estimatedTokens,
+      // systemPromptTokens, messages }` — only `messages` is volume-heavy
+      // (97% of event bytes on long scenarios). Rewrite context in place
+      // to replace `messages` with `messagesRef: string[]`. Other context
+      // fields pass through unchanged. If `context` is absent or has no
+      // `messages` array, the detail is passed through verbatim.
+      const rawContext = detail["context"];
+      let nextState: MapperState = baseState;
+      let rewrittenDetail: Record<string, unknown> = detail;
+
+      if (
+        rawContext !== null &&
+        typeof rawContext === "object" &&
+        !Array.isArray(rawContext) &&
+        Array.isArray((rawContext as Record<string, unknown>)["messages"])
+      ) {
+        const ctx = rawContext as Record<string, unknown>;
+        const messages = ctx["messages"] as ReadonlyArray<unknown>;
+        const refs: string[] = [];
+        for (const msg of messages) {
+          const r = internBlob(nextState, msg);
+          nextState = r.state;
+          refs.push(r.hash);
+        }
+        const { messages: _drop, ...ctxRest } = ctx;
+        const newContext = { ...ctxRest, messagesRef: refs };
+        rewrittenDetail = { ...detail, context: newContext };
+      }
+
       return {
         outcome: {
           kind: "event",
@@ -189,10 +267,28 @@ export const stepMapper = (state: MapperState, entry: AdmiralLogEntryWire): MapR
             event: "turn_end",
             tick,
             ts,
-            data: { totalTokensIn: cumulativeIn, totalTokensOut: cumulativeOut },
+            data: {
+              ...rewrittenDetail,
+              totalTokensIn: cumulativeIn,
+              totalTokensOut: cumulativeOut,
+            },
           },
         },
-        state: { ...baseState, cumulativeIn, cumulativeOut },
+        state: { ...nextState, cumulativeIn, cumulativeOut },
+      };
+    }
+    case "llm_thought": {
+      return {
+        outcome: {
+          kind: "event",
+          event: {
+            event: "llm_thought",
+            tick,
+            ts,
+            data: { summary, ...detail },
+          },
+        },
+        state: baseState,
       };
     }
     case "error": {
@@ -224,7 +320,7 @@ export const stepMapper = (state: MapperState, entry: AdmiralLogEntryWire): MapR
       };
     }
     default:
-      // llm_thought, notification, system, server_message, anything else
+      // notification, system, server_message, anything else
       // — drop, but still consume the id so we don't accept it later.
       return {
         outcome: { kind: "skipped", type },
@@ -242,6 +338,13 @@ export interface EntryMapper {
   readonly step: (entry: AdmiralLogEntryWire) => Effect.Effect<MapOutcome>;
   /** For tests: read the running state. */
   readonly state: Effect.Effect<MapperState>;
+  /**
+   * Snapshot the finalized blob pool when the stream completes. Callers
+   * convert this to a plain `Record<string, unknown>` for the archive row's
+   * `blobPool` field. Returned as a `ReadonlyMap` to preserve insertion order
+   * (matches `Map` iteration semantics used by tests).
+   */
+  readonly pool: Effect.Effect<ReadonlyMap<string, unknown>>;
 }
 
 /**
@@ -258,5 +361,9 @@ export const makeMapper = (): Effect.Effect<EntryMapper> =>
         return [result.outcome, result.state] as const;
       });
     const state: Effect.Effect<MapperState> = Ref.get(ref);
-    return { step, state };
+    const pool: Effect.Effect<ReadonlyMap<string, unknown>> = Effect.map(
+      Ref.get(ref),
+      (s) => s.blobPool as ReadonlyMap<string, unknown>,
+    );
+    return { step, state, pool };
   });

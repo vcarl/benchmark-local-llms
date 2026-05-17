@@ -147,6 +147,21 @@
   params: 35B-A3B
   temperature: 0.7
 
+# ── Qwen 3.6 35B-A3B (MoE) ────────────────────────────────────────────────
+- artifact: unsloth/Qwen3.6-35B-A3B-GGUF
+  runtime: llamacpp
+  name: Qwen 3.6 35B-A3B (MoE)
+  quant: Q6_K
+  params: 35B-A3B
+  temperature: 0.7
+
+- artifact: mlx-community/Qwen3.6-35B-A3B-4bit
+  runtime: mlx
+  name: Qwen 3.6 35B-A3B (MoE)
+  quant: 4bit
+  params: 35B-A3B
+  temperature: 0.7
+
 # ── Qwen 3 Coder 30B-A3B Instruct (MoE) ───────────────────────────────────
 - artifact: unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF
   runtime: llamacpp
@@ -379,9 +394,9 @@
   temperature: 0.7
 
 # ── DeepSeek Coder 33B Instruct ───────────────────────────────────────────
-# Note: the MLX artifact points at the unquantized base repo
-# (deepseek-ai/deepseek-coder-33b-instruct), not an MLX-community quant.
-# Preserved as-is from common.py; quant label matches prototype default (4bit).
+# MLX artifact swapped from the unquantized base (deepseek-ai/deepseek-coder-33b-instruct)
+# to a real 4-bit MLX quant. Pre-swap results in benchmark-execution were measured
+# at bf16 despite the `quant: 4bit` label — treat them as a separate run series.
 - artifact: TheBloke/deepseek-coder-33B-instruct-GGUF
   runtime: llamacpp
   name: DeepSeek Coder 33B Instruct
@@ -389,7 +404,7 @@
   params: 33B
   temperature: 0.7
 
-- artifact: deepseek-ai/deepseek-coder-33b-instruct
+- artifact: mlx-community/deepseek-coder-33b-instruct-hf-4bit-mlx
   runtime: mlx
   name: DeepSeek Coder 33B Instruct
   quant: 4bit
@@ -500,4 +515,79 @@
   name: Phi-4 14B
   quant: 4bit
   params: 14B
+  temperature: 0.7
+
+# ── GPT-OSS 120B (MoE) ────────────────────────────────────────────────────
+- artifact: unsloth/gpt-oss-120b-GGUF
+  runtime: llamacpp
+  name: GPT-OSS 120B (MoE)
+  quant: Q4_K_M
+  params: 120B-A5B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+  temperature: 0.7
+
+- artifact: mlx-community/gpt-oss-120b-MXFP4-Q4
+  runtime: mlx
+  name: GPT-OSS 120B (MoE)
+  quant: 4bit
+  params: 120B-A5B
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+  temperature: 0.7
+
+# ── Llama-Nemotron Super 49B v1.5 ─────────────────────────────────────────
+# v1.5 GGUF only — no MLX quant of v1.5 in mlx-community as of this writing.
+- artifact: bartowski/nvidia_Llama-3_3-Nemotron-Super-49B-v1_5-GGUF
+  runtime: llamacpp
+  name: Llama-Nemotron Super 49B v1.5
+  quant: Q8_0
+  params: 49B
+  temperature: 0.7
+
+# ── Llama-Nemotron Nano 8B v1 ─────────────────────────────────────────────
+# No MLX quant in mlx-community — llamacpp only.
+- artifact: bartowski/nvidia_Llama-3.1-Nemotron-Nano-8B-v1-GGUF
+  runtime: llamacpp
+  name: Llama-Nemotron Nano 8B
+  quant: Q8_0
+  params: 8B
+  temperature: 0.7
+
+# ── Llama 4 Scout 17B-16E Instruct (MoE, ~109B total) ─────────────────────
+- artifact: unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF
+  runtime: llamacpp
+  name: Llama 4 Scout 17B-16E Instruct (MoE)
+  quant: Q8_0
+  params: 17B-16E
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+  temperature: 0.7
+
+- artifact: mlx-community/Llama-4-Scout-17B-16E-Instruct-4bit
+  runtime: mlx
+  name: Llama 4 Scout 17B-16E Instruct (MoE)
+  quant: 4bit
+  params: 17B-16E
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+  temperature: 0.7
+
+# ── Llama 4 Maverick 17B-128E Instruct (MoE, ~400B total) ─────────────────
+- artifact: unsloth/Llama-4-Maverick-17B-128E-Instruct-GGUF
+  runtime: llamacpp
+  name: Llama 4 Maverick 17B-128E Instruct (MoE)
+  quant: Q4_K_M
+  params: 17B-128E
+  ctxSize: 2048
+  scenarioCtxSize: 16384
+  temperature: 0.7
+
+- artifact: mlx-community/Llama-4-Maverick-17B-128E-Instruct-4bit
+  runtime: mlx
+  name: Llama 4 Maverick 17B-128E Instruct (MoE)
+  quant: 4bit
+  params: 17B-128E
+  ctxSize: 2048
+  scenarioCtxSize: 16384
   temperature: 0.7

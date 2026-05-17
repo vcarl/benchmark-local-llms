@@ -2,7 +2,11 @@
  * Report generator entry point (requirements §7). Wires the D2 pipeline:
  *
  *   discoverArchives  → loadManifest (B2) → scoreExecution (B3)
- *                     → toWebappRecord → writeDataJs
+ *                     → toWebappRecord → writeEventFiles + writeDataJs
+ *
+ * Scenario events live in per-record JSON side files at
+ * `<dirname(outputPath)>/events/<archive_id>__<prompt_name>.json`; `data.js`
+ * carries `has_events: boolean` flags so the webapp knows when to fetch.
  *
  * The CLI (D1) calls {@link runReport} and formats the returned
  * {@link ReportSummary} for the operator.
@@ -17,10 +21,11 @@ import type { CommandExecutor, FileSystem, Path } from "@effect/platform";
 import { Effect } from "effect";
 import type { FileIOError } from "../errors/index.js";
 import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
-import { aggregateAll, type DuplicateRunIdIssue } from "./aggregate.js";
+import { aggregateAll, type DuplicateArchiveIdIssue } from "./aggregate.js";
 import { loadAllArchives, type ReportLoadIssue } from "./load-archives.js";
-import type { WebappRecord } from "./webapp-contract.js";
+import { stripEventsForWire, type WebappRecord } from "./webapp-contract.js";
 import { writeDataJs } from "./write-data-js.js";
+import { writeEventFiles } from "./write-events.js";
 
 export interface ReportOptions {
   /** Directory containing `*.jsonl` archives to report on. */
@@ -28,6 +33,7 @@ export interface ReportOptions {
   /**
    * Output path for the webapp data file. Defaults to
    * `webapp/src/data/data.js` relative to the archive dir's parent.
+   * Per-scenario events side files are written to `<dirname(outputPath)>/events/`.
    */
   readonly outputPath?: string;
   /** Current prompt corpus (array; indexed by name internally). Required. */
@@ -46,11 +52,13 @@ export interface ReportSummary {
   readonly loadIssues: ReadonlyArray<ReportLoadIssue>;
   readonly dropped: { readonly promptAbsent: number; readonly promptDrifted: number };
   /**
-   * Archives whose `manifest.runId` collided with another loaded archive
-   * (copy/migration violation). All copies are rejected; their results are
-   * not in `records`. Empty when archives are schema-compliant.
+   * Archives whose `manifest.archiveId` collided with another loaded archive
+   * (copy/migration violation — archiveId matches the filename stem and
+   * uniquely identifies one model × invocation). All copies are rejected;
+   * their results are not in `records`. Empty when archives are
+   * schema-compliant.
    */
-  readonly duplicateRunIds: ReadonlyArray<DuplicateRunIdIssue>;
+  readonly duplicateArchiveIds: ReadonlyArray<DuplicateArchiveIdIssue>;
   readonly dryRun: boolean;
   /** Records returned for caller inspection (tests, CLI preview). */
   readonly records: ReadonlyArray<WebappRecord>;
@@ -91,14 +99,19 @@ export const runReport = (
     const currentPromptCorpus = asIndex(options.currentPromptCorpus);
     const currentScenarioCorpus = asIndex(options.currentScenarioCorpus);
 
-    const { records, dropped, duplicateRunIds } = yield* aggregateAll({
+    const { records, dropped, duplicateArchiveIds } = yield* aggregateAll({
       archives: loaded.archives,
       currentPromptCorpus,
       currentScenarioCorpus,
     });
 
     if (!dryRun) {
-      yield* writeDataJs(outputPath, records);
+      // Events first: if writeEventFiles fails, Effect short-circuits and the
+      // existing data.js (still pointing at its prior side files) on disk
+      // remains a coherent snapshot.
+      const eventsDir = path.join(path.dirname(outputPath), "events");
+      yield* writeEventFiles(eventsDir, records);
+      yield* writeDataJs(outputPath, stripEventsForWire(records));
     }
 
     return {
@@ -108,7 +121,7 @@ export const runReport = (
       recordCount: records.length,
       loadIssues: loaded.issues,
       dropped,
-      duplicateRunIds,
+      duplicateArchiveIds,
       dryRun,
       records,
     };

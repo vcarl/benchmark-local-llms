@@ -224,8 +224,9 @@ describe("runPrompt", () => {
     expect(result2.model).toBe("org/real");
   });
 
-  it("peakMemoryGb is stubbed at 0 (subprocess mode eliminated)", async () => {
-    // Explicit: the rewrite has no peak-memory source over HTTP.
+  it("peakMemoryGb defaults to 0 when no peakRssKb reader is supplied", async () => {
+    // Tests that don't care about memory (most of them) can omit the
+    // reader; result records 0 ("unknown") which the webapp renders as `—`.
     const { layer } = makeChatCompletionMock({});
     const result = await Effect.runPromise(
       runPrompt({
@@ -238,6 +239,62 @@ describe("runPrompt", () => {
       }).pipe(Effect.provide(layer)),
     );
     expect(result.peakMemoryGb).toBe(0);
+  });
+
+  it("converts the supervised peakRssKb reader into peakMemoryGb (KB → GB)", async () => {
+    // 16 GiB in KB = 16 * 1024 * 1024 = 16777216. Threading the reader
+    // through must produce 16 GB on the result.
+    const { layer } = makeChatCompletionMock({
+      "p1:0.7": {
+        kind: "ok",
+        result: {
+          output: "ok",
+          reasoning: null,
+          promptTokens: 1,
+          generationTokens: 1,
+          promptTps: 1,
+          generationTps: 1,
+        },
+      },
+    });
+    const result = await Effect.runPromise(
+      runPrompt({
+        archiveId: "archive-1",
+        runId: "run-1",
+        model: sampleModel(),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+        peakRssKb: Effect.succeed(16 * 1024 * 1024),
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(result.peakMemoryGb).toBeCloseTo(16);
+  });
+
+  it("stamps peakMemoryGb on the error path too (failure result)", async () => {
+    const { layer } = makeChatCompletionMock({
+      "p1:0.7": {
+        kind: "fail",
+        error: new LlmRequestError({
+          model: "Test Model",
+          promptName: "p1",
+          cause: "boom",
+        }),
+      },
+    });
+    const result = await Effect.runPromise(
+      runPrompt({
+        archiveId: "archive-1",
+        runId: "run-1",
+        model: sampleModel(),
+        prompt: samplePromptExact(),
+        temperature: 0.7,
+        maxTokens: 256,
+        peakRssKb: Effect.succeed(8 * 1024 * 1024),
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(result.error).not.toBeNull();
+    expect(result.peakMemoryGb).toBeCloseTo(8);
   });
 
   it("derives generationTps from wall time when the server omits `timings` (MLX case)", () => {
@@ -265,6 +322,7 @@ describe("runPrompt", () => {
       },
       "2026-04-18T00:00:00.000Z",
       /* wallTimeSec */ 4,
+      /* peakRssKb */ 0,
     );
     // promptTps can't be reconstructed without prefill timing — stays 0.
     expect(result.promptTps).toBe(0);
@@ -292,6 +350,7 @@ describe("runPrompt", () => {
       },
       "2026-04-18T00:00:00.000Z",
       /* wallTimeSec */ 5.2,
+      /* peakRssKb */ 0,
     );
     expect(result.promptTps).toBeCloseTo(113.01);
     expect(result.generationTps).toBeCloseTo(39.71);

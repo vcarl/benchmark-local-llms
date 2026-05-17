@@ -1,6 +1,6 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { DATA, normalizeRecord, type BenchmarkResult } from "../lib/data";
+import { DATA, type ScenarioBenchmarkResult } from "../lib/data";
 import { RunHeader } from "../components/RunHeader";
 import { ScenarioList } from "../components/ScenarioList";
 import {
@@ -14,7 +14,9 @@ export const Route = createFileRoute("/run/$model/$variant/scenarios/")({
   component: ScenariosPage,
 });
 
-const orderRecsByExecutedAt = (recs: BenchmarkResult[]): BenchmarkResult[] => {
+const orderRecsByExecutedAt = (
+  recs: ScenarioBenchmarkResult[],
+): ScenarioBenchmarkResult[] => {
   const indexed = recs.map((r, i) => ({ rec: r, i }));
   indexed.sort((a, b) => {
     const ta = a.rec.executed_at;
@@ -44,9 +46,7 @@ function ScenariosPage() {
   );
   const orderedScenarios = useMemo(() => {
     if (variantKey === null) return [];
-    const matches = scenariosForVariant(DATA, decodedModel, variantKey).map(
-      normalizeRecord,
-    );
+    const matches = scenariosForVariant(DATA, decodedModel, variantKey);
     return orderRecsByExecutedAt(matches);
   }, [decodedModel, variantKey]);
 

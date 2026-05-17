@@ -5,20 +5,18 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DATA, uniqueSorted, modelFamily, modelSizeB } from "../lib/data";
 import { FilterPanel } from "../components/FilterPanel";
 import { parseFilters } from "../lib/filter-state";
-import { ResultTable, type ListSortKey } from "../components/ResultTable";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { Scatter } from "../components/Scatter";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { encodeVariant, variantsForModel } from "../lib/run-summary";
-import type { GroupBy, ListRow, RunRow, RunSortKey } from "../lib/pipeline";
+import { encodeVariant } from "../lib/run-summary";
+import type { RunRow, RunSortKey } from "../lib/pipeline";
 import {
   applyFilters,
   applyVariantFilters,
-  aggregateForList,
   aggregateForRunList,
   groupRunsByModel,
 } from "../lib/pipeline";
@@ -35,7 +33,6 @@ function RootComponent() {
   const location = useLocation();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
-  const [legacySortKey, setLegacySortKey] = useState<ListSortKey>("best");
 
   // Drill-down ↔ overview is route-driven now: /run/... is the shifted state.
   const shifted = location.pathname.startsWith("/run/");
@@ -64,8 +61,6 @@ function RootComponent() {
   }), []);
 
   const filters = parseFilters(search as never);
-  const groupBy = (search.groupBy ?? "model") as GroupBy;
-  const isGroupedRunView = groupBy === "model" || groupBy === "modelOnly";
 
   const sortPrimary: RunSortKey = isRunSortKey(search.sortPrimary) ? search.sortPrimary : "score";
   const sortSecondary: RunSortKey = isRunSortKey(search.sortSecondary) ? search.sortSecondary : "score";
@@ -76,30 +71,14 @@ function RootComponent() {
   );
 
   const runGroups = useMemo(
-    () => isGroupedRunView
-      ? groupRunsByModel(aggregateForRunList(filtered), sortPrimary, sortSecondary)
-      : [],
-    [filtered, isGroupedRunView, sortPrimary, sortSecondary],
-  );
-
-  const legacyRows: ListRow[] = useMemo(
-    () => isGroupedRunView ? [] : aggregateForList(filtered, groupBy),
-    [filtered, groupBy, isGroupedRunView],
+    () => groupRunsByModel(aggregateForRunList(filtered), sortPrimary, sortSecondary),
+    [filtered, sortPrimary, sortSecondary],
   );
 
   // navigate without `to` keeps the user on the current route — important so
   // changing a filter while on /run/... doesn't kick them back to /.
   const setSearchPatch = (patch: Record<string, string | undefined>) =>
     navigate({ search: (s) => ({ ...(s as object), ...patch }) as never });
-
-  const goToBestVariant = (model: string) => {
-    const variants = variantsForModel(DATA, model);
-    if (variants.length === 0) return;
-    navigate({
-      to: "/run/$model/$variant",
-      params: { model, variant: encodeVariant(variants[0].key) },
-    });
-  };
 
   const handleRunClick = (row: RunRow) =>
     navigate({
@@ -114,37 +93,9 @@ function RootComponent() {
       },
     });
 
-  const handleLegacyRowClick = (row: ListRow) => {
-    if (row.baseModel !== null) { goToBestVariant(row.baseModel); return; }
-    if (groupBy === "prompt") {
-      // A prompt-name group click: navigate to the variant containing the
-      // first record for that prompt and expand the row by name.
-      const firstRun = filtered.find((r) => r.prompt_name === row.key);
-      if (firstRun) {
-        navigate({
-          to: "/run/$model/$variant",
-          params: {
-            model: firstRun.model,
-            variant: encodeVariant({
-              runtime: firstRun.runtime,
-              quant: firstRun.quant,
-              temperature: firstRun.temperature,
-            }),
-          },
-          search: { expanded: firstRun.prompt_name } as never,
-        });
-      }
-      return;
-    }
-    const patch: Record<string, string> =
-      groupBy === "tag" ? { tags: row.key } :
-      groupBy === "category" ? { category: row.key } : {};
-    setSearchPatch(patch);
-  };
-
   const closeDetails = () => navigate({ to: "/", search: (s) => s as never });
 
-  const ranking = isGroupedRunView ? (
+  const ranking = (
     <RunGroupTable
       groups={runGroups}
       primary={sortPrimary}
@@ -152,13 +103,6 @@ function RootComponent() {
       onPrimaryChange={(k) => setSearchPatch({ sortPrimary: k })}
       onSecondaryChange={(k) => setSearchPatch({ sortSecondary: k })}
       onRowClick={handleRunClick}
-    />
-  ) : (
-    <ResultTable
-      rows={legacyRows}
-      sortKey={legacySortKey}
-      onSortChange={setLegacySortKey}
-      onRowClick={handleLegacyRowClick}
     />
   );
 

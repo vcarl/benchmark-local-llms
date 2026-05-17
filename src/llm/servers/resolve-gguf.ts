@@ -59,7 +59,7 @@ export const resolveLlamacppGguf = (
           ? Effect.fail(
               new ServerSpawnError({
                 runtime: "llamacpp",
-                reason: `No cached .gguf for ${artifact} (quant=${quant}). Run \`huggingface-cli download ${artifact}\` or adjust models.yaml.`,
+                reason: `No cached .gguf for ${artifact} (quant=${quant}). Run \`hf download ${artifact}\` or adjust models.yaml.`,
               }),
             )
           : Effect.succeed(found),

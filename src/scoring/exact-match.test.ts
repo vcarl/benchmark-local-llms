@@ -15,6 +15,7 @@ describe("scoreExactMatch", () => {
   it("returns 1 for an exact match on a single capture", () => {
     const c = cfg("42", String.raw`answer:\s*(\d+)`);
     expect(run(scoreExactMatch("answer: 42", c))).toEqual({
+      kind: "prompt",
       score: 1,
       details: "correct: 42",
     });
@@ -32,6 +33,7 @@ describe("scoreExactMatch", () => {
     const c = cfg("7", String.raw`answer:\s*(\d+)`);
     const out = "scratch: answer: 3\nrethink: answer: 5\nfinal: answer: 7";
     expect(run(scoreExactMatch(out, c))).toEqual({
+      kind: "prompt",
       score: 1,
       details: "correct: 7",
     });
@@ -40,6 +42,7 @@ describe("scoreExactMatch", () => {
   it("strips commas from numeric answers before comparing", () => {
     const c = cfg("2395912", String.raw`=\s*([\d,]+)`);
     expect(run(scoreExactMatch("result = 2,395,912", c))).toEqual({
+      kind: "prompt",
       score: 1,
       details: "correct: 2395912",
     });
@@ -48,13 +51,14 @@ describe("scoreExactMatch", () => {
   it("reports `got` value on mismatch", () => {
     const c = cfg("42", String.raw`answer:\s*(\d+)`);
     const r = run(scoreExactMatch("answer: 41", c));
-    expect(r).toEqual({ score: 0, details: "expected 42, got 41" });
+    expect(r).toEqual({ kind: "prompt", score: 0, details: "expected 42, got 41" });
   });
 
   it("falls back to whole match when pattern has no capture group", () => {
     // Python: re.findall with no capture returns the whole match.
     const c = cfg("42", String.raw`\d+`);
     expect(run(scoreExactMatch("sum = 10 + 32 = 42", c))).toEqual({
+      kind: "prompt",
       score: 1,
       details: "correct: 42",
     });

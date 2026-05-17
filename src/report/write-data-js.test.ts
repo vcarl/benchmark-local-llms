@@ -5,10 +5,11 @@ import path from "node:path";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, type Exit, Layer } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { WebappRecord } from "./webapp-contract.js";
+import type { PromptWebappRecord, WebappRecord } from "./webapp-contract.js";
 import { formatDataJs, writeDataJs } from "./write-data-js.js";
 
-const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
+const record = (overrides: Partial<PromptWebappRecord> = {}): PromptWebappRecord => ({
+  kind: "prompt",
   model: "Test",
   runtime: "mlx",
   quant: "4bit",
@@ -34,6 +35,7 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   tool_call_count: null,
   final_player_stats: null,
   events: null,
+  has_events: false,
   run_id: "r-2026-04-14-deadbe",
   executed_at: "2026-04-14T12:34:56.000Z",
   archive_id: "2026-04-14_test_4bit_deadbe",

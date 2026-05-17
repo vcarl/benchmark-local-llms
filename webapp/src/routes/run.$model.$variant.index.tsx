@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
-import { DATA, normalizeRecord, type BenchmarkResult } from "../lib/data";
+import { DATA, type PromptBenchmarkResult } from "../lib/data";
 import { RunHeader } from "../components/RunHeader";
 import { PromptView } from "../components/PromptView";
 import { parseExpanded, encodeExpanded } from "../lib/expanded-state";
@@ -23,7 +23,9 @@ function rowDomId(name: string): string {
 
 // Order prompts within a variant by executed_at ascending; tie-break by
 // the index in DATA so the order is stable across renders.
-const orderRecsByExecutedAt = (recs: BenchmarkResult[]): BenchmarkResult[] => {
+const orderRecsByExecutedAt = (
+  recs: PromptBenchmarkResult[],
+): PromptBenchmarkResult[] => {
   const indexed = recs.map((r, i) => ({ rec: r, i }));
   indexed.sort((a, b) => {
     const ta = a.rec.executed_at;
@@ -48,10 +50,10 @@ function RunPage() {
 
   const variants = useMemo(() => variantsForModel(DATA, decodedModel), [decodedModel]);
 
-  const orderedRecs = useMemo(() => {
+  const orderedRecs = useMemo<PromptBenchmarkResult[]>(() => {
     if (variantKey === null) return [];
     const matches = recordsForVariant(DATA, decodedModel, variantKey).filter(
-      (r) => !r.is_scenario,
+      (r): r is PromptBenchmarkResult => r.kind === "prompt",
     );
     return orderRecsByExecutedAt(matches);
   }, [decodedModel, variantKey]);
@@ -134,7 +136,7 @@ function RunPage() {
       {orderedRecs.map((rec) => (
         <PromptView
           key={rec.prompt_name}
-          rec={normalizeRecord(rec)}
+          rec={rec}
           expanded={expandedSet.has(rec.prompt_name)}
           onToggle={() => handleToggleRow(rec.prompt_name)}
           isFocused={false}

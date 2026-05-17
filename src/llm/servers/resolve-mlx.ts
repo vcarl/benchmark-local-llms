@@ -3,7 +3,7 @@
  * `resolveLlamacppGguf` for the MLX path.
  *
  * `./bench run` is a pure-execution phase; downloading models is an explicit
- * out-of-tool step (`huggingface-cli download <artifact>`). Without this
+ * out-of-tool step (`hf download <artifact>`). Without this
  * pre-check, `mlx_lm.load()` silently calls `snapshot_download()` when given
  * a HF repo id, quietly violating the load/run separation. Passing mlx_lm a
  * local directory path skips the hub roundtrip entirely.
@@ -59,7 +59,7 @@ export const resolveMlxModel = (artifact: string): Effect.Effect<string, ServerS
         ? Effect.fail(
             new ServerSpawnError({
               runtime: "mlx",
-              reason: `No cached MLX model for ${artifact}. Run \`huggingface-cli download ${artifact}\` or adjust models.yaml.`,
+              reason: `No cached MLX model for ${artifact}. Run \`hf download ${artifact}\` or adjust models.yaml.`,
             }),
           )
         : Effect.succeed(found),

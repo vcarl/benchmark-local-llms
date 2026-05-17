@@ -16,6 +16,7 @@ describe("scoreConstraints", () => {
       ],
     };
     const r = run("foo bar", config);
+    expect(r.kind).toBe("prompt");
     expect(r.score).toBe(1);
     expect(r.breakdown?.passed).toEqual(["a", "b"]);
     expect(r.breakdown?.failed).toEqual([]);

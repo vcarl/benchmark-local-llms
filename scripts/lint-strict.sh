@@ -27,8 +27,12 @@ if grep -rn 'try\s*{' src/ --include='*.ts' | grep -v 'src/cli/main.ts' | grep -
   errors=$((errors + 1))
 fi
 
-# Ban throw statements except in interop bridges.
-if grep -rn 'throw ' src/ --include='*.ts' | grep -v 'src/interop/'; then
+# Ban throw statements except in interop bridges and test files.
+# - src/interop/: subprocess interop bridges to Effect
+# - *.test.ts: vitest narrowing assertions (`if (...) throw new Error(...)`) are
+#   the standard pattern for type-narrowing in test bodies; the runtime never
+#   reaches production
+if grep -rn 'throw ' src/ --include='*.ts' | grep -v 'src/interop/' | grep -v '\.test\.ts:'; then
   echo "ERROR: throw statement found. Use Effect.fail() or typed errors instead."
   errors=$((errors + 1))
 fi

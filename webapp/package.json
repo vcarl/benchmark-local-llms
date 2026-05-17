@@ -8,13 +8,11 @@
   },
   "dependencies": {
     "@tanstack/react-router": "^1",
-    "d3": "^7",
     "react": "^19",
     "react-dom": "^19"
   },
   "devDependencies": {
     "@tanstack/router-plugin": "^1.167.12",
-    "@types/d3": "^7",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

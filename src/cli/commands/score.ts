@@ -56,6 +56,8 @@ export const resolveCorpusEntry = (
  */
 export const formatScoredLine = (
   result: ExecutionResult,
+  // `score.score` here is the already-projected numeric value (PromptScore.score or ScenarioScore.value);
+  // it is not a ScoreResult.
   score: { readonly score: number; readonly details?: string | undefined } | null,
 ): string => {
   const scoreCell = score === null ? "no-corpus" : String(score.score.toFixed(3));
@@ -100,7 +102,12 @@ export const scoreCommand = Command.make(
           continue;
         }
         const s = scoreOutcome.right;
-        yield* printLine(formatScoredLine(result, { score: s.score, details: s.details }));
+        // ScoreResult is a discriminated union: prompt scores carry `score`
+        // (normalized [0,1]); scenario scores carry `value` (raw, uncoerced).
+        // The score table prints a single numeric column, so we surface
+        // `value` for scenarios as the printed score.
+        const printedScore = s.kind === "prompt" ? s.score : s.value;
+        yield* printLine(formatScoredLine(result, { score: printedScore, details: s.details }));
       }
     }).pipe(Effect.provide(makeLoggerLayer(isVerbose))),
 ).pipe(Command.withDescription("Re-score an existing archive in place (stdout only)"));

@@ -9,40 +9,6 @@
   gap: var(--space-6);
 }
 
-.topStrip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  align-items: center;
-}
-
-.topStrip label {
-  font-size: var(--fz-11);
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.topStrip select,
-.presetMenu select,
-.presetMenu button {
-  background: var(--surface-4);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--r-4);
-  font-size: var(--fz-12);
-  cursor: pointer;
-}
-
-.presetMenu {
-  display: flex;
-  gap: var(--space-2);
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
 .chipRow {
   display: flex;
   gap: var(--space-3);

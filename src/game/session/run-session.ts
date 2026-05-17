@@ -35,6 +35,7 @@ import type { AgentEvent, ExecutionResult } from "../../schema/execution.js";
 import type { ModelConfig } from "../../schema/model.js";
 import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
 import type { AdmiralClient } from "../admiral/client.js";
+import { makeMapper } from "../admiral/events.js";
 import { acquireProfile } from "../admiral/profile.js";
 import { consumeAdmiralSse } from "../admiral/sse.js";
 import type { GameAdminClient, PlayerCredential } from "../server/admin-client.js";
@@ -68,6 +69,13 @@ export interface RunSessionInput {
     AgentEvent,
     SseConnectionError | SseParseError | SseIdleTimeout
   >;
+  /**
+   * Reader for the supervised LLM server's running peak RSS (KB),
+   * sampled when the scenario settles and recorded as `peakMemoryGb`.
+   * Omit (or supply `Effect.succeed(0)`) to record "unknown" — the
+   * webapp renders 0 as `—`.
+   */
+  readonly peakRssKb?: Effect.Effect<number>;
 }
 
 export interface RunSessionDeps {
@@ -149,93 +157,124 @@ export const runSession = (
 
   const collected: Array<AgentEvent> = [];
 
-  // The error-channel effect that drives the session. We catch into a
-  // result at the boundary so the caller never needs to.
-  const work = Effect.gen(function* () {
-    if (playerId === null) {
-      // Schema requires at least one llm player for the scenario to be
-      // actionable. Surface as a credential mismatch so it shows up the
-      // same way operator-facing as a Real™ mismatch.
-      return yield* Effect.fail(
-        new GameCredentialMismatch({
-          expectedId: "<no-llm-player>",
-          availableIds: input.scenario.players.map((p) => p.id),
-        }),
+  return Effect.gen(function* () {
+    // Build the mapper outside the SSE stream so we can pull its finalized
+    // blob pool after the stream drains, even on the error path. When
+    // `sseOverride` is supplied (tests), the pool stays empty — the override
+    // emits already-mapped `AgentEvent`s and doesn't run through the mapper.
+    const mapper = yield* makeMapper();
+
+    // The error-channel effect that drives the session. We catch into a
+    // result at the boundary so the caller never needs to.
+    const work = Effect.gen(function* () {
+      if (playerId === null) {
+        // Schema requires at least one llm player for the scenario to be
+        // actionable. Surface as a credential mismatch so it shows up the
+        // same way operator-facing as a Real™ mismatch.
+        return yield* Effect.fail(
+          new GameCredentialMismatch({
+            expectedId: "<no-llm-player>",
+            availableIds: input.scenario.players.map((p) => p.id),
+          }),
+        );
+      }
+
+      yield* Effect.logDebug(`reset fixture ${input.scenario.fixture}`).pipe(
+        Effect.annotateLogs("scope", "session"),
       );
-    }
+      const creds = yield* deps.admin.reset(input.scenario.fixture);
+      yield* Effect.logDebug(`resolve credential for player=${playerId ?? "<auto>"}`).pipe(
+        Effect.annotateLogs("scope", "session"),
+      );
+      const player = yield* deps.admin.resolveCredential(creds, playerId);
 
-    yield* Effect.logDebug(`reset fixture ${input.scenario.fixture}`).pipe(
-      Effect.annotateLogs("scope", "session"),
-    );
-    const creds = yield* deps.admin.reset(input.scenario.fixture);
-    yield* Effect.logDebug(`resolve credential for player=${playerId ?? "<auto>"}`).pipe(
-      Effect.annotateLogs("scope", "session"),
-    );
-    const player = yield* deps.admin.resolveCredential(creds, playerId);
-
-    yield* Effect.logDebug(`configure + create profile for scenario ${input.scenario.name}`).pipe(
-      Effect.annotateLogs("scope", "session"),
-    );
-    const profile = yield* acquireProfile(deps.admiral, {
-      provider: {
-        id: provider,
-        baseUrl: input.llmBaseUrl,
-        apiKey: "local",
-      },
-      profile: {
-        provider,
-        name: `bench-${input.archiveId}-${input.scenario.name}`,
-        username: credString(player, "username"),
-        password: credString(player, "password"),
-        model: input.model.artifact,
-        serverUrl: input.gameServerBaseUrl,
-        directive: input.scenario.scenarioMd,
-        connectionMode: "http_v2",
-      },
-    });
-    yield* Effect.logDebug(`profile ${profile.profileId} ready`).pipe(
-      Effect.annotateLogs("scope", "session"),
-    );
-
-    const watchdog = yield* makeWatchdog(input.scenario.cutoffs);
-
-    const sseStream =
-      input.sseOverride ??
-      consumeAdmiralSse({
-        profileId: profile.profileId,
-        admiralBaseUrl: input.admiralBaseUrl,
-        idleSec: sseIdleSec,
+      yield* Effect.logDebug(`configure + create profile for scenario ${input.scenario.name}`).pipe(
+        Effect.annotateLogs("scope", "session"),
+      );
+      const profile = yield* acquireProfile(deps.admiral, {
+        provider: {
+          id: provider,
+          baseUrl: input.llmBaseUrl,
+          apiKey: "local",
+        },
+        profile: {
+          provider,
+          name: `bench-${input.archiveId}-${input.scenario.name}`,
+          username: credString(player, "username"),
+          password: credString(player, "password"),
+          model: input.model.artifact,
+          serverUrl: input.gameServerBaseUrl,
+          directive: input.scenario.scenarioMd,
+          connectionMode: "http_v2",
+        },
       });
+      yield* Effect.logDebug(`profile ${profile.profileId} ready`).pipe(
+        Effect.annotateLogs("scope", "session"),
+      );
 
-    // Race the SSE consumer against the wall-clock timer. Whichever
-    // completes first wins; `Effect.race` interrupts the loser.
-    const reason: TerminationReason = yield* Effect.race(
-      consumeIntoWatchdog(sseStream, watchdog, collected),
-      watchdog.wallClockTimer,
+      const watchdog = yield* makeWatchdog(input.scenario.cutoffs);
+
+      const sseStream =
+        input.sseOverride ??
+        consumeAdmiralSse({
+          profileId: profile.profileId,
+          admiralBaseUrl: input.admiralBaseUrl,
+          idleSec: sseIdleSec,
+          mapper,
+        });
+
+      // Race the SSE consumer against the wall-clock timer. Whichever
+      // completes first wins; `Effect.race` interrupts the loser.
+      const reason: TerminationReason = yield* Effect.race(
+        consumeIntoWatchdog(sseStream, watchdog, collected),
+        watchdog.wallClockTimer,
+      );
+
+      return { reason, profile };
+    });
+
+    // Sample the supervised server's peak RSS once, after the session
+    // settles, regardless of whether it ended cleanly or via fault. The
+    // reader survives even after the supervisor's poll fiber is interrupted
+    // — it reads from a Ref backed by the running max.
+    const peakReader = input.peakRssKb ?? Effect.succeed(0);
+
+    // Intentionally simple: if `work` produces a typed error, fold to the
+    // error result. If the SSE stream fails, the inner Effect catches and
+    // turns it into a value (we never let it propagate past `runSession`).
+    return yield* Effect.scoped(work).pipe(
+      Effect.matchEffect({
+        onFailure: (cause) =>
+          Effect.gen(function* () {
+            const peakKb = yield* peakReader;
+            const pool = yield* mapper.pool;
+            return buildErrorResult(input, startedAt, startedMs, collected, cause, peakKb, pool);
+          }),
+        onSuccess: ({ reason }) =>
+          Effect.gen(function* () {
+            yield* Effect.logDebug(`fetching final player stats`).pipe(
+              Effect.annotateLogs("scope", "session"),
+            );
+            const finalStats = yield* deps.admin
+              .getPlayerStats(playerId ?? "")
+              .pipe(Effect.orElseSucceed(() => ({}) as Record<string, unknown>));
+            const peakKb = yield* peakReader;
+            const pool = yield* mapper.pool;
+            return buildResult(
+              input,
+              startedAt,
+              startedMs,
+              collected,
+              reason,
+              finalStats,
+              null,
+              peakKb,
+              pool,
+            );
+          }),
+      }),
     );
-
-    return { reason, profile };
   });
-
-  // Intentionally simple: if `work` produces a typed error, fold to the
-  // error result. If the SSE stream fails, the inner Effect catches and
-  // turns it into a value (we never let it propagate past `runSession`).
-  return Effect.scoped(work).pipe(
-    Effect.matchEffect({
-      onFailure: (cause) =>
-        Effect.succeed(buildErrorResult(input, startedAt, startedMs, collected, cause)),
-      onSuccess: ({ reason }) =>
-        Effect.gen(function* () {
-          yield* Effect.logDebug(`fetching final player stats`).pipe(
-            Effect.annotateLogs("scope", "session"),
-          );
-          const finalStats = yield* deps.admin
-            .getPlayerStats(playerId ?? "")
-            .pipe(Effect.orElseSucceed(() => ({}) as Record<string, unknown>));
-          return buildResult(input, startedAt, startedMs, collected, reason, finalStats, null);
-        }),
-    }),
-  );
 };
 
 const stringifyCause = (
@@ -258,6 +297,8 @@ const buildErrorResult = (
   startedMs: number,
   collected: ReadonlyArray<AgentEvent>,
   cause: unknown,
+  peakRssKb: number,
+  blobPool: ReadonlyMap<string, unknown>,
 ): ExecutionResult =>
   buildResult(
     input,
@@ -269,7 +310,13 @@ const buildErrorResult = (
     typeof cause === "object" && cause !== null && "_tag" in cause
       ? stringifyCause(cause as Parameters<typeof stringifyCause>[0])
       : String(cause),
+    peakRssKb,
+    blobPool,
   );
+
+// 0 KB → 0 GB ("unknown"; webapp renders 0 as `—`). See run-prompt.ts
+// for the equivalent helper and notes on what the sample includes.
+const peakRssKbToGb = (kb: number): number => kb / (1024 * 1024);
 
 const buildResult = (
   input: RunSessionInput,
@@ -279,6 +326,8 @@ const buildResult = (
   termination: TerminationReason,
   finalStats: Record<string, unknown> | null,
   error: string | null,
+  peakRssKb: number,
+  blobPool: ReadonlyMap<string, unknown>,
 ): ExecutionResult => {
   const elapsed = (Date.now() - startedMs) / 1000;
   const toolCallCount = collected.reduce((acc, e) => (e.event === "tool_call" ? acc + 1 : acc), 0);
@@ -307,7 +356,7 @@ const buildResult = (
     generationTokens: totalTokens,
     promptTps: 0,
     generationTps: 0,
-    peakMemoryGb: 0,
+    peakMemoryGb: peakRssKbToGb(peakRssKb),
     wallTimeSec: elapsed,
     output: "",
     reasoning: null,
@@ -320,6 +369,7 @@ const buildResult = (
     toolCallCount,
     finalPlayerStats: finalStats,
     events: collected,
+    blobPool: Object.fromEntries(blobPool),
   };
   return result;
 };

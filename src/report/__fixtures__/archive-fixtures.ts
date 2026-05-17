@@ -120,4 +120,5 @@ export const fixtureResult = (overrides: Partial<ExecutionResult> = {}): Executi
   toolCallCount: overrides.toolCallCount ?? null,
   finalPlayerStats: overrides.finalPlayerStats ?? null,
   events: overrides.events ?? null,
+  blobPool: overrides.blobPool ?? null,
 });

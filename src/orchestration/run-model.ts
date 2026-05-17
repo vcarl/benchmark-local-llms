@@ -228,7 +228,7 @@ export const runModel = (
         toFileIO(`<llm-server:${input.manifest.runtime}>`, "acquire-llm-server"),
       );
 
-      yield* runPromptPhase(input, statsRef, aggRef);
+      yield* runPromptPhase(input, llmHandle, statsRef, aggRef);
 
       if (input.scenarios.length > 0) {
         const admiral = yield* Effect.mapError(

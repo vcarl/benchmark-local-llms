@@ -163,7 +163,7 @@ export function Scatter({ data }: Props) {
         <line className={styles.scatterAxis} x1={M.left} x2={M.left} y1={M.top} y2={M.top + IH} />
         <line className={styles.scatterAxis} x1={M.left} x2={M.left + IW} y1={M.top + IH} y2={M.top + IH} />
         <text className={styles.scatterAxisTitle} x={M.left + IW / 2} y={H - 10} textAnchor="middle">
-          Avg tokens per run (log)
+          Total gen tokens (log)
         </text>
         <text
           className={styles.scatterAxisTitle}
@@ -201,7 +201,7 @@ export function Scatter({ data }: Props) {
           const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
           return (
             <path
-              key={`${d.baseModel}|${d.runtime}|${d.quant}|${d.temperature}`}
+              key={`${d.baseModel}|${d.runtime}|${d.quant}|${d.temperature}|${d.run_id}`}
               className={styles.scatterDot}
               d={starPath(xScale(d.tokens), yScale(d.score), n, outerR, innerR)}
               fill={familyColor(d.family)}

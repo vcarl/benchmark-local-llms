@@ -1,0 +1,17 @@
+name: sandbox
+fixture: benchmark
+scenarioMd: sandbox.md
+players:
+  - id: bench_rookie
+    controlledBy: llm
+scorer: api_field
+scorerParams:
+  scoreField: score
+cutoffs:
+  totalTokens: 500000
+  toolCalls: 10000
+  wallClockSec: 1800
+tier: 3
+tags:
+  - freeform
+  - sandbox

@@ -14,7 +14,7 @@ import { Command, type CommandExecutor } from "@effect/platform";
 import { Effect, Stream } from "effect";
 import { CodeExecFailed, CodeExecTimeout } from "../errors/index.js";
 import { extractCode } from "./extract-code.js";
-import type { Score } from "./score-result.js";
+import type { PromptScore } from "./score-result.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const TESTS_PASSED_MARKER = "ALL_TESTS_PASSED";
@@ -40,14 +40,14 @@ export interface CodeExecOptions {
 }
 
 /**
- * Score a model output against its paired test code. Returns a `Score` with
- * 1.0 on pass / 0.0 on fail, and a details string describing the outcome.
+ * Score a model output against its paired test code. Returns a `PromptScore`
+ * with 1.0 on pass / 0.0 on fail, and a details string describing the outcome.
  */
 export const scoreCodeExec = (
   output: string,
   testCode: string,
   options: CodeExecOptions = {},
-): Effect.Effect<Score, CodeExecTimeout | CodeExecFailed, CommandExecutor.CommandExecutor> =>
+): Effect.Effect<PromptScore, CodeExecTimeout | CodeExecFailed, CommandExecutor.CommandExecutor> =>
   Effect.gen(function* () {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const pythonBin = options.pythonBin ?? "python3";
@@ -91,7 +91,7 @@ export const scoreCodeExec = (
 
     const { stdout, stderr, exitCode } = raced;
     if (exitCode === 0 && stdout.includes(TESTS_PASSED_MARKER)) {
-      return { score: 1.0, details: "all tests passed" };
+      return { kind: "prompt", score: 1.0, details: "all tests passed" };
     }
-    return { score: 0.0, details: classifyFailure(stdout, stderr) };
+    return { kind: "prompt", score: 0.0, details: classifyFailure(stdout, stderr) };
   });

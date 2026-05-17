@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
-import type { Score } from "../scoring/score-result.js";
-import { toWebappRecord, type WebappRecord } from "./webapp-contract.js";
+import type { PromptScore, ScenarioScore } from "../scoring/score-result.js";
+import { stripEventsForWire, toWebappRecord, type WebappRecord } from "./webapp-contract.js";
 
 const makeExecution = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => {
   const output = overrides.output ?? "the answer is 4183";
@@ -31,6 +31,7 @@ const makeExecution = (overrides: Partial<ExecutionResult> = {}): ExecutionResul
     toolCallCount: null,
     finalPlayerStats: null,
     events: null,
+    blobPool: null,
     ...overrides,
   };
 };
@@ -57,7 +58,13 @@ const scenarioEntry: ScenarioCorpusEntry = {
   scenarioHash: "xyz789",
 };
 
-const score: Score = { score: 1, details: "exact match" };
+const score: PromptScore = { kind: "prompt", score: 1, details: "exact match" };
+const scenarioScoreFixture: ScenarioScore = {
+  kind: "scenario",
+  value: 1,
+  scoreField: "score",
+  details: "score=1",
+};
 
 describe("toWebappRecord", () => {
   it("produces snake_case fields from a prompt execution", () => {
@@ -87,10 +94,11 @@ describe("toWebappRecord", () => {
     const rec = toWebappRecord(
       makeExecution({ promptTokens: 999, generationTokens: 777 }),
       promptEntry,
-      { score: 0.6666666, details: "partial" },
+      { kind: "prompt", score: 0.6666666, details: "partial" },
     );
     expect(rec.prompt_tokens).toBe(999);
     expect(rec.generation_tokens).toBe(777);
+    if (rec.kind !== "prompt") throw new Error("expected prompt record");
     expect(rec.score).toBe(0.6666666);
   });
 
@@ -98,7 +106,7 @@ describe("toWebappRecord", () => {
     const rec = toWebappRecord(
       makeExecution({ promptName: "bootstrap_grind", scenarioName: "bootstrap_grind" }),
       scenarioEntry,
-      score,
+      scenarioScoreFixture,
     );
     expect(rec.category).toBe("game");
     expect(rec.prompt_text).toBe("");
@@ -142,7 +150,7 @@ describe("toWebappRecord", () => {
       finalPlayerStats: { credits: 2840, fuel: 87 },
       events: [{ event: "tool_call", tick: 1, ts: "1700000000", data: { tool: "scan_system" } }],
     });
-    const rec = toWebappRecord(scenarioExec, scenarioEntry, score);
+    const rec = toWebappRecord(scenarioExec, scenarioEntry, scenarioScoreFixture);
     expect(rec.is_scenario).toBe(true);
     expect(rec.scenario_name).toBe("bootstrap_grind");
     expect(rec.termination_reason).toBe("completed");
@@ -179,10 +187,12 @@ describe("toWebappRecord", () => {
 
   it("emits score_breakdown when the score carries a constraint breakdown", () => {
     const rec = toWebappRecord(makeExecution(), promptEntry, {
+      kind: "prompt",
       score: 0.5,
       details: "1/2: failed [check_b]",
       breakdown: { passed: ["check_a"], failed: ["check_b"], errored: [] },
     });
+    if (rec.kind !== "prompt") throw new Error("expected prompt record");
     expect(rec.score_breakdown).toEqual({
       passed: ["check_a"],
       failed: ["check_b"],
@@ -192,6 +202,110 @@ describe("toWebappRecord", () => {
 
   it("nulls score_breakdown when the score has none (non-constraint scorers)", () => {
     const rec = toWebappRecord(makeExecution(), promptEntry, score);
+    if (rec.kind !== "prompt") throw new Error("expected prompt record");
     expect(rec.score_breakdown).toBeNull();
+  });
+});
+
+describe("toWebappRecord — discriminated by scenario vs prompt", () => {
+  it("produces a ScenarioWebappRecord for scenario entries", () => {
+    const result = makeExecution({
+      promptName: "sandbox",
+      scenarioName: "sandbox",
+      scenarioHash: "xyz789",
+      finalPlayerStats: { score: 1234 },
+    });
+    const entry: ScenarioCorpusEntry = { ...scenarioEntry, name: "sandbox" };
+    const sScore: ScenarioScore = {
+      kind: "scenario",
+      value: 1234,
+      scoreField: "score",
+      details: "score=1234",
+    };
+    const rec = toWebappRecord(result, entry, sScore);
+    expect(rec.kind).toBe("scenario");
+    if (rec.kind !== "scenario") throw new Error("expected scenario record");
+    expect(rec.value).toBe(1234);
+    expect(rec.score_field).toBe("score");
+  });
+
+  it("produces a PromptWebappRecord for prompt entries", () => {
+    const result = makeExecution({ promptName: "math_multiply_direct" });
+    const entry: PromptCorpusEntry = { ...promptEntry, name: "math_multiply_direct" };
+    const pScore: PromptScore = { kind: "prompt", score: 1, details: "ok" };
+    const rec = toWebappRecord(result, entry, pScore);
+    expect(rec.kind).toBe("prompt");
+    if (rec.kind !== "prompt") throw new Error("expected prompt record");
+    expect(rec.score).toBe(1);
+  });
+});
+
+describe("toWebappRecord — has_events flag", () => {
+  it("sets has_events: true on a scenario with a non-empty events array", () => {
+    const scenarioExec = makeExecution({
+      promptName: "bootstrap_grind",
+      scenarioName: "bootstrap_grind",
+      events: [{ event: "tool_call", tick: 1, ts: "1700000000", data: { tool: "scan_system" } }],
+    });
+    const rec = toWebappRecord(scenarioExec, scenarioEntry, scenarioScoreFixture);
+    if (rec.kind !== "scenario") throw new Error("expected scenario record");
+    expect(rec.has_events).toBe(true);
+  });
+
+  it("sets has_events: false on a scenario when events is null", () => {
+    const scenarioExec = makeExecution({
+      promptName: "bootstrap_grind",
+      scenarioName: "bootstrap_grind",
+      events: null,
+    });
+    const rec = toWebappRecord(scenarioExec, scenarioEntry, scenarioScoreFixture);
+    if (rec.kind !== "scenario") throw new Error("expected scenario record");
+    expect(rec.has_events).toBe(false);
+  });
+
+  it("sets has_events: false on a scenario when events is an empty array", () => {
+    const scenarioExec = makeExecution({
+      promptName: "bootstrap_grind",
+      scenarioName: "bootstrap_grind",
+      events: [],
+    });
+    const rec = toWebappRecord(scenarioExec, scenarioEntry, scenarioScoreFixture);
+    if (rec.kind !== "scenario") throw new Error("expected scenario record");
+    expect(rec.has_events).toBe(false);
+  });
+
+  it("sets has_events: false on a prompt record", () => {
+    const rec = toWebappRecord(makeExecution(), promptEntry, score);
+    if (rec.kind !== "prompt") throw new Error("expected prompt record");
+    expect(rec.has_events).toBe(false);
+  });
+});
+
+describe("stripEventsForWire", () => {
+  it("nulls out events on scenario records and preserves has_events", () => {
+    const scenarioExec = makeExecution({
+      promptName: "bootstrap_grind",
+      scenarioName: "bootstrap_grind",
+      events: [{ event: "tool_call", tick: 1, ts: "1700000000", data: { tool: "scan_system" } }],
+    });
+    const rec = toWebappRecord(scenarioExec, scenarioEntry, scenarioScoreFixture);
+    if (rec.kind !== "scenario") throw new Error("expected scenario record");
+    expect(rec.has_events).toBe(true);
+    expect(rec.events).not.toBeNull();
+
+    const [stripped] = stripEventsForWire([rec]);
+    if (!stripped) throw new Error("expected one record");
+    if (stripped.kind !== "scenario") throw new Error("expected scenario record");
+    expect(stripped.events).toBeNull();
+    expect(stripped.has_events).toBe(true);
+    // Other fields preserved
+    expect(stripped.scenario_name).toBe("bootstrap_grind");
+    expect(stripped.value).toBe(1);
+  });
+
+  it("leaves prompt records unchanged", () => {
+    const rec = toWebappRecord(makeExecution(), promptEntry, score);
+    const [stripped] = stripEventsForWire([rec]);
+    expect(stripped).toEqual(rec);
   });
 });

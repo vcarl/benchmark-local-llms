@@ -10,8 +10,9 @@ import {
   variantsForModel,
 } from "./run-summary";
 
-const mk = (over: Partial<BenchmarkResult>): BenchmarkResult =>
-  normalizeRecord({ ...over });
+const mk = (
+  over: Parameters<typeof normalizeRecord>[0],
+): BenchmarkResult => normalizeRecord({ ...over });
 
 describe("encode/parseVariant", () => {
   it("round-trips a variant", () => {
@@ -108,12 +109,15 @@ describe("summarizeVariant", () => {
 
 describe("variantsForModel", () => {
   const data: BenchmarkResult[] = [
-    mk({ model: "A", runtime: "mlx", quant: "4bit", temperature: 0.7, score: 1 }),
-    mk({ model: "A", runtime: "mlx", quant: "4bit", temperature: 0.7, score: 0.5 }),
+    mk({ model: "A", runtime: "mlx", quant: "4bit", temperature: 0.7, score: 1, wall_time_sec: 10, generation_tokens: 100 }),
+    mk({ model: "A", runtime: "mlx", quant: "4bit", temperature: 0.7, score: 0.5, wall_time_sec: 20, generation_tokens: 200 }),
     mk({ model: "A", runtime: "mlx", quant: "Q8_0", temperature: 0.7, score: 0.8 }),
     mk({ model: "A", runtime: "llamacpp", quant: "Q4_K_M", temperature: 0.7, score: 0.9 }),
     mk({ model: "B", runtime: "mlx", quant: "4bit", temperature: 0.7, score: 1 }),
-    mk({ model: "A", runtime: "mlx", quant: "4bit", temperature: 0.7, is_scenario: true, score: 1 }),
+    // Scenario record on the (mlx, 4bit, 0.7) variant — must contribute to
+    // wall time and tokens (real cost the variant incurred), but NOT to
+    // pass/fail/meanScore math (scenarios use raw `value`, not [0,1] scores).
+    mk({ model: "A", runtime: "mlx", quant: "4bit", temperature: 0.7, is_scenario: true, score: 1, wall_time_sec: 30, generation_tokens: 50000 }),
   ];
 
   it("groups records by (runtime, quant, temperature) for the model", () => {
@@ -121,20 +125,29 @@ describe("variantsForModel", () => {
     expect(variants).toHaveLength(3);
   });
 
-  it("ignores scenarios", () => {
+  it("excludes scenarios from pass/fail/score math but includes them in wall time and tokens", () => {
     const variants = variantsForModel(data, "A");
     const mlx4 = variants.find(
       (v) => v.key.runtime === "mlx" && v.key.quant === "4bit",
     );
-    // Two prompt records, the scenario-flagged one should not contribute.
-    expect(mlx4?.recordCount).toBe(2);
+    // recordCount counts every record in the variant (prompts + scenarios)
+    expect(mlx4?.recordCount).toBe(3);
+    // pass/fail/score is prompt-only: 1 pass (score 1) + 1 fail (score 0.5),
+    // scenario doesn't count → meanScore = (1 + 0.5) / 2 = 0.75
+    expect(mlx4?.pass).toBe(1);
+    expect(mlx4?.fail).toBe(1);
+    expect(mlx4?.meanScore).toBeCloseTo(0.75);
+    // Wall time and generation tokens roll up across ALL records, including
+    // the scenario — that's the cost the variant actually incurred.
+    expect(mlx4?.totalWallSec).toBe(60); // 10 + 20 + 30
+    expect(mlx4?.totalGenerationTokens).toBe(50300); // 100 + 200 + 50000
   });
 
   it("orders by mean score descending", () => {
     const variants = variantsForModel(data, "A");
     expect(variants[0].key).toEqual(variantOf(data[3])); // llamacpp Q4_K_M, score 0.9
     expect(variants[1].key.quant).toBe("Q8_0"); // 0.8
-    expect(variants[2].key.quant).toBe("4bit"); // mean 0.75
+    expect(variants[2].key.quant).toBe("4bit"); // mean 0.75 (scenario excluded)
   });
 
   it("returns [] when no records for the model", () => {

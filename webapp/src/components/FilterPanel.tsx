@@ -1,12 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import styles from "./FilterPanel.module.css";
-import type { GroupBy } from "../lib/pipeline";
 import { csv, type SearchState } from "../lib/filter-state";
-import {
-  loadPresets, upsertPreset, deletePreset, renamePreset,
-  resetPresets, seedIfEmpty,
-} from "../lib/presets";
 
 interface Props {
   allValues: {
@@ -40,14 +35,6 @@ const clamp = (n: number, lo: number, hi: number): number =>
 export function FilterPanel({ allValues }: Props) {
   const search = useSearch({ strict: false }) as SearchState;
   const navigate = useNavigate();
-  const [presetName, setPresetName] = useState(search.preset ?? "");
-
-  useEffect(() => { seedIfEmpty(); }, []);
-  useEffect(() => { setPresetName(search.preset ?? ""); }, [search.preset]);
-  // presetName is read by the menu's controlled select via search.preset; keep
-  // the local state for future inline rename UI without re-introducing a stale
-  // controlled input. Suppress unused-warning below by referencing it.
-  void presetName;
 
   // Stay on the current route — filters apply on /run/$model/$variant too,
   // and the user shouldn't be kicked back to / when toggling a tag.
@@ -57,8 +44,6 @@ export function FilterPanel({ allValues }: Props) {
 
   const updateMulti = (key: keyof SearchState) => (values: string[]) =>
     setSearch({ [key]: values.length === 0 ? undefined : values.join(",") } as Partial<SearchState>);
-
-  const presets = loadPresets();
 
   // Param-count slider domain — observed sizes only.
   const paramMin = allValues.paramSizes[0] ?? 0;
@@ -119,67 +104,6 @@ export function FilterPanel({ allValues }: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.topStrip}>
-        <label>Group by{" "}
-          <select value={search.groupBy ?? "model"} onChange={(e) => setSearch({ groupBy: e.target.value as GroupBy })}>
-            <option value="model">model · runtime · quant</option>
-            <option value="modelOnly">model</option>
-            <option value="tag">tag</option>
-            <option value="category">category</option>
-            <option value="prompt">prompt/scenario</option>
-            <option value="runtime">runtime</option>
-            <option value="family">family</option>
-          </select>
-        </label>
-
-        <div className={styles.presetMenu}>
-          <select value={search.preset ?? ""} onChange={(e) => {
-            const name = e.target.value;
-            if (!name) return;
-            const body = presets[name];
-            if (!body) return;
-            const parsed = Object.fromEntries(new URLSearchParams(body));
-            navigate({ search: { ...parsed, preset: name } as never });
-          }}>
-            <option value="">— preset —</option>
-            {Object.keys(presets).sort().map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-          <button onClick={() => {
-            const name = prompt("Save current filters as preset:");
-            if (!name) return;
-            const params = new URLSearchParams();
-            for (const [k, v] of Object.entries(search)) {
-              if (k === "preset" || k === "model") continue;
-              if (v !== undefined && v !== "") params.set(k, String(v));
-            }
-            upsertPreset(name, params.toString());
-            setSearch({ preset: name });
-          }}>Save as…</button>
-          {search.preset !== undefined && search.preset !== "" && (
-            <>
-              <button onClick={() => {
-                const name = prompt("Rename preset:", search.preset);
-                if (name === null || name === "" || name === search.preset) return;
-                renamePreset(search.preset!, name);
-                setSearch({ preset: name });
-              }}>Rename</button>
-              <button onClick={() => {
-                if (!confirm(`Delete preset "${search.preset}"?`)) return;
-                deletePreset(search.preset!);
-                setSearch({ preset: undefined });
-              }}>Delete</button>
-            </>
-          )}
-          <button onClick={() => {
-            if (!confirm("Reset all presets to defaults?")) return;
-            resetPresets();
-            setSearch({ preset: undefined });
-          }}>Reset</button>
-        </div>
-      </div>
-
       <div className={styles.chipRow}>
         <Chip label="Tags" all={allValues.tags} selected={csv(search.tags)} onChange={updateMulti("tags")} />
         <Chip label="Category" all={allValues.categories} selected={csv(search.category)} onChange={updateMulti("category")} />

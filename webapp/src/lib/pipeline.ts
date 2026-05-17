@@ -1,13 +1,12 @@
-import type { BenchmarkResult } from "./data";
+import type { BenchmarkResult, PromptBenchmarkResult } from "./data";
 import { CAPABILITY_TAGS, isPass } from "./constants";
 import { modelFamily, modelSizeB } from "./data";
 import { maxPeakMemoryGb } from "./run-summary";
 
-export interface NumRange { min: number; max: number }
+interface NumRange { min: number; max: number }
 
 export interface Filters {
   tags?: string[];
-  tagsExclude?: string[];
   category?: string[];
   runtime?: string[];
   family?: string[];
@@ -15,23 +14,58 @@ export interface Filters {
   quant?: string[];
   tempRange?: NumRange;
   durationRange?: NumRange; // wall_time_sec window
-  isScenario?: boolean;
 }
-
-export type GroupBy =
-  | "model"      // model + runtime + quant
-  | "modelOnly"  // model aggregated across runtimes+quants
-  | "tag"
-  | "category"
-  | "prompt"
-  | "runtime"
-  | "family";
 
 const passesDim = <T>(selected: T[] | undefined, v: T): boolean =>
   selected === undefined || selected.length === 0 || selected.includes(v);
 
 const inRange = (range: NumRange | undefined, v: number): boolean =>
   range === undefined || (v >= range.min && v <= range.max);
+
+// Total challenges = distinct prompt_names attempted in a (run_id, temperature)
+// slice across every variant. Anchors the pass-rate denominator: a flaky variant
+// that only got through 30/50 prompts is divided by 50 (assuming any variant in
+// the same run completed the corpus), not by 30. If no variant in the slice
+// reached a given prompt, that prompt is invisible — at-least-one-variant-finished
+// is the implicit precondition.
+const buildChallengeIndex = (data: BenchmarkResult[]): Map<string, number> => {
+  const sets = new Map<string, Set<string>>();
+  for (const r of data) {
+    // Pass-rate denominator counts prompt challenges only — scenarios have
+    // their own `value`-based scoring axis and don't compete in the prompt
+    // pass-rate denominator.
+    if (r.kind !== "prompt") continue;
+    const k = `${r.run_id}|${r.temperature}`;
+    let s = sets.get(k);
+    if (!s) {
+      s = new Set<string>();
+      sets.set(k, s);
+    }
+    s.add(r.prompt_name);
+  }
+  const counts = new Map<string, number>();
+  for (const [k, s] of sets) counts.set(k, s.size);
+  return counts;
+};
+
+const challengeKey = (run_id: string, temperature: number): string =>
+  `${run_id}|${temperature}`;
+
+// Distinct prompt_names this variant has at least one passing record for.
+// Counts at the prompt level rather than the record level so duplicate records
+// for the same prompt_name (which shouldn't exist in well-formed data) can't
+// drive the numerator above the run's challenge count.
+//
+// Scenario records carry a raw `value` (not bound to [0,1]) so they're
+// excluded from pass/fail accounting entirely — pass rate is a prompt-only
+// concept after the prompt/scenario split.
+const countPassingChallenges = (runs: BenchmarkResult[]): number => {
+  const passed = new Set<string>();
+  for (const r of runs) {
+    if (r.kind === "prompt" && isPass(r.score)) passed.add(r.prompt_name);
+  }
+  return passed.size;
+};
 
 // Some filters apply to whole variants rather than individual records — e.g.
 // the duration filter compares the variant's total benchmark wall_time
@@ -40,7 +74,8 @@ const inRange = (range: NumRange | undefined, v: number): boolean =>
 // silently dropping long-running prompts.
 export const applyVariantFilters = (data: BenchmarkResult[], f: Filters): BenchmarkResult[] => {
   if (f.durationRange === undefined) return data;
-  const key = (r: BenchmarkResult) => `${r.model}|${r.runtime}|${r.quant}|${r.temperature}`;
+  const key = (r: BenchmarkResult) =>
+    `${r.model}|${r.runtime}|${r.quant}|${r.temperature}|${r.run_id}`;
   const buckets = new Map<string, BenchmarkResult[]>();
   for (const r of data) {
     const k = key(r);
@@ -60,8 +95,6 @@ export const applyFilters = (data: BenchmarkResult[], f: Filters): BenchmarkResu
   data.filter((r) => {
     if (f.tags !== undefined && f.tags.length > 0 && !r.tags.some((t) => f.tags!.includes(t)))
       return false;
-    if (f.tagsExclude !== undefined && r.tags.some((t) => f.tagsExclude!.includes(t)))
-      return false;
     if (!passesDim(f.category, r.category)) return false;
     if (!passesDim(f.runtime, r.runtime)) return false;
     if (f.family !== undefined && f.family.length > 0 && !f.family.includes(modelFamily(r.model)))
@@ -73,48 +106,8 @@ export const applyFilters = (data: BenchmarkResult[], f: Filters): BenchmarkResu
     }
     if (!passesDim(f.quant, r.quant)) return false;
     if (!inRange(f.tempRange, r.temperature)) return false;
-    if (f.isScenario !== undefined && r.is_scenario !== f.isScenario) return false;
     return true;
   });
-
-export const groupRows = (
-  data: BenchmarkResult[],
-  by: GroupBy,
-): Map<string, BenchmarkResult[]> => {
-  const groups = new Map<string, BenchmarkResult[]>();
-  const push = (key: string, r: BenchmarkResult) => {
-    const arr = groups.get(key);
-    if (arr) arr.push(r);
-    else groups.set(key, [r]);
-  };
-  for (const r of data) {
-    switch (by) {
-      case "model":
-        push(`${r.model}|${r.runtime}|${r.quant}`, r);
-        break;
-      case "modelOnly":
-        push(r.model, r);
-        break;
-      case "tag":
-        // A result with multiple tags appears in every group it has.
-        for (const t of r.tags) push(t, r);
-        break;
-      case "category":
-        push(r.category, r);
-        break;
-      case "prompt":
-        push(r.prompt_name, r);
-        break;
-      case "runtime":
-        push(r.runtime, r);
-        break;
-      case "family":
-        push(modelFamily(r.model), r);
-        break;
-    }
-  }
-  return groups;
-};
 
 export interface ScatterDot {
   baseModel: string;
@@ -122,21 +115,26 @@ export interface ScatterDot {
   runtime: string;
   quant: string;
   temperature: number;
+  run_id: string;
   executedAt: string;
-  score: number;       // 0..100 — pass rate: % of runs with score===1
-  tokens: number;      // mean (prompt_tokens + generation_tokens)
+  // Pass rate against the run's total challenge count, not just records observed
+  // for this variant. Numerator = distinct prompt_names this variant passed.
+  // Denominator = distinct prompt_names attempted at this (run_id, temperature)
+  // by any variant in the dataset.
+  score: number;       // 0..100
+  tokens: number;      // total generation_tokens across the variant
   gen_tps: number;     // mean generation_tps across the variant's runs
   wallTime: number;    // total wall_time_sec for the variant (sum across prompts)
   mem: number;         // max peak_memory_gb, with fallback to sibling variants
 }
 
 // Wall-time (seconds) → star-point count. Log-scaled across the typical
-// per-variant total range (~30s to many hours); clamped to [5, 15] so the
+// per-variant total range (~30s to many hours); clamped to [4, 15] so the
 // shape stays legible at both ends.
 export const starPointsForWallTime = (seconds: number): number => {
   const s = Math.max(seconds, 1);
-  const n = 5 + Math.floor(Math.log2(s) * 0.7);
-  return Math.max(5, Math.min(15, n));
+  const n = Math.floor(Math.log2(s) * 1.08) - 1;
+  return Math.max(4, Math.min(15, n));
 };
 
 export interface TpsDomain {
@@ -173,7 +171,9 @@ export const opacityForTps = (tps: number, domain: TpsDomain): number => {
 };
 
 export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
-  const key = (r: BenchmarkResult) => `${r.model}|${r.runtime}|${r.quant}|${r.temperature}`;
+  const challengeIndex = buildChallengeIndex(data);
+  const key = (r: BenchmarkResult) =>
+    `${r.model}|${r.runtime}|${r.quant}|${r.temperature}|${r.run_id}`;
   const groups = new Map<string, BenchmarkResult[]>();
   for (const r of data) {
     const k = key(r);
@@ -192,10 +192,19 @@ export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
   for (const [, runs] of groups) {
     const first = runs[0];
     if (first === undefined) continue;
-    const n = runs.length;
-    const passRate = runs.filter((r) => isPass(r.score)).length / n;
-    const meanTokens = runs.reduce((s, r) => s + (r.prompt_tokens + r.generation_tokens), 0) / n;
-    const meanGenTps = runs.reduce((s, r) => s + r.generation_tps, 0) / n;
+    // Token sum / TPS mean scope to prompt records only — scenarios carry
+    // dramatically larger token counts (a single scenario can be ~500k tokens)
+    // which would dominate the scatter chart's x-axis. Pass-rate already uses
+    // the prompt-only challenge index. Wall time still sums all records since
+    // it reflects real time consumed by the variant.
+    const promptRuns = runs.filter((r) => r.kind === "prompt");
+    const promptN = promptRuns.length;
+    const denom = challengeIndex.get(challengeKey(first.run_id, first.temperature)) ?? promptN;
+    const passRate = denom > 0 ? countPassingChallenges(runs) / denom : 0;
+    const totalTokens = promptRuns.reduce((s, r) => s + r.generation_tokens, 0);
+    const meanGenTps = promptN === 0
+      ? 0
+      : promptRuns.reduce((s, r) => s + r.generation_tps, 0) / promptN;
     const totalWallTime = runs.reduce((s, r) => s + r.wall_time_sec, 0);
     const variantMem = maxPeakMemoryGb(runs);
     const mem = variantMem > 0 ? variantMem : (memByBaseModel.get(first.model) ?? 0);
@@ -210,9 +219,10 @@ export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
       runtime: first.runtime,
       quant: first.quant,
       temperature: first.temperature,
+      run_id: first.run_id,
       executedAt,
       score: passRate * 100,
-      tokens: meanTokens,
+      tokens: totalTokens,
       gen_tps: meanGenTps,
       wallTime: totalWallTime,
       mem,
@@ -221,70 +231,26 @@ export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
   return dots;
 };
 
-export interface ListVariant {
-  runtime: string;
-  quant: string;
-  temperature: number;
-  score: number;   // 0..100 — pass rate: % of runs with score===1
-  tokens: number;  // mean total tokens per run in this variant
-}
-
 export interface ListCapability {
   tag: string;
   pass: number | null; // 0..1, null when no runs
   runs: number;
 }
 
-export interface ListRow {
-  key: string;               // the group key (model name, prompt name, tag, etc.)
-  baseModel: string | null;  // record.model when groupBy=model/modelOnly, else null
-  family: string | null;     // set for model-ish groupings
-  bestScore: number;         // 0..100
-  bestVariant: { runtime: string; quant: string; temperature: number; tokens: number };
-  efficiency: number;        // round(best.tokens / bestScore), lower = better; 0 when bestScore is 0
-  variants: ListVariant[];
-  capability: ListCapability[];
-  mem: number;               // max peak_memory_gb across runs
-  avgTokens: number;         // mean (prompt+generation) across runs
-}
-
-const tokensOf = (r: BenchmarkResult) => r.prompt_tokens + r.generation_tokens;
+const tokensOf = (r: BenchmarkResult) => r.generation_tokens;
 
 const computeCapability = (runs: BenchmarkResult[]): ListCapability[] =>
   CAPABILITY_TAGS.map((tag) => {
-    const tagRuns = runs.filter((r) => r.tags.includes(tag));
+    // Capability pass rate is prompt-only (scenario `value` isn't a [0,1]
+    // pass/fail signal). Scope both the pool and the numerator to prompts.
+    const tagRuns = runs.filter(
+      (r): r is PromptBenchmarkResult =>
+        r.kind === "prompt" && r.tags.includes(tag),
+    );
     if (tagRuns.length === 0) return { tag, pass: null, runs: 0 };
     const pass = tagRuns.filter((r) => isPass(r.score)).length / tagRuns.length;
     return { tag, pass, runs: tagRuns.length };
   });
-
-const computeVariants = (runs: BenchmarkResult[]): ListVariant[] => {
-  const key = (r: BenchmarkResult) => `${r.runtime}|${r.quant}|${r.temperature}`;
-  const buckets = new Map<string, BenchmarkResult[]>();
-  for (const r of runs) {
-    const k = key(r);
-    const arr = buckets.get(k);
-    if (arr) arr.push(r);
-    else buckets.set(k, [r]);
-  }
-  const variants: ListVariant[] = [];
-  for (const [, vRuns] of buckets) {
-    const first = vRuns[0];
-    if (first === undefined) continue;
-    const n = vRuns.length;
-    const passRate = vRuns.filter((r) => isPass(r.score)).length / n;
-    const tokens = vRuns.reduce((s, r) => s + tokensOf(r), 0) / n;
-    variants.push({
-      runtime: first.runtime,
-      quant: first.quant,
-      temperature: first.temperature,
-      score: passRate * 100,
-      tokens,
-    });
-  }
-  variants.sort((a, b) => b.score - a.score);
-  return variants;
-};
 
 export interface RunRow {
   baseModel: string;
@@ -292,8 +258,11 @@ export interface RunRow {
   runtime: string;
   quant: string;
   temperature: number;
-  score: number;        // 0..100 — pass rate: % of runs with score===1
-  tokens: number;       // mean prompt+generation per record
+  run_id: string;
+  // Pass rate against the run's total challenge count at this temperature.
+  // See ScatterDot.score for the full definition.
+  score: number;        // 0..100
+  tokens: number;       // total generation_tokens across the variant
   efficiency: number;   // round(tokens / score), 0 when score is 0
   mem: number;          // max peak_memory_gb for this variant, falls back to model max
   capability: ListCapability[];
@@ -320,13 +289,16 @@ const compareRuns = (key: RunSortKey) => (a: RunRow, b: RunRow): number => {
 };
 
 export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
+  const challengeIndex = buildChallengeIndex(data);
+
   const memByBaseModel = new Map<string, number>();
   for (const r of data) {
     const existing = memByBaseModel.get(r.model) ?? 0;
     if (r.peak_memory_gb > existing) memByBaseModel.set(r.model, r.peak_memory_gb);
   }
 
-  const key = (r: BenchmarkResult) => `${r.model}|${r.runtime}|${r.quant}|${r.temperature}`;
+  const key = (r: BenchmarkResult) =>
+    `${r.model}|${r.runtime}|${r.quant}|${r.temperature}|${r.run_id}`;
   const buckets = new Map<string, BenchmarkResult[]>();
   for (const r of data) {
     const k = key(r);
@@ -340,9 +312,16 @@ export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
     const first = runs[0];
     if (first === undefined) continue;
     const n = runs.length;
-    const passRate = (runs.filter((r) => isPass(r.score)).length / n) * 100;
-    const meanTokens = runs.reduce((s, r) => s + tokensOf(r), 0) / n;
-    const efficiency = passRate > 0 ? Math.round(meanTokens / passRate) : 0;
+    // Token sum scopes to prompt records only — scenario token counts are
+    // an order of magnitude larger and would distort the efficiency metric
+    // (tokens / passRate). Pass-rate already uses the prompt-only challenge
+    // index.
+    const promptRuns = runs.filter((r) => r.kind === "prompt");
+    const promptN = promptRuns.length;
+    const denom = challengeIndex.get(challengeKey(first.run_id, first.temperature)) ?? promptN;
+    const passRate = denom > 0 ? (countPassingChallenges(runs) / denom) * 100 : 0;
+    const totalTokens = promptRuns.reduce((s, r) => s + tokensOf(r), 0);
+    const efficiency = passRate > 0 ? Math.round(totalTokens / passRate) : 0;
     const variantMem = maxPeakMemoryGb(runs);
     const mem = variantMem > 0 ? variantMem : (memByBaseModel.get(first.model) ?? 0);
     rows.push({
@@ -351,8 +330,9 @@ export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
       runtime: first.runtime,
       quant: first.quant,
       temperature: first.temperature,
+      run_id: first.run_id,
       score: passRate,
-      tokens: meanTokens,
+      tokens: totalTokens,
       efficiency,
       mem,
       capability: computeCapability(runs),
@@ -411,39 +391,3 @@ export const groupRunsByModel = (
   return result;
 };
 
-export const aggregateForList = (data: BenchmarkResult[], groupBy: GroupBy): ListRow[] => {
-  // For list view, "model" groups by model name only (variants handle runtime/quant breakdown).
-  // "modelOnly" also maps to model-level grouping.
-  const effectiveGroupBy: GroupBy = groupBy === "model" ? "modelOnly" : groupBy;
-  const groups = groupRows(data, effectiveGroupBy);
-  const rows: ListRow[] = [];
-  for (const [key, runs] of groups) {
-    if (runs.length === 0) continue;
-    const variants = computeVariants(runs);
-    const best = variants[0];
-    if (best === undefined) continue;
-    const bestScore = best.score;
-    const efficiency = bestScore > 0 ? Math.round(best.tokens / bestScore) : 0;
-    const capability = computeCapability(runs);
-    const mem = maxPeakMemoryGb(runs);
-    const avgTokens = runs.reduce((s, r) => s + tokensOf(r), 0) / runs.length;
-    const isModelGroup = groupBy === "model" || groupBy === "modelOnly";
-    const firstRun = runs[0];
-    const family = firstRun && (isModelGroup || groupBy === "family" || groupBy === "runtime")
-      ? modelFamily(firstRun.model)
-      : null;
-    rows.push({
-      key,
-      baseModel: isModelGroup && firstRun ? firstRun.model : null,
-      family,
-      bestScore,
-      bestVariant: { runtime: best.runtime, quant: best.quant, temperature: best.temperature, tokens: best.tokens },
-      efficiency,
-      variants,
-      capability,
-      mem,
-      avgTokens,
-    });
-  }
-  return rows;
-};

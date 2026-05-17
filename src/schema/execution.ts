@@ -75,5 +75,23 @@ export const ExecutionResult = Schema.Struct({
   toolCallCount: Schema.NullOr(Schema.Number),
   finalPlayerStats: Schema.NullOr(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   events: Schema.NullOr(Schema.Array(AgentEvent)),
+  /**
+   * Per-scenario-row blob pool used to dedup the chat-message history inside
+   * `turn_end.data.context.messages`. Keys are full SHA-256 hex over canonical
+   * JSON of the value. Scenario rows carry the pool (possibly empty `{}` when
+   * nothing was interned); prompt rows store `null`.
+   *
+   * Each `turn_end.data.context` carries `messagesRef: string[]` in place of
+   * the inline `messages` array. See `docs/ARCHIVE-FORMAT.md` for the
+   * long-form description.
+   *
+   * Optional-on-decode so pre-migration archives (written before this field
+   * existed) still load — missing field decodes to `null`, preserving the
+   * `Record | null` shape that downstream code expects.
+   */
+  blobPool: Schema.optionalWith(
+    Schema.NullOr(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+    { default: () => null },
+  ),
 });
 export type ExecutionResult = typeof ExecutionResult.Type;

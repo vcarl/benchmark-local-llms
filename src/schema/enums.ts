@@ -29,13 +29,14 @@ export type TerminationReason = typeof TerminationReason.Type;
 /**
  * Normalized agent event categories emitted by the game session SSE stream.
  * Admiral log entries map onto this smaller, typed surface — unmapped Admiral
- * types (e.g. `llm_thought`, `notification`) are dropped upstream.
+ * types (e.g. `notification`, `system`) are dropped upstream.
  */
 export const AgentEventType = Schema.Literal(
   "tool_call",
   "tool_result",
   "tool_error",
   "turn_end",
+  "llm_thought",
   "error",
   "connection",
 );

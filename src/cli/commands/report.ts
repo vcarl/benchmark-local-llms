@@ -28,10 +28,11 @@ import { scenariosSubdir, systemPromptsPath } from "../paths.js";
  * Line 2: how many results were dropped (and why)
  * Line 3: how many cells were written and where
  *
- * If any archive had a duplicate `runId` (schema violation — copy/migration
- * mistake), every collision is logged at error level after the audit lines so
- * the operator can fix the archive directory. The report still produces
- * output for the compliant archives.
+ * If any archive had a duplicate `archiveId` (schema violation — copy/migration
+ * mistake; archiveId matches the filename stem and uniquely identifies one
+ * model × invocation), every collision is logged at error level after the
+ * audit lines so the operator can fix the archive directory. The report still
+ * produces output for the compliant archives.
  */
 export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
   Effect.gen(function* () {
@@ -40,9 +41,9 @@ export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
       `report: dropped ${summary.dropped.promptAbsent} (prompt absent), ${summary.dropped.promptDrifted} (prompt drifted)`,
     );
     yield* Effect.logInfo(`report: wrote ${summary.recordCount} cells → ${summary.outputPath}`);
-    for (const dup of summary.duplicateRunIds) {
+    for (const dup of summary.duplicateArchiveIds) {
       yield* Effect.logError(
-        `report: archive schema violation — duplicate runId ${dup.runId} in ${dup.paths.length} archives, all rejected: ${dup.paths.join(", ")}`,
+        `report: archive schema violation — duplicate archiveId ${dup.archiveId} in ${dup.paths.length} archives, all rejected: ${dup.paths.join(", ")}`,
       );
     }
   });

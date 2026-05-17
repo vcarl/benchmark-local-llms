@@ -34,6 +34,13 @@ export interface RunPromptInput {
   readonly maxTokens: number;
   /** Optional per-request timeout (seconds). Default: 600 (matches §5.3). */
   readonly timeoutSec?: number;
+  /**
+   * Reader for the supervised LLM server's running peak RSS (KB). Sampled
+   * after the completion settles and stamped onto the result. Omit (or
+   * supply `Effect.succeed(0)`) to record "unknown" — the webapp renders
+   * 0 as `—`. Production wiring threads `ServerHandle.peakRssKb` here.
+   */
+  readonly peakRssKb?: Effect.Effect<number>;
 }
 
 const DEFAULT_PROMPT_TIMEOUT_SEC = 600;
@@ -124,6 +131,18 @@ const resolveOutputFields = (
 };
 
 /**
+ * Convert a peak-RSS sample (KB) to the GB unit the archive carries.
+ * 0 KB → 0 GB ("unknown"; the webapp renders this as `—`).
+ *
+ * Note this is server-lifetime peak RSS sampled by `ps` from the
+ * supervisor (see `llm/servers/peak-rss.ts`). It excludes Metal/MLX
+ * wired GPU buffers, so it under-counts MLX peak vs. the Python
+ * prototype's `mlx.core.metal.get_peak_memory`. Every prompt issued
+ * against the same supervised server records the same number.
+ */
+const peakRssKbToGb = (kb: number): number => kb / (1024 * 1024);
+
+/**
  * Build an `ExecutionResult` from a successful {@link CompletionResult}. This
  * is extracted from `runPrompt` so tests can exercise the assembly path
  * directly without round-tripping through `ChatCompletion`.
@@ -133,6 +152,7 @@ export const makeSuccessResult = (
   completion: CompletionResult,
   startedAt: string,
   wallTimeSec: number,
+  peakRssKb: number,
 ): ExecutionResult => {
   const fields = resolveOutputFields(completion);
   return {
@@ -151,13 +171,7 @@ export const makeSuccessResult = (
     // can't derive promptTps without prefill timing, so it stays 0 for MLX.
     promptTps: completion.promptTps ?? 0,
     generationTps: deriveTps(completion.generationTps, completion.generationTokens, wallTimeSec),
-    // TODO: peakMemoryGb — the Python prototype reads this from the MLX
-    // `stream_generate` response's `peak_memory` attribute, which is only
-    // available in subprocess mode. The rewrite eliminates subprocess mode
-    // (requirements §1.2 / §9.1) in favour of HTTP, and neither llama-server
-    // nor mlx_lm.server expose peak memory over HTTP. Stub to 0 until we add
-    // an out-of-band probe (e.g. `ps`-derived RSS or Metal memory API).
-    peakMemoryGb: 0,
+    peakMemoryGb: peakRssKbToGb(peakRssKb),
     wallTimeSec,
     output: fields.output,
     reasoning: fields.reasoning,
@@ -170,6 +184,7 @@ export const makeSuccessResult = (
     toolCallCount: null,
     finalPlayerStats: null,
     events: null,
+    blobPool: null,
   };
 };
 
@@ -178,6 +193,7 @@ export const makeErrorResult = (
   startedAt: string,
   wallTimeSec: number,
   error: string,
+  peakRssKb: number,
 ): ExecutionResult => ({
   archiveId: input.archiveId,
   runId: input.runId,
@@ -191,7 +207,7 @@ export const makeErrorResult = (
   generationTokens: 0,
   promptTps: 0,
   generationTps: 0,
-  peakMemoryGb: 0,
+  peakMemoryGb: peakRssKbToGb(peakRssKb),
   wallTimeSec,
   output: "",
   reasoning: null,
@@ -204,6 +220,7 @@ export const makeErrorResult = (
   toolCallCount: null,
   finalPlayerStats: null,
   events: null,
+  blobPool: null,
 });
 
 const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
@@ -232,19 +249,23 @@ export const runPrompt = (
     const startedMs = yield* Clock.currentTimeMillis;
     const startedAt = new Date(startedMs).toISOString();
 
+    const peakReader = input.peakRssKb ?? Effect.succeed(0);
+
     return yield* chat.complete(toCompletionParams(input)).pipe(
       Effect.matchEffect({
         onSuccess: (completion) =>
           Effect.gen(function* () {
             const endedMs = yield* Clock.currentTimeMillis;
             const wallTimeSec = (endedMs - startedMs) / 1000;
-            return makeSuccessResult(input, completion, startedAt, wallTimeSec);
+            const peakKb = yield* peakReader;
+            return makeSuccessResult(input, completion, startedAt, wallTimeSec, peakKb);
           }),
         onFailure: (cause) =>
           Effect.gen(function* () {
             const endedMs = yield* Clock.currentTimeMillis;
             const wallTimeSec = (endedMs - startedMs) / 1000;
-            return makeErrorResult(input, startedAt, wallTimeSec, stringifyLlmError(cause));
+            const peakKb = yield* peakReader;
+            return makeErrorResult(input, startedAt, wallTimeSec, stringifyLlmError(cause), peakKb);
           }),
       }),
     );

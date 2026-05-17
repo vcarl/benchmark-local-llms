@@ -1,19 +1,12 @@
 .DS_Store
-__pycache__/
-*.pyc
-.venv/
 .claude/
 .superpowers/
 llama.cpp/
 models/
 *-backup*/
-.pytest_cache/
 benchmark-results/
-benchmark-archive/
 benchmark-execution/
 webapp/src/data/data.js
-webapp/dist-report/
-*.rtf
 webapp/src/data/
 .git-gh-pages/
 .run-state.json
@@ -22,6 +15,13 @@ webapp/src/data/
 node_modules/
 dist/
 *.tsbuildinfo
+
+# Python tooling cruft (bench scripts share the workspace)
+.venv/
+__pycache__/
+
+# Local runtime log captures
+logs.rtf
 
 benchmark-archive/
 smoke-archive/
