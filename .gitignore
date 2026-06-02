@@ -5,9 +5,8 @@ llama.cpp/
 models/
 *-backup*/
 benchmark-results/
-benchmark-execution/
 webapp/src/data/data.js
-webapp/src/data/
+webapp/src/data/events/
 .git-gh-pages/
 .run-state.json
 
