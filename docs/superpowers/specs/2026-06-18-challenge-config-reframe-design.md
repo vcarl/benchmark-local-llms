@@ -66,10 +66,10 @@ version: 1
 passThreshold: 0.8            # challenge passes when item-pass fraction ≥ threshold
 items:
   - prompt: json-output          # ref into the prompt corpus
-    scorer: { kind: constraint }  # optional per-item scorer override (see Scoring)
+    scorer: { type: constraint }  # optional per-item scorer override (see Scoring)
   - prompt: word-count-limit
   - prompt: weird-task
-    scorer: { kind: custom, script: scorers/weird_task.py }
+    scorer: { type: custom, script: scorers/weird_task.py }
 ```
 
 - `(id, version)` is the human handle. A challenge is edited by bumping `version`, never by mutating a published version in place.
@@ -113,7 +113,7 @@ for each submitted (config, challenge):
 The existing scorer dispatch (`exact_match`, `constraint` with 20 checks, `code_exec`, `game`) is retained. A **fifth variant** is added to the scorer union:
 
 ```
-{ kind: "custom", script: "scorers/weird_task.py" }
+{ type: "custom", script: "scorers/weird_task.py" }
 ```
 
 - The custom scorer is a subprocess script (Python/TypeScript/Go), reusing the existing `code_exec` subprocess + sandbox infrastructure (`@effect/platform` `Command`).
