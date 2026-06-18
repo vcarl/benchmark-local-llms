@@ -1,8 +1,7 @@
-import { useRef, useState } from "react";
 import styles from "./RunTable.module.css";
 import type { RunRow } from "../lib/pipeline";
 import { scoreBand } from "../lib/constants";
-import { CapabilityHoverCard } from "./CapabilityHoverCard";
+import { formatWallTime } from "../lib/format";
 import { setHoveredModel, clearHoveredModel } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
 
@@ -24,8 +23,6 @@ const variantTag = (r: RunRow): string =>
   `${abbrevRuntime(r.runtime)} · ${r.quant} · t${r.temperature}`;
 
 export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, maxTokens }: Props) {
-  const [capTip, setCapTip] = useState<{ x: number; y: number } | null>(null);
-  const rowRef = useRef<HTMLButtonElement | null>(null);
   const rowColor = familyColor(row.family);
   const tokenPct = Math.max(0, Math.min(100, (row.tokens / Math.max(1, maxTokens)) * 100));
   const scoreClamped = Math.max(0, Math.min(100, row.score));
@@ -45,7 +42,6 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
     <div className={styles.runRowWrap}>
     <button
       type="button"
-      ref={rowRef}
       className={`${styles.resultRow} ${styles.runRow}${compact ? ` ${styles.resultRowCompact}` : ""}`}
       onClick={onClick}
       onMouseEnter={handleMouseEnter}
@@ -63,33 +59,6 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
               style={{ width: `${tokenPct}%`, background: rowColor, boxShadow: `0 0 6px ${rowColor}` }}
             />
           </span>
-        </div>
-
-        <div
-          className={styles.resultCapability}
-          onMouseEnter={(ev) => {
-            const rect = rowRef.current?.getBoundingClientRect();
-            if (rect) setCapTip({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
-          }}
-          onMouseMove={(ev) => {
-            const rect = rowRef.current?.getBoundingClientRect();
-            if (rect) setCapTip({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
-          }}
-          onMouseLeave={() => setCapTip(null)}
-        >
-          {row.capability.map((c) => (
-            <div
-              key={c.tag}
-              className={styles.resultCapCell}
-              data-band={c.pass === null ? "absent" : scoreBand(c.pass)}
-              title={c.pass === null ? `${c.tag}: no runs` : `${c.tag}: ${Math.round(c.pass * 100)}%`}
-            />
-          ))}
-          {capTip !== null && (
-            <div style={{ position: "absolute", left: capTip.x + 12, top: capTip.y + 12, pointerEvents: "none" }}>
-              <CapabilityHoverCard title={`${row.baseModel} · ${variantTag(row)}`} capability={row.capability} />
-            </div>
-          )}
         </div>
       </div>
 
@@ -113,13 +82,27 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
           </div>
           {!compact && <div className={styles.resultEfficiency}>{row.efficiency} tok/pt</div>}
         </div>
-        <div className={styles.resultNumeric}>
-          <span>{row.mem.toFixed(1)} GB</span>
-          {!compact && <span className={styles.resultNumericSub}>{row.quant}</span>}
-        </div>
-        <div className={styles.resultNumeric}>
-          <span>{Math.round(row.tokens).toLocaleString()}</span>
-          {!compact && <span className={styles.resultNumericSub}>gen total</span>}
+        <div className={styles.resultStats}>
+          <div className={styles.resultStatCol}>
+            <span className={styles.resultStatVal} title={`${Math.round(row.tokens).toLocaleString()} generation tokens (total)`}>
+              {Math.round(row.tokens).toLocaleString()}
+            </span>
+            <span className={styles.resultStatUnit}>tok</span>
+            <span className={styles.resultStatVal} title={`${row.genTps.toFixed(1)} generation tokens/sec (mean)`}>
+              {row.genTps > 0 ? row.genTps.toFixed(0) : "—"}
+            </span>
+            <span className={styles.resultStatUnit}>tok/s</span>
+          </div>
+          <div className={styles.resultStatCol}>
+            <span className={styles.resultStatVal} title={`${row.mem.toFixed(2)} GB peak memory`}>
+              {row.mem.toFixed(1)}
+            </span>
+            <span className={styles.resultStatUnit}>GB</span>
+            <span className={styles.resultStatVal} title={`${Math.round(row.wallTime).toLocaleString()}s total wall time`}>
+              {row.wallTime > 0 ? formatWallTime(row.wallTime) : "—"}
+            </span>
+            <span className={styles.resultStatUnit}>wall</span>
+          </div>
         </div>
       </div>
 

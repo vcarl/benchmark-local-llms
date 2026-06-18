@@ -1,5 +1,5 @@
-import type { BenchmarkResult, PromptBenchmarkResult } from "./data";
-import { CAPABILITY_TAGS, isPass } from "./constants";
+import type { BenchmarkResult } from "./data";
+import { isPass } from "./constants";
 import { modelFamily, modelSizeB } from "./data";
 import { maxPeakMemoryGb } from "./run-summary";
 
@@ -231,26 +231,7 @@ export const aggregateForScatter = (data: BenchmarkResult[]): ScatterDot[] => {
   return dots;
 };
 
-export interface ListCapability {
-  tag: string;
-  pass: number | null; // 0..1, null when no runs
-  runs: number;
-}
-
 const tokensOf = (r: BenchmarkResult) => r.generation_tokens;
-
-const computeCapability = (runs: BenchmarkResult[]): ListCapability[] =>
-  CAPABILITY_TAGS.map((tag) => {
-    // Capability pass rate is prompt-only (scenario `value` isn't a [0,1]
-    // pass/fail signal). Scope both the pool and the numerator to prompts.
-    const tagRuns = runs.filter(
-      (r): r is PromptBenchmarkResult =>
-        r.kind === "prompt" && r.tags.includes(tag),
-    );
-    if (tagRuns.length === 0) return { tag, pass: null, runs: 0 };
-    const pass = tagRuns.filter((r) => isPass(r.score)).length / tagRuns.length;
-    return { tag, pass, runs: tagRuns.length };
-  });
 
 export interface RunRow {
   baseModel: string;
@@ -265,7 +246,8 @@ export interface RunRow {
   tokens: number;       // total generation_tokens across the variant
   efficiency: number;   // round(tokens / score), 0 when score is 0
   mem: number;          // max peak_memory_gb for this variant, falls back to model max
-  capability: ListCapability[];
+  genTps: number;       // mean generation_tps across the variant's prompt runs
+  wallTime: number;     // total wall_time_sec for the variant (sum across all runs)
   runs: number;         // # of underlying BenchmarkResult records
 }
 
@@ -322,6 +304,13 @@ export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
     const passRate = denom > 0 ? (countPassingChallenges(runs) / denom) * 100 : 0;
     const totalTokens = promptRuns.reduce((s, r) => s + tokensOf(r), 0);
     const efficiency = passRate > 0 ? Math.round(totalTokens / passRate) : 0;
+    // Generation throughput is prompt-only (matching the scatter dot) so the
+    // huge scenario token streams don't skew the per-variant mean. Wall time
+    // sums all records since it reflects real time the variant consumed.
+    const genTps = promptN === 0
+      ? 0
+      : promptRuns.reduce((s, r) => s + r.generation_tps, 0) / promptN;
+    const wallTime = runs.reduce((s, r) => s + r.wall_time_sec, 0);
     const variantMem = maxPeakMemoryGb(runs);
     const mem = variantMem > 0 ? variantMem : (memByBaseModel.get(first.model) ?? 0);
     rows.push({
@@ -335,7 +324,8 @@ export const aggregateForRunList = (data: BenchmarkResult[]): RunRow[] => {
       tokens: totalTokens,
       efficiency,
       mem,
-      capability: computeCapability(runs),
+      genTps,
+      wallTime,
       runs: n,
     });
   }

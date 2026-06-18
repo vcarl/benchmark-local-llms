@@ -1,16 +1,3 @@
-export const CAPABILITY_TAGS = [
-  "instruction-following",
-  "long-term-planning",
-  "tool-use",
-  "spatial-reasoning",
-  "resource-management",
-  "code-synthesis",
-  "code-debugging",
-  "math-reasoning",
-  "logical-deduction",
-  "factual-recall",
-] as const;
-
 /**
  * A run passes only when its score is exactly 1 (a fully correct answer).
  * Any partial credit, runtime error, or wrong output counts as a fail.

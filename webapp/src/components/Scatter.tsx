@@ -15,6 +15,7 @@ import {
   useHoveredModel,
 } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
+import { formatWallTime } from "../lib/format";
 
 interface Props {
   data: BenchmarkResult[];
@@ -81,17 +82,6 @@ const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: num
 
 const yTicks = [0, 20, 40, 60, 80, 100];
 
-const formatWallTime = (s: number): string => {
-  if (s < 60) return `${Math.round(s)}s`;
-  if (s < 3600) {
-    const m = Math.floor(s / 60);
-    const sec = Math.round(s - m * 60);
-    return sec === 0 ? `${m}m` : `${m}m ${sec}s`;
-  }
-  const h = Math.floor(s / 3600);
-  const m = Math.round((s - h * 3600) / 60);
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-};
 
 export function Scatter({ data }: Props) {
   const dots = useMemo(() => aggregateForScatter(data), [data]);

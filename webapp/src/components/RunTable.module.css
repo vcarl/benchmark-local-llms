@@ -3,29 +3,30 @@
    nest a <button> inside the row's <button>. */
 .runRowWrap { position: relative; }
 
-/* Shared 7-column track for header + lead row + compact row.
+/* Shared 6-column track for header + lead row + compact row.
    Inner half-grids (.resultRowBreakdown, .resultRowAlways) consume these tracks
    via `grid-template-columns: subgrid` so headers always align with cells.
 
    Track legend:
      1. variants block (1fr, may be wide)
-     2. capability strip (auto)
-     3. rank        (--col-rank)
-     4. model       (1fr)
-     5. score       (--col-score)
-     6. memory      (--col-num)
-     7. tokens      (--col-num)
+     2. rank        (--col-rank)
+     3. model       (1fr)
+     4. score       (--col-score)
+     5. stats block (--col-stats) — tokens / t·s / mem / wall as two columns of
+        value/unit pairs. MUST be a fixed width: an `auto` track here varies with
+        the per-row stat content, which shoves the fixed Score column left/right
+        and makes scores look "wibbly" down the table.
 */
 .resultRow,
 .resultRowCompact,
 .resultHeader {
   --col-rank: 24px;
   --col-score: 78px;
-  --col-num: 60px;
+  --col-stats: 184px;
   display: grid;
   grid-template-columns:
-    minmax(0, 1fr) auto
-    var(--col-rank) minmax(0, 1fr) var(--col-score) var(--col-num) var(--col-num);
+    minmax(0, 1fr)
+    var(--col-rank) minmax(0, 1fr) var(--col-score) var(--col-stats);
   gap: var(--space-6);
   align-items: center;
 }
@@ -49,10 +50,10 @@
   &.runRow { position: relative; }
 }
 
-/* Breakdown half: spans tracks 1-2 (variants + capability) and adopts those
-   tracks via subgrid. The dashed divider lives on this element. */
+/* Breakdown half: spans track 1 (the score/tokens bar) via subgrid.
+   The dashed divider lives on this element. */
 .resultRowBreakdown {
-  grid-column: 1 / 3;
+  grid-column: 1 / 2;
   display: grid;
   grid-template-columns: subgrid;
   gap: var(--space-6);
@@ -62,9 +63,9 @@
   min-width: 0;
 }
 
-/* Always-visible half: spans tracks 3-7 via subgrid. */
+/* Always-visible half: spans tracks 2-5 via subgrid. */
 .resultRowAlways {
-  grid-column: 3 / 8;
+  grid-column: 2 / 6;
   display: grid;
   grid-template-columns: subgrid;
   gap: var(--space-4);
@@ -83,17 +84,26 @@
 .resultVariantTrack { position: relative; flex: 1 1 auto; height: 12px; background: var(--surface); border: 1px solid var(--gray-850); border-radius: var(--r-2); overflow: hidden; min-width: 60px; }
 .resultVariantFill { display: block; position: absolute; top: 0; left: 0; height: 8px; border-radius: 2px 2px 0 0; }
 .resultVariantTokens { display: block; position: absolute; bottom: 0; left: 0; height: 3px; border-radius: 1px; filter: brightness(1.25) saturate(1.15); }
-.resultCapability { display: flex; gap: var(--space-1); position: relative; }
-.resultCapCell {
-  width: 14px;
-  height: 20px;
-  border-radius: var(--r-2);
-  cursor: default;
-  background: var(--band, var(--gray-600));
-  background-image: var(--band-pattern, none);
+/* Combined stat block: tokens / t·s / mem / wall as two side-by-side columns,
+   each a 2-row grid of right-aligned value + left-aligned unit. */
+.resultStats {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-5);
+  font-variant-numeric: tabular-nums;
 }
-.resultNumeric { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-size: var(--fz-13); color: var(--text-primary); }
-.resultNumericSub { font-size: var(--fz-10); color: var(--text-muted); }
+.resultStatCol {
+  display: grid;
+  /* Fixed value column so the numbers stay right-aligned to a common edge
+     regardless of digit count; unit column sizes to its (per-column constant)
+     label. */
+  grid-template-columns: 56px auto;
+  column-gap: var(--space-2);
+  row-gap: 1px;
+  align-items: baseline;
+}
+.resultStatVal { text-align: right; font-size: var(--fz-12); color: var(--text-primary); white-space: nowrap; }
+.resultStatUnit { text-align: left; font-size: var(--fz-9); color: var(--text-muted); }
 /* Run-grouped table — model groups with lead + collapsed rows.
    Rows are wrapped in `.runRowWrap` (so the expand toggle can sit alongside
    without nesting buttons); the divider between consecutive runs targets the
@@ -113,8 +123,7 @@
 
   & .resultRank          { visibility: hidden; }
   & .resultScore         { font-size: var(--fz-13); }
-  & .resultNumeric       { font-size: var(--fz-12); color: var(--gray-150); }
-  & .resultCapability    { transform: scale(0.85); transform-origin: left center; }
+  & .resultStatVal       { font-size: var(--fz-11); color: var(--gray-150); }
   & .resultVariantTrack  { height: 8px; }
   & .resultVariantFill   { height: 5px; }
   & .resultVariantTokens { height: 2px; }
@@ -125,10 +134,12 @@
 .runBar { display: flex; align-items: center; min-width: 0; }
 .runBar .resultVariantTrack { flex: 1 1 auto; min-width: 60px; }
 
-/* Group expand/collapse toggle, anchored to lead row */
+/* Group expand/collapse toggle, anchored to the lead row's bottom-left —
+   sits in the open space beneath the score bar so it can't collide with the
+   right-aligned stat stack (tokens / t·s / wall). */
 .resultGroupToggle {
   position: absolute;
-  right: var(--space-6);
+  left: var(--space-6);
   bottom: var(--space-2);
   background: var(--surface-3);
   color: var(--text-muted);
@@ -187,5 +198,5 @@
   border-bottom: 1px solid var(--border-default);
   background: var(--gray-955);
 }
-.resultScoreHeader, .resultNumericHeader { text-align: right; }
+.resultScoreHeader, .resultStatsHeader { text-align: right; }
 .resultEmpty { padding: var(--space-16) var(--space-12); text-align: center; color: var(--text-faint); }

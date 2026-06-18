@@ -103,14 +103,12 @@ export function RunGroupTable({
       <div className={styles.resultHeader}>
         <div className={styles.resultRowBreakdown}>
           <div>Score / tokens</div>
-          <div>Capabilities</div>
         </div>
         <div className={styles.resultRowAlways}>
           <div className={styles.resultRank}>#</div>
           <div>Model / variant</div>
           <div className={styles.resultScoreHeader}>Score</div>
-          <div className={styles.resultNumericHeader}>Memory</div>
-          <div className={styles.resultNumericHeader}>Tokens</div>
+          <div className={styles.resultStatsHeader}>tok · t/s · mem · wall</div>
         </div>
       </div>
       {groups.map((g, gi) => {

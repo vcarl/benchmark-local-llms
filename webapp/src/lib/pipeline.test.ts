@@ -241,17 +241,13 @@ describe("aggregateForRunList", () => {
     expect(mlx?.mem).toBe(12);
   });
 
-  it("capability scoped to this variant only", () => {
-    const rows = aggregateForRunList([
-      mkRec({ runtime: "llamacpp", tags: ["tool-use"], score: 1 }),
-      mkRec({ runtime: "mlx", tags: ["tool-use"], score: 0 }),
+  it("genTps averages prompt runs; wallTime sums all records", () => {
+    const [row] = aggregateForRunList([
+      mkRec({ prompt_name: "p1", generation_tps: 40, wall_time_sec: 10 }),
+      mkRec({ prompt_name: "p2", generation_tps: 60, wall_time_sec: 20 }),
     ]);
-    const llama = rows.find((r) => r.runtime === "llamacpp");
-    const mlx = rows.find((r) => r.runtime === "mlx");
-    const llamaToolUse = llama?.capability.find((c) => c.tag === "tool-use");
-    const mlxToolUse = mlx?.capability.find((c) => c.tag === "tool-use");
-    expect(llamaToolUse?.pass).toBe(1);
-    expect(mlxToolUse?.pass).toBe(0);
+    expect(row?.genTps).toBe(50);
+    expect(row?.wallTime).toBe(30);
   });
 
   it("tokens scopes to prompt records only (scenarios excluded)", () => {
