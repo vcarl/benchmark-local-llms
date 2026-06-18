@@ -1,0 +1,65 @@
+import { Command, type CommandExecutor } from "@effect/platform";
+import { Effect, Stream } from "effect";
+import { CodeExecFailed, CodeExecTimeout } from "../errors/index.js";
+import type { PromptScore } from "./score-result.js";
+
+const DEFAULT_TIMEOUT_MS = 10_000;
+const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8").decode(bytes);
+
+/**
+ * Run a challenge-supplied scorer script. Contract: harness writes
+ * `{ output, ...meta }` as JSON to stdin; script prints `{ score, breakdown? }`
+ * JSON to stdout. Non-zero exit or unparseable stdout -> CodeExecFailed.
+ */
+export const scoreCustom = (
+  output: string,
+  scriptPath: string,
+  meta: Record<string, unknown>,
+  options: { timeoutMs?: number; pythonBin?: string } = {},
+): Effect.Effect<PromptScore, CodeExecTimeout | CodeExecFailed, CommandExecutor.CommandExecutor> =>
+  Effect.gen(function* () {
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const pythonBin = options.pythonBin ?? "python3";
+    const stdin = JSON.stringify({ output, ...meta });
+    const cmd = Command.make(pythonBin, scriptPath).pipe(Command.feed(stdin));
+
+    const collect = Effect.scoped(
+      Effect.gen(function* () {
+        const process = yield* Command.start(cmd);
+        const out = yield* Stream.runCollect(process.stdout).pipe(
+          Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
+        );
+        const err = yield* Stream.runCollect(process.stderr).pipe(
+          Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
+        );
+        const exitCode = yield* process.exitCode;
+        return { out, err, exitCode };
+      }),
+    );
+
+    const raced = yield* Effect.timeout(collect, timeoutMs).pipe(
+      Effect.map((ok) => ({ tag: "ok" as const, ...ok })),
+      Effect.catchTag("TimeoutException", () => Effect.succeed({ tag: "timeout" as const })),
+      Effect.catchAll((cause) => Effect.succeed({ tag: "fail" as const, cause: String(cause) })),
+    );
+
+    if (raced.tag === "timeout")
+      return yield* Effect.fail(new CodeExecTimeout({ timeoutSec: timeoutMs / 1000 }));
+    if (raced.tag === "fail")
+      return yield* Effect.fail(new CodeExecFailed({ exitCode: -1, stderr: raced.cause }));
+    if (raced.exitCode !== 0)
+      return yield* Effect.fail(
+        new CodeExecFailed({ exitCode: raced.exitCode, stderr: raced.err.slice(0, 200) }),
+      );
+
+    const parsed = yield* Effect.try({
+      try: () => JSON.parse(raced.out) as { score: number; breakdown?: unknown },
+      catch: () =>
+        new CodeExecFailed({
+          exitCode: 0,
+          stderr: `unparseable scorer output: ${raced.out.slice(0, 120)}`,
+        }),
+    });
+    const score = Math.max(0, Math.min(1, Number(parsed.score)));
+    return { kind: "prompt", score, details: `custom: ${score}` };
+  });

@@ -2,9 +2,7 @@ import type { CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
 import { type CodeExecFailed, type CodeExecTimeout, ScorerNotFound } from "../errors/index.js";
 import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
-import { scoreCodeExec } from "./code-exec.js";
-import { scoreConstraints } from "./constraint.js";
-import { scoreExactMatch } from "./exact-match.js";
+import { scoreByConfig } from "./dispatch.js";
 import { GAME_SCORERS } from "./game.js";
 
 export interface PromptScore {
@@ -43,17 +41,7 @@ export const scoreExecution = (
   CommandExecutor.CommandExecutor
 > => {
   if (isPromptEntry(entry)) {
-    const cfg = entry.scorer;
-    switch (cfg.type) {
-      case "exact_match":
-        return scoreExactMatch(result.output, cfg);
-      case "constraint":
-        return scoreConstraints(result.output, cfg);
-      case "code_exec":
-        return scoreCodeExec(result.output, cfg.testCode);
-      case "game":
-        return Effect.fail(new ScorerNotFound({ scorerName: cfg.gameScorer }));
-    }
+    return scoreByConfig(result.output, entry.scorer);
   }
   const fn = GAME_SCORERS[entry.scorer];
   if (fn === undefined) {
