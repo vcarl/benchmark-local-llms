@@ -154,7 +154,7 @@ Each configuration row surfaces **two** distinct scores, computed over that conf
    | `percentCorrect` | Challenge **pass-rate**: `(# challenge attempts that passed) / (# challenge attempts completed)`. Range 0–1. Same numerator as the pass rate above. |
    | `uniqueChallengesCompleted` | Count of distinct `(challengeId, version)` the config has at least one completed attempt of. |
    | `totalAttemptsCompleted` | Total number of completed attempts across all challenges. |
-   | `overallTokens` | Sum of `promptTokens + generationTokens` over all items of all completed attempts. |
+   | `overallTokens` | Sum of `generationTokens` over all items of all completed attempts. Prompt tokens are not counted. |
    | `timeSpent` | Sum of `wallTimeSec` over all completed attempts. |
 
    - **Zero-denominator guard:** if `overallTokens × timeSpent === 0` (e.g. a config with no completed attempts), the efficiency score renders as `—` rather than `NaN`/`∞`, consistent with the existing `peakMemoryGb === 0 → —` convention.
