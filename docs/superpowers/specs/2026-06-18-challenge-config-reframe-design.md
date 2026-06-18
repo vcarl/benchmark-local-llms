@@ -116,7 +116,7 @@ The existing scorer dispatch (`exact_match`, `constraint` with 20 checks, `code_
 { kind: "custom", script: "scorers/weird_task.py" }
 ```
 
-- The custom scorer is a subprocess script (Python), reusing the existing `code_exec` subprocess + sandbox infrastructure (`@effect/platform` `Command`).
+- The custom scorer is a subprocess script (Python/TypeScript/Go), reusing the existing `code_exec` subprocess + sandbox infrastructure (`@effect/platform` `Command`).
 - Contract: the harness writes `{ output, prompt, meta }` as JSON on **stdin**; the script returns `{ score: number /* 0.0–1.0 */, breakdown?: {...} }` as JSON on **stdout**. Non-zero exit or malformed output is a tagged scorer error (per-item `error`, score 0), consistent with existing scorer error handling.
 - A challenge item's `scorer` field selects the scorer; when omitted, the scorer falls back to the prompt corpus entry's own scorer (so existing built-in-scored prompts work unchanged inside a challenge).
 - Custom scorer scripts live alongside challenges (e.g. `scorers/`) and their path is part of the item's scoring-rule hash, so editing a scorer drifts the `challengeHash`.
@@ -131,6 +131,35 @@ The existing scorer dispatch (`exact_match`, `constraint` with 20 checks, `code_
 - New axis: **configuration rows × challenge columns**, cells = challenge score / pass.
 - `webapp-contract.ts`'s `WebappRecord` gains config fields (including `systemPrompt`) and challenge fields (`challengeId`, `version`, `passed`, `score`).
 - `pipeline.ts` grouping rewrites from `groupRunsByModel` / key `model|runtime|quant|temperature|run_id` to grouping by `configId` (or `configHash`) with challenge as the column dimension. `isPass` (per-item `score === 1`) is retained for item cells; challenge cells use the stored aggregate `passed`.
+
+#### Two configuration-level scores
+
+Each configuration row surfaces **two** distinct scores, computed over that config's **completed attempts** (finalized: `finishedAt` set, `interrupted: false`, no attempt-level error) across all challenges:
+
+1. **Pass rate** (unchanged from today) — the overall average % of passing challenges. The headline score.
+
+2. **Efficiency score** (new, shown separately) — a composite that rewards correctness, breadth, and volume while penalizing token and time cost:
+
+   ```
+   efficiencyScore =
+       (percentCorrect × uniqueChallengesCompleted × totalAttemptsCompleted)
+       ───────────────────────────────────────────────────────────────────
+                        (overallTokens × timeSpent)
+   ```
+
+   Term definitions, all scoped to one configuration:
+
+   | Term | Definition |
+   |---|---|
+   | `percentCorrect` | Challenge **pass-rate**: `(# challenge attempts that passed) / (# challenge attempts completed)`. Range 0–1. Same numerator as the pass rate above. |
+   | `uniqueChallengesCompleted` | Count of distinct `(challengeId, version)` the config has at least one completed attempt of. |
+   | `totalAttemptsCompleted` | Total number of completed attempts across all challenges. |
+   | `overallTokens` | Sum of `promptTokens + generationTokens` over all items of all completed attempts. |
+   | `timeSpent` | Sum of `wallTimeSec` over all completed attempts. |
+
+   - **Zero-denominator guard:** if `overallTokens × timeSpent === 0` (e.g. a config with no completed attempts), the efficiency score renders as `—` rather than `NaN`/`∞`, consistent with the existing `peakMemoryGb === 0 → —` convention.
+   - **Scale is relative, not absolute.** The raw value is tiny (counts ÷ tokens·seconds); it exists to rank configurations against each other, not to be read as an absolute percentage. Display-side scaling (e.g. ×10⁶) and column formatting are presentation details for Phase 3, not part of the stored contract.
+   - Both scores are derived in `pipeline.ts` from the per-record contract; no new persisted fields are required beyond the per-attempt aggregate (`passed`, `score`) and the existing token/wall-time stats already on each result row.
 
 ## Phasing
 
