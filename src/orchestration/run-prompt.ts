@@ -30,6 +30,7 @@ export interface RunPromptInput {
   readonly runId: string;
   readonly model: ModelConfig;
   readonly prompt: PromptCorpusEntry;
+  readonly systemPrompt: string;
   readonly temperature: number;
   readonly maxTokens: number;
   /** Optional per-request timeout (seconds). Default: 600 (matches §5.3). */
@@ -227,7 +228,7 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   runtime: input.model.runtime,
   model: input.model.artifact,
   promptName: input.prompt.name,
-  systemPrompt: input.prompt.system.text,
+  systemPrompt: input.systemPrompt,
   userPrompt: input.prompt.promptText,
   temperature: input.temperature,
   maxTokens: input.maxTokens,
