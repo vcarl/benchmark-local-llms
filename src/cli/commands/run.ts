@@ -91,6 +91,7 @@ type RunOptionsParsed = {
   readonly promptsDir: string;
   readonly admiralDir: Option.Option<string>;
   readonly gameServerBinary: Option.Option<string>;
+  readonly llamaServerBinary: Option.Option<string>;
   readonly verbose: boolean;
 };
 
@@ -273,6 +274,7 @@ export const runCommand = Command.make("run", runOptions, (raw) => {
     const deps = makeRunDeps({
       admiralDir: Option.getOrUndefined(parsed.admiralDir),
       gameServerBinary: Option.getOrUndefined(parsed.gameServerBinary),
+      llamaServerBinary: Option.getOrUndefined(parsed.llamaServerBinary),
     });
 
     // Run --------------------------------------------------------------

@@ -21,8 +21,8 @@ npm install
 
 Prerequisites:
 
-- `llama-server` on PATH (llamacpp runtime) — see [`llama-cpp-guide.md`](./llama-cpp-guide.md).
-- `python3 -m mlx_lm.server` available (MLX runtime) — `pip install mlx-lm` into a venv, default `~/llm-env`.
+- `llama-server` (llama.cpp) — install a pinned release tarball (see [`llama-cpp-guide.md`](./llama-cpp-guide.md)); point the harness at it with `--llama-server-binary`, or symlink it onto `PATH`.
+- `python3 -m mlx_lm.server` (MLX runtime, mlx-lm 0.31.x) — `pip install mlx-lm` into a venv, default `~/llm-env`.
 - Admiral checkout + game server binary only needed when `--scenarios != none`. Pass via `--admiral-dir` / `--game-server-binary`.
 
 ## Where things live

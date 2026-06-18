@@ -264,4 +264,19 @@ describe("runLoop", () => {
     const files = await listFiles(dir);
     expect(files.length).toBe(2);
   });
+
+  it("stamps the probed runtime version into each model's manifest env", async () => {
+    const { layer } = makeChatCompletionMock({});
+    const outcome = await Effect.runPromise(
+      runLoop(
+        baseConfig(dir),
+        fakeDeps({ runtimeVersion: () => Effect.succeed("llama.cpp b9999 (cafef00d)") }),
+        sampleEnv,
+      ).pipe(Effect.provide(layer), Effect.provide(runtimeLayer)),
+    );
+    expect(outcome.perModel.length).toBeGreaterThan(0);
+    for (const m of outcome.perModel) {
+      expect(m.manifest.env.runtimeVersion).toBe("llama.cpp b9999 (cafef00d)");
+    }
+  });
 });

@@ -27,6 +27,7 @@ import { llamacppServer } from "../llm/servers/llamacpp.js";
 import { mlxServer } from "../llm/servers/mlx.js";
 import { resolveLlamacppGguf } from "../llm/servers/resolve-gguf.js";
 import { resolveMlxModel } from "../llm/servers/resolve-mlx.js";
+import { probeRuntimeVersion } from "../llm/servers/runtime-version.js";
 import type {
   AdmiralFactory,
   GameSessionFactory,
@@ -40,6 +41,8 @@ export interface MakeRunDepsInput {
   readonly admiralDir?: string | undefined;
   /** Gameserver binary path; required when `scenarioCorpus` is non-empty. */
   readonly gameServerBinary?: string | undefined;
+  /** llama-server binary path; defaults to `llama-server` on PATH. */
+  readonly llamaServerBinary?: string | undefined;
   /**
    * Optional base URL override for the LLM endpoint Admiral talks to. The
    * Python prototype exposed this via `TESTBENCH_SCENARIO_BASE_URL`; we keep
@@ -90,26 +93,29 @@ const resolveMlxPython = (): string => {
  * makes. The Python interpreter is resolved via {@link resolveMlxPython} so
  * an activated or conventionally-located venv is picked up automatically.
  */
-export const makeLlmServerFactory = (): LlmServerFactory => (model: ModelConfig) => {
-  if (model.runtime === "llamacpp") {
-    return Effect.gen(function* () {
-      if (model.quant === undefined) {
-        return yield* Effect.die(
-          new Error(`llamacpp model ${model.artifact} is missing required 'quant' field`),
-        );
-      }
-      const artifactPath = yield* resolveLlamacppGguf(model.artifact, model.quant);
-      return yield* llamacppServer({
-        artifactPath,
-        ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
+export const makeLlmServerFactory =
+  (llamaServerBinary?: string): LlmServerFactory =>
+  (model: ModelConfig) => {
+    if (model.runtime === "llamacpp") {
+      return Effect.gen(function* () {
+        if (model.quant === undefined) {
+          return yield* Effect.die(
+            new Error(`llamacpp model ${model.artifact} is missing required 'quant' field`),
+          );
+        }
+        const artifactPath = yield* resolveLlamacppGguf(model.artifact, model.quant);
+        return yield* llamacppServer({
+          artifactPath,
+          ...(llamaServerBinary !== undefined ? { binPath: llamaServerBinary } : {}),
+          ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
+        });
       });
+    }
+    return Effect.gen(function* () {
+      const artifactPath = yield* resolveMlxModel(model.artifact);
+      return yield* mlxServer({ artifactPath, pythonBin: resolveMlxPython() });
     });
-  }
-  return Effect.gen(function* () {
-    const artifactPath = yield* resolveMlxModel(model.artifact);
-    return yield* mlxServer({ artifactPath, pythonBin: resolveMlxPython() });
-  });
-};
+  };
 
 const newAdminToken = (): string => randomBytes(16).toString("hex");
 
@@ -153,8 +159,16 @@ export const makeGameSessionFactory =
       };
     });
 
-export const makeRunDeps = (input: MakeRunDepsInput): RunModelDeps => ({
-  llmServer: makeLlmServerFactory(),
-  admiral: makeAdmiralFactory(input.admiralDir),
-  gameSession: makeGameSessionFactory(input.gameServerBinary),
-});
+export const makeRunDeps = (input: MakeRunDepsInput): RunModelDeps => {
+  const llamaServerBin = input.llamaServerBinary ?? "llama-server";
+  const mlxPythonBin = resolveMlxPython();
+  return {
+    llmServer: makeLlmServerFactory(input.llamaServerBinary),
+    admiral: makeAdmiralFactory(input.admiralDir),
+    gameSession: makeGameSessionFactory(input.gameServerBinary),
+    runtimeVersion: (runtime) =>
+      runtime === "llamacpp"
+        ? probeRuntimeVersion("llamacpp", llamaServerBin)
+        : probeRuntimeVersion("mlx", mlxPythonBin),
+  };
+};

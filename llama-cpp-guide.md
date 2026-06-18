@@ -1,17 +1,40 @@
 # llama.cpp Guide for Apple Silicon (128GB)
 
-_Last updated: March 2026 — based on release b8400_
+_Last updated: 2026-06-17 — based on release b9692_
 
 ## Installation
 
 Download a release from [github.com/ggml-org/llama.cpp/releases](https://github.com/ggml-org/llama.cpp/releases), extract, and remove the macOS quarantine flag:
 
 ```bash
-tar xzf llama-b8400-bin-macos-arm64.tar.gz
-xattr -r -d com.apple.quarantine llama-b8400/
+tar xzf llama-b9692-bin-macos-arm64.tar.gz
+xattr -r -d com.apple.quarantine llama-b9692/
 ```
 
 All binaries and shared libraries are in the extracted directory. No system-wide install needed.
+
+### Pointing the benchmark harness at a pinned build
+
+A pinned-tarball `llama-server` is not on `PATH`. Tell the harness where it is:
+
+```bash
+./bench run --llama-server-binary ~/llama.cpp/llama-b9692/llama-server …
+```
+
+(The macOS arm64 tarball extracts the binaries flat into `llama-b9692/`. If a
+future build nests them, locate it with `find llama-b9692 -name llama-server`.)
+The version string the harness records in each manifest comes from
+`llama-server --version`, e.g. `llama.cpp b9692 (<sha>)`.
+
+### What changed since b8400
+
+The following are upstream llama.cpp features (not harness features):
+
+- **Q1_0 1-bit quantization** — experimental ultra-low-memory quant format.
+- **Walsh-Hadamard KV-cache rotation** — improves output quality when using low-bit KV cache (`-ctk`/`-ctv` quantization).
+- **FP8 hybrid inference** — mixed FP8/FP16 compute for compatible hardware.
+- **DeepSeek V4 + Gemma 4 support** — new model architectures supported natively.
+- **Backend-agnostic tensor parallelism** — multi-GPU support across backends (Metal, CUDA, Vulkan).
 
 ### Key Binaries
 
@@ -251,7 +274,7 @@ Output shows tokens/second for both prompt processing and generation across the 
 
 ---
 
-## Popular GGUF Models (March 2026)
+## Popular GGUF Models
 
 All models below are available on HuggingFace in GGUF format. Use with `-hf REPO` and llama.cpp will auto-download Q4_K_M by default. Append `:QUANT` to select a different quantization (e.g., `:Q5_K_M`, `:Q8_0`).
 

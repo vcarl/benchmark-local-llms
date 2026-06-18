@@ -77,6 +77,13 @@ export const gameServerBinary = Options.file("game-server-binary").pipe(
   Options.optional,
 );
 
+export const llamaServerBinary = Options.file("llama-server-binary").pipe(
+  Options.withDescription(
+    "Path to the llama-server binary (default: llama-server on PATH). Use for a pinned release tarball.",
+  ),
+  Options.optional,
+);
+
 export const verbose = Options.boolean("verbose").pipe(
   Options.withAlias("v"),
   Options.withDescription("Enable debug-level log output (intra-call detail)"),
@@ -98,5 +105,6 @@ export const runOptions = {
   promptsDir,
   admiralDir,
   gameServerBinary,
+  llamaServerBinary,
   verbose,
 };

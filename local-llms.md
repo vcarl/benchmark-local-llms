@@ -1,6 +1,6 @@
 # Local LLMs on Apple Silicon (128GB) — State of the Art
 
-_Last updated: March 2026_
+_Last updated: 2026-06-17_
 
 ## Inference Engines
 
@@ -9,7 +9,7 @@ _Last updated: March 2026_
 Apple's native ML framework. Best throughput on Apple Silicon (~230 tok/s on M4 Max for 70B-class models). Supports quantized and full-precision models natively via Metal.
 
 ```bash
-pip install mlx-lm
+pip install mlx-lm   # current: 0.31.x
 mlx_lm.generate --model mlx-community/Qwen2.5-72B-Instruct-4bit --prompt "Hello"
 ```
 
@@ -17,13 +17,20 @@ mlx_lm.generate --model mlx-community/Qwen2.5-72B-Instruct-4bit --prompt "Hello"
 - mlx-community on HuggingFace has thousands of pre-converted models
 - `mlx_lm.convert` quantizes any HF model in seconds
 - oMLX server offers up to 10x faster prefill via tiered KV cache
+- New server flags in 0.31.x: `--prefill-step-size`, `--allowed-origins`, prompt-cache flags
+- **Thinking toggle:** `mlx_lm.server --chat-template-args '{"enable_thinking":false}'` disables reasoning traces for models that support it
+- **Known limitation:** `mlx_lm.server` has no `--kv-bits` flag — the KV cache is always 16-bit. On large models with long contexts this can cause the process to swap; upstream tracking issue [#1308](https://github.com/ml-explore/mlx-lm/issues/1308)
 
 ### llama.cpp (Recommended for flexibility)
 
 The reference GGUF engine. ~150 tok/s on M4 Max. Supports partial GPU offloading — layers can be split between GPU and CPU when a model barely fits.
 
+For reproducible benchmarking, install a pinned release tarball rather than
+the floating Homebrew build (see [`llama-cpp-guide.md`](./llama-cpp-guide.md)).
+Homebrew is fine for casual interactive use:
+
 ```bash
-brew install llama.cpp
+brew install llama.cpp   # floating build; for casual use
 llama-cli -m model.Q4_K_M.gguf -p "Hello" -ngl 99
 ```
 
@@ -41,6 +48,7 @@ ollama run qwen2.5:72b-instruct-q4_K_M
 - **LM Studio** — Desktop GUI, supports both GGUF and MLX backends
 - **MLC-LLM** — ~190 tok/s, best for very long context (100k+) due to paged KV cache
 - **PyTorch MPS** — Avoid for inference (~7-9 tok/s), only useful for fine-tuning
+- **vllm-mlx** — MLX-based continuous batching; wins at high concurrency but not adopted here (single-request benchmarking doesn't benefit, and it's early)
 
 ## Models That Fit in 128GB
 

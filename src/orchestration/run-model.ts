@@ -46,6 +46,7 @@ import type {
 import type { AdmiralClient } from "../game/admiral/client.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
 import type { ServerHandle } from "../llm/servers/supervisor.js";
+import type { Runtime } from "../schema/enums.js";
 import type { AgentEvent } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
@@ -130,6 +131,15 @@ export interface RunModelDeps {
   readonly llmServer: LlmServerFactory;
   readonly admiral: AdmiralFactory;
   readonly gameSession: GameSessionFactory;
+  /**
+   * Probe the installed version string for a runtime (e.g.
+   * "llama.cpp b9692 (…)", "mlx-lm 0.31.2"). Never fails — degrades to
+   * "unknown". The run loop calls this once per distinct runtime and stamps
+   * the result into each model's manifest `env.runtimeVersion`.
+   */
+  readonly runtimeVersion: (
+    runtime: Runtime,
+  ) => Effect.Effect<string, never, CommandExecutor.CommandExecutor>;
 }
 
 export interface RunModelOutcome {

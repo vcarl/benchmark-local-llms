@@ -16,6 +16,7 @@ import { type FileSystem, Path } from "@effect/platform";
 import { Effect } from "effect";
 import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
+import type { Runtime } from "../schema/enums.js";
 import type { ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
@@ -219,6 +220,14 @@ export const runLoop = (
       eligible.push(m);
     }
 
+    // Probe the installed runtime version once per distinct runtime present
+    // in this run; stamp it into each model's manifest env below. Probes
+    // never fail (they degrade to "unknown"), so this can't sink the run.
+    const versionByRuntime = new Map<Runtime, string>();
+    for (const rt of new Set(eligible.map((m) => m.runtime))) {
+      versionByRuntime.set(rt, yield* deps.runtimeVersion(rt));
+    }
+
     let modelIndex = 0;
     for (const model of eligible) {
       modelIndex += 1;
@@ -238,7 +247,10 @@ export const runLoop = (
         runId: config.runId,
         startedAt,
         model,
-        env,
+        env: {
+          ...env,
+          runtimeVersion: versionByRuntime.get(model.runtime) ?? env.runtimeVersion,
+        },
         temperature: modelTemperature,
         promptCorpus: config.promptCorpus,
         scenarioCorpus: config.scenarioCorpus,

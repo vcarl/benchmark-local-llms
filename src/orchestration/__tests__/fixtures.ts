@@ -248,6 +248,7 @@ export const fakeDeps = (overrides: Partial<RunModelDeps> = {}): RunModelDeps =>
   llmServer: fakeLlmServerFactory,
   admiral: fakeAdmiralFactory,
   gameSession: fakeGameSessionFactory(),
+  runtimeVersion: () => Effect.succeed("test-runtime 0.0.0"),
   ...overrides,
 });
 
