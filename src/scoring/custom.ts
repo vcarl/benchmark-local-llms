@@ -26,13 +26,15 @@ export const scoreCustom = (
     const collect = Effect.scoped(
       Effect.gen(function* () {
         const process = yield* Command.start(cmd);
-        const out = yield* Stream.runCollect(process.stdout).pipe(
+        const stdoutP = Stream.runCollect(process.stdout).pipe(
           Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
         );
-        const err = yield* Stream.runCollect(process.stderr).pipe(
+        const stderrP = Stream.runCollect(process.stderr).pipe(
           Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
         );
-        const exitCode = yield* process.exitCode;
+        const [out, err, exitCode] = yield* Effect.all([stdoutP, stderrP, process.exitCode], {
+          concurrency: "unbounded",
+        });
         return { out, err, exitCode };
       }),
     );
