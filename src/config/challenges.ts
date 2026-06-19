@@ -5,7 +5,7 @@ import { ConfigError, SchemaDecodeError, type YamlParseError } from "../errors/c
 import { Challenge } from "../schema/challenge.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
 import type { ScorerConfig } from "../schema/scorer.js";
-import { shortSha256 } from "./hashing.js";
+import { shortSha256, stableStringify } from "./hashing.js";
 import { parseYaml } from "./yaml.js";
 
 export interface ResolvedItem {
@@ -22,7 +22,7 @@ export interface ResolvedChallenge {
   readonly items: ReadonlyArray<ResolvedItem>;
 }
 
-const scorerKey = (s: ScorerConfig): string => JSON.stringify(s);
+const scorerKey = (s: ScorerConfig): string => stableStringify(s);
 
 export const resolveChallenge = (
   challenge: Challenge,

@@ -92,7 +92,7 @@ it("challengeHash is stable for fixed item prompt-hashes + scorers (golden)", as
   const exit = await Effect.runPromiseExit(resolveChallenge(challenge as never, corpus));
   expect(exit._tag).toBe("Success");
   if (exit._tag !== "Success") return;
-  expect(exit.value.challengeHash).toBe("9c2d6d88c900");
+  expect(exit.value.challengeHash).toBe("71c5f440ce49");
 });
 
 it("challengeHash drifts when an item prompt-hash changes", async () => {
@@ -105,6 +105,28 @@ it("challengeHash drifts when an item prompt-hash changes", async () => {
     resolveChallenge(challenge as never, [stub("a", "cccccccccccc", scorer)]),
   );
   expect(h1.challengeHash).not.toBe(h2.challengeHash);
+});
+
+it("challengeHash is independent of scorer key insertion order (stableStringify)", async () => {
+  // Same scorer, keys inserted in two different orders. Order must not matter.
+  const orderA = {
+    id: "g",
+    version: 1,
+    passThreshold: 0.8,
+    items: [{ prompt: "a", scorer: { type: "exact_match", expected: "4", extract: "(\\d+)" } }],
+  };
+  const orderB = {
+    id: "g",
+    version: 1,
+    passThreshold: 0.8,
+    items: [{ prompt: "a", scorer: { extract: "(\\d+)", type: "exact_match", expected: "4" } }],
+  };
+  const corpus = [
+    stub("a", "aaaaaaaaaaaa", { type: "exact_match", expected: "4", extract: "(\\d+)" }),
+  ];
+  const ha = await Effect.runPromise(resolveChallenge(orderA as never, corpus));
+  const hb = await Effect.runPromise(resolveChallenge(orderB as never, corpus));
+  expect(ha.challengeHash).toBe(hb.challengeHash);
 });
 
 it.each([
