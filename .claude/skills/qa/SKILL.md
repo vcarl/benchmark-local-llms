@@ -44,7 +44,7 @@ All commands run from the repo root. `./bench` is the repo-root executable.
 | A4 | `node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts` | exit 0; prints `configHash`/`challengeHash`/`itemHash` (each 12-hex) and `RESOLUTION OK` (identical on re-resolve = deterministic). |
 | A5 | `node_modules/.bin/tsx .claude/skills/qa/seed-archive.ts "$SEED"` then `./bench report --archive-dir "$SCRATCH_ARCH" --output "$SCRATCH_OUT"` | `SEED OK`; report logs `loaded 1 attempts` / `dropped 0 (incomplete)`; `$SCRATCH_OUT/data.js` parses and `globalThis.__BENCHMARK_DATA.length >= 1`. |
 | A6 | **JUDGMENT PAUSE** (below) | webapp builds; screenshot captured; user confirms the matrix renders. |
-| A7 | `./bench score --archive "$SEED"` | **KNOWN LIMITATION — expected SKIP** (below). |
+| A7 | `./bench score --archive "$SEED"` | **FAIL (known bug)** — `score` reads legacy format only (below). |
 
 Verify A5 record count with:
 `node -e 'globalThis.__BENCHMARK_DATA=[];require(process.argv[1]);console.log(globalThis.__BENCHMARK_DATA.length)' "$SCRATCH_OUT/data.js"`
@@ -59,14 +59,15 @@ Verify A5 record count with:
 5. **Restore regardless of outcome**: `cp /tmp/qa-data-backup.js webapp/src/data/data.js`
    (or `git stash pop`). Stop the dev server gracefully (SIGTERM, not SIGKILL).
 
-### A7 — `score` over the seed (KNOWN LIMITATION)
+### A7 — `score` over the seed (KNOWN BUG — tracked for fix)
 
-On this branch `score` reads the **legacy** `RunManifest`/`ExecutionResult` archive format
+`score` reads the **legacy** `RunManifest`/`ExecutionResult` archive format
 (`src/archive/loader.ts`), whereas `submit`/`report` use the new `AttemptManifest`/`ItemResult`
 attempt format (`src/report/load-attempts.ts`). The A5 seed is the attempt format, so
-`./bench score --archive "$SEED"` fails with `JsonlCorruptLine` — a real schema divergence in
-the current CLI, not a seed defect. Record A7 as **SKIP** with that `JsonlCorruptLine` as the
-evidence; do NOT claim PASS. (The spec flags A7 as the most trimmable step.)
+`./bench score --archive "$SEED"` fails with `JsonlCorruptLine`. This is a **known harness bug**
+(`score` was never migrated to the attempt format) accepted for a fix — not a seed defect.
+Until that fix lands, record A7 as **FAIL (known bug)** with the `JsonlCorruptLine` as evidence.
+Once `score` reads attempt archives, A7 becomes a real PASS (exit 0, scores printed).
 
 ## Tier B — live (only if detected)
 
@@ -123,4 +124,4 @@ restored, `git status` clean.
 - Writing to `./benchmark-archive/` instead of the `mktemp -d` scratch dir.
 - Claiming PASS without a concrete observable ("looks fine" is not evidence).
 - Running Tier B assertions when no model/binary is present — that must be SKIP, not FAIL.
-- Treating an expected SKIP (Tier B unavailable, or A7's legacy-format divergence) as a harness failure.
+- Treating a Tier B SKIP (no model/binary present) as a FAIL — that is an environment gap, not a harness bug. (A7, by contrast, IS a tracked harness bug → record it FAIL.)
