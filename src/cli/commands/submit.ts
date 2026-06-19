@@ -11,13 +11,13 @@
  */
 import { Command, Options } from "@effect/cli";
 import { FetchHttpClient } from "@effect/platform";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { loadChallenge } from "../../config/challenges.js";
 import { loadConfigurations } from "../../config/configurations.js";
 import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { ChatCompletionLive } from "../../llm/chat-completion.js";
-import { runChallenge } from "../../orchestration/run-challenge.js";
+import { resumeChallenge, runChallenge } from "../../orchestration/run-challenge.js";
 import { defaultRunEnv } from "../../orchestration/run-loop.js";
 import { makeRunDeps } from "../deps.js";
 import { makeLoggerLayer } from "../logger.js";
@@ -62,6 +62,13 @@ const noCacheOpt = Options.boolean("no-cache").pipe(
   Options.withDescription("Bypass the cross-run item cache; always execute every item"),
 );
 
+const resumeOpt = Options.text("resume").pipe(
+  Options.optional,
+  Options.withDescription(
+    "Resume an interrupted attempt by its attemptId (re-uses --config/--challenge to re-resolve)",
+  ),
+);
+
 export const submitCommand = Command.make(
   "submit",
   {
@@ -72,8 +79,9 @@ export const submitCommand = Command.make(
     archiveDir: archiveDirOpt,
     verbose: verboseOpt,
     noCache: noCacheOpt,
+    resume: resumeOpt,
   },
-  ({ config, challenge, promptsDir, configsFile, archiveDir, verbose, noCache }) =>
+  ({ config, challenge, promptsDir, configsFile, archiveDir, verbose, noCache, resume }) =>
     Effect.gen(function* () {
       const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
 
@@ -90,21 +98,35 @@ export const submitCommand = Command.make(
 
       const resolved = yield* loadChallenge(challenge, corpus);
 
-      const attemptId = `att-${cfg.configHash}-${resolved.challengeHash}-${Date.now()}`;
-      const archivePath = `${archiveDir}/${attemptId}.jsonl`;
-
       const env = defaultRunEnv();
       const deps = makeRunDeps({});
 
-      const manifest = yield* runChallenge({
-        config: cfg,
-        challenge: resolved,
-        attemptId,
-        archiveDir,
-        archivePath,
-        env,
-        deps,
-        noCache,
+      const manifest = yield* Option.match(resume, {
+        onNone: () =>
+          Effect.gen(function* () {
+            const attemptId = `att-${cfg.configHash}-${resolved.challengeHash}-${Date.now()}`;
+            return yield* runChallenge({
+              config: cfg,
+              challenge: resolved,
+              attemptId,
+              archiveDir,
+              archivePath: `${archiveDir}/${attemptId}.jsonl`,
+              env,
+              deps,
+              noCache,
+            });
+          }),
+        onSome: (attemptId) =>
+          resumeChallenge({
+            config: cfg,
+            challenge: resolved,
+            attemptId,
+            archiveDir,
+            archivePath: `${archiveDir}/${attemptId}.jsonl`,
+            env,
+            deps,
+            noCache,
+          }),
       });
 
       yield* printLine(
