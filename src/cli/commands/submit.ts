@@ -71,16 +71,11 @@ export const submitCommand = Command.make(
     Effect.gen(function* () {
       const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
 
-      const registryLayer = Layer.effect(
-        SystemPromptRegistry,
-        loadSystemPrompts(systemPromptsPath(promptsDir)),
-      );
+      const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
 
       const corpus = yield* loadPromptCorpus(promptsDir).pipe(Effect.provide(registryLayer));
 
-      const configs = yield* loadConfigurations(configsFile).pipe(
-        Effect.provideService(SystemPromptRegistry, systemPrompts),
-      );
+      const configs = yield* loadConfigurations(configsFile).pipe(Effect.provide(registryLayer));
 
       const cfg = configs.find((c) => c.id === config);
       if (cfg === undefined) {

@@ -2,6 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
+import { ScorerSpawnFailed } from "../errors/index.js";
 import { scoreCustom } from "./custom.js";
 
 const withScript = <A, E>(
@@ -27,6 +28,20 @@ describe("scoreCustom", () => {
           Effect.tap((s) => Effect.sync(() => expect(s.score).toBe(1.0))),
         ),
     ));
+
+  it("surfaces ScorerSpawnFailed when the interpreter binary does not exist", () =>
+    Effect.gen(function* () {
+      const result = yield* scoreCustom(
+        "hello",
+        "/nonexistent/scorer.py",
+        {},
+        {
+          pythonBin: "definitely-not-a-real-binary-xyz",
+        },
+      ).pipe(Effect.flip);
+      expect(result._tag).toBe("ScorerSpawnFailed");
+      expect(result instanceof ScorerSpawnFailed).toBe(true);
+    }).pipe(Effect.provide(NodeContext.layer), Effect.runPromise));
 
   it("returns expected score even when scorer writes to stderr (no deadlock)", () =>
     withScript(

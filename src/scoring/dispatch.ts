@@ -1,6 +1,11 @@
 import type { CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
-import { type CodeExecFailed, type CodeExecTimeout, ScorerNotFound } from "../errors/index.js";
+import {
+  type CodeExecFailed,
+  type CodeExecTimeout,
+  ScorerNotFound,
+  type ScorerSpawnFailed,
+} from "../errors/index.js";
 import type { ScorerConfig } from "../schema/scorer.js";
 import { scoreCodeExec } from "./code-exec.js";
 import { scoreConstraints } from "./constraint.js";
@@ -15,7 +20,7 @@ export const scoreByConfig = (
   meta: Record<string, unknown> = {},
 ): Effect.Effect<
   PromptScore,
-  ScorerNotFound | CodeExecTimeout | CodeExecFailed,
+  ScorerNotFound | CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed,
   CommandExecutor.CommandExecutor
 > => {
   switch (cfg.type) {

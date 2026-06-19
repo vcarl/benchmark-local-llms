@@ -1,6 +1,6 @@
 import { Command, type CommandExecutor } from "@effect/platform";
-import { Effect, Stream } from "effect";
-import { CodeExecFailed, CodeExecTimeout } from "../errors/index.js";
+import { Cause, Effect, Option, Stream } from "effect";
+import { CodeExecFailed, CodeExecTimeout, ScorerSpawnFailed } from "../errors/index.js";
 import type { PromptScore } from "./score-result.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -16,7 +16,11 @@ export const scoreCustom = (
   scriptPath: string,
   meta: Record<string, unknown>,
   options: { timeoutMs?: number; pythonBin?: string } = {},
-): Effect.Effect<PromptScore, CodeExecTimeout | CodeExecFailed, CommandExecutor.CommandExecutor> =>
+): Effect.Effect<
+  PromptScore,
+  CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed,
+  CommandExecutor.CommandExecutor
+> =>
   Effect.gen(function* () {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const pythonBin = options.pythonBin ?? "python3";
@@ -42,7 +46,19 @@ export const scoreCustom = (
     const raced = yield* Effect.timeout(collect, timeoutMs).pipe(
       Effect.map((ok) => ({ tag: "ok" as const, ...ok })),
       Effect.catchTag("TimeoutException", () => Effect.succeed({ tag: "timeout" as const })),
-      Effect.catchAll((cause) => Effect.succeed({ tag: "fail" as const, cause: String(cause) })),
+      Effect.catchAllCause((cause) => {
+        // Detect spawn failure: platform raises SystemError{reason:"NotFound"} when
+        // the interpreter binary is missing from PATH (ENOENT). We must branch here
+        // before String(cause) destroys the structured error shape.
+        const failure = Cause.failureOption(cause);
+        if (Option.isSome(failure)) {
+          const e = failure.value as { _tag?: string; reason?: string };
+          if (e._tag === "SystemError" && e.reason === "NotFound") {
+            return Effect.fail(new ScorerSpawnFailed({ binary: pythonBin, cause: String(e) }));
+          }
+        }
+        return Effect.succeed({ tag: "fail" as const, cause: String(cause) });
+      }),
     );
 
     if (raced.tag === "timeout")

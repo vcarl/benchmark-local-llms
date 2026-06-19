@@ -33,3 +33,9 @@ export class CodeExecFailed extends Data.TaggedError("CodeExecFailed")<{
   readonly exitCode: number;
   readonly stderr: string;
 }> {}
+
+/** The scorer interpreter binary could not be spawned (e.g. ENOENT / not on PATH). */
+export class ScorerSpawnFailed extends Data.TaggedError("ScorerSpawnFailed")<{
+  readonly binary: string;
+  readonly cause: string;
+}> {}

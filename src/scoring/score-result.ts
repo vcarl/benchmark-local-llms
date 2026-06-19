@@ -1,6 +1,11 @@
 import type { CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
-import { type CodeExecFailed, type CodeExecTimeout, ScorerNotFound } from "../errors/index.js";
+import {
+  type CodeExecFailed,
+  type CodeExecTimeout,
+  ScorerNotFound,
+  type ScorerSpawnFailed,
+} from "../errors/index.js";
 import type { ExecutionResult, PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
 import { scoreByConfig } from "./dispatch.js";
 import { GAME_SCORERS } from "./game.js";
@@ -37,7 +42,7 @@ export const scoreExecution = (
   entry: CorpusEntry,
 ): Effect.Effect<
   ScoreResult,
-  ScorerNotFound | CodeExecTimeout | CodeExecFailed,
+  ScorerNotFound | CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed,
   CommandExecutor.CommandExecutor
 > => {
   if (isPromptEntry(entry)) {

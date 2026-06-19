@@ -79,7 +79,7 @@ export const finalizeAttempt = (
 
     const firstNewline = contents.indexOf("\n");
     if (firstNewline < 0) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new FileIOError({
           path,
           operation: "finalize-rewrite",
