@@ -335,6 +335,26 @@ export const resumeChallenge = (
         );
       }
 
+      // Store completeness: write the system blob and every item's prompt/scorer
+      // blob (idempotent) so the sidecar is complete without rewriting body rows.
+      yield* writeBlob(
+        input.archiveDir,
+        "system",
+        input.config.configHash,
+        input.config.systemPromptText,
+      );
+      yield* Effect.forEach(input.challenge.items, (it) =>
+        Effect.gen(function* () {
+          yield* writeBlob(input.archiveDir, "prompts", it.promptHash, it.prompt.promptText);
+          yield* writeBlob(
+            input.archiveDir,
+            "scorers",
+            scorerHash(it.scorer),
+            stableStringify(it.scorer),
+          );
+        }),
+      );
+
       // Decode the already-present body rows. Unlike the cross-run cache reader
       // (which skips a corrupt line), a corrupt body row fails the resume rather
       // than silently re-running an item we already have a completed result for.

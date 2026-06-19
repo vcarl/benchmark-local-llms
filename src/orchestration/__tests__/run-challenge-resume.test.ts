@@ -2,6 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readBlob, scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
 import { AttemptManifest } from "../../schema/attempt.js";
@@ -215,5 +216,47 @@ describe("resumeChallenge", () => {
     expect(err._tag).toBe("ResumeMismatchError");
     expect(err).toBeInstanceOf(ResumeMismatchError);
     expect(m.log.calls.length).toBe(0); // never executed; archive untouched
+  });
+
+  it("resume populates the content store for all items", async () => {
+    const path = `${dir}/att-resume.jsonl`;
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.writeFileString(path, `${partialHeader()}\n${doneItem1}\n`);
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+
+    const m = okStub();
+    await Effect.runPromise(
+      resumeChallenge({
+        config,
+        challenge,
+        attemptId: "att-resume",
+        archiveDir: dir,
+        archivePath: path,
+        env,
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+    for (const item of challenge.items) {
+      const p = await Effect.runPromise(
+        Effect.provide(readBlob(dir, "prompts", item.promptHash), NodeContext.layer),
+      );
+      expect(p).toBe(item.prompt.promptText);
+      const s = await Effect.runPromise(
+        Effect.provide(readBlob(dir, "scorers", scorerHash(item.scorer)), NodeContext.layer),
+      );
+      expect(s.length).toBeGreaterThan(0);
+    }
+    const sys = await Effect.runPromise(
+      Effect.provide(readBlob(dir, "system", config.configHash), NodeContext.layer),
+    );
+    expect(sys).toBe(config.systemPromptText);
   });
 });
