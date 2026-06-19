@@ -44,7 +44,7 @@ All commands run from the repo root. `./bench` is the repo-root executable.
 | A4 | `node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts` | exit 0; prints `configHash`/`challengeHash`/`itemHash` (each 12-hex) and `RESOLUTION OK` (identical on re-resolve = deterministic). |
 | A5 | `node_modules/.bin/tsx .claude/skills/qa/seed-archive.ts "$SEED"` then `./bench report --archive-dir "$SCRATCH_ARCH" --output "$SCRATCH_OUT"` | `SEED OK`; report logs `loaded 1 attempts` / `dropped 0 (incomplete)`; `$SCRATCH_OUT/data.js` parses and `globalThis.__BENCHMARK_DATA.length >= 1`. |
 | A6 | **JUDGMENT PAUSE** (below) | webapp builds; screenshot captured; user confirms the matrix renders. |
-| A7 | `./bench score --archive "$SEED"` | **FAIL (known bug)** — `score` reads legacy format only (below). |
+| A7 | `./bench score --archive "$SEED"` | exit 0; prints a one-line `score: … → aggregate <x.xxx> PASS\|FAIL [rescored …, drift …, fallback …]` summary; re-parses + rewrites the seed in place (below). |
 
 Verify A5 record count with:
 `node -e 'globalThis.__BENCHMARK_DATA=[];require(process.argv[1]);console.log(globalThis.__BENCHMARK_DATA.length)' "$SCRATCH_OUT/data.js"`
@@ -59,15 +59,17 @@ Verify A5 record count with:
 5. **Restore regardless of outcome**: `cp /tmp/qa-data-backup.js webapp/src/data/data.js`
    (or `git stash pop`). Stop the dev server gracefully (SIGTERM, not SIGKILL).
 
-### A7 — `score` over the seed (KNOWN BUG — tracked for fix)
+### A7 — `score` over the seed
 
-`score` reads the **legacy** `RunManifest`/`ExecutionResult` archive format
-(`src/archive/loader.ts`), whereas `submit`/`report` use the new `AttemptManifest`/`ItemResult`
-attempt format (`src/report/load-attempts.ts`). The A5 seed is the attempt format, so
-`./bench score --archive "$SEED"` fails with `JsonlCorruptLine`. This is a **known harness bug**
-(`score` was never migrated to the attempt format) accepted for a fix — not a seed defect.
-Until that fix lands, record A7 as **FAIL (known bug)** with the `JsonlCorruptLine` as evidence.
-Once `score` reads attempt archives, A7 becomes a real PASS (exit 0, scores printed).
+`score` re-scores an attempt archive in place: it reads the new
+`AttemptManifest`/`ItemResult` attempt format via `loadAttemptArchive`
+(`src/report/load-attempts.ts`), re-applies the resolved challenge's scorers to each stored
+`output`, recomputes the aggregate, and rewrites the file atomically. The A5 seed is the attempt
+format, so `./bench score --archive "$SEED"` exits 0 and prints the one-line summary. (The seed's
+prompt names are not in any shipped challenge, so its items fall back to their stored scores under
+the promptHash-drift guard — expect a non-zero `drift` count; that is still a PASS.) A non-attempt
+/ legacy file instead exits non-zero with `not an attempt archive (score no longer reads the legacy
+format)`. The former `JsonlCorruptLine` failure was the pre-migration known bug, now fixed.
 
 ## Tier B — live (only if detected)
 
@@ -124,4 +126,4 @@ restored, `git status` clean.
 - Writing to `./benchmark-archive/` instead of the `mktemp -d` scratch dir.
 - Claiming PASS without a concrete observable ("looks fine" is not evidence).
 - Running Tier B assertions when no model/binary is present — that must be SKIP, not FAIL.
-- Treating a Tier B SKIP (no model/binary present) as a FAIL — that is an environment gap, not a harness bug. (A7, by contrast, IS a tracked harness bug → record it FAIL.)
+- Treating a Tier B SKIP (no model/binary present) as a FAIL — that is an environment gap, not a harness bug.

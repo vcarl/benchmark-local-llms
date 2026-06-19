@@ -1,101 +1,359 @@
-import { describe, expect, it } from "vitest";
-import type { ExecutionResult } from "../../../schema/execution.js";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { CommandExecutor } from "@effect/platform";
+import { NodeContext } from "@effect/platform-node";
+import { Effect, Layer, Option, Schema } from "effect";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ResolvedChallenge, ResolvedItem } from "../../../config/challenges.js";
+import { loadChallenge } from "../../../config/challenges.js";
+import { loadPromptCorpus } from "../../../config/prompt-corpus.js";
+import { loadSystemPrompts, SystemPromptRegistry } from "../../../config/system-prompts.js";
+import {
+  AttemptManifest,
+  type ItemResult,
+  ItemResult as ItemResultSchema,
+} from "../../../schema/attempt.js";
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
-import type { ScenarioCorpusEntry } from "../../../schema/scenario.js";
-import { formatScoredLine, resolveCorpusEntry } from "../score.js";
+import type { ScorerConfig } from "../../../schema/scorer.js";
+import { systemPromptsPath } from "../../paths.js";
+import { formatSummary, rescoreItems, scoreCommand } from "../score.js";
 
-const executionResult = (overrides: Partial<ExecutionResult> = {}): ExecutionResult =>
-  ({
-    runId: "r1",
-    executedAt: "2024-01-01T00:00:00Z",
-    promptName: "math_direct",
-    temperature: 0.7,
-    model: "test-model",
-    runtime: "mlx",
-    quant: "",
-    promptTokens: 0,
-    generationTokens: 0,
-    promptTps: 0,
-    generationTps: 0,
-    peakMemoryGb: 0,
-    wallTimeSec: 0,
-    output: "",
-    reasoning: null,
-    rawOutput: "",
-    error: null,
-    promptHash: "h",
-    scenarioHash: null,
-    scenarioName: null,
-    terminationReason: null,
-    toolCallCount: null,
-    finalPlayerStats: null,
-    events: null,
-    ...overrides,
-  }) as ExecutionResult;
+const exactMatch: ScorerConfig = { type: "exact_match", expected: "42", extract: "(\\d+)" };
 
-const prompt = (name: string): PromptCorpusEntry =>
+const promptEntry = (name: string, promptHash: string): PromptCorpusEntry =>
   ({
     name,
     category: "math",
     tier: 1,
-    system: { key: "cot", text: "" },
-    promptText: "",
-    scorer: { type: "exact_match", expected: "42", extract: "(\\d+)" },
-    promptHash: "h",
+    system: { key: "none", text: "" },
+    promptText: "what is 6*7?",
+    scorer: exactMatch,
+    promptHash,
   }) as unknown as PromptCorpusEntry;
 
-const scenario = (name: string): ScenarioCorpusEntry =>
-  ({
-    name,
-    fixture: "fx",
-    players: [],
-    scorer: "noop",
-    scorerParams: {},
-    cutoffs: { wallClockSec: 60, totalTokens: 1000, toolCalls: 10 },
-    tier: 1,
-    scenarioMd: "",
-    scenarioHash: "h",
-  }) as unknown as ScenarioCorpusEntry;
+const resolvedItem = (
+  itemId: string,
+  promptHash: string,
+  scorer: ScorerConfig = exactMatch,
+): ResolvedItem => ({
+  itemId,
+  promptHash,
+  itemHash: `${promptHash}-ih`,
+  scorer,
+  prompt: promptEntry(itemId, promptHash),
+});
 
-describe("resolveCorpusEntry", () => {
-  it("resolves a scenario result against the scenario corpus", () => {
-    const r = executionResult({ scenarioName: "pvp_skirmish", promptName: "pvp_skirmish" });
-    const prompts: Record<string, PromptCorpusEntry> = {};
-    const scenarios: Record<string, ScenarioCorpusEntry> = {
-      pvp_skirmish: scenario("pvp_skirmish"),
-    };
-    expect(resolveCorpusEntry(r, prompts, scenarios)).toBe(scenarios["pvp_skirmish"]);
+const resolved = (items: ReadonlyArray<ResolvedItem>): ResolvedChallenge => ({
+  id: "smoke",
+  version: 1,
+  passThreshold: 0.5,
+  challengeHash: "chh",
+  items,
+});
+
+const item = (overrides: Partial<ItemResult> = {}): ItemResult => ({
+  itemId: "p1",
+  promptName: "p1",
+  promptHash: "ph1",
+  itemHash: "ih1",
+  executedAt: "2026-01-01T00:00:00Z",
+  promptTokens: 1,
+  generationTokens: 1,
+  promptTps: 1,
+  generationTps: 1,
+  peakMemoryGb: 0,
+  wallTimeSec: 1,
+  output: "the answer is 42",
+  reasoning: null,
+  rawOutput: "the answer is 42",
+  error: null,
+  score: 0,
+  ...overrides,
+});
+
+const run = <A, E>(eff: Effect.Effect<A, E, CommandExecutor.CommandExecutor>) =>
+  Effect.runPromise(eff.pipe(Effect.provide(NodeContext.layer)));
+
+describe("rescoreItems", () => {
+  it("re-scores a matching item via scoreByConfig (output matches scorer → 1)", async () => {
+    const items = [item({ promptHash: "ph1", score: 0 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
+    expect(res.updated[0]?.score).toBe(1);
+    expect(res.rescored).toBe(1);
+    expect(res.drift).toBe(0);
   });
 
-  it("resolves a prompt result against the prompt corpus", () => {
-    const r = executionResult({ scenarioName: null, promptName: "math_direct" });
-    const prompts: Record<string, PromptCorpusEntry> = { math_direct: prompt("math_direct") };
-    const scenarios: Record<string, ScenarioCorpusEntry> = {};
-    expect(resolveCorpusEntry(r, prompts, scenarios)).toBe(prompts["math_direct"]);
+  it("applies a scorer-only edit when promptHash matches but scorer changed (itemHash differs)", async () => {
+    // stored item scored 1 previously; the edited scorer now expects '99' → re-score to 0.
+    const newScorer: ScorerConfig = { type: "exact_match", expected: "99", extract: "(\\d+)" };
+    const items = [item({ promptHash: "ph1", score: 1, output: "the answer is 42" })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", newScorer)])));
+    expect(res.updated[0]?.score).toBe(0);
+    expect(res.rescored).toBe(1);
+    expect(res.drift).toBe(0);
   });
 
-  it("returns null when no corpus entry matches", () => {
-    const r = executionResult({ promptName: "unknown" });
-    expect(resolveCorpusEntry(r, {}, {})).toBeNull();
+  it("keeps the stored score and counts drift when promptHash drifted", async () => {
+    const items = [item({ promptHash: "OLD", score: 1 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "NEW")])));
+    expect(res.updated[0]?.score).toBe(1);
+    expect(res.rescored).toBe(0);
+    expect(res.drift).toBe(1);
+  });
+
+  it("keeps the stored score and counts drift when prompt is missing from the challenge", async () => {
+    const items = [item({ itemId: "ghost", promptName: "ghost", score: 1 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
+    expect(res.updated[0]?.score).toBe(1);
+    expect(res.rescored).toBe(0);
+    expect(res.drift).toBe(1);
+  });
+
+  it("forces score 0 for an item that recorded an execution error", async () => {
+    const items = [item({ promptHash: "ph1", error: "boom", score: 1 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
+    expect(res.updated[0]?.score).toBe(0);
+    expect(res.rescored).toBe(1);
+    expect(res.drift).toBe(0);
+  });
+
+  it("folds a scorer error to score 0 (and still counts as rescored)", async () => {
+    // A game scorer in scoreByConfig fails → caught → score 0.
+    const gameScorer = { type: "game", gameScorer: "nope", scorerParams: {} } as ScorerConfig;
+    const items = [item({ promptHash: "ph1", score: 1 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", gameScorer)])));
+    expect(res.updated[0]?.score).toBe(0);
+    expect(res.rescored).toBe(1);
   });
 });
 
-describe("formatScoredLine", () => {
-  it("renders 'no-corpus' when score is null", () => {
-    const r = executionResult();
-    expect(formatScoredLine(r, null)).toContain("no-corpus");
+describe("formatSummary", () => {
+  it("renders configId × challengeId@version with aggregate + PASS + counts", () => {
+    const line = formatSummary({
+      configId: "smoke-config",
+      challengeId: "smoke",
+      version: 1,
+      aggregate: { score: 0.75, passed: true },
+      rescored: 2,
+      total: 2,
+      drift: 0,
+      fallback: 0,
+      dryRun: false,
+    });
+    expect(line).toContain("score: smoke-config × smoke@1");
+    expect(line).toContain("aggregate 0.750 PASS");
+    expect(line).toContain("[rescored 2/2, drift 0, fallback 0]");
+    expect(line).not.toContain("dry");
   });
 
-  it("renders the score rounded to 3 decimals", () => {
-    const r = executionResult();
-    expect(formatScoredLine(r, { score: 0.6666666, details: "ok" })).toContain("0.667");
+  it("marks a dry-run line clearly", () => {
+    const line = formatSummary({
+      configId: "c",
+      challengeId: "ch",
+      version: 3,
+      aggregate: { score: 0.2, passed: false },
+      rescored: 1,
+      total: 5,
+      drift: 4,
+      fallback: 0,
+      dryRun: true,
+    });
+    expect(line.toLowerCase()).toContain("dry");
+    expect(line).toContain("aggregate 0.200 FAIL");
+  });
+});
+
+// ── Command-handler boundary tests ───────────────────────────────────────────
+//
+// These exercise the real `scoreCommand.handler` (the same entry the CLI
+// invokes after option parsing), mirroring how report.test.ts drives the real
+// business logic. The seed archive is built through the actual schema encoders
+// and matched to the real `smoke` challenge so a re-score genuinely changes a
+// score on disk.
+
+const REAL_PROMPTS = "prompts";
+const REAL_CHALLENGES = "challenges";
+
+// A paragraph that satisfies the smoke challenge's constraint scorer (must
+// contain 'rocket', 'orbit', 'gravity') → re-scores to 1.0.
+const PASSING_OUTPUT =
+  "The rocket climbed steadily until it reached a stable orbit, where gravity gently held it in place.";
+
+const runHandler = (args: { archive: string; challenge?: string; dryRun?: boolean }) =>
+  Effect.runPromise(
+    scoreCommand
+      .handler({
+        archive: args.archive,
+        promptsDir: REAL_PROMPTS,
+        challengesDir: REAL_CHALLENGES,
+        challenge: args.challenge === undefined ? Option.none() : Option.some(args.challenge),
+        dryRun: args.dryRun ?? false,
+        verbose: false,
+      })
+      .pipe(Effect.provide(NodeContext.layer)),
+  );
+
+/** Resolve the real `smoke` challenge to learn its single item's promptHash. */
+const resolveSmoke = () =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const sp = yield* loadSystemPrompts(systemPromptsPath(REAL_PROMPTS));
+      const corpus = yield* loadPromptCorpus(REAL_PROMPTS).pipe(
+        Effect.provide(Layer.succeed(SystemPromptRegistry, sp)),
+      );
+      return yield* loadChallenge(`${REAL_CHALLENGES}/smoke.yaml`, corpus);
+    }).pipe(Effect.provide(NodeContext.layer)),
+  );
+
+/** Encode a schema-valid attempt archive (1 manifest line + N item lines). */
+const encodeArchive = (manifest: typeof AttemptManifest.Type, items: ReadonlyArray<ItemResult>) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const encHeader = yield* Schema.encode(AttemptManifest)(manifest);
+      const encItems = yield* Effect.forEach(items, (i) => Schema.encode(ItemResultSchema)(i));
+      return `${[JSON.stringify(encHeader), ...encItems.map((e) => JSON.stringify(e))].join("\n")}\n`;
+    }),
+  );
+
+const baseManifest = (
+  overrides: Partial<typeof AttemptManifest.Type> = {},
+): typeof AttemptManifest.Type => ({
+  schemaVersion: 1,
+  attemptId: "att-test-1",
+  startedAt: "2026-01-01T00:00:00.000Z",
+  finishedAt: "2026-01-01T00:01:00.000Z",
+  interrupted: false,
+  configId: "smoke-config",
+  configHash: "cfghash",
+  artifact: "test/model",
+  runtime: "llamacpp",
+  quant: "q4",
+  temperature: 0,
+  systemPrompt: "concise",
+  maxTokens: 128,
+  challengeId: "smoke",
+  challengeVersion: 1,
+  challengeHash: "chh",
+  env: {
+    hostname: "h",
+    platform: "p",
+    runtimeVersion: "1",
+    nodeVersion: "1",
+    benchmarkGitSha: "s",
+  },
+  aggregate: { score: 0, passed: false },
+  ...overrides,
+});
+
+describe("scoreCommand.handler (boundary)", () => {
+  let dir: string;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let logged: string[];
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "score-cmd-"));
+    logged = [];
+    logSpy = vi.spyOn(console, "log").mockImplementation((line?: unknown) => {
+      logged.push(String(line));
+    });
+  });
+  afterEach(() => {
+    logSpy.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
   });
 
-  it("includes model, prompt name, and temperature in the output", () => {
-    const r = executionResult({ model: "qwen-72b", promptName: "prompt_x", temperature: 1.0 });
-    const line = formatScoredLine(r, { score: 1, details: "" });
-    expect(line).toContain("qwen-72b");
-    expect(line).toContain("prompt_x");
-    expect(line).toContain("temp=1");
+  it("--dry-run leaves the archive byte-for-byte identical while reporting the would-change", async () => {
+    const smoke = await resolveSmoke();
+    const promptItem = smoke.items[0];
+    expect(promptItem).toBeDefined();
+    if (promptItem === undefined) return;
+
+    // Stored score 0; output actually passes → a real re-score would flip 0 → 1.
+    const archiveItem = item({
+      itemId: promptItem.itemId,
+      promptName: promptItem.itemId,
+      promptHash: promptItem.promptHash,
+      itemHash: promptItem.itemHash,
+      output: PASSING_OUTPUT,
+      rawOutput: PASSING_OUTPUT,
+      score: 0,
+    });
+    const contents = await encodeArchive(baseManifest(), [archiveItem]);
+    const file = path.join(dir, "att.jsonl");
+    writeFileSync(file, contents, "utf-8");
+    const before = readFileSync(file);
+
+    await runHandler({ archive: file, dryRun: true });
+
+    const after = readFileSync(file);
+    expect(after.equals(before)).toBe(true); // byte-for-byte identical
+    const out = logged.join("\n");
+    expect(out).toContain("dry-run, no write");
+    // It reports the would-change (0 → 1) without having written it.
+    expect(out).toContain(`${promptItem.itemId}: 0 → 1`);
+  });
+
+  it("falls back gracefully (exit 0, file untouched) when the challenge is unresolvable", async () => {
+    const archiveItem = item({ output: PASSING_OUTPUT, rawOutput: PASSING_OUTPUT, score: 0 });
+    const contents = await encodeArchive(baseManifest(), [archiveItem]);
+    const file = path.join(dir, "att.jsonl");
+    writeFileSync(file, contents, "utf-8");
+    const before = readFileSync(file);
+
+    // Point at a challenge file that does not exist → whole-archive fallback.
+    await expect(
+      runHandler({ archive: file, challenge: path.join(dir, "does-not-exist.yaml") }),
+    ).resolves.toBeUndefined();
+
+    const after = readFileSync(file);
+    expect(after.equals(before)).toBe(true);
+    expect(logged.join("\n")).toContain("challenge unresolvable");
+  });
+
+  it("surfaces a clear command-boundary error for a non-attempt (legacy/garbage) file", async () => {
+    const file = path.join(dir, "legacy.jsonl");
+    writeFileSync(file, '{"not":"an attempt manifest"}\ngarbage not even json\n', "utf-8");
+
+    await expect(runHandler({ archive: file })).rejects.toThrow(
+      "not an attempt archive (score no longer reads the legacy format)",
+    );
+    // The raw loader reason must NOT leak through.
+    await expect(runHandler({ archive: file })).rejects.not.toThrow(
+      /AttemptLoadIssue|is not JSON|is not an AttemptManifest/,
+    );
+  });
+
+  it("prints drift/skip warnings in NORMAL (non-dry-run) mode, then writes", async () => {
+    const smoke = await resolveSmoke();
+    const promptItem = smoke.items[0];
+    expect(promptItem).toBeDefined();
+    if (promptItem === undefined) return;
+
+    const realItem = item({
+      itemId: promptItem.itemId,
+      promptName: promptItem.itemId,
+      promptHash: promptItem.promptHash,
+      itemHash: promptItem.itemHash,
+      output: PASSING_OUTPUT,
+      rawOutput: PASSING_OUTPUT,
+      score: 0,
+    });
+    // A drifted ghost item not present in the challenge → kept, warned, counts as drift.
+    const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
+    const contents = await encodeArchive(baseManifest(), [realItem, ghost]);
+    const file = path.join(dir, "att.jsonl");
+    writeFileSync(file, contents, "utf-8");
+
+    await runHandler({ archive: file, dryRun: false });
+
+    const out = logged.join("\n");
+    // Drift/skip warning is surfaced even in a real write.
+    expect(out).toContain("warn ghost: not in challenge");
+    // Summary still reflects the drift count.
+    expect(out).toContain("drift 1");
+    // The file was actually rewritten (re-score applied 0 → 1 for the real item).
+    const written = readFileSync(file, "utf-8");
+    expect(written).toContain('"score":1');
   });
 });

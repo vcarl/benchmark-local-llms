@@ -43,6 +43,28 @@ const parseAttempt = (path: string, source: string) =>
   );
 
 /**
+ * Load a single attempt `.jsonl` into {@link LoadedAttempt}. Reuses the same
+ * {@link parseAttempt} logic the directory loader uses (line 1 = manifest,
+ * lines 2.. = item results); a non-attempt / legacy file fails with an
+ * {@link AttemptLoadIssue} carrying `{ path, reason }`. The caller (e.g. the
+ * `score` command) maps that issue into a user-facing message.
+ */
+export const loadAttemptArchive = (
+  file: string,
+): Effect.Effect<LoadedAttempt, AttemptLoadIssue, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const source = yield* fs
+      .readFileString(file)
+      .pipe(
+        Effect.mapError(
+          (cause) => ({ path: file, reason: String(cause) }) satisfies AttemptLoadIssue,
+        ),
+      );
+    return yield* parseAttempt(file, source);
+  });
+
+/**
  * Load every `*.jsonl` attempt archive under `dir`. Files that fail to parse are
  * collected as `issues` rather than aborting the run; the directory-read failure
  * itself surfaces as {@link FileIOError}.

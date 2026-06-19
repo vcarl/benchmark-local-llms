@@ -2,8 +2,14 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
+import { loadAttemptArchive } from "../report/load-attempts.js";
 import { AttemptManifest, ItemResult } from "../schema/attempt.js";
-import { appendItem, finalizeAttempt, writeAttemptHeader } from "./attempt-writer.js";
+import {
+  appendItem,
+  finalizeAttempt,
+  rewriteAttempt,
+  writeAttemptHeader,
+} from "./attempt-writer.js";
 
 const env = {
   hostname: "h",
@@ -70,6 +76,40 @@ describe("attempt-writer", () => {
         expect(manifest.aggregate.passed).toBe(true);
         expect(manifest.finishedAt).toBe("2026-06-18T00:00:02.000Z");
         expect(row.score).toBe(1);
+      }),
+    ).pipe(Effect.provide(NodeContext.layer), Effect.runPromise));
+
+  it("rewriteAttempt re-encodes header + all items atomically; round-trips and preserves identity", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const dir = yield* fs.makeTempDirectoryScoped();
+        const path = `${dir}/att-rw.jsonl`;
+        // Seed a finalized archive (header + one item) the normal way.
+        yield* writeAttemptHeader(path, header);
+        yield* appendItem(path, item);
+        yield* finalizeAttempt(path, "2026-06-18T00:00:02.000Z", { score: 1, passed: true });
+
+        const before = yield* loadAttemptArchive(path);
+        // Rewrite: change only the per-item score + header aggregate.
+        const newManifest = { ...before.manifest, aggregate: { score: 0, passed: false } };
+        const newItems = before.items.map((i) => ({ ...i, score: 0 }));
+        yield* rewriteAttempt(path, newManifest, newItems);
+
+        const after = yield* loadAttemptArchive(path);
+        // Only score + aggregate changed; every identity field preserved.
+        expect(after.manifest.aggregate).toEqual({ score: 0, passed: false });
+        expect(after.items[0]?.score).toBe(0);
+        expect(after.manifest.attemptId).toBe(before.manifest.attemptId);
+        expect(after.manifest.challengeHash).toBe(before.manifest.challengeHash);
+        expect(after.manifest.startedAt).toBe(before.manifest.startedAt);
+        expect(after.manifest.finishedAt).toBe(before.manifest.finishedAt);
+        expect(after.items[0]?.itemId).toBe(before.items[0]?.itemId);
+        expect(after.items[0]?.promptHash).toBe(before.items[0]?.promptHash);
+        expect(after.items[0]?.output).toBe(before.items[0]?.output);
+        // Atomic write leaves no temp file behind on the happy path.
+        const entries = yield* fs.readDirectory(dir);
+        expect(entries.filter((e) => e.endsWith(".tmp"))).toHaveLength(0);
       }),
     ).pipe(Effect.provide(NodeContext.layer), Effect.runPromise));
 });

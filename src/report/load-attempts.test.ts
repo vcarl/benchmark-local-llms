@@ -2,7 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { loadAttemptArchives } from "./load-attempts.js";
+import { loadAttemptArchive, loadAttemptArchives } from "./load-attempts.js";
 
 const HEADER = JSON.stringify({
   schemaVersion: 1,
@@ -73,5 +73,42 @@ describe("loadAttemptArchives", () => {
     expect(res.attempts[0]?.items[0]?.generationTokens).toBe(100);
     expect(res.issues).toHaveLength(1);
     expect(res.issues[0]?.path).toContain("broken.jsonl");
+  });
+});
+
+const runSingle = <A>(
+  eff: Effect.Effect<A, unknown, FileSystem.FileSystem | import("@effect/platform").Path.Path>,
+  file: string,
+  contents: string,
+) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      yield* fs.writeFileString(file, contents);
+      return yield* eff;
+    }).pipe(Effect.provide(NodeContext.layer)),
+  );
+
+describe("loadAttemptArchive", () => {
+  it("parses a single attempt file into { manifest, items }", async () => {
+    const file = `/tmp/p3-single-ok-${process.pid}.jsonl`;
+    const loaded = await runSingle(loadAttemptArchive(file), file, `${HEADER}\n${ITEM}\n`);
+    expect(loaded.manifest.attemptId).toBe("att-1");
+    expect(loaded.items).toHaveLength(1);
+    expect(loaded.items[0]?.itemId).toBe("i1");
+  });
+
+  it("fails with an AttemptLoadIssue on a non-attempt / legacy file", async () => {
+    const file = `/tmp/p3-single-bad-${process.pid}.jsonl`;
+    const result = await runSingle(
+      Effect.either(loadAttemptArchive(file)),
+      file,
+      `{ not valid manifest }\n`,
+    );
+    expect(result._tag).toBe("Left");
+    if (result._tag === "Left") {
+      expect((result.left as { path: string }).path).toBe(file);
+      expect((result.left as { reason: string }).reason).toBeTypeOf("string");
+    }
   });
 });

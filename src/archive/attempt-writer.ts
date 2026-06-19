@@ -106,3 +106,48 @@ export const finalizeAttempt = (
       .writeFileString(path, newHeaderLine + rest, { flag: "w" })
       .pipe(Effect.mapError(toFileIOError(path, "finalize-write")));
   });
+
+/**
+ * Fully re-encode an attempt archive in place: line 1 = `manifest` (with its
+ * updated `aggregate`; all other identity / provenance fields preserved by the
+ * caller), lines 2..N = every `item`, via the same `encodeManifest` /
+ * `encodeItem` encoders the append path uses.
+ *
+ * Unlike {@link finalizeAttempt} — which rewrites ONLY the header line via a
+ * plain `flag:"w"` overwrite, leaving the body bytes verbatim — this writer
+ * touches the WHOLE file. A partial or interrupted write here would corrupt a
+ * real archive, so it is **atomic**: encode + write to a sibling temp path,
+ * then `rename` over the target (an atomic replace on the same filesystem).
+ * The temp file is removed on a failed rename (best-effort); a failed write may
+ * leave a partial temp file, but the target archive is never touched.
+ */
+export const rewriteAttempt = (
+  path: string,
+  manifest: AttemptManifest,
+  items: ReadonlyArray<ItemResult>,
+): Effect.Effect<void, FileIOError, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+
+    const encodedHeader = yield* encodeManifest(manifest).pipe(
+      Effect.mapError(toFileIOError(path, "rewrite-encode")),
+    );
+    const encodedItems = yield* Effect.forEach(items, (item) =>
+      encodeItem(item).pipe(Effect.mapError(toFileIOError(path, "rewrite-encode"))),
+    );
+    const body = [
+      JSON.stringify(encodedHeader),
+      ...encodedItems.map((e) => JSON.stringify(e)),
+    ].join("\n");
+    const contents = `${body}\n`;
+
+    const tmp = `${path}.tmp`;
+    yield* fs
+      .writeFileString(tmp, contents, { flag: "w" })
+      .pipe(Effect.mapError(toFileIOError(tmp, "rewrite-write-temp")));
+    yield* fs.rename(tmp, path).pipe(
+      Effect.mapError(toFileIOError(path, "rewrite-rename")),
+      // A failed rename leaves the temp file orphaned; best-effort cleanup.
+      Effect.tapError(() => fs.remove(tmp).pipe(Effect.ignore)),
+    );
+  });
