@@ -17,8 +17,10 @@ import { FileSystem } from "@effect/platform";
 import { Clock, Data, Effect, Option, Schema } from "effect";
 import { appendItem, finalizeAttempt, writeAttemptHeader } from "../archive/attempt-writer.js";
 import { findCachedItem } from "../archive/cache.js";
+import { scorerHash, writeBlob } from "../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
+import { stableStringify } from "../config/hashing.js";
 import type { JsonlCorruptLine } from "../errors/index.js";
 import { FileIOError } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
@@ -80,7 +82,7 @@ const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
 });
 
 const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   attemptId: input.attemptId,
   startedAt,
   finishedAt: null,
@@ -95,6 +97,7 @@ const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifes
   challengeId: input.challenge.id,
   challengeVersion: input.challenge.version,
   challengeHash: input.challenge.challengeHash,
+  passThreshold: input.challenge.passThreshold,
   env: input.env,
   aggregate: { score: 0, passed: false },
   ...(input.config.quant !== undefined ? { quant: input.config.quant } : {}),
@@ -107,6 +110,15 @@ const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifes
  * verbatim — original executedAt/tokens/wallTime preserved so efficiency still
  * reflects true measured cost) or a fresh model execution stamped with
  * `itemHash`. Does NOT append or aggregate — the caller owns archive writes.
+ *
+ * Before the cache lookup, writes the per-item prompt and scorer blobs to the
+ * content store so the store is complete regardless of cache hit or miss.
+ *
+ * Cache-hit scorerHash stamp: on a hit whose cached row has no `scorerHash`
+ * (v1 archive), the returned row has `scorerHash` set. This is an intentional,
+ * spec-sanctioned narrow exception to the "cache hit = verbatim copy" invariant:
+ * only the denormalized `scorerHash` field is set; measured-cost fields
+ * (executedAt, tokens, tps, peakMemory, wallTime) are preserved verbatim.
  */
 export const executeOrCacheItem = (
   input: RunChallengeInput,
@@ -121,6 +133,10 @@ export const executeOrCacheItem = (
   | ChatCompletion
 > =>
   Effect.gen(function* () {
+    const sh = scorerHash(item.scorer);
+    yield* writeBlob(input.archiveDir, "prompts", item.promptHash, item.prompt.promptText);
+    yield* writeBlob(input.archiveDir, "scorers", sh, stableStringify(item.scorer));
+
     if (input.noCache !== true) {
       const cached = yield* findCachedItem(input.archiveDir, {
         configHash: input.config.configHash,
@@ -128,7 +144,10 @@ export const executeOrCacheItem = (
         challengeVersion: input.challenge.version,
         itemHash: item.itemHash,
       });
-      if (Option.isSome(cached)) return cached.value;
+      if (Option.isSome(cached)) {
+        const row = cached.value;
+        return row.scorerHash === undefined ? { ...row, scorerHash: sh } : row;
+      }
     }
 
     const exec = yield* runPrompt({
@@ -154,6 +173,7 @@ export const executeOrCacheItem = (
       promptName: item.itemId,
       promptHash: item.promptHash,
       itemHash: item.itemHash,
+      scorerHash: sh,
       executedAt: exec.executedAt,
       promptTokens: exec.promptTokens,
       generationTokens: exec.generationTokens,
@@ -195,6 +215,12 @@ export const runChallenge = (
       const startedMs = yield* Clock.currentTimeMillis;
       const header = baseHeader(input, new Date(startedMs).toISOString());
       yield* writeAttemptHeader(input.archivePath, header);
+      yield* writeBlob(
+        input.archiveDir,
+        "system",
+        input.config.configHash,
+        input.config.systemPromptText,
+      );
 
       // Acquire the LLM server within this scope. The caller-provided ChatCompletion
       // talks to it on the runtime's fixed port. A server that won't boot is a hard

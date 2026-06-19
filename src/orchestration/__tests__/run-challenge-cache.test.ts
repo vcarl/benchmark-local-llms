@@ -1,9 +1,11 @@
+import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
-import { runChallenge } from "../run-challenge.js";
+import { executeOrCacheItem, runChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
   inertHttpClientLayer,
@@ -199,5 +201,135 @@ describe("runChallenge cache", () => {
       ),
     );
     expect(m2.log.calls.length).toBe(1); // MISS → re-executed
+  });
+
+  it("cache hit returns a row with scorerHash", async () => {
+    const challenge = makeChallenge();
+
+    const m1 = okStub();
+    await Effect.runPromise(
+      runChallenge({
+        config,
+        challenge,
+        attemptId: "att-1",
+        archiveDir: dir,
+        archivePath: `${dir}/att-1.jsonl`,
+        env,
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(m1.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+    const m2 = okStub();
+    const r2 = await Effect.runPromise(
+      runChallenge({
+        config,
+        challenge,
+        attemptId: "att-2",
+        archiveDir: dir,
+        archivePath: `${dir}/att-2.jsonl`,
+        env,
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(m2.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    expect(m2.log.calls.length).toBe(0); // cache hit
+    const item = challenge.items[0] as ResolvedItem;
+    // Read the item row from the second archive
+    const text = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        return yield* fs.readFileString(`${dir}/att-2.jsonl`);
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    const lines = text
+      .trim()
+      .split("\n")
+      .filter((l) => l.length > 0);
+    const row = JSON.parse(lines[1] ?? "{}") as Record<string, unknown>;
+    expect(row["scorerHash"]).toBe(scorerHash(item.scorer));
+    void r2;
+  });
+
+  it("stamps scorerHash on a hit from a v1 cached row (no scorerHash in archive)", async () => {
+    const challenge = makeChallenge();
+    const item = challenge.items[0] as ResolvedItem;
+
+    const CACHED_WALL = 3.14;
+
+    // Write a v1 completed archive (no scorerHash on item row)
+    const v1Header = JSON.stringify({
+      schemaVersion: 1,
+      attemptId: "att-v1",
+      startedAt: "2026-01-01T00:00:00Z",
+      finishedAt: "2026-01-01T00:01:00Z",
+      interrupted: false,
+      configId: config.id,
+      configHash: config.configHash,
+      artifact: config.artifact,
+      runtime: config.runtime,
+      temperature: config.temperature,
+      systemPrompt: config.systemPrompt,
+      maxTokens: config.maxTokens,
+      challengeId: challenge.id,
+      challengeVersion: challenge.version,
+      challengeHash: challenge.challengeHash,
+      env,
+      aggregate: { score: 1, passed: true },
+    });
+    const v1Item = JSON.stringify({
+      itemId: item.itemId,
+      promptName: item.itemId,
+      promptHash: item.promptHash,
+      itemHash: item.itemHash,
+      executedAt: "2026-01-01T00:00:30Z",
+      promptTokens: 5,
+      generationTokens: 5,
+      promptTps: 0,
+      generationTps: 0,
+      peakMemoryGb: 0,
+      wallTimeSec: CACHED_WALL,
+      output: "4",
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      score: 1,
+    });
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.writeFileString(`${dir}/att-v1.jsonl`, `${v1Header}\n${v1Item}\n`);
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+
+    const input = {
+      config,
+      challenge,
+      attemptId: "att-stamp",
+      archiveDir: dir,
+      archivePath: `${dir}/att-stamp.jsonl`,
+      env,
+      deps: fakeDeps(),
+    };
+
+    const m = okStub();
+    const row = await Effect.runPromise(
+      executeOrCacheItem(input, item).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+    expect(m.log.calls.length).toBe(0); // cache hit, no model call
+    expect(row.scorerHash).toBe(scorerHash(item.scorer));
+    expect(row.wallTimeSec).toBe(CACHED_WALL); // verbatim measured cost
   });
 });
