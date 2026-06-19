@@ -8,6 +8,7 @@ export const ItemResult = Schema.Struct({
   promptName: Schema.String,
   promptHash: Schema.String,
   itemHash: Schema.String,
+  scorerHash: Schema.optional(Schema.String),
   executedAt: Schema.String,
   promptTokens: Schema.Number,
   generationTokens: Schema.Number,
@@ -33,10 +34,11 @@ export type AttemptAggregate = typeof AttemptAggregate.Type;
  * Header of one `(config × challenge)` attempt archive. Config and challenge
  * identity are denormalized; `env` is provenance (incl. harness git sha) and
  * is NOT part of `configHash`. `aggregate` is zeroed at header-write and
- * filled at finalize.
+ * filled at finalize. `passThreshold` and `schemaVersion: 2` are v2 reconstruction
+ * additions (denormalized content, not hash inputs).
  */
 export const AttemptManifest = Schema.Struct({
-  schemaVersion: Schema.Literal(1),
+  schemaVersion: Schema.Literal(1, 2),
   attemptId: Schema.String,
   startedAt: Schema.String,
   finishedAt: Schema.NullOr(Schema.String),
@@ -54,6 +56,7 @@ export const AttemptManifest = Schema.Struct({
   challengeId: Schema.String,
   challengeVersion: Schema.Number,
   challengeHash: Schema.String,
+  passThreshold: Schema.optional(Schema.Number),
 
   env: RunEnv,
   aggregate: AttemptAggregate,

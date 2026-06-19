@@ -81,3 +81,82 @@ describe("attempt schemas", () => {
     expect(Schema.decodeUnknownSync(AttemptManifest)(v).attemptId).toBe("att-1");
   });
 });
+
+describe("attempt schema v2 (additive)", () => {
+  const baseManifest = {
+    schemaVersion: 1,
+    attemptId: "att-x",
+    startedAt: "2026-01-01T00:00:00.000Z",
+    finishedAt: null,
+    interrupted: true,
+    configId: "c",
+    configHash: "cfg",
+    artifact: "a",
+    runtime: "mlx",
+    temperature: 0,
+    systemPrompt: "default",
+    maxTokens: 64,
+    challengeId: "ch",
+    challengeVersion: 1,
+    challengeHash: "chh",
+    env: {
+      hostname: "h",
+      platform: "p",
+      runtimeVersion: "r",
+      nodeVersion: "n",
+      benchmarkGitSha: "g",
+    },
+    aggregate: { score: 0, passed: false },
+  };
+
+  it("decodes a v1 manifest with no passThreshold", () => {
+    const m = Schema.decodeUnknownSync(AttemptManifest)(baseManifest);
+    expect(m.schemaVersion).toBe(1);
+    expect(m.passThreshold).toBeUndefined();
+  });
+
+  it("decodes a v2 manifest with schemaVersion 2 + passThreshold", () => {
+    const m = Schema.decodeUnknownSync(AttemptManifest)({
+      ...baseManifest,
+      schemaVersion: 2,
+      passThreshold: 0.8,
+    });
+    expect(m.schemaVersion).toBe(2);
+    expect(m.passThreshold).toBe(0.8);
+  });
+
+  it("rejects schemaVersion 3", () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AttemptManifest)({ ...baseManifest, schemaVersion: 3 }),
+    ).toThrow();
+  });
+
+  const baseItem = {
+    itemId: "i",
+    promptName: "i",
+    promptHash: "ph",
+    itemHash: "ih",
+    executedAt: "2026-01-01T00:00:00.000Z",
+    promptTokens: 1,
+    generationTokens: 1,
+    promptTps: 1,
+    generationTps: 1,
+    peakMemoryGb: 0,
+    wallTimeSec: 0,
+    output: "o",
+    reasoning: null,
+    rawOutput: "o",
+    error: null,
+    score: 1,
+  };
+
+  it("decodes a v1 item with no scorerHash", () => {
+    const r = Schema.decodeUnknownSync(ItemResult)(baseItem);
+    expect(r.scorerHash).toBeUndefined();
+  });
+
+  it("decodes a v2 item carrying scorerHash", () => {
+    const r = Schema.decodeUnknownSync(ItemResult)({ ...baseItem, scorerHash: "sh" });
+    expect(r.scorerHash).toBe("sh");
+  });
+});
