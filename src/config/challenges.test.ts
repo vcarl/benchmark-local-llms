@@ -1,7 +1,23 @@
-import { Effect } from "effect";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { NodeFileSystem } from "@effect/platform-node";
+import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
-import { resolveChallenge } from "./challenges.js";
+import { loadChallenge, resolveChallenge } from "./challenges.js";
+import { loadPromptCorpus } from "./prompt-corpus.js";
+import { loadSystemPrompts, SystemPromptRegistry } from "./system-prompts.js";
+
+// Absolute path to the repo root (two levels up from src/config/)
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+const realCorpusLayer = Layer.merge(
+  NodeFileSystem.layer,
+  Layer.effect(
+    SystemPromptRegistry,
+    loadSystemPrompts(path.join(repoRoot, "prompts/system-prompts.yaml")),
+  ).pipe(Layer.provide(NodeFileSystem.layer)),
+);
 
 const promptEntry = (name: string, hash: string) =>
   ({
@@ -89,4 +105,23 @@ it("challengeHash drifts when an item prompt-hash changes", async () => {
     resolveChallenge(challenge as never, [stub("a", "cccccccccccc", scorer)]),
   );
   expect(h1.challengeHash).not.toBe(h2.challengeHash);
+});
+
+it.each([
+  ["code", 12],
+  ["constraint", 10],
+  ["effect-ts", 26],
+  ["factual", 9],
+  ["logic", 10],
+  ["math", 13],
+] as const)("resolves challenges/%s.yaml against the real corpus (%i items)", async (id, count) => {
+  const program = Effect.gen(function* () {
+    const corpus = yield* loadPromptCorpus(path.join(repoRoot, "prompts"));
+    return yield* loadChallenge(path.join(repoRoot, `challenges/${id}.yaml`), corpus);
+  }).pipe(Effect.provide(realCorpusLayer));
+  const exit = await Effect.runPromiseExit(program);
+  expect(exit._tag).toBe("Success");
+  if (exit._tag !== "Success") return;
+  expect(exit.value.items).toHaveLength(count);
+  expect(exit.value.challengeHash).toMatch(/^[0-9a-f]{12}$/);
 });

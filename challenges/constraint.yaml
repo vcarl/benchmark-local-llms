@@ -1,0 +1,14 @@
+id: constraint
+version: 1
+passThreshold: 0.8
+items:
+  - prompt: constraint_capitals
+  - prompt: constraint_format_switch_decomposed
+  - prompt: constraint_gauntlet_structured
+  - prompt: constraint_json
+  - prompt: constraint_json_nested_structured
+  - prompt: constraint_json_transform_decomposed
+  - prompt: constraint_keywords_adversarial
+  - prompt: constraint_keywords_direct
+  - prompt: constraint_no_letter_e_adversarial
+  - prompt: constraint_no_letter_e_direct

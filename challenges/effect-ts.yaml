@@ -1,0 +1,30 @@
+id: effect-ts
+version: 1
+passThreshold: 0.8
+items:
+  - prompt: effect_anti_pattern
+  - prompt: effect_catch_specific
+  - prompt: effect_constructors_structured
+  - prompt: effect_error_class
+  - prompt: effect_fiber_fork
+  - prompt: effect_gen_pattern
+  - prompt: effect_layer
+  - prompt: effect_layer_merge
+  - prompt: effect_option_either
+  - prompt: effect_parallel
+  - prompt: effect_pipe_vs_gen
+  - prompt: effect_queue_bounded
+  - prompt: effect_queue_operations_structured
+  - prompt: effect_ref
+  - prompt: effect_resource_management
+  - prompt: effect_schedule_types
+  - prompt: effect_schema
+  - prompt: effect_service_3_parts_structured
+  - prompt: effect_service_pattern
+  - prompt: effect_sink
+  - prompt: effect_stream_create
+  - prompt: effect_stream_pipeline_structured
+  - prompt: effect_top_level_exports
+  - prompt: effect_try_promise
+  - prompt: effect_type_params
+  - prompt: effect_yield_star

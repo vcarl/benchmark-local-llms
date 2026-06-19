@@ -1,0 +1,17 @@
+id: math
+version: 1
+passThreshold: 0.8
+items:
+  - prompt: math_chain_direct
+  - prompt: math_chain_noisy
+  - prompt: math_combinatorics_cot
+  - prompt: math_compound_interest
+  - prompt: math_modular_structured
+  - prompt: math_multiply_cot
+  - prompt: math_multiply_direct
+  - prompt: math_multiply_few_shot
+  - prompt: math_primes_sum_adversarial
+  - prompt: math_primes_sum_direct
+  - prompt: math_word_problem_decomposed
+  - prompt: math_word_problem_direct
+  - prompt: math_word_problem_structured
