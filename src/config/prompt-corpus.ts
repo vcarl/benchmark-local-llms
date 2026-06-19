@@ -10,7 +10,7 @@ import {
 } from "../errors/config.js";
 import { ConstraintDef } from "../schema/constraints.js";
 import { ConstraintCheck } from "../schema/enums.js";
-import type { PromptCorpusEntry } from "../schema/prompt.js";
+import type { PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
 import { computePromptHash } from "./hashing.js";
 import { SystemPromptRegistry } from "./system-prompts.js";
 import { parseYaml } from "./yaml.js";
@@ -30,7 +30,7 @@ const ExactMatchInput = Schema.Struct({
   name: Schema.String,
   category: Schema.String,
   tier: Schema.Number,
-  system: Schema.String,
+  system: Schema.optional(Schema.String),
   prompt: Schema.String,
   scorer: Schema.Literal("exact_match"),
   expected: Schema.String,
@@ -42,7 +42,7 @@ const ConstraintInput = Schema.Struct({
   name: Schema.String,
   category: Schema.String,
   tier: Schema.Number,
-  system: Schema.String,
+  system: Schema.optional(Schema.String),
   prompt: Schema.String,
   scorer: Schema.Literal("constraint"),
   // Decoded as an array of ConstraintDefs — the constraint union already
@@ -56,7 +56,7 @@ const CodeExecInput = Schema.Struct({
   name: Schema.String,
   category: Schema.String,
   tier: Schema.Number,
-  system: Schema.String,
+  system: Schema.optional(Schema.String),
   prompt: Schema.String,
   scorer: Schema.Literal("code_exec"),
   /** Path to companion test file, resolved relative to the prompts dir. */
@@ -68,7 +68,7 @@ const GameInput = Schema.Struct({
   name: Schema.String,
   category: Schema.String,
   tier: Schema.Number,
-  system: Schema.String,
+  system: Schema.optional(Schema.String),
   prompt: Schema.String,
   scorer: Schema.Literal("game"),
   gameScorer: Schema.String,
@@ -152,17 +152,20 @@ const buildCorpusEntry = (
   registry: Record<string, string>,
 ): Effect.Effect<PromptCorpusEntry, UnknownSystemPrompt | ConfigError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
-    const systemText = registry[input.system];
-    if (systemText === undefined) {
-      return yield* Effect.fail(
-        new UnknownSystemPrompt({
-          key: input.system,
-          availableKeys: Object.keys(registry),
-        }),
-      );
+    let system: SystemPrompt;
+    if (input.system === undefined) {
+      // Omitted system: prompt is self-contained / system-agnostic.
+      system = { key: "none", text: "" };
+    } else {
+      const text = registry[input.system];
+      if (text === undefined) {
+        return yield* Effect.fail(
+          new UnknownSystemPrompt({ key: input.system, availableKeys: Object.keys(registry) }),
+        );
+      }
+      system = { key: input.system, text };
     }
-    const system = { key: input.system, text: systemText };
-    const promptHash = computePromptHash(input.prompt, systemText);
+    const promptHash = computePromptHash(input.prompt, system.text);
 
     const scorer = yield* resolveScorer(input, promptsDir);
 

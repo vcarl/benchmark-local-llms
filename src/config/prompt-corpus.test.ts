@@ -113,6 +113,19 @@ describe("loadPromptCorpus", () => {
     expect(haiku.tags).toBeUndefined();
   });
 
+  it("loads a prompt that omits system:, using a neutral sentinel + empty-system hash", async () => {
+    const exit = await Effect.runPromiseExit(
+      loadPromptCorpus(fixturePath("prompts")).pipe(Effect.provide(envLayer)),
+    );
+    expect(exit._tag).toBe("Success");
+    if (exit._tag !== "Success") return;
+    const entry = exit.value.find((p) => p.name === "no_system");
+    expect(entry).toBeDefined();
+    if (!entry) return;
+    expect(entry.system).toEqual({ key: "none", text: "" });
+    expect(entry.promptHash).toBe(computePromptHash(entry.promptText, ""));
+  });
+
   it("excludes system-prompts.yaml and the scenarios/ subdir from the prompt list", async () => {
     // The prompts/ fixture dir contains a scenarios/ subdir; readDirectory
     // should return it as an entry, but it doesn't end in .yaml, so it is
