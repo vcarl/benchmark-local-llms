@@ -13,3 +13,6 @@ export const scoreBand = (
   if (score >= 0.2) return "orange";
   return "red";
 };
+
+export const EFFICIENCY_SCALE = 1_000_000;
+export const formatEfficiency = (e: number | null): string => (e === null ? "—" : e.toFixed(2));
