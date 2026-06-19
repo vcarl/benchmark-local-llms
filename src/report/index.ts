@@ -1,31 +1,23 @@
 /**
- * Report generator entry point (requirements §7). Wires the D2 pipeline:
+ * Report generator entry point. Wires the attempt-archive pipeline:
  *
- *   discoverArchives  → loadManifest (B2) → scoreExecution (B3)
- *                     → toWebappRecord → writeEventFiles + writeDataJs
- *
- * Scenario events live in per-record JSON side files at
- * `<dirname(outputPath)>/events/<archive_id>__<prompt_name>.json`; `data.js`
- * carries `has_events: boolean` flags so the webapp knows when to fetch.
+ *   loadAttemptArchives → aggregateAttempts → writeDataJs
  *
  * The CLI (D1) calls {@link runReport} and formats the returned
  * {@link ReportSummary} for the operator.
  *
  * Error surface: discovery (directory ENOENT, etc.) and the final write
  * propagate as `FileIOError`. Individual archive failures are collected in
- * `summary.loadIssues`, not raised. Scoring failures per-record fall back to
- * zero-score with a reason string (see `aggregate.safeScore`).
+ * `summary.loadIssues`, not raised.
  */
 import path from "node:path";
-import type { CommandExecutor, FileSystem, Path } from "@effect/platform";
+import type { FileSystem, Path } from "@effect/platform";
 import { Effect } from "effect";
 import type { FileIOError } from "../errors/index.js";
-import type { PromptCorpusEntry, ScenarioCorpusEntry } from "../schema/index.js";
-import { aggregateAll, type DuplicateArchiveIdIssue } from "./aggregate.js";
-import { loadAllArchives, type ReportLoadIssue } from "./load-archives.js";
-import { stripEventsForWire, type WebappRecord } from "./webapp-contract.js";
+import { aggregateAttempts } from "./aggregate.js";
+import { type AttemptLoadIssue, loadAttemptArchives } from "./load-attempts.js";
+import type { WebappRecord } from "./webapp-contract.js";
 import { writeDataJs } from "./write-data-js.js";
-import { writeEventFiles } from "./write-events.js";
 
 export interface ReportOptions {
   /** Directory containing `*.jsonl` archives to report on. */
@@ -33,13 +25,8 @@ export interface ReportOptions {
   /**
    * Output path for the webapp data file. Defaults to
    * `webapp/src/data/data.js` relative to the archive dir's parent.
-   * Per-scenario events side files are written to `<dirname(outputPath)>/events/`.
    */
   readonly outputPath?: string;
-  /** Current prompt corpus (array; indexed by name internally). Required. */
-  readonly currentPromptCorpus: ReadonlyArray<PromptCorpusEntry>;
-  /** Current scenario corpus (array; indexed by name internally). Required. */
-  readonly currentScenarioCorpus: ReadonlyArray<ScenarioCorpusEntry>;
   /** If true, skip the write step (useful for tests / dry-run). */
   readonly dryRun?: boolean;
 }
@@ -47,30 +34,14 @@ export interface ReportOptions {
 export interface ReportSummary {
   readonly archiveDir: string;
   readonly outputPath: string;
-  readonly archivesLoaded: number;
+  readonly attemptsLoaded: number;
   readonly recordCount: number;
-  readonly loadIssues: ReadonlyArray<ReportLoadIssue>;
-  readonly dropped: { readonly promptAbsent: number; readonly promptDrifted: number };
-  /**
-   * Archives whose `manifest.archiveId` collided with another loaded archive
-   * (copy/migration violation — archiveId matches the filename stem and
-   * uniquely identifies one model × invocation). All copies are rejected;
-   * their results are not in `records`. Empty when archives are
-   * schema-compliant.
-   */
-  readonly duplicateArchiveIds: ReadonlyArray<DuplicateArchiveIdIssue>;
+  readonly loadIssues: ReadonlyArray<AttemptLoadIssue>;
+  readonly dropped: { readonly incomplete: number; readonly duplicate: number };
   readonly dryRun: boolean;
   /** Records returned for caller inspection (tests, CLI preview). */
   readonly records: ReadonlyArray<WebappRecord>;
 }
-
-const asIndex = <T extends { readonly name: string }>(
-  entries: ReadonlyArray<T>,
-): Record<string, T> => {
-  const out: Record<string, T> = {};
-  for (const e of entries) out[e.name] = e;
-  return out;
-};
 
 const defaultOutputPath = (archiveDir: string): string => {
   const repoRoot = path.resolve(archiveDir, "..");
@@ -78,50 +49,31 @@ const defaultOutputPath = (archiveDir: string): string => {
 };
 
 /**
- * Top-level report command. Loads archives, scores results against the
- * current on-disk corpus, writes `data.js`. Returns a {@link ReportSummary}
- * for CLI formatting.
+ * Top-level report command. Loads attempt archives, aggregates results,
+ * writes `data.js`. Returns a {@link ReportSummary} for CLI formatting.
  */
 export const runReport = (
   options: ReportOptions,
-): Effect.Effect<
-  ReportSummary,
-  FileIOError,
-  FileSystem.FileSystem | Path.Path | CommandExecutor.CommandExecutor
-> =>
+): Effect.Effect<ReportSummary, FileIOError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function* () {
     const archiveDir = options.archiveDir;
     const outputPath = options.outputPath ?? defaultOutputPath(archiveDir);
     const dryRun = options.dryRun ?? false;
 
-    const loaded = yield* loadAllArchives(archiveDir);
-
-    const currentPromptCorpus = asIndex(options.currentPromptCorpus);
-    const currentScenarioCorpus = asIndex(options.currentScenarioCorpus);
-
-    const { records, dropped, duplicateArchiveIds } = yield* aggregateAll({
-      archives: loaded.archives,
-      currentPromptCorpus,
-      currentScenarioCorpus,
-    });
+    const loaded = yield* loadAttemptArchives(archiveDir);
+    const { records, dropped } = aggregateAttempts(loaded.attempts);
 
     if (!dryRun) {
-      // Events first: if writeEventFiles fails, Effect short-circuits and the
-      // existing data.js (still pointing at its prior side files) on disk
-      // remains a coherent snapshot.
-      const eventsDir = path.join(path.dirname(outputPath), "events");
-      yield* writeEventFiles(eventsDir, records);
-      yield* writeDataJs(outputPath, stripEventsForWire(records));
+      yield* writeDataJs(outputPath, records);
     }
 
     return {
       archiveDir,
       outputPath,
-      archivesLoaded: loaded.archives.length,
+      attemptsLoaded: loaded.attempts.length,
       recordCount: records.length,
       loadIssues: loaded.issues,
       dropped,
-      duplicateArchiveIds,
       dryRun,
       records,
     };

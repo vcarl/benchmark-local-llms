@@ -30,7 +30,7 @@ const manifest = (over: Partial<AttemptManifest>): AttemptManifest => ({
   configId: "cfg",
   configHash: "ch",
   artifact: "qwen",
-  runtime: "llama-server",
+  runtime: "llamacpp",
   quant: "q4",
   temperature: 0,
   systemPrompt: "concise",
@@ -58,7 +58,7 @@ describe("toWebappRecord", () => {
     expect(rec).toMatchObject({
       config_hash: "ch",
       artifact: "qwen",
-      runtime: "llama-server",
+      runtime: "llamacpp",
       quant: "q4",
       temperature: 0,
       system_prompt: "concise",

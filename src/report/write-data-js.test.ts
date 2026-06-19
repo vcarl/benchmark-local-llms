@@ -5,40 +5,28 @@ import path from "node:path";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, type Exit, Layer } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { PromptWebappRecord, WebappRecord } from "./webapp-contract.js";
+import type { WebappRecord } from "./webapp-contract.js";
 import { formatDataJs, writeDataJs } from "./write-data-js.js";
 
-const record = (overrides: Partial<PromptWebappRecord> = {}): PromptWebappRecord => ({
-  kind: "prompt",
-  model: "Test",
-  runtime: "mlx",
-  quant: "4bit",
-  prompt_name: "p1",
-  category: "math",
-  tier: 1,
-  temperature: 0.3,
-  tags: [],
-  is_scenario: false,
+const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
+  config_id: "cfg-1",
+  config_hash: "hash1",
+  artifact: "test/model",
+  runtime: "llamacpp",
+  quant: "q4",
+  temperature: 0,
+  system_prompt: "concise",
+  max_tokens: 512,
+  challenge_id: "code",
+  challenge_version: 1,
+  attempt_id: "att-1",
+  finished_at: "2026-01-01T00:01:00.000Z",
   score: 1,
-  score_details: "ok",
-  score_breakdown: null,
-  prompt_tokens: 10,
-  generation_tokens: 5,
-  prompt_tps: 100,
-  generation_tps: 50,
+  passed: true,
+  generation_tokens: 50,
   wall_time_sec: 1,
-  peak_memory_gb: 3.14,
-  output: "hello",
-  prompt_text: "prompt",
-  scenario_name: null,
-  termination_reason: null,
-  tool_call_count: null,
-  final_player_stats: null,
-  events: null,
-  has_events: false,
-  run_id: "r-2026-04-14-deadbe",
-  executed_at: "2026-04-14T12:34:56.000Z",
-  archive_id: "2026-04-14_test_4bit_deadbe",
+  item_count: 1,
+  passed_items: 1,
   ...overrides,
 });
 
@@ -51,7 +39,7 @@ describe("formatDataJs", () => {
     const jsonPart = out.slice("globalThis.__BENCHMARK_DATA = ".length, -2);
     const parsed = JSON.parse(jsonPart) as WebappRecord[];
     expect(parsed).toHaveLength(1);
-    expect(parsed[0]?.model).toBe("Test");
+    expect(parsed[0]?.config_hash).toBe("hash1");
   });
 
   it("produces an empty-array file for no records", () => {
@@ -59,7 +47,7 @@ describe("formatDataJs", () => {
   });
 
   it("uses no indentation (single-line JSON)", () => {
-    const out = formatDataJs([record(), record({ prompt_name: "p2" })]);
+    const out = formatDataJs([record(), record({ attempt_id: "att-2" })]);
     // newlines only come from the trailing `\n`
     expect(out.split("\n").length).toBe(2);
   });
@@ -78,7 +66,7 @@ describe("writeDataJs", () => {
 
   it("writes a parseable file to a nested path, creating parent dirs", async () => {
     const outputPath = path.join(tmpDir, "webapp", "src", "data", "data.js");
-    const rec = record({ prompt_name: "hello" });
+    const rec = record({ attempt_id: "att-hello" });
     const exit = await Effect.runPromiseExit(
       writeDataJs(outputPath, [rec]).pipe(Effect.provide(Layer.mergeAll(NodeFileSystem.layer))),
     );
@@ -89,7 +77,7 @@ describe("writeDataJs", () => {
     // round-trip parse
     const body = written.slice("globalThis.__BENCHMARK_DATA = ".length, -2);
     const parsed = JSON.parse(body) as WebappRecord[];
-    expect(parsed[0]?.prompt_name).toBe("hello");
+    expect(parsed[0]?.attempt_id).toBe("att-hello");
   });
 
   it("overwrites an existing file", async () => {
@@ -98,10 +86,10 @@ describe("writeDataJs", () => {
       Effect.runPromiseExit(
         writeDataJs(outputPath, recs).pipe(Effect.provide(NodeFileSystem.layer)),
       );
-    await runIt([record({ prompt_name: "first" })]);
-    await runIt([record({ prompt_name: "second" })]);
+    await runIt([record({ attempt_id: "att-first" })]);
+    await runIt([record({ attempt_id: "att-second" })]);
     const content = readFileSync(outputPath, "utf-8");
-    expect(content).toContain("second");
-    expect(content).not.toContain("first");
+    expect(content).toContain("att-second");
+    expect(content).not.toContain("att-first");
   });
 });
