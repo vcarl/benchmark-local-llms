@@ -8,24 +8,24 @@ prompt: |-
   3. Wrap a side-effectful sync function: Effect.???
   4. Do nothing (unit): Effect.???
 
-  Reply as JSON: {"pure": "xxx", "fail": "xxx", "sync": "xxx", "unit": "xxx"}
+  Reply as JSON, using the full constructor name as each value: {"pure": "Effect.xxx", "fail": "Effect.xxx", "sync": "Effect.xxx", "unit": "Effect.xxx"}
   Output only the JSON object, no extra text.
 scorer: constraint
 constraints:
 - name: valid JSON
   check: valid_json
-- name: pure = succeed
-  check: contains
-  value: succeed
-- name: fail = fail
+- name: pure = Effect.succeed
   check: regex
-  pattern: '"fail"\s*:\s*"fail"'
-- name: sync = sync
+  pattern: '"pure"\s*:\s*"Effect\.succeed"'
+- name: fail = Effect.fail
   check: regex
-  pattern: '"sync"\s*:\s*"sync"'
-- name: unit = void or unit
+  pattern: '"fail"\s*:\s*"Effect\.fail"'
+- name: sync = Effect.sync
   check: regex
-  pattern: '"unit"\s*:\s*"(void|unit)"'
+  pattern: '"sync"\s*:\s*"Effect\.sync"'
+- name: unit = Effect.void or Effect.unit
+  check: regex
+  pattern: '"unit"\s*:\s*"Effect\.(void|unit)"'
 tags:
   - TODO
   - code-synthesis
