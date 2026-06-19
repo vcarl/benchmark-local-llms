@@ -27,7 +27,7 @@ All commands run from the repo root. `./bench` is the repo-root executable.
 2. Save the committed webapp data: `cp webapp/src/data/data.js /tmp/qa-data-backup.js`
    (or `git stash push -- webapp/src/data/data.js`). This is restored in A6 and Cleanup.
 3. **Probe Tier B** — both must hold:
-   - **Model cached** for `smoke-config` (`Qwen/Qwen2.5-0.5B-Instruct-GGUF`, quant `q4-k-m`):
+   - **Model cached** for `smoke-config` (`Qwen/Qwen2.5-0.5B-Instruct-GGUF`, quant `Q4_K_M`):
      a `.gguf` matching the quant under `~/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct-GGUF/`.
    - **Binary present**: `llama-server` on `PATH`, OR `mlx_lm` importable via the first working
      of `$VIRTUAL_ENV/bin/python3` → `~/llm-env/bin/python3` → `python3`.
@@ -72,7 +72,7 @@ Once `score` reads attempt archives, A7 becomes a real PASS (exit 0, scores prin
 ## Tier B — live (only if detected)
 
 **B0 gate** — if `TIER_B=off`, SKIP B1–B4 and print exact enable instructions: cache
-`Qwen/Qwen2.5-0.5B-Instruct-GGUF` (quant `q4-k-m`) under `~/.cache/huggingface/hub/`, and
+`Qwen/Qwen2.5-0.5B-Instruct-GGUF` (quant `Q4_K_M`) under `~/.cache/huggingface/hub/`, and
 provide `llama-server` on PATH (or `mlx_lm` via venv). Tier A still passes; Tier B SKIP is
 expected, not a failure.
 

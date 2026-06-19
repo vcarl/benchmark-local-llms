@@ -31,7 +31,7 @@ const header: typeof AttemptManifest.Type = {
   configHash,
   artifact: "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
   runtime: "llamacpp",
-  quant: "q4-k-m",
+  quant: "Q4_K_M",
   temperature: 0.0,
   systemPrompt: "concise",
   maxTokens: 128,
