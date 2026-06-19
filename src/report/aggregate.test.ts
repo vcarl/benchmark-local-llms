@@ -35,6 +35,7 @@ const att = (over: Partial<LoadedAttempt["manifest"]>, gen = 100, wall = 2): Loa
       itemId: "i1",
       promptName: "p",
       promptHash: "h",
+      itemHash: "ih",
       executedAt: "t",
       promptTokens: 1,
       generationTokens: gen,

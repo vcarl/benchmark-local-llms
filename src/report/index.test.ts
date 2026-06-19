@@ -34,6 +34,7 @@ const ITEM = JSON.stringify({
   itemId: "i1",
   promptName: "p",
   promptHash: "h",
+  itemHash: "ih",
   executedAt: "t",
   promptTokens: 1,
   generationTokens: 100,

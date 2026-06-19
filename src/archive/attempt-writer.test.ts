@@ -35,6 +35,7 @@ const item = {
   itemId: "i",
   promptName: "i",
   promptHash: "h",
+  itemHash: "0a1b2c3d4e5f",
   executedAt: "2026-06-18T00:00:01.000Z",
   promptTokens: 1,
   generationTokens: 2,

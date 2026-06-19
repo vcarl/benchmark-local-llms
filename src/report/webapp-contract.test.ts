@@ -6,6 +6,7 @@ const item = (over: Partial<ItemResult>): ItemResult => ({
   itemId: "i1",
   promptName: "p1",
   promptHash: "h",
+  itemHash: "ih",
   executedAt: "2026-01-01T00:00:00Z",
   promptTokens: 10,
   generationTokens: 100,

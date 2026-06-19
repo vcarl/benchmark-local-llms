@@ -11,6 +11,7 @@ import { parseYaml } from "./yaml.js";
 export interface ResolvedItem {
   readonly itemId: string;
   readonly promptHash: string;
+  readonly itemHash: string;
   readonly scorer: ScorerConfig;
   readonly prompt: PromptCorpusEntry;
 }
@@ -42,9 +43,11 @@ export const resolveChallenge = (
           );
         }
         const scorer = item.scorer ?? prompt.scorer;
+        const itemHash = shortSha256(`${prompt.promptHash}|${scorerKey(scorer)}`);
         return {
           itemId: prompt.name,
           promptHash: prompt.promptHash,
+          itemHash,
           scorer,
           prompt,
         } satisfies ResolvedItem;

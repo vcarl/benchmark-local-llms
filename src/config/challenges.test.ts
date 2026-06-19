@@ -48,6 +48,8 @@ describe("resolveChallenge", () => {
       ),
     ).then((r) => {
       expect(r.challengeHash).toHaveLength(12);
+      expect(r.items.at(0)?.itemHash).toMatch(/^[0-9a-f]{12}$/);
+      expect(r.items.at(0)?.itemHash).not.toBe(r.items.at(1)?.itemHash);
       expect(r.items.at(0)?.scorer.type).toBe("constraint"); // override wins
       expect(r.items.at(1)?.scorer.type).toBe("exact_match"); // falls back to prompt's
     }));

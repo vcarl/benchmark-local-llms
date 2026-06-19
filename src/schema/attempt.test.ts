@@ -11,11 +11,12 @@ const env = {
 };
 
 describe("attempt schemas", () => {
-  it("decodes an ItemResult", () => {
+  it("decodes an ItemResult with required itemHash", () => {
     const v = {
       itemId: "json-output",
       promptName: "json-output",
       promptHash: "abc123abc123",
+      itemHash: "ddeeff001122",
       executedAt: "2026-06-18T00:00:00.000Z",
       promptTokens: 10,
       generationTokens: 20,
@@ -29,7 +30,31 @@ describe("attempt schemas", () => {
       error: null,
       score: 1,
     };
-    expect(Schema.decodeUnknownSync(ItemResult)(v).score).toBe(1);
+    const decoded = Schema.decodeUnknownSync(ItemResult)(v);
+    expect(decoded.score).toBe(1);
+    expect(decoded.itemHash).toBe("ddeeff001122");
+  });
+
+  it("rejects an ItemResult missing itemHash", () => {
+    const { itemHash: _omit, ...without } = {
+      itemId: "x",
+      promptName: "x",
+      promptHash: "p",
+      itemHash: "h",
+      executedAt: "t",
+      promptTokens: 0,
+      generationTokens: 0,
+      promptTps: 0,
+      generationTps: 0,
+      peakMemoryGb: 0,
+      wallTimeSec: 0,
+      output: "",
+      reasoning: null,
+      rawOutput: "",
+      error: null,
+      score: 0,
+    };
+    expect(() => Schema.decodeUnknownSync(ItemResult)(without)).toThrow();
   });
 
   it("decodes an AttemptManifest header", () => {

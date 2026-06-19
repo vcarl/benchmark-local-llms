@@ -7,6 +7,7 @@ export const ItemResult = Schema.Struct({
   itemId: Schema.String,
   promptName: Schema.String,
   promptHash: Schema.String,
+  itemHash: Schema.String,
   executedAt: Schema.String,
   promptTokens: Schema.Number,
   generationTokens: Schema.Number,
