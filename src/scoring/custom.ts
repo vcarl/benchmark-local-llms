@@ -56,8 +56,13 @@ export const scoreCustom = (
           if (e._tag === "SystemError" && e.reason === "NotFound") {
             return Effect.fail(new ScorerSpawnFailed({ binary: pythonBin, cause: String(e) }));
           }
+          return Effect.succeed({ tag: "fail" as const, cause: String(failure.value) });
         }
-        return Effect.succeed({ tag: "fail" as const, cause: String(cause) });
+        // Defect or interrupt — re-raise so scoped cleanup and fiber interruption
+        // propagate correctly. Do NOT fold into CodeExecFailed.
+        // Cast to Cause<never>: we know this branch has no typed failure (it's a
+        // Die or Interrupt), so casting avoids widening the typed error channel.
+        return Effect.failCause(cause as Cause.Cause<never>);
       }),
     );
 
