@@ -330,6 +330,20 @@ describe("runChallenge cache", () => {
 
     expect(m.log.calls.length).toBe(0); // cache hit, no model call
     expect(row.scorerHash).toBe(scorerHash(item.scorer));
-    expect(row.wallTimeSec).toBe(CACHED_WALL); // verbatim measured cost
+    // All measured-cost and output fields preserved verbatim from v1 cached row
+    expect(row).toMatchObject({
+      executedAt: "2026-01-01T00:00:30Z",
+      promptTokens: 5,
+      generationTokens: 5,
+      promptTps: 0,
+      generationTps: 0,
+      peakMemoryGb: 0,
+      wallTimeSec: CACHED_WALL,
+      output: "4",
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      score: 1,
+    });
   });
 });
