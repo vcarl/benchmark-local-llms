@@ -200,3 +200,82 @@
 }
 .resultScoreHeader, .resultStatsHeader { text-align: right; }
 .resultEmpty { padding: var(--space-16) var(--space-12); text-align: center; color: var(--text-faint); }
+
+/* ─── Config×Challenge matrix table ──────────────────────────────────────── */
+.matrixTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fz-12);
+  table-layout: auto;
+}
+
+.matrixIdentityHeader,
+.matrixChallengeHeader,
+.matrixScoreHeader {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fz-10);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--gray-955);
+  white-space: nowrap;
+}
+.matrixIdentityHeader { text-align: left; min-width: 200px; }
+.matrixChallengeHeader { text-align: center; }
+.matrixScoreHeader { text-align: right; }
+
+.matrixGroupRow {
+  cursor: pointer;
+  background: var(--gray-955);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+
+  &:hover { background: var(--surface-hover); }
+}
+.matrixGroupCell {
+  padding: var(--space-3) var(--space-5);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: var(--fz-12);
+}
+.matrixGroupCaret { margin-right: var(--space-3); color: var(--text-faint); }
+.matrixGroupCount { color: var(--text-faint); font-weight: normal; }
+
+.matrixConfigRow {
+  border-bottom: 1px solid var(--border-subtle);
+
+  &:hover { background: var(--surface-hover); }
+  &:last-child { border-bottom: none; }
+}
+
+.matrixIdentityCell {
+  padding: var(--space-3) var(--space-5);
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: var(--fz-11);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.matrixCell {
+  padding: var(--space-3) var(--space-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fz-12);
+
+  /* color banding via data-band attribute */
+  &[data-band="green"]       { color: var(--green-400, #4ade80); }
+  &[data-band="yellow-green"]{ color: var(--yellow-green-400, #a3e635); }
+  &[data-band="yellow"]      { color: var(--yellow-400, #facc15); }
+  &[data-band="orange"]      { color: var(--orange-400, #fb923c); }
+  &[data-band="red"]         { color: var(--red-400, #f87171); }
+}
+
+.matrixCellMark {
+  font-size: var(--fz-10);
+  opacity: 0.7;
+}
