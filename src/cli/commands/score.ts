@@ -25,7 +25,9 @@ import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { aggregate } from "../../orchestration/run-challenge.js";
 import { loadAttemptArchive } from "../../report/load-attempts.js";
+import { loadAttemptReconstruction } from "../../report/reconstruct.js";
 import type { AttemptAggregate, AttemptManifest, ItemResult } from "../../schema/attempt.js";
+import type { ScorerConfig } from "../../schema/scorer.js";
 import { scoreByConfig } from "../../scoring/dispatch.js";
 import { makeLoggerLayer } from "../logger.js";
 import { systemPromptsPath } from "../paths.js";
@@ -67,6 +69,13 @@ const verboseOpt = Options.boolean("verbose").pipe(
   Options.withAlias("v"),
   Options.withDefault(false),
   Options.withDescription("Enable debug-level log output (intra-call detail)"),
+);
+
+const corpusOpt = Options.boolean("corpus").pipe(
+  Options.withDefault(false),
+  Options.withDescription(
+    "Apply the CURRENT corpus scorers (edit-iterate loop) instead of the archive's stored scorers",
+  ),
 );
 
 // ── Per-item re-score ladder ─────────────────────────────────────────────────
@@ -157,6 +166,49 @@ export const rescoreItems = (
     return { updated, rescored, drift, notes, warnings };
   });
 
+/**
+ * Re-score archived items using the scorer configs stored in the v2 content
+ * store (no corpus or challenge YAML required). Each item's scorer is looked up
+ * from `reconItems` by `itemId`. Items not found in the reconstruction are kept
+ * as-is (treated as unexpectedly absent — should not happen for a well-formed v2
+ * archive, but we degrade gracefully).
+ */
+export const rescoreItemsFromStore = (
+  items: ReadonlyArray<ItemResult>,
+  reconItems: ReadonlyArray<{ item: ItemResult; scorer: ScorerConfig }>,
+): Effect.Effect<RescoreResult, never, CommandExecutor.CommandExecutor> =>
+  Effect.gen(function* () {
+    const byId = new Map(reconItems.map((r) => [r.item.itemId, r.scorer]));
+    const updated: ItemResult[] = [];
+    const notes: string[] = [];
+    let rescored = 0;
+    for (const archived of items) {
+      const scorer = byId.get(archived.itemId);
+      if (scorer === undefined) {
+        updated.push(archived);
+        continue;
+      }
+      if (archived.error !== null) {
+        rescored += 1;
+        updated.push({ ...archived, score: 0 });
+        continue;
+      }
+      const r = yield* scoreByConfig(archived.output, scorer, {
+        promptName: archived.promptName,
+      }).pipe(
+        Effect.catchAll(() =>
+          Effect.succeed({ kind: "prompt" as const, score: 0, details: "scorer error" }),
+        ),
+      );
+      rescored += 1;
+      if (r.score !== archived.score) {
+        notes.push(`  ${archived.promptName}: ${archived.score} → ${r.score} (${r.details})`);
+      }
+      updated.push({ ...archived, score: r.score });
+    }
+    return { updated, rescored, drift: 0, notes, warnings: [] };
+  });
+
 // ── Summary line ─────────────────────────────────────────────────────────────
 
 export interface SummaryInput {
@@ -189,8 +241,9 @@ export const scoreCommand = Command.make(
     challenge: challengeOpt,
     dryRun: dryRunOpt,
     verbose: verboseOpt,
+    corpus: corpusOpt,
   },
-  ({ archive, promptsDir, challengesDir, challenge, dryRun, verbose }) =>
+  ({ archive, promptsDir, challengesDir, challenge, dryRun, verbose, corpus }) =>
     Effect.gen(function* () {
       const loaded = yield* loadAttemptArchive(archive).pipe(
         Effect.mapError(
@@ -202,9 +255,47 @@ export const scoreCommand = Command.make(
       );
       const { manifest, items } = loaded;
 
+      // Store-primary path: v2 archive + no --corpus flag → re-score from content
+      // store without needing corpus or challenge YAML on disk.
+      const useStore = corpus === false && manifest.schemaVersion === 2;
+      if (useStore) {
+        const recon = yield* loadAttemptReconstruction(archive).pipe(
+          Effect.mapError((e) => new Error(`${archive}: ${e.reason}`)),
+        );
+        const passThreshold = manifest.passThreshold ?? 1;
+        const { updated, rescored, drift, notes, warnings } = yield* rescoreItemsFromStore(
+          items,
+          recon.items,
+        );
+        const agg = aggregate(updated, passThreshold);
+        const newManifest: AttemptManifest = { ...manifest, aggregate: agg };
+        if (dryRun) {
+          for (const note of notes) yield* printLine(note);
+        } else {
+          yield* rewriteAttempt(archive, newManifest, updated);
+          for (const warning of warnings) yield* printLine(warning);
+        }
+        yield* printLine(
+          formatSummary({
+            configId: manifest.configId,
+            challengeId: manifest.challengeId,
+            version: manifest.challengeVersion,
+            aggregate: agg,
+            rescored,
+            total: items.length,
+            drift,
+            fallback: 0,
+            dryRun,
+          }),
+        );
+        return;
+      }
+
+      // Corpus path: v1 archive, or v2 archive with --corpus flag → resolve the
+      // current challenge from disk and re-score against it.
       const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
       const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
-      const corpus = yield* loadPromptCorpus(promptsDir).pipe(Effect.provide(registryLayer));
+      const promptCorpus = yield* loadPromptCorpus(promptsDir).pipe(Effect.provide(registryLayer));
 
       const challengePath =
         challenge._tag === "Some"
@@ -214,7 +305,7 @@ export const scoreCommand = Command.make(
       // Whole-archive fallback: an unresolvable challenge (missing file or parse
       // failure) is a graceful no-op, not a hard error. Warn, leave the file
       // untouched, exit 0. Evaluated once, before the per-item loop.
-      const resolvedOpt = yield* loadChallenge(challengePath, corpus).pipe(Effect.either);
+      const resolvedOpt = yield* loadChallenge(challengePath, promptCorpus).pipe(Effect.either);
       if (resolvedOpt._tag === "Left") {
         yield* printLine(
           `score (fallback, no write): ${manifest.configId} × ${manifest.challengeId}@${manifest.challengeVersion} → challenge unresolvable (${challengePath}); archive left untouched`,

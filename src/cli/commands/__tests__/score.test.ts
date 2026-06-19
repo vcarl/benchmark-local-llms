@@ -5,6 +5,7 @@ import type { CommandExecutor } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer, Option, Schema } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { scorerHash, writeBlob } from "../../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../../config/challenges.js";
 import { loadChallenge } from "../../../config/challenges.js";
 import { loadPromptCorpus } from "../../../config/prompt-corpus.js";
@@ -17,7 +18,7 @@ import {
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
 import type { ScorerConfig } from "../../../schema/scorer.js";
 import { systemPromptsPath } from "../../paths.js";
-import { formatSummary, rescoreItems, scoreCommand } from "../score.js";
+import { formatSummary, rescoreItems, rescoreItemsFromStore, scoreCommand } from "../score.js";
 
 const exactMatch: ScorerConfig = { type: "exact_match", expected: "42", extract: "(\\d+)" };
 
@@ -180,7 +181,12 @@ const REAL_CHALLENGES = "challenges";
 const PASSING_OUTPUT =
   "The rocket climbed steadily until it reached a stable orbit, where gravity gently held it in place.";
 
-const runHandler = (args: { archive: string; challenge?: string; dryRun?: boolean }) =>
+const runHandler = (args: {
+  archive: string;
+  challenge?: string;
+  dryRun?: boolean;
+  corpus?: boolean;
+}) =>
   Effect.runPromise(
     scoreCommand
       .handler({
@@ -189,6 +195,7 @@ const runHandler = (args: { archive: string; challenge?: string; dryRun?: boolea
         challengesDir: REAL_CHALLENGES,
         challenge: args.challenge === undefined ? Option.none() : Option.some(args.challenge),
         dryRun: args.dryRun ?? false,
+        corpus: args.corpus ?? false,
         verbose: false,
       })
       .pipe(Effect.provide(NodeContext.layer)),
@@ -244,6 +251,99 @@ const baseManifest = (
   },
   aggregate: { score: 0, passed: false },
   ...overrides,
+});
+
+/** Write a minimal v2 attempt archive with content store into dir. Returns file path. */
+const writeV2AttemptWithStore = async (
+  dir: string,
+  opts: {
+    scorer: ScorerConfig;
+    output: string;
+    score: number;
+    passThreshold?: number;
+  },
+) => {
+  const sh = scorerHash(opts.scorer);
+  const promptHash = "ph-store";
+  const configHash = "cfg-store";
+  const attemptId = "att-store";
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      yield* writeBlob(dir, "prompts", promptHash, "what is 2+2?");
+      yield* writeBlob(dir, "scorers", sh, JSON.stringify(opts.scorer));
+      yield* writeBlob(dir, "system", configHash, "Be concise.");
+    }).pipe(Effect.provide(NodeContext.layer)),
+  );
+  const header = {
+    schemaVersion: 2,
+    attemptId,
+    startedAt: "2026-01-01T00:00:00.000Z",
+    finishedAt: "2026-01-01T00:01:00.000Z",
+    interrupted: false,
+    configId: "store-config",
+    configHash,
+    artifact: "test/model",
+    runtime: "llamacpp",
+    quant: "q4",
+    temperature: 0,
+    systemPrompt: "default",
+    maxTokens: 128,
+    challengeId: "store-ch",
+    challengeVersion: 1,
+    challengeHash: "schh",
+    passThreshold: opts.passThreshold ?? 1,
+    env: {
+      hostname: "h",
+      platform: "p",
+      runtimeVersion: "1",
+      nodeVersion: "1",
+      benchmarkGitSha: "s",
+    },
+    aggregate: { score: 0, passed: false },
+  };
+  const itemJson = {
+    itemId: "i1",
+    promptName: "i1",
+    promptHash,
+    itemHash: "ih-store",
+    scorerHash: sh,
+    executedAt: "2026-01-01T00:00:00.000Z",
+    promptTokens: 1,
+    generationTokens: 1,
+    promptTps: 1,
+    generationTps: 1,
+    peakMemoryGb: 0,
+    wallTimeSec: 0,
+    output: opts.output,
+    reasoning: null,
+    rawOutput: opts.output,
+    error: null,
+    score: opts.score,
+  };
+  const file = path.join(dir, `${attemptId}.jsonl`);
+  writeFileSync(file, `${JSON.stringify(header)}\n${JSON.stringify(itemJson)}\n`, "utf-8");
+  return file;
+};
+
+describe("rescoreItemsFromStore", () => {
+  it("re-scores an item from stored scorer config", async () => {
+    const scorer: ScorerConfig = { type: "exact_match", expected: "4", extract: "(\\d+)" };
+    const sh = scorerHash(scorer);
+    const archived = item({
+      itemId: "i1",
+      promptName: "i1",
+      promptHash: "ph-x",
+      itemHash: "ih-x",
+      scorerHash: sh,
+      output: "the answer is 4",
+      score: 0,
+    });
+    const reconItems = [{ item: archived, scorer }];
+    const res = await run(rescoreItemsFromStore([archived], reconItems));
+    expect(res.updated[0]?.score).toBe(1);
+    expect(res.rescored).toBe(1);
+    expect(res.drift).toBe(0);
+  });
 });
 
 describe("scoreCommand.handler (boundary)", () => {
@@ -355,5 +455,106 @@ describe("scoreCommand.handler (boundary)", () => {
     // The file was actually rewritten (re-score applied 0 → 1 for the real item).
     const written = readFileSync(file, "utf-8");
     expect(written).toContain('"score":1');
+  });
+
+  it("v2 default re-scores from the store with no corpus dir", async () => {
+    // Scorer: exact_match expects "4"; output "4" → score 1; but stored score is 0.
+    const scorer: ScorerConfig = { type: "exact_match", expected: "4", extract: "(\\d+)" };
+    const file = await writeV2AttemptWithStore(dir, {
+      scorer,
+      output: "4",
+      score: 0,
+      passThreshold: 1,
+    });
+
+    // NO prompts/challenges dir matching this archive exists — if the handler tried
+    // to load a corpus it would fail because challengeId is "store-ch" (no yaml).
+    await runHandler({ archive: file, corpus: false });
+
+    const out = logged.join("\n");
+    expect(out).toContain("PASS"); // aggregate passed (score 1 >= passThreshold 1)
+    const written = readFileSync(file, "utf-8");
+    expect(written).toContain('"score":1'); // item re-scored to 1 from store
+    expect(written).toContain('"passed":true'); // manifest aggregate updated
+  });
+
+  it("--corpus applies the current corpus scorer (v2 archive + corpus flag)", async () => {
+    const smoke = await resolveSmoke();
+    const promptItem = smoke.items[0];
+    expect(promptItem).toBeDefined();
+    if (promptItem === undefined) return;
+
+    // Build a v2 archive where:
+    //   stored scorer: exact_match expects "4" → output "4" → stored score 1
+    //   smoke corpus scorer: constraint keywords (rocket/orbit/gravity) → "4" → score 0
+    // With --corpus=true the handler uses the REAL smoke corpus scorer → score 0.
+    const storedScorer: ScorerConfig = { type: "exact_match", expected: "4", extract: "(\\d+)" };
+    const sh = scorerHash(storedScorer);
+    const configHash = "cfg-corpus-test";
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeBlob(dir, "prompts", promptItem.promptHash, promptItem.prompt.promptText);
+        yield* writeBlob(dir, "scorers", sh, JSON.stringify(storedScorer));
+        yield* writeBlob(dir, "system", configHash, "Be concise.");
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    const header = {
+      schemaVersion: 2,
+      attemptId: "att-corpus",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      finishedAt: "2026-01-01T00:01:00.000Z",
+      interrupted: false,
+      configId: "corpus-config",
+      configHash,
+      artifact: "test/model",
+      runtime: "llamacpp",
+      quant: "q4",
+      temperature: 0,
+      systemPrompt: "default",
+      maxTokens: 128,
+      challengeId: "smoke",
+      challengeVersion: 1,
+      challengeHash: "chh",
+      passThreshold: 1,
+      env: {
+        hostname: "h",
+        platform: "p",
+        runtimeVersion: "1",
+        nodeVersion: "1",
+        benchmarkGitSha: "s",
+      },
+      aggregate: { score: 1, passed: true },
+    };
+    const itemJson = {
+      itemId: promptItem.itemId,
+      promptName: promptItem.itemId,
+      promptHash: promptItem.promptHash,
+      itemHash: promptItem.itemHash,
+      scorerHash: sh,
+      executedAt: "2026-01-01T00:00:00.000Z",
+      promptTokens: 1,
+      generationTokens: 1,
+      promptTps: 1,
+      generationTps: 1,
+      peakMemoryGb: 0,
+      wallTimeSec: 0,
+      output: "4",
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      score: 1,
+    };
+    const file = path.join(dir, "att-corpus.jsonl");
+    writeFileSync(file, `${JSON.stringify(header)}\n${JSON.stringify(itemJson)}\n`, "utf-8");
+
+    // --corpus=true → uses the REAL smoke corpus scorer (constraint keywords)
+    // Output "4" does NOT contain rocket/orbit/gravity → score 0, FAIL.
+    await runHandler({ archive: file, corpus: true });
+
+    const out = logged.join("\n");
+    expect(out).toContain("FAIL"); // smoke scorer didn't match "4"
+    const written = readFileSync(file, "utf-8");
+    expect(written).toContain('"score":0'); // item re-scored to 0 via corpus
+    expect(written).toContain('"passed":false');
   });
 });
