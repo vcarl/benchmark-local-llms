@@ -1,8 +1,7 @@
 name: fact_treaty_structured
 category: factual
 tier: 2
-system: structured
-prompt: 'When was the Treaty of Westphalia signed? Reply as: {"year": <number>}'
+prompt: 'When was the Treaty of Westphalia signed? Reply as: {"year": <number>}. Output only the JSON object, no extra text.'
 scorer: exact_match
 expected: '1648'
 extract: '"year"\s*:\s*(\d{4})'

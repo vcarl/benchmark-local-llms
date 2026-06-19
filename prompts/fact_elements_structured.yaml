@@ -1,8 +1,7 @@
 name: fact_elements_structured
 category: factual
 tier: 3
-system: structured
-prompt: 'What element has atomic number 79? Reply as: {"element": "<name>", "symbol": "<symbol>"}'
+prompt: 'What element has atomic number 79? Reply as: {"element": "<name>", "symbol": "<symbol>"}. Output only the JSON object, no extra text.'
 scorer: constraint
 constraints:
 - name: valid JSON
