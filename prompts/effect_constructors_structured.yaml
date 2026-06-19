@@ -1,7 +1,6 @@
 name: effect_constructors_structured
 category: effect-ts
 tier: 2
-system: structured
 prompt: |-
   In Effect-TS, match each use case to the correct constructor:
   1. Wrap a pure value: Effect.???
@@ -10,6 +9,7 @@ prompt: |-
   4. Do nothing (unit): Effect.???
 
   Reply as JSON: {"pure": "xxx", "fail": "xxx", "sync": "xxx", "unit": "xxx"}
+  Output only the JSON object, no extra text.
 scorer: constraint
 constraints:
 - name: valid JSON

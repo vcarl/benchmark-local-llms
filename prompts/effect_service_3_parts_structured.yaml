@@ -1,10 +1,10 @@
 name: effect_service_3_parts_structured
 category: effect-ts
 tier: 3
-system: structured
 prompt: |-
   In Effect-TS, a service has three parts. Name them in order.
   Reply as JSON: {"parts": ["first", "second", "third"]}
+  Output only the JSON object, no extra text.
 scorer: constraint
 constraints:
 - name: valid JSON

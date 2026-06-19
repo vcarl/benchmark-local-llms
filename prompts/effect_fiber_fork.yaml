@@ -1,7 +1,6 @@
 name: effect_fiber_fork
 category: effect-ts
 tier: 3
-system: direct
 prompt: In Effect-TS, what function do you use to fork an Effect as a background fiber? And what function waits for a fiber to complete? Reply with both function names, one per line.
 scorer: constraint
 constraints:
