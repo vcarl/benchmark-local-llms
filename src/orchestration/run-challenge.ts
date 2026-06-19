@@ -11,12 +11,13 @@
  * `ChatCompletion` is required in the environment and provided by the caller —
  * `runChallenge` does not construct it.
  */
-import type { CommandExecutor, FileSystem, HttpClient } from "@effect/platform";
-import { Clock, Effect } from "effect";
+import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
+import { Clock, Effect, Option } from "effect";
 import { appendItem, finalizeAttempt, writeAttemptHeader } from "../archive/attempt-writer.js";
-import type { ResolvedChallenge } from "../config/challenges.js";
+import { findCachedItem } from "../archive/cache.js";
+import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
-import type { FileIOError } from "../errors/index.js";
+import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
 import type { AttemptAggregate, AttemptManifest, ItemResult } from "../schema/attempt.js";
 import type { ModelConfig } from "../schema/model.js";
@@ -49,8 +50,12 @@ export interface RunChallengeInput {
   readonly config: ResolvedConfiguration;
   readonly challenge: ResolvedChallenge;
   readonly attemptId: string;
+  /** Directory scanned for cross-run cache hits (the archive root). */
+  readonly archiveDir: string;
   readonly archivePath: string;
   readonly env: RunEnv;
+  /** When true, bypass the cross-run cache and always execute. Default false (cache ON). */
+  readonly noCache?: boolean;
   /** Same deps bundle submit.ts builds; only `.llmServer` is used here. */
   readonly deps: RunModelDeps;
 }
@@ -91,21 +96,95 @@ const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifes
   ...(input.config.quant !== undefined ? { quant: input.config.quant } : {}),
 });
 
+// ── Per-item helper ────────────────────────────────────────────────────────
+
+/**
+ * Resolve one challenge item to an `ItemResult`: cross-run cache hit (copied
+ * verbatim — original executedAt/tokens/wallTime preserved so efficiency still
+ * reflects true measured cost) or a fresh model execution stamped with
+ * `itemHash`. Does NOT append or aggregate — the caller owns archive writes.
+ */
+export const executeOrCacheItem = (
+  input: RunChallengeInput,
+  item: ResolvedItem,
+): Effect.Effect<
+  ItemResult,
+  FileIOError | JsonlCorruptLine,
+  | FileSystem.FileSystem
+  | Path.Path
+  | CommandExecutor.CommandExecutor
+  | HttpClient.HttpClient
+  | ChatCompletion
+> =>
+  Effect.gen(function* () {
+    if (input.noCache !== true) {
+      const cached = yield* findCachedItem(input.archiveDir, {
+        configHash: input.config.configHash,
+        challengeId: input.challenge.id,
+        challengeVersion: input.challenge.version,
+        itemHash: item.itemHash,
+      });
+      if (Option.isSome(cached)) return cached.value;
+    }
+
+    const exec = yield* runPrompt({
+      archiveId: input.attemptId,
+      runId: input.attemptId,
+      model: modelFromConfig(input.config),
+      prompt: item.prompt,
+      systemPrompt: input.config.systemPromptText,
+      temperature: input.config.temperature,
+      maxTokens: input.config.maxTokens,
+    });
+
+    const scoreResult = yield* scoreByConfig(exec.output, item.scorer, {
+      promptName: item.itemId,
+    }).pipe(
+      Effect.catchAll(() =>
+        Effect.succeed({ kind: "prompt" as const, score: 0, details: "scorer error" }),
+      ),
+    );
+
+    return {
+      itemId: item.itemId,
+      promptName: item.itemId,
+      promptHash: item.promptHash,
+      itemHash: item.itemHash,
+      executedAt: exec.executedAt,
+      promptTokens: exec.promptTokens,
+      generationTokens: exec.generationTokens,
+      promptTps: exec.promptTps,
+      generationTps: exec.generationTps,
+      peakMemoryGb: exec.peakMemoryGb,
+      wallTimeSec: exec.wallTimeSec,
+      output: exec.output,
+      reasoning: exec.reasoning,
+      rawOutput: exec.rawOutput,
+      error: exec.error,
+      score: exec.error === null ? scoreResult.score : 0,
+    } satisfies ItemResult;
+  });
+
 // ── Main entry ─────────────────────────────────────────────────────────────
 
 /**
  * Run one `(config × challenge)` attempt end-to-end.
  *
- * Error channel: only `FileIOError` (archive I/O). Scorer errors are caught and
- * fold to score 0 per item. LLM server failures are hard defects (`orDie`).
- * `ChatCompletion` is required in the environment — the caller provides it.
+ * Error channel: `FileIOError` (archive I/O) + `JsonlCorruptLine` (cache scan).
+ * Scorer errors are caught and fold to score 0 per item. LLM server failures
+ * are hard defects (`orDie`). `ChatCompletion` is required in the environment —
+ * the caller provides it.
  */
 export const runChallenge = (
   input: RunChallengeInput,
 ): Effect.Effect<
   AttemptManifest,
-  FileIOError,
-  FileSystem.FileSystem | CommandExecutor.CommandExecutor | HttpClient.HttpClient | ChatCompletion
+  FileIOError | JsonlCorruptLine,
+  | FileSystem.FileSystem
+  | Path.Path
+  | CommandExecutor.CommandExecutor
+  | HttpClient.HttpClient
+  | ChatCompletion
 > =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -120,43 +199,7 @@ export const runChallenge = (
 
       const scored: ItemResult[] = [];
       for (const item of input.challenge.items) {
-        const exec = yield* runPrompt({
-          archiveId: input.attemptId,
-          runId: input.attemptId,
-          model: modelFromConfig(input.config),
-          prompt: item.prompt,
-          systemPrompt: input.config.systemPromptText,
-          temperature: input.config.temperature,
-          maxTokens: input.config.maxTokens,
-        });
-
-        // Scorer errors → score 0 (do not abort the attempt).
-        const scoreResult = yield* scoreByConfig(exec.output, item.scorer, {
-          promptName: item.itemId,
-        }).pipe(
-          Effect.catchAll(() =>
-            Effect.succeed({ kind: "prompt" as const, score: 0, details: "scorer error" }),
-          ),
-        );
-
-        const row: ItemResult = {
-          itemId: item.itemId,
-          promptName: item.itemId,
-          promptHash: item.promptHash,
-          executedAt: exec.executedAt,
-          promptTokens: exec.promptTokens,
-          generationTokens: exec.generationTokens,
-          promptTps: exec.promptTps,
-          generationTps: exec.generationTps,
-          peakMemoryGb: exec.peakMemoryGb,
-          wallTimeSec: exec.wallTimeSec,
-          output: exec.output,
-          reasoning: exec.reasoning,
-          rawOutput: exec.rawOutput,
-          error: exec.error,
-          score: exec.error === null ? scoreResult.score : 0,
-        };
-
+        const row = yield* executeOrCacheItem(input, item);
         yield* appendItem(input.archivePath, row);
         scored.push(row);
       }

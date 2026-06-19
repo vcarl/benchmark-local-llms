@@ -57,6 +57,11 @@ const verboseOpt = Options.boolean("verbose").pipe(
   Options.withDescription("Enable debug-level log output (intra-call detail)"),
 );
 
+const noCacheOpt = Options.boolean("no-cache").pipe(
+  Options.withDefault(false),
+  Options.withDescription("Bypass the cross-run item cache; always execute every item"),
+);
+
 export const submitCommand = Command.make(
   "submit",
   {
@@ -66,8 +71,9 @@ export const submitCommand = Command.make(
     configsFile: configsFileOpt,
     archiveDir: archiveDirOpt,
     verbose: verboseOpt,
+    noCache: noCacheOpt,
   },
-  ({ config, challenge, promptsDir, configsFile, archiveDir, verbose }) =>
+  ({ config, challenge, promptsDir, configsFile, archiveDir, verbose, noCache }) =>
     Effect.gen(function* () {
       const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
 
@@ -94,9 +100,11 @@ export const submitCommand = Command.make(
         config: cfg,
         challenge: resolved,
         attemptId,
+        archiveDir,
         archivePath,
         env,
         deps,
+        noCache,
       });
 
       yield* printLine(

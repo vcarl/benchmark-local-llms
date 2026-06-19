@@ -49,6 +49,7 @@ describe("runChallenge smoke", () => {
     const resolvedItem: ResolvedItem = {
       itemId: prompt.name,
       promptHash: prompt.promptHash,
+      itemHash: "smoke-item-hash",
       scorer: prompt.scorer,
       prompt,
     };
@@ -102,6 +103,7 @@ describe("runChallenge smoke", () => {
         config,
         challenge,
         attemptId: "att-smoke",
+        archiveDir: dir,
         archivePath,
         env,
         deps: fakeDeps(),

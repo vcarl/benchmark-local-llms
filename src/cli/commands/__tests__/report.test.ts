@@ -53,6 +53,7 @@ const makeAttemptArchive = (overrides: {
     itemId: "i1",
     promptName: "p1",
     promptHash: "ph1",
+    itemHash: "ih1",
     executedAt: "2026-01-01T00:00:30.000Z",
     promptTokens: 10,
     generationTokens: 50,
