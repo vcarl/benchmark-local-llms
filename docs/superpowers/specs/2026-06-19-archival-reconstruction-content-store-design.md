@@ -22,6 +22,11 @@ Everything needed to reconstruct an attempt is already **resolved at runtime** b
 Everything else (output / rawOutput / reasoning / error / score, tokens / tps / peak memory / wall
 time, config + challenge identity, `env` provenance) is already in the archive or trivially derivable.
 
+**Fourth gap — `passThreshold` (re-scoring only):** the challenge `passThreshold` is not in the
+manifest (it lives in the challenge YAML). For pure *display* reconstruction it isn't needed —
+`aggregate.passed` is already stored. But store-primary `score` (§4.4) *recomputes* `aggregate`, so it
+needs the threshold to recompute `passed` without the corpus. We therefore persist it (§3).
+
 **Subtlety (load-bearing):** the system prompt *actually sent* is the **configuration's**
 `systemPromptText`, **not** the prompt corpus entry's `system.text` — even though `promptHash` is
 computed over `promptText + prompt.system.text`. Phase 2 made prompts self-contained, so most
@@ -84,18 +89,19 @@ Changes in `src/schema/attempt.ts` (additive only — golden-hash-safe, see §6)
 ```ts
 // AttemptManifest
 schemaVersion: Schema.Literal(1, 2),     // widened from Literal(1)
+passThreshold: Schema.optional(Schema.Number),   // present iff schemaVersion === 2
 
 // ItemResult — present iff schemaVersion === 2
 scorerHash: Schema.optional(Schema.String),
 ```
 
-The manifest is otherwise structurally identical between v1 and v2 (the system prompt reuses the
-existing `configHash`; no new manifest field). The only structural delta is `ItemResult.scorerHash`
-and the on-disk `content/` store.
+The system prompt text reuses the existing `configHash` (no new ref field). The structural deltas are
+the manifest's `passThreshold`, `ItemResult.scorerHash`, and the on-disk `content/` store. Both new
+manifest/item fields are `optional` purely to admit v1 archives on read; the v2 writer never omits
+them.
 
-**Writer invariant:** new attempts always write `schemaVersion: 2`, a `scorerHash` on every item, and
-a complete content store (every referenced blob present). `scorerHash` is optional in the schema only
-to admit v1 archives on read; the writer never omits it.
+**Writer invariant:** new attempts always write `schemaVersion: 2`, `passThreshold` on the manifest, a
+`scorerHash` on every item, and a complete content store (every referenced blob present).
 
 **Reader rule:** store-dependent operations (store-primary `score`, `export`, reconstruction) branch
 on `schemaVersion === 2`. v1 archives have no store and fall back to corpus-based behavior.
@@ -125,7 +131,8 @@ Blobs are written from the **`ResolvedItem` / `ResolvedConfiguration`** we alrea
 of cache outcome, so the store is always complete:
 
 - **`runChallenge` / `resumeChallenge`** (once, near header write): write the system blob
-  `system/<configHash>.txt = config.systemPromptText`. Header is written with `schemaVersion: 2`.
+  `system/<configHash>.txt = config.systemPromptText`. Header is written with `schemaVersion: 2` and
+  `passThreshold: challenge.passThreshold`.
 - For **every resolved item** (in `executeOrCacheItem`, and for `resume` also the already-present
   ones — see below): write `prompts/<promptHash>.txt = item.prompt.promptText` and
   `scorers/<scorerHash>.json = item.scorer`. All writes idempotent.
@@ -158,9 +165,9 @@ The single read-side primitive that proves the property; consumed by `score`, `e
 ### 4.4 `score` — store-primary — `src/cli/commands/score.ts` (edit)
 
 - **Default (v2):** re-score each item using its **stored** scorer (read `scorers/<scorerHash>.json`),
-  needing no corpus. This is a faithful recompute/verify — it reproduces the stored score unless the
-  scoring *engine* (dispatch code) changed. No prompt-hash drift is possible (the stored scorer is by
-  definition the one used).
+  needing no corpus, and recompute the aggregate using the manifest's stored `passThreshold`. This is
+  a faithful recompute/verify — it reproduces the stored score unless the scoring *engine* (dispatch
+  code) changed. No prompt-hash drift is possible (the stored scorer is by definition the one used).
 - **`--corpus` flag (v2):** the current behavior — resolve the current corpus, apply edited scorers,
   with the existing `promptHash`-drift guard. This is the edit-a-scorer iteration loop, now opt-in.
 - **v1 archive:** no store → corpus is the only source; behaves exactly as today (including the
@@ -198,8 +205,9 @@ The single read-side primitive that proves the property; consumed by `score`, `e
 
 ## 6. Hash stability (non-negotiable)
 
-All added data is denormalized **content**, never a hash input. `configHash`, `challengeHash`,
-`itemHash`, and `attemptId` are unchanged for existing and new archives. The golden hash tests must
+All added data is denormalized **content**, never a hash input. `passThreshold`, `scorerHash`, and the
+content store are all outside the hash preimages. `configHash`, `challengeHash`, `itemHash`, and
+`attemptId` are unchanged for existing and new archives. The golden hash tests must
 stay green unchanged — in particular `challengeHash` golden `71c5f440ce49` and the configuration hash
 tests. `scorerHash` is a **new, separate** hash used only as a store key; it is *not* folded into
 `itemHash` (which already folds `promptHash | stableStringify(scorer)`), so it carries no new identity
@@ -212,8 +220,9 @@ meaning and cannot perturb existing hashes.
   expected keys; every item line carries `scorerHash`; header is `schemaVersion: 2`.
 - **Headline property — corpus-deleted reconstruction:** produce a v2 attempt, then with the corpus
   directory absent/empty assert (a) `loadAttemptReconstruction` returns full prompt + system + scorer
-  text; (b) default `score` re-scores and reproduces the aggregate; (c) `export` bundles jsonl + blobs
-  and the bundle re-loads. This is the proof of "reconstruct entirely from the archive."
+  text; (b) default `score` re-scores and reproduces the aggregate **including `passed`** (proving
+  `passThreshold` round-trips); (c) `export` bundles jsonl + blobs and the bundle re-loads. This is the
+  proof of "reconstruct entirely from the archive."
 - **Coexistence** — a v1 archive still loads in `report`; `report` mixes v1 + v2; `score` on v1 uses
   the corpus path.
 - **`score` store-primary vs `--corpus`** — default uses the stored scorer (no corpus read); an edited
