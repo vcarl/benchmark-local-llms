@@ -263,7 +263,7 @@ export const scoreCommand = Command.make(
           Effect.mapError((e) => new Error(`${archive}: ${e.reason}`)),
         );
         const passThreshold = manifest.passThreshold ?? 1;
-        const { updated, rescored, drift, notes, warnings } = yield* rescoreItemsFromStore(
+        const { updated, rescored, drift, notes } = yield* rescoreItemsFromStore(
           items,
           recon.items,
         );
@@ -273,7 +273,6 @@ export const scoreCommand = Command.make(
           for (const note of notes) yield* printLine(note);
         } else {
           yield* rewriteAttempt(archive, newManifest, updated);
-          for (const warning of warnings) yield* printLine(warning);
         }
         yield* printLine(
           formatSummary({

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Exit } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { FileIOError } from "../errors/index.js";
 import type { ScorerConfig } from "../schema/scorer.js";
 import { contentDir, readBlob, scorerHash, writeBlob } from "./content-store.js";
 
@@ -51,5 +52,8 @@ describe("content-store", () => {
   it("readBlob of a missing key fails with FileIOError", async () => {
     const exit = await run(readBlob(dir, "system", "nope"));
     expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit) && exit.cause._tag === "Fail") {
+      expect(exit.cause.error).toBeInstanceOf(FileIOError);
+    }
   });
 });
