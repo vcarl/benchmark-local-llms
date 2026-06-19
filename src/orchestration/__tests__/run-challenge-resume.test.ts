@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
 import { AttemptManifest } from "../../schema/attempt.js";
-import { resumeChallenge } from "../run-challenge.js";
+import { ResumeMismatchError, resumeChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
   inertHttpClientLayer,
@@ -162,7 +162,7 @@ describe("resumeChallenge", () => {
     );
 
     const m = okStub();
-    const exit = await Effect.runPromiseExit(
+    const err = await Effect.runPromise(
       resumeChallenge({
         config,
         challenge,
@@ -172,12 +172,48 @@ describe("resumeChallenge", () => {
         env,
         deps: fakeDeps(),
       }).pipe(
+        Effect.flip,
         Effect.provide(m.layer),
         Effect.provide(inertHttpClientLayer),
         Effect.provide(NodeContext.layer),
       ),
     );
-    expect(exit._tag).toBe("Failure");
+    expect(err._tag).toBe("ResumeMismatchError");
+    expect(err).toBeInstanceOf(ResumeMismatchError);
+    expect(m.log.calls.length).toBe(0); // never executed; archive untouched
+  });
+
+  it("fails loudly when the resolved configHash does not match the header", async () => {
+    const path = `${dir}/att-resume.jsonl`;
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.writeFileString(
+          path,
+          `${partialHeader({ configHash: "DIFFERENT" })}\n${doneItem1}\n`,
+        );
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+
+    const m = okStub();
+    const err = await Effect.runPromise(
+      resumeChallenge({
+        config,
+        challenge,
+        attemptId: "att-resume",
+        archiveDir: dir,
+        archivePath: path,
+        env,
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.flip,
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    expect(err._tag).toBe("ResumeMismatchError");
+    expect(err).toBeInstanceOf(ResumeMismatchError);
     expect(m.log.calls.length).toBe(0); // never executed; archive untouched
   });
 });
