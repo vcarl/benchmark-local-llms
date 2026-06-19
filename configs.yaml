@@ -3,5 +3,5 @@
   runtime: llamacpp
   quant: q4-k-m
   temperature: 0.0
-  systemPrompt: direct
+  systemPrompt: concise
   maxTokens: 128

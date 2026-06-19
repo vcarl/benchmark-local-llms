@@ -98,7 +98,7 @@ describe("integration smoke: YAML -> score pipeline", () => {
 
     // System prompts loaded: at least the keys referenced by loaded prompts
     expect(Object.keys(systemPrompts).length).toBeGreaterThan(0);
-    expect(systemPrompts["direct"]).toContain("helpful assistant");
+    expect(systemPrompts["concise"]).toContain("helpful assistant");
 
     // Models loaded
     expect(models.length).toBeGreaterThan(0);
