@@ -1,7 +1,6 @@
 name: logic_sheep_few_shot
 category: logic
 tier: 2
-system: few_shot
 prompt: |-
   Q: A classroom has 30 students. All but 12 go home. How many are left?
   A: 12
