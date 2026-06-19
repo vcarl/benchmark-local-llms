@@ -127,9 +127,6 @@ export const findCachedResult = (
  * Tie-break: if multiple archives hold a matching item, return the one with
  * the most recent matched-item `executedAt` (not file mtime — a re-run keeps
  * the old file, and the item's own timestamp is what the operator cares about).
- *
- * (Imports `Schema`, `AttemptManifest`, and `ItemResult`/`ItemResultSchema` are
- * added to the file's existing import block per Step 3 above — not repeated here.)
  */
 export interface CacheKey {
   readonly configHash: string;

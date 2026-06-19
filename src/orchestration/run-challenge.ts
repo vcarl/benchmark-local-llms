@@ -309,7 +309,9 @@ export const resumeChallenge = (
         );
       }
 
-      // Decode the already-present body rows.
+      // Decode the already-present body rows. Unlike the cross-run cache reader
+      // (which skips a corrupt line), a corrupt body row fails the resume rather
+      // than silently re-running an item we already have a completed result for.
       const existing: ItemResult[] = [];
       for (let i = 1; i < lines.length; i++) {
         const json = yield* Effect.try({
