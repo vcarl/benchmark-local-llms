@@ -67,8 +67,18 @@ by bumping `version` if 0.8 gates out nearly every local model.
 ### Part B — Corpus rewrite (sub-step 2b)
 
 **Each prompt becomes self-contained.** It folds any task-framing that lived in its system prompt
-into its `promptText`, drops the `system:` field, and re-hashes
-(`computePromptHash(promptText, systemText)` — both inputs change).
+into its `promptText` and **drops the `system:` field** from the YAML.
+
+The loader is changed to make `system:` **optional**: when a prompt omits it, the in-memory
+`PromptCorpusEntry.system` is populated with a neutral **sentinel** `{ key: "none", text: "" }` and
+`promptHash = computePromptHash(promptText, "")` (hash over the prompt text alone). Keeping the
+in-memory `system` field populated with a sentinel — rather than making it optional on the entry —
+avoids type-churn at the ~16 `.system.text` / `.system.key` call sites; only the loader changes.
+The legacy `run` path (`phases.ts`) consequently sends an empty system prompt for rewritten prompts,
+which is acceptable (the legacy path is slated for later removal; execution in the new submit path
+sources the system prompt from `config.systemPromptText`, already wired at `run-challenge.ts:128`).
+Prompts that still carry a `system:` key continue to resolve against the registry unchanged (the
+omit-path is purely additive).
 
 **`system-prompts.yaml` trims to generic personas** — a small menu a configuration selects from and
 applies uniformly across every challenge:
@@ -81,6 +91,13 @@ cot:      "You are a helpful assistant. Think step by step before answering."
 
 The task-framing keys (`code_direct`, `code_tdd`, `code_bugfix`, `code_docstring`, `structured`)
 are **deleted**; their instructions move into the prompt text of the prompts that used them.
+`configs.yaml`'s `smoke-config` currently selects `systemPrompt: direct` (a deleted key) and is
+repointed to `concise` (the surviving persona with the same "be concise" meaning); its `configHash`
+changes accordingly, so any test pinning that hash is re-pinned.
+
+**Ordering constraint:** the menu trim must land *after* the corpus rewrite — once `direct` /
+`structured` / `code_*` are deleted, any prompt still referencing them fails to load. The corpus
+rewrite removes every prompt's `system:` reference first; trimming the menu is then safe.
 
 #### The self-containment invariant
 
