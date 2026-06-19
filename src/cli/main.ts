@@ -20,6 +20,7 @@ import { listModelsCommand, listPromptsCommand } from "./commands/list.js";
 import { reportCommand } from "./commands/report.js";
 import { runCommand } from "./commands/run.js";
 import { scoreCommand } from "./commands/score.js";
+import { submitCommand } from "./commands/submit.js";
 import { installSubprocessSafetyNet } from "./subprocess-registry.js";
 
 const root = Command.make("llm-bench").pipe(
@@ -30,6 +31,7 @@ const root = Command.make("llm-bench").pipe(
     scoreCommand,
     listModelsCommand,
     listPromptsCommand,
+    submitCommand,
   ]),
 );
 

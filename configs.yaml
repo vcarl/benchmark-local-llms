@@ -1,0 +1,7 @@
+- id: smoke-config
+  artifact: Qwen/Qwen2.5-0.5B-Instruct-GGUF
+  runtime: llamacpp
+  quant: q4-k-m
+  temperature: 0.0
+  systemPrompt: direct
+  maxTokens: 128
