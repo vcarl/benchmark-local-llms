@@ -1,7 +1,6 @@
 name: code_fibonacci_docstring
 category: code
 tier: 2
-system: code_docstring
 prompt: |-
   Complete this function:
 
@@ -14,6 +13,8 @@ prompt: |-
       fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)
       """
   ```
+
+  Output only the complete function (def line + docstring + body) — no markdown, no commentary.
 scorer: code_exec
 testFile: code_fibonacci.test.py
 tags:

@@ -1,8 +1,10 @@
 name: code_flatten
 category: code
 tier: 3
-system: code_direct
-prompt: 'Write a Python function `flatten(lst: list) -> list` that recursively flattens a nested list of arbitrary depth.'
+prompt: |-
+  Write a Python function `flatten(lst: list) -> list` that recursively flattens a nested list of arbitrary depth.
+
+  Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
 scorer: code_exec
 testFile: code_flatten.test.py
 tags:

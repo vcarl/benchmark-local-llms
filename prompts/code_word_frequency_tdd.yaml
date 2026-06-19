@@ -1,7 +1,6 @@
 name: code_word_frequency_tdd
 category: code
 tier: 3
-system: code_tdd
 prompt: |-
   Write the function `word_frequency(text: str) -> dict[str, int]` that makes these tests pass:
 
@@ -15,6 +14,8 @@ prompt: |-
   ```
 
   Split on whitespace, strip punctuation from word edges, lowercase everything.
+
+  Output only the function — no tests, no markdown, no commentary. Start directly with `def `.
 scorer: code_exec
 testFile: code_word_frequency.test.py
 tags:

@@ -1,7 +1,6 @@
 name: code_caesar_cipher_bugfix
 category: code
 tier: 2
-system: code_bugfix
 prompt: |-
   This Caesar cipher function has bugs. Fix it:
 
@@ -16,6 +15,8 @@ prompt: |-
               result += char
       return result
   ```
+
+  Output only the corrected function — no explanations, no markdown. Start directly with `def `.
 scorer: code_exec
 testFile: code_caesar_cipher.test.py
 tags:
