@@ -30,13 +30,14 @@ describe("scoreCustom", () => {
 
   it("returns expected score even when scorer writes to stderr (no deadlock)", () =>
     withScript(
-      // Writes ~4 KB to stderr while also printing score JSON to stdout.
-      // Before the concurrent-drain fix, this could deadlock if stderr filled
-      // its pipe buffer before the harness started reading it.
+      // Writes 128 KB to stderr while also printing score JSON to stdout.
+      // Before the concurrent-drain fix, this would deadlock because 128 KB
+      // exceeds the typical ~64 KB OS pipe buffer and the sequential drain
+      // would block forever waiting for stdout while stderr was full.
       `${[
         "import sys, json",
         "d = json.load(sys.stdin)",
-        "sys.stderr.write('x' * 4096)",
+        "sys.stderr.write('x' * 131072)",
         "sys.stderr.flush()",
         "print(json.dumps({'score': 0.75}))",
       ].join("\n")}\n`,
