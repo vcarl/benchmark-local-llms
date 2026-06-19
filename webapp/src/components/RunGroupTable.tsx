@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import styles from "./RunTable.module.css";
 import type { ArtifactGroup } from "../lib/pipeline";
 import { RunRowItem } from "./RunRowItem";
@@ -42,9 +42,8 @@ export function RunGroupTable({ columns, groups, expanded, onToggle }: Props) {
           {groups.map((g) => {
             const open = expanded.has(g.artifact);
             return (
-              <>
+              <Fragment key={g.artifact}>
                 <tr
-                  key={g.artifact}
                   className={styles.matrixGroupRow}
                   onClick={() => onToggle(g.artifact)}
                 >
@@ -64,7 +63,7 @@ export function RunGroupTable({ columns, groups, expanded, onToggle }: Props) {
                     columns={columns}
                   />
                 ))}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
