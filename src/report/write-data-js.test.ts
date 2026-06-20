@@ -27,6 +27,9 @@ const record = (overrides: Partial<WebappRecord> = {}): WebappRecord => ({
   wall_time_sec: 1,
   item_count: 1,
   passed_items: 1,
+  peak_memory_gb: 1.5,
+  generation_tps: 10,
+  prompt_tps: 4,
   ...overrides,
 });
 
