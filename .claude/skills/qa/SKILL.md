@@ -7,7 +7,7 @@ description: Use when asked to QA / smoke-test / end-to-end check the benchmark 
 
 ## Overview
 
-Exercises the **real** `./bench` CLI / archive / report / webapp surface that the 561 unit
+Exercises the **real** `./bench` CLI / archive / report / webapp surface that the unit
 tests mock out, asserting the harness is basically functional from a blank session. Core
 principle: **evidence, not vibes** — every PASS cites a concrete observable; failure is failure.
 
@@ -38,20 +38,22 @@ All commands run from the repo root. `./bench` is the repo-root executable.
 
 | # | Command | PASS assertion (evidence) |
 | --- | --- | --- |
-| A1 | `./bench --help` | exit 0; output lists all 6 subcommands: `run report score submit list-models list-prompts`. |
+| A1 | `./bench --help` | exit 0; output lists the attempt-pipeline subcommands: `submit`, `report`, `score`, `export`, `list-models`, `list-prompts`. Assert these are present — do **not** gate on an exact count, since extra/legacy subcommands may also appear. |
 | A2 | `./bench list-models` | exit 0; ≥1 non-empty model row printed. |
 | A3 | `./bench list-prompts` | exit 0; prompt count in the ~90 ballpark across the 6 categories. |
-| A4 | `node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts` | exit 0; prints `configHash`/`challengeHash`/`itemHash` (each 12-hex) and `RESOLUTION OK` (identical on re-resolve = deterministic). |
-| A5 | `node_modules/.bin/tsx .claude/skills/qa/seed-archive.ts "$SEED"` then `./bench report --archive-dir "$SCRATCH_ARCH" --output "$SCRATCH_OUT"` | `SEED OK`; report logs `loaded 1 attempts` / `dropped 0 (incomplete)`; `$SCRATCH_OUT/data.js` parses and `globalThis.__BENCHMARK_DATA.length >= 1`. |
+| A4 | `node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts` | exit 0; prints `configHash`/`challengeHash`/`itemHash` (each 12-hex) and `RESOLUTION OK` (identical on re-resolve = deterministic). The golden-`challengeHash` invariant for the canonical challenge is pinned by `src/config/challenges.test.ts` (unit), not re-checked here. |
+| A5 | `node_modules/.bin/tsx .claude/skills/qa/seed-archive.ts "$SEED"` then `./bench report --archive-dir "$SCRATCH_ARCH" --output "$SCRATCH_OUT/webapp/src/data"` | `SEED OK`; report logs `loaded 1 attempts`, `dropped 0 (incomplete)`, and `details 1 written, 0 skipped` — the seed is self-sufficient, so its drilldown is reconstructed; `$SCRATCH_OUT/webapp/src/data/data.js` parses and `globalThis.__BENCHMARK_DATA.length >= 1`. |
 | A6 | **JUDGMENT PAUSE** (below) | webapp builds; screenshot captured; user confirms the matrix renders. |
-| A7 | `./bench score --archive "$SEED"` | exit 0; prints a one-line `score: … → aggregate <x.xxx> PASS\|FAIL [rescored …, drift …, fallback …]` summary; re-parses + rewrites the seed in place (below). |
+| A7 | `./bench score --archive "$SEED"` | exit 0; takes the store-primary path; prints `score: … → aggregate <x.xxx> PASS\|FAIL [rescored 2/2, drift 0, fallback 0]`; re-parses + rewrites the seed in place (below). |
+| A8 | `./bench export "$SEED" --dir --out "$SCRATCH_OUT/bundle"` | exit 0; prints `export: … → …/bundle/ (5 files)`; bundle contains the `.jsonl` + `content/system/<configHash>.txt` + `content/scorers/<scorerHash>.json` + both `content/prompts/<promptHash>.txt`. Negative: exporting a no-store archive fails loudly (below). |
+| A9 | reconstruction / drilldown JSON (below) | the A5 detail file exists, parses, and carries the reconstructed `system_prompt_text`, per-item `prompt_text`, and `scorer` — proving the content store round-trips. |
 
 Verify A5 record count with:
-`node -e 'globalThis.__BENCHMARK_DATA=[];require(process.argv[1]);console.log(globalThis.__BENCHMARK_DATA.length)' "$SCRATCH_OUT/data.js"`
+`node -e 'globalThis.__BENCHMARK_DATA=[];require(process.argv[1]);console.log(globalThis.__BENCHMARK_DATA.length)' "$SCRATCH_OUT/webapp/src/data/data.js"`
 
 ### A6 — Webapp render (JUDGMENT PAUSE)
 
-1. `cp "$SCRATCH_OUT/data.js" webapp/src/data/data.js` (original already backed up in Setup).
+1. `cp "$SCRATCH_OUT/webapp/src/data/data.js" webapp/src/data/data.js` (original already backed up in Setup).
 2. `cd webapp && npm run build` — PASS requires it to exit 0 (`webapp/dist/` produced).
 3. `cd webapp && npm run dev` (vite, ~port 5173); screenshot the page.
 4. **ASK the user** to confirm the config×challenge matrix renders (rows = configs, columns =
@@ -61,15 +63,40 @@ Verify A5 record count with:
 
 ### A7 — `score` over the seed
 
-`score` re-scores an attempt archive in place: it reads the new
-`AttemptManifest`/`ItemResult` attempt format via `loadAttemptArchive`
-(`src/report/load-attempts.ts`), re-applies the resolved challenge's scorers to each stored
-`output`, recomputes the aggregate, and rewrites the file atomically. The A5 seed is the attempt
-format, so `./bench score --archive "$SEED"` exits 0 and prints the one-line summary. (The seed's
-prompt names are not in any shipped challenge, so its items fall back to their stored scores under
-the promptHash-drift guard — expect a non-zero `drift` count; that is still a PASS.) A non-attempt
-/ legacy file instead exits non-zero with `not an attempt archive (score no longer reads the legacy
-format)`. The former `JsonlCorruptLine` failure was the pre-migration known bug, now fixed.
+`score` re-scores an attempt archive in place and never calls the model. Because the seed is
+self-sufficient (it carries a content store), `score` takes the **store-primary** path: it reads
+the stored scorer config straight from `content/scorers/`, re-applies it to each stored `output`,
+recomputes the aggregate, and rewrites the file atomically — no corpus or challenge YAML required.
+The seed's scorer (`contains "seed output"`) matches every item, so re-scoring reproduces both
+stored scores: expect `[rescored 2/2, drift 0, fallback 0]` and aggregate `1.000 PASS`. Identity
+fields (`challengeHash`, etc.) are left exactly as recorded.
+
+A non-attempt file instead exits non-zero with `not an attempt archive (score no longer reads the
+legacy format)`. (Passing `--corpus` would force re-scoring against the on-disk corpus instead of
+the store; the seed's prompt names are not in any shipped challenge, so that path would report
+`drift`/`fallback` and leave scores unchanged — not exercised by default.)
+
+### A8 — `export` the seed bundle
+
+`export` copies an attempt's `.jsonl` plus exactly the content blobs it references into a portable,
+self-verifying bundle. `./bench export "$SEED" --dir --out "$SCRATCH_OUT/bundle"` writes the bundle
+as a directory (omit `--dir` for a `.tar.gz`). PASS: exit 0, `(5 files)` reported, and
+`$SCRATCH_OUT/bundle/` contains `att-seed.jsonl`, `content/system/<configHash>.txt`,
+`content/scorers/<scorerHash>.json`, and both `content/prompts/<promptHash>.txt`.
+
+**Negative**: synthesize a one-line archive with `schemaVersion:1` and no `content/` dir, then
+`./bench export <that-file> --dir --out …` — PASS: fails loudly with
+`v1 archive has no content store; export requires a v2 archive`, writing nothing.
+
+### A9 — reconstruction / drilldown JSON
+
+A5's report emits one drilldown file per completed, reconstructible attempt at
+`$SCRATCH_OUT/webapp/public/details/<attemptId>.json`. PASS: that file exists, parses as JSON, and
+its payload carries the reconstructed `system_prompt_text`, an `items[]` array where each item has a
+non-empty `prompt_text` and a `scorer` object, and the recorded `output`/`score`. This proves the
+content store round-trips end-to-end (the same primitive behind `score`'s store path and `export`).
+Verify with:
+`node -e 'const d=require(process.argv[1]);if(!d.system_prompt_text||!d.items[0].prompt_text||!d.items[0].scorer)process.exit(1);console.log("DETAIL OK",d.items.length,"items")' "$SCRATCH_OUT/webapp/public/details/"*.json`
 
 ## Tier B — live (only if detected)
 
@@ -107,7 +134,9 @@ Final summary TABLE — one row per behavior:
 
 | Behavior | Tier | PASS/FAIL/SKIP | Evidence |
 | --- | --- | --- | --- |
-| A1 `--help` | A | … | 6 subcommands, exit 0 |
+| A1 `--help` | A | … | attempt-pipeline subcommands present, exit 0 |
+| A8 `export` | A | … | bundle = jsonl + 4 content blobs, exit 0 |
+| A9 reconstruction | A | … | detail JSON has system/prompt/scorer text |
 | … | … | … | … |
 
 Followed by a cleanup-confirmation line: scratch dirs removed, `webapp/src/data/data.js`

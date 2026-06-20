@@ -1,100 +1,105 @@
 # llm-bench
 
-> _Last verified: 2026-05-06 against commit `da6d8d7`. Update this line when edits to the doc are prompted by code changes._
+> _Last verified: 2026-06-20 against `9a651b2`._
 
 TypeScript + Effect-TS harness for benchmarking local LLMs.
+
+The harness runs one **configuration** against one **challenge** and records the result as a single, self-sufficient attempt archive. A configuration is a model plus its runtime, quantization, sampling settings, and system prompt, defined in [`configs.yaml`](./configs.yaml). A challenge is a named, versioned set of scored items, defined in [`challenges/*.yaml`](./challenges/). The unit of work is an **attempt** — one `(configuration × challenge)` pairing — written as one `.jsonl` file beside a shared content store. A static webapp reads the aggregated results.
 
 ## Quickstart
 
 ```bash
 npm install
 
-./bench list-models          # sanity-check models.yaml
-./bench list-prompts         # sanity-check prompts/ corpus
+./bench list-models          # sanity-check the configured models
+./bench list-prompts         # sanity-check the prompts/ corpus
 
-# Smallest end-to-end smoke run — 3 prompts, one model, no scenarios:
-./bench run --model-name qwen3.5-9b --prompts-dir smoke-prompts --scenarios none --max-tokens 128 --archive-dir /tmp/bench-smoke --fresh
+# Smallest end-to-end attempt — the smoke configuration against the smoke challenge:
+./bench submit --config smoke-config --challenge challenges/smoke.yaml --archive-dir /tmp/bench-smoke
 
-# Generate the webapp data file from archived runs:
-./bench report
+# Aggregate the attempt archives into the webapp data file + per-attempt detail files:
+./bench report --archive-dir /tmp/bench-smoke
+
+# Open the webapp:
+cd webapp && npm install && npm run dev
 ```
 
-Prerequisites:
+`submit` writes `att-<configHash>-<challengeHash>-<timestamp>.jsonl` plus a `content/` store into the archive directory. `report` reads those archives and writes `webapp/src/data/data.js` (and the drilldown detail files); the webapp renders it.
 
-- `llama-server` (llama.cpp) — install a pinned release tarball (see [`llama-cpp-guide.md`](./llama-cpp-guide.md)); point the harness at it with `--llama-server-binary`, or symlink it onto `PATH`.
-- `python3 -m mlx_lm.server` (MLX runtime, mlx-lm 0.31.x) — `pip install mlx-lm` into a venv, default `~/llm-env`.
-- Admiral checkout + game server binary only needed when `--scenarios != none`. Pass via `--admiral-dir` / `--game-server-binary`.
+To run a real benchmark, add a configuration to `configs.yaml` (a model artifact, runtime, quant, sampling, and system-prompt key) and point `submit` at a challenge suite under `challenges/`.
+
+## Prerequisites
+
+- `llama-server` (llama.cpp) — install a pinned release tarball (see [`llama-cpp-guide.md`](./llama-cpp-guide.md)) and put it on `PATH`. Required for any configuration with `runtime: llamacpp`.
+- `python3 -m mlx_lm.server` (MLX runtime, mlx-lm) — `pip install mlx-lm` into a venv, default `~/llm-env`. Required for any configuration with `runtime: mlx`.
+
+A configuration's `runtime` field selects which server the harness launches per attempt; you only need the runtime(s) your configurations use.
 
 ## Where things live
 
 | Path | Purpose |
 |---|---|
 | `bench` | Shell launcher — `tsx src/cli/main.ts` |
-| `src/cli/` | `@effect/cli` subcommands: `run`, `report`, `score`, `migrate`, `list-models`, `list-prompts` |
-| `src/schema/` | `@effect/schema` definitions for `RunManifest`, `ExecutionResult`, scorers, constraints, etc. |
-| `src/config/` | YAML loaders for `models.yaml`, `prompts/*.yaml`, `prompts/system-prompts.yaml`, `scenarios/*.yaml` |
+| `src/cli/` | `@effect/cli` subcommands: `submit`, `report`, `score`, `export`, `list-models`, `list-prompts` |
+| `src/orchestration/` | Per-attempt orchestrator — resolves the configuration + challenge, runs each item, aggregates, finalizes the archive |
 | `src/llm/` | OpenAI-compatible ChatCompletion client; llama-server / MLX supervisor |
-| `src/game/` | Admiral HTTP + SSE client, gameserver supervisor, per-scenario session + cutoff watchdog |
-| `src/orchestration/` | Top-level run loop, per-model orchestrator, prompt/scenario phases, cross-run cache |
-| `src/scoring/` | `exact_match`, `constraint` (20 check types), `code_exec` (Python subprocess), `game` (14 scenario scorers) |
-| `src/archive/` | `RunManifest` read/write, cross-run cache lookup |
-| `src/report/` | Archive → webapp `data.js` serializer |
-| `src/migrate/` | One-shot port of prototype `benchmark-execution/*.jsonl` → `RunManifest` archives |
+| `src/scoring/` | Scorer dispatch — `exact_match`, `constraint`, `code_exec` |
+| `src/config/` | YAML loaders for `configs.yaml`, `challenges/*.yaml`, the `prompts/` corpus, and `system-prompts.yaml`; identity hashing |
+| `src/archive/` | Attempt archive writer (header / append / finalize / atomic rewrite), content store, cross-attempt item cache |
+| `src/report/` | Attempt archives → webapp `data.js` + per-attempt detail files; reconstruction from the content store |
+| `src/schema/` | `@effect/schema` definitions for the attempt manifest, item results, scorers, configurations, challenges |
 | `src/errors/` | Typed `Data.TaggedError` classes grouped by domain |
-| `prompts/` | Prompt corpus (one YAML per variant) + `scenarios/` + `system-prompts.yaml` |
-| `smoke-prompts/` | 3-prompt subset used for fast end-to-end verification |
-| `models.yaml` | Model registry: `artifact`, `runtime`, `quant`, optional `name`/`params`/`ctxSize`/`active` |
-| `benchmark-archive/` | Canonical output directory for full runs (`{runId}.jsonl`) |
-| `smoke-archive/` | Output dir for smoke runs |
-| `v1-archive/`, `benchmark-execution/` | Legacy prototype archives; sources for `./bench migrate` |
+| `prompts/` | Prompt corpus (one YAML per variant) + `system-prompts.yaml` |
+| `challenges/` | Challenge suites (one YAML per suite), each a versioned set of scored items |
+| `configs.yaml` | Configuration registry: `id`, `artifact`, `runtime`, `quant`, `temperature`, `systemPrompt`, `maxTokens` |
+| `benchmark-archive/` | Default archive output — attempt `.jsonl` files plus the shared `content/` store |
 | `webapp/` | Static report viewer; consumes `webapp/src/data/data.js` written by `./bench report` |
 
 ## Further reading
 
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — layer map, lifecycle, troubleshooting
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — layer map, attempt lifecycle, report pipeline, troubleshooting
 - [`docs/GUARANTEES.md`](./docs/GUARANTEES.md) — invariants the harness commits to
-- [`docs/CONFIG.md`](./docs/CONFIG.md) — YAML schemas for models, prompts, scenarios
-- [`docs/ARCHIVE-FORMAT.md`](./docs/ARCHIVE-FORMAT.md) — `.jsonl` manifest + result format
-- [`docs/SCORING.md`](./docs/SCORING.md) — scorer dispatch, constraint + game scorer catalogs
+- [`docs/CONFIG.md`](./docs/CONFIG.md) — YAML schemas for configurations, prompts, and challenges
+- [`docs/ARCHIVE-FORMAT.md`](./docs/ARCHIVE-FORMAT.md) — attempt manifest + item-result format and content store
+- [`docs/SCORING.md`](./docs/SCORING.md) — scorer dispatch and the constraint-check catalog
 
 ## CLI reference
 
-All subcommands take `--help`. Paths default to convention:
+All subcommands take `--help`. Paths default to convention.
 
 ```
-./bench run [--model-name TEXT] [--max-tokens INT] [--scenarios TEXT]
-            [--scenarios-only] [--fresh] [--no-save]
-            [--temperatures "0.7,1.0"] [--idle-timeout INT]
-            [--archive-dir DIR] [--models-file FILE] [--prompts-dir DIR]
-            [--admiral-dir DIR] [--game-server-binary FILE]
+./bench submit --config TEXT --challenge FILE
+               [--prompts-dir DIR] [--configs-file FILE] [--archive-dir DIR]
+               [--no-cache] [--resume ATTEMPT_ID] [--verbose]
 
-./bench report [--archive-dir DIR] [--output DIR]
-               [--scoring as-run|current] [--prompts-dir DIR]
+./bench report [--archive-dir DIR] [--output DIR] [--verbose]
 
 ./bench score --archive FILE
+              [--prompts-dir DIR] [--challenges-dir DIR] [--challenge FILE]
+              [--corpus] [--dry-run] [--verbose]
 
-./bench migrate [--input DIR] [--output DIR] [--prompts-dir DIR] [--dry-run]
+./bench export <attempt> [--archive-dir DIR] [--out PATH] [--dir] [--verbose]
 
 ./bench list-models [--models FILE]
 ./bench list-prompts [--prompts DIR]
 ```
 
-For invariants the harness commits to (cache validity, scope-managed cleanup, archive immutability, error-channel discipline) → see [`docs/GUARANTEES.md`](./docs/GUARANTEES.md).
+- **`submit`** runs one configuration against one challenge, executing each item (or serving it from the cross-attempt cache) and writing a finalized attempt archive. `--resume <attemptId>` continues an interrupted attempt, executing only the items it lacks; `--no-cache` forces fresh execution of every item. Prints a one-line aggregate verdict.
+- **`report`** scans the archive directory, keeps only completed attempts, deduplicates by `attemptId`, and writes `data.js` plus a per-attempt detail file for every reconstructible attempt. It prints an audit block: attempts loaded, dropped (incomplete / duplicate), cells written, and details written / skipped.
+- **`score`** re-applies scorers to an attempt's stored outputs and rewrites the archive in place — no model call. By default it re-scores from the content store (no corpus on disk needed); `--corpus` instead resolves the current challenge from `challenges/` so an edited scorer in the corpus takes effect. `--dry-run` reports the changes without writing.
+- **`export`** bundles an attempt's `.jsonl` and exactly the content blobs it references into a portable, self-verifying archive — a `.tar.gz` by default, or a plain directory with `--dir`. Accepts an `attemptId` (resolved under `--archive-dir`) or a direct `.jsonl` path.
+- **`list-models`** reads `models.yaml` and prints one line per model (`artifact`, `runtime`, `quant`). **`list-prompts`** reads the `prompts/` corpus and prints each prompt's name, category, tier, and system-prompt key. Both are read-only sanity checks.
+
+For invariants the harness commits to (cache validity, scope-managed cleanup, archive immutability, error-channel discipline) see [`docs/GUARANTEES.md`](./docs/GUARANTEES.md).
 
 ### Logging
 
-`./bench run` writes a terse per-prompt / per-scenario progress stream to
-stderr, plus an end-of-model summary block. Stdout stays machine-readable —
-one tab-separated record per model with `completed=`, `cached=`, `errors=`,
-`wall=`, `genTps=`, `interrupted=`, `archive=` fields.
-
-Pass `--verbose` (`-v`) to add intra-call detail (HTTP requests, cache
-scans, health polls, SSE events, watchdog ticks).
+`./bench submit` writes a terse per-item progress stream to stderr and a one-line aggregate verdict to stdout. Pass `--verbose` (`-v`) to add intra-call detail: HTTP requests, cache scans, health polls, and server lifecycle events.
 
 ## Dev loop
 
 ```bash
-npm run test         # vitest — ~440 tests
+npm run test         # vitest
 npm run typecheck    # tsc --noEmit
 npm run lint         # biome + scripts/lint-strict.sh (bans try/catch/throw/console outside CLI)
 npm run lint:fix     # biome --write

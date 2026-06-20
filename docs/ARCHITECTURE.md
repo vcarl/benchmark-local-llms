@@ -1,164 +1,120 @@
 # Architecture
 
-> _Last verified: 2026-05-06 against commit `da6d8d7`. Update this line when edits to the doc are prompted by code changes._
+> _Last verified: 2026-06-20 against `9a651b2`._
 
-The harness is layered so that each layer can be reasoned about (and tested) independently. All I/O and lifecycle is managed through Effect's `Scope` — opening a scope is the only way to acquire a subprocess or HTTP session, and closing it is the only way to tear one down. Errors travel through typed `Data.TaggedError` classes in the Effect error channel; `try`/`catch`/`throw`/`console.*` are banned outside `src/cli/` by `scripts/lint-strict.sh`.
+The harness benchmarks local LLMs. Its atomic unit of work is an **attempt**: one `(configuration × challenge)` run. A configuration is a model + runtime + quant + sampling settings + system prompt; a challenge is a named, versioned set of scored items. One attempt produces one self-describing archive — see [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md).
+
+The codebase is layered, and three rules hold across every layer:
+
+- **All subprocess and HTTP lifecycle is `Scope`-managed.** The LLM server is acquired inside an `Effect.scoped` region; when the scope closes — normally or on interrupt — its finalizer tears the process down (SIGTERM, then SIGKILL).
+- **Errors travel as typed `Data.TaggedError` in the Effect channel.** A failure is a value with a `_tag`, not a thrown exception. Operational outcomes (a scorer rejecting an answer, an LLM timing out) are folded into results; only genuine defects use `orDie`.
+- **`try` / `throw` / `console.*` are banned outside `src/cli/`**, enforced by `scripts/lint-strict.sh`. The CLI layer is the one place allowed to touch `process`, log to the console, and use `try`/`throw`, because it owns the boundary with the outside world.
 
 ## Layer map
 
 ```
-src/cli/        — @effect/cli entry, flag parsing, dep wiring
-├── main.ts                        Command composition + NodeRuntime.runMain
-├── commands/{run,report,score,list}.ts
-├── config/build.ts                Flag → RunLoopConfig
-├── deps.ts                        makeRunDeps: llmServer / admiral / gameSession factories
-└── paths.ts
+src/cli/                 process boundary — argv, exit codes, console, subprocess safety net
+  main.ts                wires subcommands (submit, report, score, export, list-models, list-prompts)
+  commands/submit.ts     run one config × one challenge → one attempt archive
+  commands/report.ts     aggregate attempts → webapp data + detail files
+  commands/score.ts      re-score an attempt archive in place
+  commands/export.ts     bundle an attempt + its blobs into a portable archive
+  commands/list.ts       read-only corpus / model sanity checks
+  deps.ts                production wiring of the LLM-server factory
+  subprocess-registry.ts process-level safety net (SIGHUP / uncaughtException / exit)
+  logger.ts, paths.ts    log layer + canonical path helpers
 
-src/orchestration/  — run loop + per-model lifecycle
-├── run-loop.ts                    Outer: filter models, generate runIds, iterate
-├── run-model.ts                   Effect.scoped: LLM server + prompts + scenarios + finalize
-├── phases.ts                      runPromptPhase, runScenarioPhase
-├── run-prompt.ts                  Single prompt × temperature → ExecutionResult
-├── run-scenario.ts                Single scenario → ExecutionResult
-├── cache.ts                       Cross-run cache lookup
-└── finalize-archive.ts            Manifest trailer rewrite (read-truncate-append)
+src/orchestration/
+  run-challenge.ts       attempt orchestrator: scope, server boot, per-item execute-or-cache, score, finalize; aggregate(); resume + ResumeMismatchError
+  run-prompt.ts          one prompt → completion → output/reasoning split → result assembly
 
-src/llm/        — LLM API + server supervisors
-├── chat-completion.ts             OpenAI-compatible ChatCompletion service
-└── servers/
-    ├── supervisor.ts              Generic spawn + health + SIGTERM→SIGKILL finalizer
-    ├── process-health.ts          Fork an exitCode watcher; expose Deferred
-    ├── llamacpp.ts                llama-server invocation (port 18080)
-    ├── mlx.ts                     mlx_lm.server invocation (port 18081)
-    └── resolve-gguf.ts            HF repo + quant → local .gguf path
+src/llm/
+  chat-completion.ts     OpenAI-compatible HTTP client for both runtimes (port per runtime)
+  servers/supervisor.ts  generic server supervisor: health gate, SIGTERM→SIGKILL finalizer, peak-RSS sampling
+  servers/*              runtime-specific spawners (llamacpp, mlx), artifact + runtime-version resolution
 
-src/game/       — Admiral + gameserver + session
-├── admiral/
-│   ├── server.ts                  Supervise Admiral HTTP server
-│   ├── client.ts                  HTTP client
-│   ├── profile.ts                 configure → create → connect → (disconnect → delete)
-│   └── sse.ts                     Admiral SSE consumer; idle timeout via Stream.timeoutFail
-├── server/                        Gameserver supervisor + admin client
-└── session/
-    ├── run-session.ts             Per-scenario orchestrator
-    └── watchdog.ts                CutoffWatchdog: wall-clock fiber + token/tool-call ref
+src/scoring/
+  dispatch.ts            scoreByConfig: dispatch a scorer config to its scorer by type
+  strip-thinking.ts      split reasoning from answer when the runtime inlined it
+  exact-match.ts, constraint.ts, code-exec.ts, custom.ts   the scorers
 
-src/scoring/    — dispatch by scorer type
-├── score-result.ts                scoreExecution: pick scorer by corpus entry; reads result.output (already cleaned upstream)
-├── strip-thinking.ts              Splits {output, reasoning, error} from a raw completion (Harmony channels, <think>…</think>, unclosed-think detection); called from src/orchestration/run-prompt.ts at completion time, NOT from scorers
-├── exact-match.ts
-├── constraint.ts                  Constraint scorer entry point
-├── constraint-checks.ts           20 check-type handlers
-├── code-exec.ts                   Python subprocess via @effect/platform Command
-└── game.ts                        14 scenario scorers (bootstrap_grind, navigation, …)
+src/config/
+  configurations.ts      load configs.yaml, resolve identity (configHash)
+  challenges.ts          load a challenge YAML against the corpus, resolve items + challengeHash
+  prompt-corpus.ts       load the prompt corpus; system-prompts.ts the system-prompt registry
+  hashing.ts             12-hex SHA-256 identity hashes; yaml.ts the parser
 
-src/archive/    — RunManifest read/write + cross-run cache index
-├── writer.ts                      header / appendResult / writeManifestTrailer
-├── loader.ts                      Streaming JSONL reader
-└── cache.ts                       Scan archiveDir for (artifact, promptName, promptHash, temp)
+src/schema/              Effect Schema definitions: attempt (manifest + item), configuration,
+                         challenge, prompt, model, scorer, enums; run-manifest.ts exports RunEnv
 
-src/config/     — YAML loaders (fail-fast, typed errors)
-├── models.ts                      models.yaml → ModelConfig[]
-├── prompt-corpus.ts               prompts/*.yaml → PromptCorpusEntry[] (+ promptHash)
-├── scenario-corpus.ts             prompts/scenarios/*.yaml → ScenarioCorpusEntry[]
-├── system-prompts.ts              prompts/system-prompts.yaml → SystemPromptRegistry
-└── yaml.ts                        Single YAML parse boundary
+src/archive/
+  attempt-writer.ts      header write / item append / finalize / atomic full rewrite
+  content-store.ts       content-addressed blob store (prompts / scorers / system)
+  cache.ts               cross-attempt item cache lookup
 
-src/schema/     — @effect/schema definitions
-├── run-manifest.ts
-├── execution.ts                   ExecutionResult, AgentEvent
-├── prompt.ts, scenario.ts, model.ts
-├── scorer.ts                      4-variant union
-├── constraints.ts                 20-variant union
-├── enums.ts                       Runtime, TerminationReason, …
-└── index.ts
+src/report/
+  index.ts               pipeline entry (runReport)
+  load-attempts.ts       parse *.jsonl archives into LoadedAttempt
+  aggregate.ts           completed-only filter, dedup, flatten to WebappRecord
+  webapp-contract.ts     WebappRecord — the backend→webapp data contract
+  write-data-js.ts       emit webapp/src/data/data.js
+  write-details.ts       emit per-attempt drilldown JSON
+  reconstruct.ts         rebuild an attempt from .jsonl + content store
 
-src/errors/     — Data.TaggedError classes per domain
-├── config.ts, llm.ts, game.ts, scorer.ts, io.ts, server.ts, sse.ts
-└── index.ts
-
-src/report/     — Archive → webapp/src/data/data.js
+src/errors/              typed Data.TaggedError classes, re-exported from index.ts
 ```
 
-## Lifecycle: one `run` invocation
+## Attempt lifecycle
+
+`submit` runs exactly one attempt, in order:
+
+1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, the prompt corpus, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge against the corpus, computing every identity hash. Build an `attemptId` of the form `att-<configHash>-<challengeHash>-<timestamp>`.
+2. **Open the archive.** Inside `Effect.scoped`, write line 1 — the `AttemptManifest` header — in its open state (`finishedAt: null`, `interrupted: true`, zeroed aggregate). Write the resolved system-prompt blob to the content store.
+3. **Boot the LLM server.** Acquire the runtime's server within the same scope. A server that won't boot is `orDie` — a single submit has nothing to recover to. The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller.
+4. **Run each item.** For every challenge item: write its prompt and scorer blobs to the content store, then either serve a cross-attempt cache hit (copied verbatim) or execute it freshly via `runPrompt`. Score the cleaned output with `scoreByConfig` — a scorer error folds to score 0, never a crashed attempt. An item whose execution carried an `error` scores 0. Append the resulting `ItemResult` as a new line.
+5. **Finalize.** Aggregate the items into `{ score, passed }` (`score` = fraction of items scoring exactly 1; `passed` = `score >= passThreshold`), then rewrite line 1 with `finishedAt`, `interrupted: false`, and the filled aggregate. Body lines are never touched once appended.
+
+The header→append→finalize order is what makes interruption safe: if the process dies before finalize, the archive keeps `interrupted: true` and `finishedAt: null`, and the report ignores it. An interrupted attempt can be resumed by id — `resumeChallenge` re-resolves config and challenge, validates their hashes against the partial header (a mismatch fails with `ResumeMismatchError` and leaves the file untouched), executes only the missing items, re-aggregates over the union, and finalizes.
+
+## Report pipeline
+
+`report` turns attempt archives into the webapp's data:
 
 ```
-NodeRuntime.runMain
-  runCommand handler (src/cli/commands/run.ts)
-    loadSystemPrompts / loadModels / loadPromptCorpus / loadScenarioCorpus   [B1 loaders]
-    buildRunLoopConfig (pure)
-    makeRunDeps (llmServer / admiral / gameSession factories)
-    runLoop (src/orchestration/run-loop.ts)
-      for each model:
-        makeOpenManifest
-        runModel (Effect.scoped)              ─── scope A ───
-          writeManifestHeader
-          addFinalizer(finalizeArchive)       ─ rewrites line 1 at scope close
-          llmServer(model)                    ─── scope A: llama-server / MLX ───
-          runPromptPhase                      ─ one cell per (model × prompt), cache lookup
-          if scenarios:
-            admiral()                         ─── scope A: Admiral ───
-            runScenarioPhase                  ─ per-scenario scope (gameserver, profile)
-          set interrupted=false
-          return outcome                      ─ triggers scope A close
+loadAttemptArchives → aggregateAttempts → writeDataJs + writeDetails
 ```
 
-Scope-close order is LIFO. The finalizers registered in `runModel` run last-added-first:
+1. **`loadAttemptArchives`** reads every `*.jsonl` under the archive directory, decoding line 1 as an `AttemptManifest` and lines 2+ as `ItemResult`s. A file that fails to parse becomes a collected load issue, not a failure.
+2. **`aggregateAttempts`** keeps only **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicates by `attemptId` (first wins), and flattens each survivor to one `WebappRecord`. Incomplete and duplicate attempts are counted and dropped.
+3. **`writeDataJs`** writes all records as a single global assignment — `globalThis.__BENCHMARK_DATA = [...]` — to `webapp/src/data/data.js`.
+4. **`writeDetails`** writes one `webapp/public/details/<attemptId>.json` per completed, reconstructible attempt, joining the reconstructed prompt / scorer / system text with the in-memory output, reasoning, score, and error. A non-reconstructible attempt is skipped gracefully — its row still appears in `data.js`, only its drilldown is absent.
 
-1. Scenario-phase gameserver scope (if any) — already torn down per-scenario
-2. Admiral supervisor scope — SIGTERM→SIGKILL (admiral server)
-3. LLM server supervisor scope — SIGTERM→SIGKILL (llama-server / mlx_lm.server)
-4. `finalizeArchive` — overwrite manifest header with `finishedAt`, `interrupted`, final `stats`
+`WebappRecord` (`src/report/webapp-contract.ts`) is the backend→webapp contract. It must stay **field-for-field identical** to `BenchmarkResult` in `webapp/src/lib/data.ts`; this is a hand-maintained invariant with no compile-time link between the two files, so any change to one must be mirrored in the other.
 
-On Ctrl-C the same teardown happens, except `interruptedRef` is never flipped to `false`, so the manifest's `interrupted` field is written `true`.
+## Reasoning split
 
-## Data flow
+A completion's text is separated into `output` / `reasoning` / `rawOutput` / `error` **once**, at completion time, in `run-prompt.ts`:
 
-```
-CLI flag parsing
-  → orchestration (run loop, per-model scope)
-    → llm (server supervisor + ChatCompletion client)
-      ↳ run-prompt.ts::resolveOutputFields splits the completion into
-        {output, reasoning, rawOutput, error} before the result line is
-        written; scorers downstream see result.output already cleaned.
-    → game (Admiral, gameserver, session) [scenarios only]
-    → scoring (dispatch by corpus entry + scorer)
-    → archive (manifest header + appended results)
-report subcommand
-  → archive (read .jsonl)
-    → scoring (re-score against embedded or current corpus)
-    → webapp data.js  (per-execution score in [0, 1]; webapp aggregates
-                       to a 0–100 pass rate via score===1)
-```
+- If the runtime already split reasoning into a distinct API field (`reasoning_content` on llama.cpp, `reasoning` on mlx_lm.server), that body is trusted verbatim and no stripping occurs.
+- Otherwise the model may have inlined thinking into the answer (`<think>…</think>` or Harmony channel markers). `stripThinkingTags` recovers it: cleaned answer → `output`, extracted thinking → `reasoning`, and `error: "thinking_truncated"` when an unclosed think block means no answer was produced.
+- `rawOutput` always preserves the original API content for audit.
 
-### Reasoning lives in its own field, stripped once
-
-A completion is split into `output` / `reasoning` / `rawOutput` / `error` in `src/orchestration/run-prompt.ts::resolveOutputFields`, and the four fields are persisted on the `ExecutionResult` line. Two paths feed it:
-
-1. **Structured runtime signal.** When the runtime returns a separate `reasoning` field (`reasoning_content` on the OpenAI shape), trust it: `output = completion.output`, `reasoning = completion.reasoning`, `rawOutput = completion.output`. No stripping runs — re-running it on already-clean text would risk corrupting genuine `<think>`-shaped content in the answer.
-2. **Inlined.** When `completion.reasoning === null`, the model probably embedded reasoning in the answer (DeepSeek-R1 `<think>…</think>`, Harmony `<|channel|>analysis<|message|>…`). `stripThinkingTags` extracts the reasoning body and surfaces a `thinking_truncated` error when an unclosed `<think>` is detected — that branch matters because without it a budget-exhausted CoT silently flowed to the scorer as the "answer".
-
-The scoring layer never re-strips. It reads `result.output` and trusts it. That separation matters: it keeps presentation logic (channel parsers, control-token regexes) out of the scoring catalog, and it makes the archive line auditable — `rawOutput` preserves the original API content even when stripping rewrote `output`.
+Scorers consume the already-cleaned `output` and never re-strip. The split happens exactly once and lives entirely outside the scoring layer.
 
 ## Where to look when…
 
-| Problem | Start here |
+| You want to… | Start here |
 |---|---|
-| New scorer type | `src/schema/scorer.ts` (union) → `src/scoring/score-result.ts` (dispatch) → add scorer module |
-| New constraint check | `src/schema/constraints.ts` (union) → `src/scoring/constraint-checks.ts` (handler) → `src/config/prompt-corpus.ts::preValidateConstraintChecks` |
-| New runtime (not llamacpp/mlx) | `src/schema/enums.ts::Runtime` → `src/llm/servers/<new>.ts` (use `superviseServer`) → `src/cli/deps.ts::makeLlmServerFactory` |
-| Shutdown hangs | `src/llm/servers/supervisor.ts` finalizer — interruptibility |
-| Manifest trailer missing fields | `src/orchestration/finalize-archive.ts` — head-rewrite helper |
-| Cache miss when expected | `src/archive/cache.ts` (scan) + `src/orchestration/cache.ts` (validate) |
-| CLI flag plumbing | `src/cli/commands/<cmd>.ts` → `src/cli/commands/<cmd>-options.ts` → `src/cli/config/build.ts` |
-| New report field | `src/report/webapp-contract.ts::WebappRecord` + `toWebappRecord` |
-| What counts as a "pass" in the webapp | `webapp/src/lib/constants.ts::isPass` (`score === 1` only); aggregations live in `webapp/src/lib/pipeline.ts` |
-| Reasoning extraction (Harmony channels, `<think>` blocks, truncation) | `src/orchestration/run-prompt.ts::resolveOutputFields` → `src/scoring/strip-thinking.ts` |
+| Add a new scorer type | `src/schema/scorer.ts` (add the config variant), then a new case in `src/scoring/dispatch.ts` and its scorer module |
+| Add a new runtime | `src/llm/servers/` (a spawner over `supervisor.ts`), the port map in `src/llm/chat-completion.ts`, the `Runtime` enum in `src/schema/enums.ts`, and the factory in `src/cli/deps.ts` |
+| Debug a shutdown that hangs | `src/llm/servers/supervisor.ts` — the SIGTERM→SIGKILL finalizer and its bounded, interruptible kill timeouts |
+| Add a new report field | `src/report/webapp-contract.ts` **and** `webapp/src/lib/data.ts` together (the contract is hand-maintained) |
+| Know what counts as a pass | An item passes when its `score === 1`; the same definition drives the attempt aggregate and `passed_items` in `WebappRecord` |
 
 ## Conventions
 
-- **Effect error channel.** No thrown exceptions outside `src/cli/`. → see [`GUARANTEES.md` § Error-channel discipline](./GUARANTEES.md#error-channel-discipline).
-- **Scope propagation.** Anything that acquires a subprocess, HTTP connection, or temporary file takes `Scope` in its environment. → see [`GUARANTEES.md` § Scope-managed resources](./GUARANTEES.md#scope-managed-resources).
-- **Fail-fast config.** All YAML loaders fully decode at startup. → see [`GUARANTEES.md` § Fail-fast config](./GUARANTEES.md#fail-fast-config).
-- **Self-contained archives.** Corpus travels in the archive. → see [`GUARANTEES.md` § Self-contained archives](./GUARANTEES.md#self-contained-archives).
-- **One file per concept.** Files small enough to hold in context; split when a module approaches 300 lines along the boundary that makes parts independently testable.
+- **Effect error channel.** Failures are typed `Data.TaggedError` values; expected outcomes are folded into results, and only defects use `orDie`. See [GUARANTEES.md](./GUARANTEES.md#error-channel-discipline).
+- **Scope propagation.** Every subprocess and server is acquired in an `Effect.scoped` region whose finalizer guarantees teardown. See [GUARANTEES.md](./GUARANTEES.md#scope-managed-resources) and [#graceful-shutdown-sigterm--sigkill](./GUARANTEES.md#graceful-shutdown-sigterm--sigkill).
+- **Fail-fast config.** Configuration and challenge resolution validates eagerly; an unknown id or an undecodable YAML stops the run before any model is touched. See [GUARANTEES.md](./GUARANTEES.md#fail-fast-config).
+- **Self-sufficient archives.** An attempt's `.jsonl` plus its referenced content blobs are everything needed to reconstruct, re-score, or export it. See [GUARANTEES.md](./GUARANTEES.md#self-sufficient-archives) and [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md#content-store).
+- **One file per concept.** Each module owns a single concern — one scorer per file, one writer for the archive, one client for completions — so the layer map above reads as a table of contents.
