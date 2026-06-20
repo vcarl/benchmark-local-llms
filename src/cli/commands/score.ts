@@ -17,12 +17,10 @@
  */
 import { Command, Options } from "@effect/cli";
 import type { CommandExecutor } from "@effect/platform";
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
 import { rewriteAttempt } from "../../archive/attempt-writer.js";
 import type { ResolvedChallenge } from "../../config/challenges.js";
 import { loadChallenge } from "../../config/challenges.js";
-import { loadPromptCorpus } from "../../config/prompt-corpus.js";
-import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { aggregate } from "../../orchestration/run-challenge.js";
 import { loadAttemptArchive } from "../../report/load-attempts.js";
 import { loadAttemptReconstruction } from "../../report/reconstruct.js";
@@ -30,7 +28,6 @@ import type { AttemptAggregate, AttemptManifest, ItemResult } from "../../schema
 import type { ScorerConfig } from "../../schema/scorer.js";
 import { scoreByConfig } from "../../scoring/dispatch.js";
 import { makeLoggerLayer } from "../logger.js";
-import { systemPromptsPath } from "../paths.js";
 
 const printLine = (line: string): Effect.Effect<void> =>
   Effect.sync(() => {
@@ -39,11 +36,6 @@ const printLine = (line: string): Effect.Effect<void> =>
 
 const archiveOpt = Options.file("archive").pipe(
   Options.withDescription("Path to the attempt archive JSONL file to re-score in place"),
-);
-
-const promptsDirOpt = Options.directory("prompts-dir").pipe(
-  Options.withDefault("prompts"),
-  Options.withDescription("Directory containing prompt YAML files"),
 );
 
 const challengesDirOpt = Options.directory("challenges-dir").pipe(
@@ -236,14 +228,13 @@ export const scoreCommand = Command.make(
   "score",
   {
     archive: archiveOpt,
-    promptsDir: promptsDirOpt,
     challengesDir: challengesDirOpt,
     challenge: challengeOpt,
     dryRun: dryRunOpt,
     verbose: verboseOpt,
     corpus: corpusOpt,
   },
-  ({ archive, promptsDir, challengesDir, challenge, dryRun, verbose, corpus }) =>
+  ({ archive, challengesDir, challenge, dryRun, verbose, corpus }) =>
     Effect.gen(function* () {
       const loaded = yield* loadAttemptArchive(archive).pipe(
         Effect.mapError(
@@ -292,10 +283,6 @@ export const scoreCommand = Command.make(
 
       // Corpus path: v1 archive, or v2 archive with --corpus flag → resolve the
       // current challenge from disk and re-score against it.
-      const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
-      const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
-      const promptCorpus = yield* loadPromptCorpus(promptsDir).pipe(Effect.provide(registryLayer));
-
       const challengePath =
         challenge._tag === "Some"
           ? challenge.value
@@ -304,7 +291,7 @@ export const scoreCommand = Command.make(
       // Whole-archive fallback: an unresolvable challenge (missing file or parse
       // failure) is a graceful no-op, not a hard error. Warn, leave the file
       // untouched, exit 0. Evaluated once, before the per-item loop.
-      const resolvedOpt = yield* loadChallenge(challengePath, promptCorpus).pipe(Effect.either);
+      const resolvedOpt = yield* loadChallenge(challengePath).pipe(Effect.either);
       if (resolvedOpt._tag === "Left") {
         yield* printLine(
           `score (fallback, no write): ${manifest.configId} × ${manifest.challengeId}@${manifest.challengeVersion} → challenge unresolvable (${challengePath}); archive left untouched`,

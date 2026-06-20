@@ -7,8 +7,8 @@ import { computeScenarioHash } from "./hashing.js";
 import { parseYaml } from "./yaml.js";
 
 /**
- * Raw on-disk scenario YAML shape. Like `PromptInput` in `prompt-corpus.ts`
- * this mirrors the file layout (§2.2) rather than the canonical in-memory
+ * Raw on-disk scenario YAML shape. Like the inline challenge item, this
+ * mirrors the file layout (§2.2) rather than the canonical in-memory
  * schema — the difference here is `scenarioMd` which is a *filename* in the
  * YAML but the *full markdown content* in {@link ScenarioCorpusEntry}. The
  * loader reads the referenced file and embeds its contents.

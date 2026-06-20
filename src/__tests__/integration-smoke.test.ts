@@ -1,21 +1,21 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { NodeContext, NodeFileSystem } from "@effect/platform-node";
-import { Effect, type Exit, Layer } from "effect";
+import { NodeContext } from "@effect/platform-node";
+import { Effect, type Exit } from "effect";
 import { describe, expect, it } from "vitest";
+import { loadChallenge } from "../config/challenges.js";
 import { loadModels } from "../config/models.js";
-import { loadPromptCorpus } from "../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../config/scenario-corpus.js";
-import { loadSystemPrompts, SystemPromptRegistry } from "../config/system-prompts.js";
+import { loadSystemPrompts } from "../config/system-prompts.js";
 import type { ExecutionResult } from "../schema/index.js";
 import { scoreExecution } from "../scoring/score-result.js";
 
 /**
  * Integration smoke test (Group 2 checkpoint from linked-percolating-barto.md §Review Checkpoints).
  * Proves the B1 loaders + B3 scoring engine + E3/E4/E5 content compose end-to-end:
- *   1. Load system-prompts.yaml via B1
- *   2. Load the real prompt corpus from prompts/
- *   3. Load the real scenario corpus from prompts/scenarios/
+ *   1. Load system-prompts.yaml (config registry) from the repo root
+ *   2. Load a real challenge inline (challenges/math.yaml) and take its items
+ *   3. Load the real scenario corpus from scenarios/
  *   4. Load models.yaml
  *   5. Score a synthetic ExecutionResult against a real PromptCorpusEntry
  *
@@ -24,26 +24,21 @@ import { scoreExecution } from "../scoring/score-result.js";
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const promptsDir = path.join(repoRoot, "prompts");
-const scenariosDir = path.join(promptsDir, "scenarios");
-const systemPromptsPath = path.join(promptsDir, "system-prompts.yaml");
+const challengesDir = path.join(repoRoot, "challenges");
+const scenariosDir = path.join(repoRoot, "scenarios");
+const systemPromptsPath = path.join(repoRoot, "system-prompts.yaml");
 const modelsPath = path.join(repoRoot, "models.yaml");
 
 const run = <A, E>(eff: Effect.Effect<A, E, never>): Promise<Exit.Exit<A, E>> =>
   Effect.runPromiseExit(eff);
-
-/** Build a registry layer by loading the real system-prompts.yaml. */
-const systemPromptRegistryLayer = Layer.effect(
-  SystemPromptRegistry,
-  loadSystemPrompts(systemPromptsPath),
-).pipe(Layer.provide(NodeFileSystem.layer));
 
 describe("integration smoke: YAML -> score pipeline", () => {
   it("loads all corpora and scores a synthetic execution end-to-end", async () => {
     const pipeline = Effect.gen(function* () {
       const systemPrompts = yield* loadSystemPrompts(systemPromptsPath);
       const models = yield* loadModels(modelsPath);
-      const prompts = yield* loadPromptCorpus(promptsDir);
+      const math = yield* loadChallenge(path.join(challengesDir, "math.yaml"));
+      const prompts = math.items.map((i) => i.prompt);
       const scenarios = yield* loadScenarioCorpus(scenariosDir);
 
       // Locate one real prompt variant (math_multiply_direct — exact_match scorer)
@@ -88,9 +83,7 @@ describe("integration smoke: YAML -> score pipeline", () => {
       return { systemPrompts, models, prompts, scenarios, score };
     });
 
-    const exit = await run(
-      pipeline.pipe(Effect.provide(systemPromptRegistryLayer), Effect.provide(NodeContext.layer)),
-    );
+    const exit = await run(pipeline.pipe(Effect.provide(NodeContext.layer)));
 
     expect(exit._tag).toBe("Success");
     if (exit._tag !== "Success") return;

@@ -2,4 +2,47 @@ id: smoke
 version: 1
 passThreshold: 0.5
 items:
-  - prompt: constraint_keywords_direct
+  - name: code_two_sum_direct
+    category: code
+    tier: 1
+    prompt: "Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution."
+    scorer: code_exec
+    testFile: code_two_sum.test.py
+  - name: constraint_capitals
+    category: constraint
+    tier: 1
+    prompt: List exactly 5 US state capitals, one per line, numbered 1 through 5.
+    scorer: constraint
+    constraints:
+      - name: has 5 numbered lines
+        check: numbered_lines
+        from: 1
+        to: 5
+      - name: has no 6th item
+        check: no_numbered_line
+        line: 6
+  - name: math_multiply_direct
+    category: math
+    tier: 1
+    prompt: What is 47 * 89? Reply with just the number.
+    scorer: exact_match
+    expected: "4183"
+    extract: (\d[\d,]*)
+  - name: constraint_keywords_direct
+    category: constraint
+    tier: 1
+    prompt: Write one paragraph about space exploration. You MUST include the words 'rocket', 'orbit', and 'gravity'. Output only the paragraph, no extra text.
+    scorer: constraint
+    constraints:
+      - name: contains 'rocket'
+        check: contains
+        value: rocket
+      - name: contains 'orbit'
+        check: contains
+        value: orbit
+      - name: contains 'gravity'
+        check: contains
+        value: gravity
+    tags:
+      - TODO
+      - instruction-following

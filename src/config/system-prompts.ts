@@ -4,21 +4,21 @@ import { SchemaDecodeError, type YamlParseError } from "../errors/config.js";
 import { parseYaml } from "./yaml.js";
 
 /**
- * Resolved `prompts/system-prompts.yaml`: a flat mapping from system-prompt
- * key (e.g. `"cot"`, `"code_direct"`) to the literal system prompt text.
+ * Resolved root `system-prompts.yaml`: a flat mapping from system-prompt key
+ * (e.g. `"cot"`, `"concise"`) to the literal system prompt text.
  *
  * This is the decoded shape returned by {@link loadSystemPrompts} *and* the
- * payload carried by the {@link SystemPromptRegistry} service — downstream
- * loaders (prompt corpus) resolve `system:` keys against it.
+ * payload carried by the {@link SystemPromptRegistry} service. A configuration
+ * in `configs.yaml` selects one key via its `systemPrompt:` field; the system
+ * prompt is a config concern and is not referenced by challenges.
  */
 const SystemPromptsSchema = Schema.Record({ key: Schema.String, value: Schema.String });
 export type SystemPromptMap = typeof SystemPromptsSchema.Type;
 
 /**
- * Service tag for the resolved system-prompt registry. Provided as a Layer
- * by {@link systemPromptRegistryLayer} so that `loadPromptCorpus` can
- * require the registry in its `R` channel, making the load-order dependency
- * explicit in the type signature.
+ * Service tag for the resolved system-prompt registry. Provided as a Layer so
+ * that {@link loadConfigurations} can require the registry in its `R` channel,
+ * making the load-order dependency explicit in the type signature.
  */
 export class SystemPromptRegistry extends Context.Tag("config/SystemPromptRegistry")<
   SystemPromptRegistry,

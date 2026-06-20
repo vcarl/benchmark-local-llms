@@ -2,30 +2,37 @@
  * `list-models` and `list-prompts` subcommands.
  *
  * No network calls, no server spawns — these are pure data-read commands
- * useful for inspecting the current corpus + model config. They match the
- * sections of `benchmark.py`'s "no models matching" and "no prompts matching"
- * fallback printouts (lines 132-134, 158-161) that enumerate available
- * values, but exposed as first-class subcommands.
+ * useful for inspecting the current challenge items + model config. They match
+ * the sections of `benchmark.py`'s "no models matching" and "no prompts
+ * matching" fallback printouts (lines 132-134, 158-161) that enumerate
+ * available values, but exposed as first-class subcommands.
  */
+import path from "node:path";
 import { Command, Options } from "@effect/cli";
-import { Effect, Layer } from "effect";
+import { FileSystem } from "@effect/platform";
+import { Effect } from "effect";
+import { loadChallenge } from "../../config/challenges.js";
 import { loadModels } from "../../config/models.js";
-import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
-import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import type { ModelConfig } from "../../schema/model.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
 import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
 import { makeLoggerLayer } from "../logger.js";
+import { DEFAULT_SCENARIOS_DIR } from "../paths.js";
 
 const modelsPathOpt = Options.file("models").pipe(
   Options.withDescription("Path to models.yaml"),
   Options.withDefault("models.yaml"),
 );
 
-const promptsDirOpt = Options.directory("prompts").pipe(
-  Options.withDescription("Path to prompts directory"),
-  Options.withDefault("prompts"),
+const challengesDirOpt = Options.directory("challenges").pipe(
+  Options.withDescription("Path to challenges directory"),
+  Options.withDefault("challenges"),
+);
+
+const scenariosDirOpt = Options.directory("scenarios").pipe(
+  Options.withDescription("Path to scenarios directory"),
+  Options.withDefault(DEFAULT_SCENARIOS_DIR),
 );
 
 // ── formatting (pure) ──────────────────────────────────────────────────────
@@ -42,12 +49,12 @@ export const formatModelLine = (m: ModelConfig): string => {
 export const formatModelList = (models: ReadonlyArray<ModelConfig>): string =>
   models.map(formatModelLine).join("\n");
 
-/** One prompt row: `name  category  tier  system-prompt-key`. */
+/** One prompt row: `name  category  tier`. */
 export const formatPromptLine = (p: PromptCorpusEntry): string =>
-  `${p.name}\t${p.category}\ttier${p.tier}\t${p.system.key}`;
+  `${p.name}\t${p.category}\ttier${p.tier}`;
 
 export const formatScenarioLine = (s: ScenarioCorpusEntry): string =>
-  `${s.name}\t<scenario>\ttier${s.tier}\t-`;
+  `${s.name}\t<scenario>\ttier${s.tier}`;
 
 /**
  * Assemble the full `list-prompts` output: prompts first (by category, stable
@@ -76,12 +83,20 @@ export const formatPromptList = (
 
 // ── handlers ───────────────────────────────────────────────────────────────
 
-/**
- * Build the system-prompts registry as a Layer that reads from the ambient
- * FileSystem. Needed by `loadPromptCorpus` to resolve `system:` keys.
- */
-const registryLayer = (promptsDir: string) =>
-  Layer.effect(SystemPromptRegistry, loadSystemPrompts(`${promptsDir}/system-prompts.yaml`));
+/** Load every `challenges/*.yaml` and flatten their resolved prompt items. */
+const loadAllChallengeItems = (
+  challengesDir: string,
+): Effect.Effect<ReadonlyArray<PromptCorpusEntry>, unknown, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const entries = yield* fs.readDirectory(challengesDir);
+    const yamlFiles = entries
+      .filter((f) => f.endsWith(".yaml"))
+      .map((f) => path.join(challengesDir, f))
+      .sort();
+    const challenges = yield* Effect.forEach(yamlFiles, (file) => loadChallenge(file));
+    return challenges.flatMap((c) => c.items.map((i) => i.prompt));
+  });
 
 const printLine = (line: string): Effect.Effect<void> =>
   Effect.sync(() => {
@@ -106,15 +121,13 @@ export const listModelsCommand = Command.make(
 
 export const listPromptsCommand = Command.make(
   "list-prompts",
-  { promptsDir: promptsDirOpt, verbose },
-  ({ promptsDir, verbose: isVerbose }) =>
+  { challengesDir: challengesDirOpt, scenariosDir: scenariosDirOpt, verbose },
+  ({ challengesDir, scenariosDir, verbose: isVerbose }) =>
     Effect.gen(function* () {
-      const prompts = yield* loadPromptCorpus(promptsDir).pipe(
-        Effect.provide(registryLayer(promptsDir)),
-      );
+      const prompts = yield* loadAllChallengeItems(challengesDir);
       // Scenarios dir is optional — a repo may not have scenarios configured
       // yet. Missing dir → empty list, not an error.
-      const scenarios = yield* loadScenarioCorpus(`${promptsDir}/scenarios`).pipe(
+      const scenarios = yield* loadScenarioCorpus(scenariosDir).pipe(
         Effect.catchAll(() => Effect.succeed([] as ReadonlyArray<ScenarioCorpusEntry>)),
       );
       yield* printLine(formatPromptList(prompts, scenarios));

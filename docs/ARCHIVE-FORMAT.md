@@ -51,9 +51,9 @@ One line per challenge item — the item's execution metrics, the model's output
 
 | Field | Type | Description |
 |---|---|---|
-| `itemId` | `string` | Item identity within the challenge (the prompt's corpus name). |
-| `promptName` | `string` | Prompt corpus name. |
-| `promptHash` | `string` | 12-hex hash of the prompt text + resolved system prompt; key into the content store's `prompts/`. |
+| `itemId` | `string` | Item identity within the challenge (the inline item's `name`). |
+| `promptName` | `string` | The inline item's `name`. |
+| `promptHash` | `string` | 12-hex hash of the prompt text (with empty system text); key into the content store's `prompts/`. |
 | `itemHash` | `string` | 12-hex hash of `promptHash` + scorer; the per-item cache key. |
 | `scorerHash` | `string?` | 12-hex hash of the scorer config; key into the content store's `scorers/`. |
 | `executedAt` | `string` | ISO timestamp at execution start. Cache tie-breaker — most recent wins. |
@@ -88,9 +88,9 @@ content/
 
 Blobs are keyed by the identity hashes already carried on the manifest and item lines, so the store deduplicates automatically — two items sharing a prompt share one blob, and identical scorers collapse to one file. Writes are atomic (temp + rename) and idempotent: a blob that already exists is left untouched.
 
-The store is what makes an attempt **self-sufficient**. Given only the `.jsonl` and its referenced blobs, the harness can rebuild the exact system prompt, per-item prompt text, and scorer config that produced the run — with no access to the original corpus or challenge YAML. That single capability powers three features:
+The store is what makes an attempt **self-sufficient**. Given only the `.jsonl` and its referenced blobs, the harness can rebuild the exact system prompt, per-item prompt text, and scorer config that produced the run — with no access to the original challenge YAML. That single capability powers three features:
 
-- **Re-scoring from the store** — apply an edited scorer to the recorded outputs without the corpus on disk.
+- **Re-scoring from the store** — apply an edited scorer to the recorded outputs without the challenge YAML on disk.
 - **Export** — bundle a `.jsonl` with exactly the blobs it references into a portable, self-verifying archive (`bench export`).
 - **Drilldown** — the report emits a per-attempt detail file exposing the prompt, output, reasoning, and scorer behind every number.
 

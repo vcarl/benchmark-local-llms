@@ -66,18 +66,16 @@ describe("formatModelList", () => {
 });
 
 describe("formatPromptLine", () => {
-  it("renders name  category  tier  system-key", () => {
+  it("renders name  category  tier", () => {
     expect(formatPromptLine(prompt("math_direct", "math", 1, "cot"))).toBe(
-      "math_direct\tmath\ttier1\tcot",
+      "math_direct\tmath\ttier1",
     );
   });
 });
 
 describe("formatScenarioLine", () => {
   it("renders with <scenario> placeholder in the category column", () => {
-    expect(formatScenarioLine(scenario("pvp_skirmish", 2))).toBe(
-      "pvp_skirmish\t<scenario>\ttier2\t-",
-    );
+    expect(formatScenarioLine(scenario("pvp_skirmish", 2))).toBe("pvp_skirmish\t<scenario>\ttier2");
   });
 });
 
@@ -104,7 +102,7 @@ describe("formatPromptList", () => {
 
   it("omits scenarios section when there are none", () => {
     const out = formatPromptList([prompt("m", "math", 1, "cot")], []);
-    expect(out).toBe("m\tmath\ttier1\tcot");
+    expect(out).toBe("m\tmath\ttier1");
   });
 
   it("omits blank separator when no prompts", () => {

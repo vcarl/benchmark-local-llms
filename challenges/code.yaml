@@ -2,15 +2,190 @@ id: code
 version: 1
 passThreshold: 0.8
 items:
-  - prompt: code_caesar_cipher_bugfix
-  - prompt: code_caesar_cipher_direct
-  - prompt: code_fibonacci_direct
-  - prompt: code_fibonacci_docstring
-  - prompt: code_flatten
-  - prompt: code_is_palindrome_direct
-  - prompt: code_is_palindrome_tdd
-  - prompt: code_lru_cache
-  - prompt: code_matrix_rotate
-  - prompt: code_two_sum_direct
-  - prompt: code_two_sum_noisy
-  - prompt: code_word_frequency_tdd
+  - name: code_caesar_cipher_bugfix
+    category: code
+    tier: 2
+    prompt: |-
+      This Caesar cipher function has bugs. Fix it:
+
+      ```python
+      def caesar_cipher(text: str, shift: int) -> str:
+          result = ''
+          for char in text:
+              if char.isalpha():
+                  base = ord('a')  # BUG: doesn't handle uppercase
+                  result += chr((ord(char) - base + shift) % 26 + base)
+              else:
+                  result += char
+          return result
+      ```
+
+      Output only the corrected function — no explanations, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_caesar_cipher.test.py
+    tags:
+      - TODO
+      - code-debugging
+  - name: code_caesar_cipher_direct
+    category: code
+    tier: 1
+    prompt: |-
+      Write a Python function `caesar_cipher(text: str, shift: int) -> str` that applies a Caesar cipher. Only shift a-z and A-Z, leave other characters unchanged. Support negative shifts.
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_caesar_cipher.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_fibonacci_direct
+    category: code
+    tier: 1
+    prompt: |-
+      Write a Python function `fibonacci(n: int) -> int` that returns the nth Fibonacci number, where fibonacci(0) = 0, fibonacci(1) = 1.
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_fibonacci.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_fibonacci_docstring
+    category: code
+    tier: 2
+    prompt: |-
+      Complete this function:
+
+      ```python
+      def fibonacci(n: int) -> int:
+          """Return the nth Fibonacci number.
+
+          fibonacci(0) = 0
+          fibonacci(1) = 1
+          fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)
+          """
+      ```
+
+      Output only the complete function (def line + docstring + body) — no markdown, no commentary.
+    scorer: code_exec
+    testFile: code_fibonacci.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_flatten
+    category: code
+    tier: 3
+    prompt: |-
+      Write a Python function `flatten(lst: list) -> list` that recursively flattens a nested list of arbitrary depth.
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_flatten.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_is_palindrome_direct
+    category: code
+    tier: 1
+    prompt: |-
+      Write a Python function `is_palindrome(s: str) -> bool` that returns True if the string is a palindrome (case-insensitive, ignoring non-alphanumeric characters).
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_is_palindrome.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_is_palindrome_tdd
+    category: code
+    tier: 2
+    prompt: |-
+      Write the function that makes these tests pass:
+
+      ```python
+      assert is_palindrome("racecar") == True
+      assert is_palindrome("hello") == False
+      assert is_palindrome("A man a plan a canal Panama") == True
+      assert is_palindrome("") == True
+      ```
+
+      Output only the function — no tests, no markdown, no commentary. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_is_palindrome.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_lru_cache
+    category: code
+    tier: 3
+    prompt: |-
+      Write a Python class `LRUCache` with:
+      - `__init__(self, capacity: int)` — max number of items
+      - `get(self, key: int) -> int` — return value or -1 if not found
+      - `put(self, key: int, value: int)` — insert/update, evict LRU if at capacity
+
+      Output only the class — no explanations, no examples, no tests, no markdown. Start directly with `class `.
+    scorer: code_exec
+    testFile: code_lru_cache.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_matrix_rotate
+    category: code
+    tier: 3
+    prompt: |-
+      Write a Python function `rotate_90(matrix: list[list[int]]) -> list[list[int]]` that rotates a square matrix 90 degrees clockwise. Do not modify the input.
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_matrix_rotate.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_two_sum_direct
+    category: code
+    tier: 1
+    prompt: |-
+      Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution.
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_two_sum.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_two_sum_noisy
+    category: code
+    tier: 2
+    prompt: |-
+      I need a function for a leetcode problem I'm stuck on. Function called two_sum, takes a list of ints and a target int, returns the indices of the two numbers that add up to the target. There's always exactly one answer. Please just give me the function.
+
+      Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_two_sum.test.py
+    tags:
+      - TODO
+      - code-synthesis
+  - name: code_word_frequency_tdd
+    category: code
+    tier: 3
+    prompt: |-
+      Write the function `word_frequency(text: str) -> dict[str, int]` that makes these tests pass:
+
+      ```python
+      result = word_frequency("the cat sat on the mat")
+      assert result["the"] == 2
+      assert result["cat"] == 1
+      result = word_frequency("Hello, hello, HELLO!")
+      assert result["hello"] == 3
+      assert word_frequency("") == {}
+      ```
+
+      Split on whitespace, strip punctuation from word edges, lowercase everything.
+
+      Output only the function — no tests, no markdown, no commentary. Start directly with `def `.
+    scorer: code_exec
+    testFile: code_word_frequency.test.py
+    tags:
+      - TODO
+      - code-synthesis

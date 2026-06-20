@@ -19,7 +19,7 @@ src/cli/                 process boundary — argv, exit codes, console, subproc
   commands/report.ts     aggregate attempts → webapp data + detail files
   commands/score.ts      re-score an attempt archive in place
   commands/export.ts     bundle an attempt + its blobs into a portable archive
-  commands/list.ts       read-only corpus / model sanity checks
+  commands/list.ts       read-only challenge-item / model sanity checks
   deps.ts                production wiring of the LLM-server factory
   subprocess-registry.ts process-level safety net (SIGHUP / uncaughtException / exit)
   logger.ts, paths.ts    log layer + canonical path helpers
@@ -40,8 +40,8 @@ src/scoring/
 
 src/config/
   configurations.ts      load configs.yaml, resolve identity (configHash)
-  challenges.ts          load a challenge YAML against the corpus, resolve items + challengeHash
-  prompt-corpus.ts       load the prompt corpus; system-prompts.ts the system-prompt registry
+  challenges.ts          load a challenge YAML, resolve its inline items + challengeHash
+  system-prompts.ts      load the root system-prompts.yaml registry
   hashing.ts             12-hex SHA-256 identity hashes; yaml.ts the parser
 
 src/schema/              Effect Schema definitions: attempt (manifest + item), configuration,
@@ -68,7 +68,7 @@ src/errors/              typed Data.TaggedError classes, re-exported from index.
 
 `submit` runs exactly one attempt, in order:
 
-1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, the prompt corpus, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge against the corpus, computing every identity hash. Build an `attemptId` of the form `att-<configHash>-<challengeHash>-<timestamp>`.
+1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items directly, computing every identity hash. Build an `attemptId` of the form `att-<configHash>-<challengeHash>-<timestamp>`.
 2. **Open the archive.** Inside `Effect.scoped`, write line 1 — the `AttemptManifest` header — in its open state (`finishedAt: null`, `interrupted: true`, zeroed aggregate). Write the resolved system-prompt blob to the content store.
 3. **Boot the LLM server.** Acquire the runtime's server within the same scope. A server that won't boot is `orDie` — a single submit has nothing to recover to. The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller.
 4. **Run each item.** For every challenge item: write its prompt and scorer blobs to the content store, then either serve a cross-attempt cache hit (copied verbatim) or execute it freshly via `runPrompt`. Score the cleaned output with `scoreByConfig` — a scorer error folds to score 0, never a crashed attempt. An item whose execution carried an `error` scores 0. Append the resulting `ItemResult` as a new line.

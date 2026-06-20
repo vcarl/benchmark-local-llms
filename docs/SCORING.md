@@ -124,7 +124,7 @@ Operates on `result.output` (already cleaned of `<think>` and Harmony control to
 
 No match and no-capture-group patterns both degrade to `score: 0` with a descriptive `details`; the scorer is total and has no failure channel.
 
-The `extract` regex is defined by the `exact_match` scorer config in the prompt YAML (see [`CONFIG.md` § `prompts/*.yaml`](./CONFIG.md#promptsyaml)) and is only consulted by this scorer.
+The `extract` regex is defined by the `exact_match` scorer config on the inline challenge item (see [`CONFIG.md` § `challenges/*.yaml`](./CONFIG.md#challengesyaml)) and is only consulted by this scorer.
 
 Ref: `src/scoring/exact-match.ts`. Reasoning extraction (the upstream pre-process this scorer relies on): `src/orchestration/run-prompt.ts::resolveOutputFields` and `src/scoring/strip-thinking.ts`.
 

@@ -14,14 +14,13 @@ import { FetchHttpClient } from "@effect/platform";
 import { Effect, Layer, Option } from "effect";
 import { loadChallenge } from "../../config/challenges.js";
 import { loadConfigurations } from "../../config/configurations.js";
-import { loadPromptCorpus } from "../../config/prompt-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { resumeChallenge, runChallenge } from "../../orchestration/run-challenge.js";
 import { defaultRunEnv } from "../../orchestration/run-loop.js";
 import { makeRunDeps } from "../deps.js";
 import { makeLoggerLayer } from "../logger.js";
-import { systemPromptsPath } from "../paths.js";
+import { DEFAULT_SYSTEM_PROMPTS_PATH } from "../paths.js";
 
 const printLine = (line: string): Effect.Effect<void> =>
   Effect.sync(() => {
@@ -36,9 +35,9 @@ const challengeOpt = Options.file("challenge").pipe(
   Options.withDescription("Path to a challenge YAML"),
 );
 
-const promptsDirOpt = Options.directory("prompts-dir").pipe(
-  Options.withDefault("prompts"),
-  Options.withDescription("Directory containing prompt YAML files"),
+const systemPromptsFileOpt = Options.file("system-prompts-file").pipe(
+  Options.withDefault(DEFAULT_SYSTEM_PROMPTS_PATH),
+  Options.withDescription("Path to system-prompts YAML (config-selectable personas)"),
 );
 
 const configsFileOpt = Options.file("configs-file").pipe(
@@ -74,20 +73,18 @@ export const submitCommand = Command.make(
   {
     config: configOpt,
     challenge: challengeOpt,
-    promptsDir: promptsDirOpt,
+    systemPromptsFile: systemPromptsFileOpt,
     configsFile: configsFileOpt,
     archiveDir: archiveDirOpt,
     verbose: verboseOpt,
     noCache: noCacheOpt,
     resume: resumeOpt,
   },
-  ({ config, challenge, promptsDir, configsFile, archiveDir, verbose, noCache, resume }) =>
+  ({ config, challenge, systemPromptsFile, configsFile, archiveDir, verbose, noCache, resume }) =>
     Effect.gen(function* () {
-      const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
+      const systemPrompts = yield* loadSystemPrompts(systemPromptsFile);
 
       const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
-
-      const corpus = yield* loadPromptCorpus(promptsDir).pipe(Effect.provide(registryLayer));
 
       const configs = yield* loadConfigurations(configsFile).pipe(Effect.provide(registryLayer));
 
@@ -96,7 +93,7 @@ export const submitCommand = Command.make(
         return yield* Effect.dieMessage(`Unknown config id '${config}'`);
       }
 
-      const resolved = yield* loadChallenge(challenge, corpus);
+      const resolved = yield* loadChallenge(challenge);
 
       const env = defaultRunEnv();
       const deps = makeRunDeps({});

@@ -2,16 +2,155 @@ id: math
 version: 1
 passThreshold: 0.8
 items:
-  - prompt: math_chain_direct
-  - prompt: math_chain_noisy
-  - prompt: math_combinatorics_cot
-  - prompt: math_compound_interest
-  - prompt: math_modular_structured
-  - prompt: math_multiply_cot
-  - prompt: math_multiply_direct
-  - prompt: math_multiply_few_shot
-  - prompt: math_primes_sum_adversarial
-  - prompt: math_primes_sum_direct
-  - prompt: math_word_problem_decomposed
-  - prompt: math_word_problem_direct
-  - prompt: math_word_problem_structured
+  - name: math_chain_direct
+    category: math
+    tier: 1
+    prompt: Start with 5. Double it. Add 7. Triple the result. What number do you have? Reply with just the number.
+    scorer: exact_match
+    expected: "51"
+    extract: (\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_chain_noisy
+    category: math
+    tier: 2
+    prompt: My friend told me this puzzle yesterday at the coffee shop (great latte by the way). Start with 5. Double it. Add 7. Triple the result. I think the answer might be 45 but I'm not sure. What number do you get? Focus on the core question and ignore irrelevant details. Reply with just the number.
+    scorer: exact_match
+    expected: "51"
+    extract: (\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_combinatorics_cot
+    category: math
+    tier: 3
+    prompt: "How many ways can you choose 3 items from a set of 7? Think step by step, then write ANSWER: followed by just the number."
+    scorer: exact_match
+    expected: "35"
+    extract: ANSWER:\s*(\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_compound_interest
+    category: math
+    tier: 3
+    prompt: You invest $1000 at 10% annual interest compounded once per year. How much do you have after 3 years, rounded to the nearest dollar? Reply with just the number.
+    scorer: exact_match
+    expected: "1331"
+    extract: (\d[\d,]*)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_modular_structured
+    category: math
+    tier: 3
+    prompt: |-
+      What is (17^3) mod 13?
+      Respond with exactly: {"result": <number>}
+      Output only the JSON, nothing else.
+    scorer: exact_match
+    expected: "12"
+    extract: '"result"\s*:\s*(\d+)'
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_multiply_cot
+    category: math
+    tier: 2
+    prompt: "What is 47 * 89? Think step by step, then write ANSWER: followed by just the number."
+    scorer: exact_match
+    expected: "4183"
+    extract: ANSWER:\s*(\d[\d,]*)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_multiply_direct
+    category: math
+    tier: 1
+    prompt: What is 47 * 89? Reply with just the number.
+    scorer: exact_match
+    expected: "4183"
+    extract: (\d[\d,]*)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_multiply_few_shot
+    category: math
+    tier: 2
+    prompt: |-
+      Q: What is 23 * 17?
+      A: 391
+
+      Q: What is 56 * 34?
+      A: 1904
+
+      Q: What is 47 * 89?
+      A:
+    scorer: exact_match
+    expected: "4183"
+    extract: (\d[\d,]*)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_primes_sum_adversarial
+    category: math
+    tier: 2
+    prompt: What is the sum of all prime numbers less than 20? Remember, 1 is not a prime number and 2 is the only even prime. Also note that 20 itself should not be included. Read carefully — this question is tricky. Reply with just the number.
+    scorer: exact_match
+    expected: "77"
+    extract: (\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_primes_sum_direct
+    category: math
+    tier: 1
+    prompt: What is the sum of all prime numbers less than 20? Reply with just the number.
+    scorer: exact_match
+    expected: "77"
+    extract: (\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_word_problem_decomposed
+    category: math
+    tier: 2
+    prompt: |-
+      Solve this step by step:
+      1. A baker makes 4 batches of cookies, 36 per batch. How many total?
+      2. She gives away 1/3. How many given away?
+      3. How many left?
+
+      Reply with ONLY the final number from step 3.
+    scorer: exact_match
+    expected: "96"
+    extract: (\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_word_problem_direct
+    category: math
+    tier: 1
+    prompt: A baker makes 4 batches of cookies. Each batch has 36 cookies. She gives away 1/3 of all the cookies. How many does she have left? Reply with just the number.
+    scorer: exact_match
+    expected: "96"
+    extract: (\d+)
+    tags:
+      - TODO
+      - math-reasoning
+  - name: math_word_problem_structured
+    category: math
+    tier: 2
+    prompt: |-
+      A baker makes 4 batches of cookies. Each batch has 36 cookies.
+      She gives away 1/3 of all the cookies. How many does she have left?
+
+      Respond with exactly this JSON: {"answer": <number>}
+      Output only the JSON, nothing else.
+    scorer: exact_match
+    expected: "96"
+    extract: '"answer"\s*:\s*(\d+)'
+    tags:
+      - TODO
+      - math-reasoning

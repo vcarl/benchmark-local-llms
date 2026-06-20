@@ -3,13 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { CommandExecutor } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
-import { Effect, Layer, Option, Schema } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scorerHash, writeBlob } from "../../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../../config/challenges.js";
 import { loadChallenge } from "../../../config/challenges.js";
-import { loadPromptCorpus } from "../../../config/prompt-corpus.js";
-import { loadSystemPrompts, SystemPromptRegistry } from "../../../config/system-prompts.js";
 import {
   AttemptManifest,
   type ItemResult,
@@ -17,7 +15,6 @@ import {
 } from "../../../schema/attempt.js";
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
 import type { ScorerConfig } from "../../../schema/scorer.js";
-import { systemPromptsPath } from "../../paths.js";
 import { formatSummary, rescoreItems, rescoreItemsFromStore, scoreCommand } from "../score.js";
 
 const exactMatch: ScorerConfig = { type: "exact_match", expected: "42", extract: "(\\d+)" };
@@ -173,8 +170,10 @@ describe("formatSummary", () => {
 // and matched to the real `smoke` challenge so a re-score genuinely changes a
 // score on disk.
 
-const REAL_PROMPTS = "prompts";
 const REAL_CHALLENGES = "challenges";
+
+/** The smoke item whose constraint scorer PASSING_OUTPUT satisfies. */
+const SMOKE_CONSTRAINT_ITEM = "constraint_keywords_direct";
 
 // A paragraph that satisfies the smoke challenge's constraint scorer (must
 // contain 'rocket', 'orbit', 'gravity') → re-scores to 1.0.
@@ -191,7 +190,6 @@ const runHandler = (args: {
     scoreCommand
       .handler({
         archive: args.archive,
-        promptsDir: REAL_PROMPTS,
         challengesDir: REAL_CHALLENGES,
         challenge: args.challenge === undefined ? Option.none() : Option.some(args.challenge),
         dryRun: args.dryRun ?? false,
@@ -201,17 +199,15 @@ const runHandler = (args: {
       .pipe(Effect.provide(NodeContext.layer)),
   );
 
-/** Resolve the real `smoke` challenge to learn its single item's promptHash. */
+/** Resolve the real `smoke` challenge to learn its constraint item's promptHash. */
 const resolveSmoke = () =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const sp = yield* loadSystemPrompts(systemPromptsPath(REAL_PROMPTS));
-      const corpus = yield* loadPromptCorpus(REAL_PROMPTS).pipe(
-        Effect.provide(Layer.succeed(SystemPromptRegistry, sp)),
-      );
-      return yield* loadChallenge(`${REAL_CHALLENGES}/smoke.yaml`, corpus);
-    }).pipe(Effect.provide(NodeContext.layer)),
+    loadChallenge(`${REAL_CHALLENGES}/smoke.yaml`).pipe(Effect.provide(NodeContext.layer)),
   );
+
+/** The smoke challenge's constraint_keywords_direct item (satisfied by PASSING_OUTPUT). */
+const smokeConstraintItem = (smoke: ResolvedChallenge): ResolvedItem | undefined =>
+  smoke.items.find((i) => i.itemId === SMOKE_CONSTRAINT_ITEM);
 
 /** Encode a schema-valid attempt archive (1 manifest line + N item lines). */
 const encodeArchive = (manifest: typeof AttemptManifest.Type, items: ReadonlyArray<ItemResult>) =>
@@ -365,7 +361,7 @@ describe("scoreCommand.handler (boundary)", () => {
 
   it("--dry-run leaves the archive byte-for-byte identical while reporting the would-change", async () => {
     const smoke = await resolveSmoke();
-    const promptItem = smoke.items[0];
+    const promptItem = smokeConstraintItem(smoke);
     expect(promptItem).toBeDefined();
     if (promptItem === undefined) return;
 
@@ -426,7 +422,7 @@ describe("scoreCommand.handler (boundary)", () => {
 
   it("prints drift/skip warnings in NORMAL (non-dry-run) mode, then writes", async () => {
     const smoke = await resolveSmoke();
-    const promptItem = smoke.items[0];
+    const promptItem = smokeConstraintItem(smoke);
     expect(promptItem).toBeDefined();
     if (promptItem === undefined) return;
 
@@ -480,7 +476,7 @@ describe("scoreCommand.handler (boundary)", () => {
 
   it("--corpus applies the current corpus scorer (v2 archive + corpus flag)", async () => {
     const smoke = await resolveSmoke();
-    const promptItem = smoke.items[0];
+    const promptItem = smokeConstraintItem(smoke);
     expect(promptItem).toBeDefined();
     if (promptItem === undefined) return;
 
