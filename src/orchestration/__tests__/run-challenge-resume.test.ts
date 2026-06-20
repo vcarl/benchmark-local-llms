@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readBlob, scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
-import { AttemptManifest } from "../../schema/attempt.js";
-import { ResumeMismatchError, resumeChallenge } from "../run-challenge.js";
+import { AttemptManifest, ItemResult } from "../../schema/attempt.js";
+import { ResumeMismatchError, resumeChallenge, runChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
+  fakeServerHandle,
   inertHttpClientLayer,
   makeChatCompletionMock,
   makeTempDir,
@@ -258,5 +259,109 @@ describe("resumeChallenge", () => {
       Effect.provide(readBlob(dir, "system", config.configHash), NodeContext.layer),
     );
     expect(sys).toBe(config.systemPromptText);
+  });
+});
+
+// ── peakMemoryGb threading ─────────────────────────────────────────────────
+//
+// Conversion factor (from run-prompt.ts): peakRssKbToGb = kb / (1024 * 1024).
+// 2_097_152 KB / (1024 * 1024) = 2.0 GB.
+//
+// RED: the bug discards the ServerHandle so peakRssKb never reaches runPrompt
+// and every ItemResult records peakMemoryGb: 0.
+// GREEN: runChallenge captures the handle and threads peakRssKb through.
+
+describe("runChallenge — peakMemoryGb threading", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const peakChallengeConfig: ResolvedConfiguration = {
+    id: "peak-cfg",
+    artifact: "fake-artifact",
+    runtime: "mlx",
+    temperature: 0,
+    systemPrompt: "direct",
+    maxTokens: 128,
+    systemPromptText: "Be concise.",
+    configHash: "peak-cfg-hash",
+  };
+
+  const peakEnv = {
+    hostname: "test",
+    platform: "test",
+    runtimeVersion: "test",
+    nodeVersion: "test",
+    benchmarkGitSha: "test",
+  };
+
+  it("records peakMemoryGb from the llmServer handle — not zero", async () => {
+    const PEAK_RSS_KB = 2_097_152; // 2 GiB in KB
+    const EXPECTED_PEAK_GB = 2.0; // 2_097_152 / (1024 * 1024)
+
+    const prompt = samplePromptExact({ name: "pk1", promptHash: "ph-pk1" });
+    const item: ResolvedItem = {
+      itemId: "pk1",
+      promptHash: prompt.promptHash,
+      itemHash: "ih-pk1",
+      scorer: prompt.scorer,
+      prompt,
+    };
+    const peakChallenge: ResolvedChallenge = {
+      id: "peak-ch",
+      version: 1,
+      passThreshold: 0.5,
+      challengeHash: "peak-ch-hash",
+      items: [item],
+    };
+
+    // Inject a server handle that reports a known non-zero peak RSS.
+    const depsWithPeakRss = fakeDeps({
+      llmServer: (_m) =>
+        fakeServerHandle(18081).pipe(
+          Effect.map((h) => ({ ...h, peakRssKb: Effect.succeed(PEAK_RSS_KB) })),
+        ),
+    });
+
+    const m = makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: {
+          output: "4",
+          reasoning: null,
+          promptTokens: 5,
+          generationTokens: 5,
+          promptTps: 0,
+          generationTps: 0,
+        },
+      },
+    );
+
+    const archivePath = `${dir}/att-peak.jsonl`;
+    await Effect.runPromise(
+      runChallenge({
+        config: peakChallengeConfig,
+        challenge: peakChallenge,
+        attemptId: "att-peak",
+        archiveDir: dir,
+        archivePath,
+        env: peakEnv,
+        deps: depsWithPeakRss,
+      }).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+    const lines = await readArchiveLines(archivePath);
+    // lines[0] = header, lines[1] = item result
+    const itemResult = Schema.decodeUnknownSync(ItemResult)(JSON.parse(lines[1] as string));
+    expect(itemResult.peakMemoryGb).toBe(EXPECTED_PEAK_GB);
   });
 });

@@ -123,6 +123,7 @@ const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifes
 export const executeOrCacheItem = (
   input: RunChallengeInput,
   item: ResolvedItem,
+  peakRssKb?: Effect.Effect<number>,
 ): Effect.Effect<
   ItemResult,
   FileIOError | JsonlCorruptLine,
@@ -158,6 +159,7 @@ export const executeOrCacheItem = (
       systemPrompt: input.config.systemPromptText,
       temperature: input.config.temperature,
       maxTokens: input.config.maxTokens,
+      ...(peakRssKb !== undefined ? { peakRssKb } : {}),
     });
 
     const scoreResult = yield* scoreByConfig(exec.output, item.scorer, {
@@ -225,11 +227,14 @@ export const runChallenge = (
       // Acquire the LLM server within this scope. The caller-provided ChatCompletion
       // talks to it on the runtime's fixed port. A server that won't boot is a hard
       // failure for a single submit → orDie keeps it out of the typed error channel.
-      yield* input.deps.llmServer(modelFromConfig(input.config)).pipe(Effect.orDie);
+      // Capture the handle so its peakRssKb reader can be threaded to runPrompt.
+      const llmHandle = yield* input.deps
+        .llmServer(modelFromConfig(input.config))
+        .pipe(Effect.orDie);
 
       const scored: ItemResult[] = [];
       for (const item of input.challenge.items) {
-        const row = yield* executeOrCacheItem(input, item);
+        const row = yield* executeOrCacheItem(input, item, llmHandle.peakRssKb);
         yield* appendItem(input.archivePath, row);
         scored.push(row);
       }
@@ -385,14 +390,18 @@ export const resumeChallenge = (
       const doneIds = new Set(existing.map((r) => r.itemId));
 
       // Boot the server only if there is at least one missing item.
+      // Capture the handle so its peakRssKb reader can be threaded to runPrompt.
       const missing = input.challenge.items.filter((it) => !doneIds.has(it.itemId));
+      let resumeHandle: import("../llm/servers/supervisor.js").ServerHandle | undefined;
       if (missing.length > 0) {
-        yield* input.deps.llmServer(modelFromConfig(input.config)).pipe(Effect.orDie);
+        resumeHandle = yield* input.deps
+          .llmServer(modelFromConfig(input.config))
+          .pipe(Effect.orDie);
       }
 
       const newRows: ItemResult[] = [];
       for (const item of missing) {
-        const row = yield* executeOrCacheItem(input, item);
+        const row = yield* executeOrCacheItem(input, item, resumeHandle?.peakRssKb);
         yield* appendItem(input.archivePath, row);
         newRows.push(row);
       }
