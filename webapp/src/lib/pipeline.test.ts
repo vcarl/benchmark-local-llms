@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateRuns,
+  applyFilters,
   computeConfigScores,
   computeScatterPoints,
 } from "./pipeline";
@@ -75,6 +76,26 @@ describe("aggregateRuns", () => {
 
   it("returns [] for empty input", () => {
     expect(aggregateRuns([], "score", "score")).toEqual([]);
+  });
+});
+
+describe("applyFilters", () => {
+  const data = [
+    rec({ config_hash: "c1", artifact: "Qwen2.5-7B", runtime: "mlx", quant: "4bit", temperature: 0, challenge_id: "code", challenge_version: 1 }),
+    rec({ config_hash: "c2", artifact: "Llama-3-8B", runtime: "llamacpp", quant: null, temperature: 0.4, challenge_id: "math", challenge_version: 2 }),
+  ];
+  it("narrows by family", () => {
+    expect(applyFilters(data, { family: ["Qwen"] }).map((r) => r.config_hash)).toEqual(["c1"]);
+  });
+  it("narrows by quant with null → —", () => {
+    expect(applyFilters(data, { quant: ["—"] }).map((r) => r.config_hash)).toEqual(["c2"]);
+  });
+  it("narrows by temperature (string match) and challenge (id@version)", () => {
+    expect(applyFilters(data, { temperature: ["0.4"] }).map((r) => r.config_hash)).toEqual(["c2"]);
+    expect(applyFilters(data, { challenge: ["code@1"] }).map((r) => r.config_hash)).toEqual(["c1"]);
+  });
+  it("empty filters pass everything", () => {
+    expect(applyFilters(data, {})).toHaveLength(2);
   });
 });
 

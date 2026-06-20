@@ -1,6 +1,22 @@
 import type { BenchmarkResult } from "./data";
 import { modelFamily, modelSizeB } from "./data";
 import { EFFICIENCY_SCALE } from "./constants";
+import type { Filters } from "./filter-state";
+
+// ─── Filtering ───────────────────────────────────────────────────────────────
+
+const passesDim = (selected: string[] | undefined, v: string): boolean =>
+  selected === undefined || selected.length === 0 || selected.includes(v);
+
+export const applyFilters = (records: BenchmarkResult[], f: Filters): BenchmarkResult[] =>
+  records.filter((r) => {
+    if (!passesDim(f.family, modelFamily(r.artifact))) return false;
+    if (!passesDim(f.runtime, r.runtime)) return false;
+    if (!passesDim(f.quant, r.quant ?? "—")) return false;
+    if (!passesDim(f.temperature, String(r.temperature))) return false;
+    if (!passesDim(f.challenge, `${r.challenge_id}@${r.challenge_version}`)) return false;
+    return true;
+  });
 
 // ─── Config scores (shared utility) ──────────────────────────────────────────
 

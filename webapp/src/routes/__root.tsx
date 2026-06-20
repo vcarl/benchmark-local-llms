@@ -1,13 +1,28 @@
-import { createRootRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { createRootRoute, Outlet, useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { DATA } from "../lib/data";
+import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, computeScatterPoints, type RunRow, type RunSortKey } from "../lib/pipeline";
+import { aggregateRuns, applyFilters, computeScatterPoints, type RunRow, type RunSortKey } from "../lib/pipeline";
 import { Scatter } from "../components/Scatter";
+import { FilterPanel } from "../components/FilterPanel";
+import { parseFilters, type SearchState } from "../lib/filter-state";
 import styles from "./index.module.css";
 
-export const Route = createRootRoute({ component: RootComponent });
+export const Route = createRootRoute({
+  component: RootComponent,
+  validateSearch: (s: Record<string, unknown>): SearchState => ({
+    family: typeof s.family === "string" ? s.family : undefined,
+    runtime: typeof s.runtime === "string" ? s.runtime : undefined,
+    quant: typeof s.quant === "string" ? s.quant : undefined,
+    temperature: typeof s.temperature === "string" ? s.temperature : undefined,
+    challenge: typeof s.challenge === "string" ? s.challenge : undefined,
+    config: typeof s.config === "string" ? s.config : undefined,
+    attempt: typeof s.attempt === "string" ? s.attempt : undefined,
+    sortPrimary: typeof s.sortPrimary === "string" ? s.sortPrimary : undefined,
+    sortSecondary: typeof s.sortSecondary === "string" ? s.sortSecondary : undefined,
+  }),
+});
 
 function RootComponent() {
   const location = useLocation();
@@ -17,8 +32,21 @@ function RootComponent() {
   const [primary, setPrimary] = useState<RunSortKey>("score");
   const [secondary, setSecondary] = useState<RunSortKey>("score");
 
-  const groups = useMemo(() => aggregateRuns(DATA, primary, secondary), [primary, secondary]);
-  const points = useMemo(() => computeScatterPoints(DATA), []);
+  const search = useSearch({ strict: false }) as SearchState;
+  const filters = useMemo(() => parseFilters(search), [search]);
+  const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
+
+  const groups = useMemo(() => aggregateRuns(filtered, primary, secondary), [filtered, primary, secondary]);
+  const points = useMemo(() => computeScatterPoints(filtered), [filtered]);
+
+  const allValues = useMemo(() => ({
+    families: [...new Set(DATA.map((r) => modelFamily(r.artifact)))].sort(),
+    runtimes: uniqueSorted(DATA, "runtime").map(String),
+    quants: [...new Set(DATA.map((r) => r.quant ?? "—"))].sort(),
+    temperatures: [...new Set(DATA.map((r) => String(r.temperature)))].sort(),
+    challenges: [...new Set(DATA.map((r) => `${r.challenge_id}@${r.challenge_version}`))].sort(),
+  }), []);
+
   const closeDetails = () => navigate({ to: "/", search: (s) => s as never });
   const onRowClick = (_row: RunRow) => {};
 
@@ -33,15 +61,22 @@ function RootComponent() {
     />
   );
 
+  const leftLane = (
+    <>
+      <Scatter points={points} />
+      <FilterPanel allValues={allValues} />
+    </>
+  );
+
   return (
     <div className={styles.app}>
       <header className={styles.appHeader}>
         <h1>Benchmark Analysis</h1>
         <div className={styles.appSubtitle}>
-          {DATA.length} attempts · {groups.length} models
+          {filtered.length} attempts · {groups.length} models
         </div>
       </header>
-      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={<Scatter points={points} />} ranking={ranking} details={<Outlet />} />
+      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={<Outlet />} />
     </div>
   );
 }
