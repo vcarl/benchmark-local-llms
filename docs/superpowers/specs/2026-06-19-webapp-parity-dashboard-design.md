@@ -32,7 +32,7 @@ The per-challenge matrix (`RunGroupTable` with one column per `challenge_id`) wa
 | Filter behavior | **Recompute from selection** — filtered record set drives scatter + leaderboard + both scores. |
 | Drilldown UI | **In-page expand/panel with URL state** — TanStack Router search params, no `run.$model.$variant` route revival. |
 
-Out of scope: scenario views (`ScenarioView`/`ScenarioList`/scenario routing — removed harness-wide); model `params` in the archive (`modelSizeB(artifact)` suffices); any change to hashing (golden `challengeHash 71c5f440ce49` must not move); merging the branch (single eventual merge via `finishing-a-development-branch`).
+Out of scope: scenario views (these were correctly deleted. `ScenarioView`/`ScenarioList`/scenario routing — removed harness-wide); model `params` in the archive (`modelSizeB(artifact)` suffices); any change to hashing (golden `challengeHash 71c5f440ce49` must not move); merging the branch (single eventual merge via `finishing-a-development-branch`).
 
 ## 3. Backend: enrich the contract
 
