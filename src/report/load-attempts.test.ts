@@ -68,6 +68,7 @@ describe("loadAttemptArchives", () => {
     const dir = `/tmp/p3-load-${process.pid}`;
     const res = await run(loadAttemptArchives(dir), dir);
     expect(res.attempts).toHaveLength(1);
+    expect(res.attempts[0]?.sourcePath).toContain("att-1.jsonl");
     expect(res.attempts[0]?.manifest.attemptId).toBe("att-1");
     expect(res.attempts[0]?.items).toHaveLength(1);
     expect(res.attempts[0]?.items[0]?.generationTokens).toBe(100);
@@ -93,6 +94,7 @@ describe("loadAttemptArchive", () => {
   it("parses a single attempt file into { manifest, items }", async () => {
     const file = `/tmp/p3-single-ok-${process.pid}.jsonl`;
     const loaded = await runSingle(loadAttemptArchive(file), file, `${HEADER}\n${ITEM}\n`);
+    expect(loaded.sourcePath).toBe(file);
     expect(loaded.manifest.attemptId).toBe("att-1");
     expect(loaded.items).toHaveLength(1);
     expect(loaded.items[0]?.itemId).toBe("i1");

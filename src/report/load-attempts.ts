@@ -4,6 +4,7 @@ import { FileIOError } from "../errors/index.js";
 import { AttemptManifest, ItemResult } from "../schema/attempt.js";
 
 export interface LoadedAttempt {
+  readonly sourcePath: string;
   readonly manifest: AttemptManifest;
   readonly items: ReadonlyArray<ItemResult>;
 }
@@ -37,7 +38,7 @@ const parseAttempt = (path: string, source: string) =>
         yield* decodeItem(json).pipe(Effect.mapError(() => `line ${i + 1} is not an ItemResult`)),
       );
     }
-    return { manifest, items } satisfies LoadedAttempt;
+    return { sourcePath: path, manifest, items } satisfies LoadedAttempt;
   }).pipe(
     Effect.mapError((reason) => ({ path, reason: String(reason) }) satisfies AttemptLoadIssue),
   );

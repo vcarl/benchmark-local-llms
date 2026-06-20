@@ -4,6 +4,7 @@ import { toWebappRecord, type WebappRecord } from "./webapp-contract.js";
 export interface AggregateResult {
   readonly records: ReadonlyArray<WebappRecord>;
   readonly dropped: { readonly incomplete: number; readonly duplicate: number };
+  readonly detailSources: ReadonlyArray<{ attemptId: string; sourcePath: string }>;
 }
 
 const isCompleted = (a: LoadedAttempt): boolean =>
@@ -18,6 +19,7 @@ export const aggregateAttempts = (attempts: ReadonlyArray<LoadedAttempt>): Aggre
   let duplicate = 0;
   const seen = new Set<string>();
   const records: WebappRecord[] = [];
+  const detailSources: { attemptId: string; sourcePath: string }[] = [];
   for (const a of attempts) {
     if (!isCompleted(a)) {
       incomplete++;
@@ -29,6 +31,7 @@ export const aggregateAttempts = (attempts: ReadonlyArray<LoadedAttempt>): Aggre
     }
     seen.add(a.manifest.attemptId);
     records.push(toWebappRecord(a.manifest, a.items));
+    detailSources.push({ attemptId: a.manifest.attemptId, sourcePath: a.sourcePath });
   }
-  return { records, dropped: { incomplete, duplicate } };
+  return { records, dropped: { incomplete, duplicate }, detailSources };
 };

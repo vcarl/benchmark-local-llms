@@ -3,6 +3,7 @@ import { aggregateAttempts } from "./aggregate.js";
 import type { LoadedAttempt } from "./load-attempts.js";
 
 const att = (over: Partial<LoadedAttempt["manifest"]>, gen = 100, wall = 2): LoadedAttempt => ({
+  sourcePath: "/x/att.jsonl",
   manifest: {
     schemaVersion: 1,
     attemptId: "att-1",
@@ -73,5 +74,20 @@ describe("aggregateAttempts", () => {
     const out = aggregateAttempts([att({ attemptId: "dup" }), att({ attemptId: "dup" })]);
     expect(out.records).toHaveLength(1);
     expect(out.dropped.duplicate).toBe(1);
+  });
+});
+
+describe("aggregateAttempts detailSources", () => {
+  it("emits one {attemptId, sourcePath} per kept record, in record order", () => {
+    const a = att({ attemptId: "a" });
+    const b = att({ attemptId: "b" });
+    const out = aggregateAttempts([
+      { ...a, sourcePath: "/x/a.jsonl" },
+      { ...b, sourcePath: "/x/b.jsonl" },
+    ]);
+    expect(out.detailSources).toEqual([
+      { attemptId: "a", sourcePath: "/x/a.jsonl" },
+      { attemptId: "b", sourcePath: "/x/b.jsonl" },
+    ]);
   });
 });
