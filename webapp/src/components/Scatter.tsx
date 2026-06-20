@@ -2,12 +2,17 @@ import { useMemo, useState, useRef } from "react";
 import styles from "./Scatter.module.css";
 import type { ScatterPoint } from "../lib/pipeline";
 import {
+  computeTpsDomain,
+  opacityForTps,
+  starPointsForWallTime,
+} from "../lib/pipeline";
+import {
   setHoveredModel,
   clearHoveredModel,
   useHoveredModel,
 } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
-import { formatEfficiency } from "../lib/constants";
+import { formatWallTime } from "../lib/format";
 import { ScatterLegend } from "./ScatterLegend";
 
 interface Props {
@@ -22,6 +27,10 @@ const IH = H - M.top - M.bottom;
 
 // y is a passRate in 0..1; render as 0..100%.
 const yScale = (v: number): number => M.top + (1 - v) * IH;
+
+// Radius driven by sizeB (model size in billions of parameters).
+// Original used peak_memory_gb; sizeB used here because peak_memory_gb=0
+// for llamacpp (the primary local runtime), which would make every dot uniform.
 const SIZE_FALLBACK_B = 3;
 const rScale = (sizeB: number | null): number => 6 + Math.sqrt(Math.max(sizeB ?? SIZE_FALLBACK_B, 0)) * 2.4;
 
@@ -59,11 +68,25 @@ const formatTick = (v: number): string => {
   return String(v);
 };
 
+// y-axis ticks in 0..1 space
 const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
+
+const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: number): string => {
+  let d = "";
+  for (let i = 0; i < 2 * n; i += 1) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const a = (Math.PI / n) * i - Math.PI / 2;
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    d += (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2);
+  }
+  return `${d}Z`;
+};
 
 export function Scatter({ points }: Props) {
   const xDomain = useMemo(() => computeXDomain(points), [points]);
   const xScale = useMemo(() => xScaleFor(xDomain), [xDomain]);
+  const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
   const hovered = useHoveredModel();
   const [tip, setTip] = useState<{ dot: ScatterPoint; x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +101,22 @@ export function Scatter({ points }: Props) {
       }
     }
     return out;
+  }, [points]);
+
+  // Per-model trajectory polylines — connect dots of the same artifact (base model)
+  // sorted by x (tokens) ascending. executedAt is not on ScatterPoint; use x as proxy.
+  const trajectories = useMemo(() => {
+    const byModel = new Map<string, ScatterPoint[]>();
+    for (const d of points) {
+      const arr = byModel.get(d.artifact);
+      if (arr) arr.push(d);
+      else byModel.set(d.artifact, [d]);
+    }
+    return Array.from(byModel.entries()).map(([model, list]) => ({
+      model,
+      family: list[0]!.family,
+      pts: list.slice().sort((a, b) => a.x - b.x),
+    }));
   }, [points]);
 
   if (points.length === 0) {
@@ -118,17 +157,39 @@ export function Scatter({ points }: Props) {
           Pass rate
         </text>
 
-        {points.map((d) => {
-          const dim = hovered !== null && hovered !== d.artifact;
+        {/* Trajectory polylines — faint colored lines connecting same-model dots */}
+        {trajectories.map((t) => {
+          if (t.pts.length < 2) return null;
+          const ptStr = t.pts.map((d) => `${xScale(d.x)},${yScale(d.y)}`).join(" ");
+          const dim = hovered !== null && hovered !== t.model;
           return (
-            <circle
+            <polyline
+              key={t.model}
+              className={styles.scatterTrajectory}
+              points={ptStr}
+              stroke={familyColor(t.family)}
+              style={{ opacity: dim ? 0.2 : 0.55 }}
+            />
+          );
+        })}
+
+        {/* Star-shaped dots, fill-opacity encodes generation tps */}
+        {points.map((d) => {
+          const outerR = rScale(d.sizeB);
+          const innerR = outerR * 0.75;
+          const n = starPointsForWallTime(d.wall_time_sec);
+          const dim = hovered !== null && hovered !== d.artifact;
+          const active = hovered === d.artifact;
+          const baseOpacity = opacityForTps(d.generation_tps, tpsDomain);
+          const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
+          const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
+          return (
+            <path
               key={d.config_hash}
               className={styles.scatterDot}
-              cx={xScale(d.x)}
-              cy={yScale(d.y)}
-              r={rScale(d.sizeB)}
+              d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
               fill={familyColor(d.family)}
-              fillOpacity={dim ? 0.3 : 0.85}
+              fillOpacity={fillOpacity}
               onMouseEnter={(ev) => {
                 setHoveredModel(d.artifact);
                 const rect = wrapRef.current?.getBoundingClientRect();
@@ -151,15 +212,15 @@ export function Scatter({ points }: Props) {
         <div className={styles.scatterTip} style={{ left: tip.x + 12, top: tip.y + 12 }}>
           <div className={styles.scatterTipTitle}>{tip.dot.artifact}</div>
           <div className={styles.scatterTipMeta}>
-            {tip.dot.quant ?? "—"} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.generation_tps.toFixed(0)} tok/s
+            {tip.dot.quant ?? "—"} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.generation_tps.toFixed(0)} tok/s · {formatWallTime(tip.dot.wall_time_sec)}
           </div>
           <div>
-            Pass: <strong>{(tip.dot.y * 100).toFixed(0)}%</strong> · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong> · Mem: <strong>{tip.dot.peak_memory_gb.toFixed(1)} GB</strong> · Eff: <strong>{formatEfficiency(tip.dot.efficiency)}</strong>
+            Pass: <strong>{(tip.dot.y * 100).toFixed(0)}%</strong> · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong> · Mem: <strong>{tip.dot.peak_memory_gb.toFixed(1)} GB</strong>
           </div>
         </div>
       )}
 
-      <ScatterLegend families={families} />
+      <ScatterLegend families={families} tpsDomain={tpsDomain} />
     </div>
   );
 }

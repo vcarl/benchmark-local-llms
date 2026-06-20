@@ -12,6 +12,7 @@
 .scatterGrid { stroke: var(--gray-820); stroke-width: 1; }
 .scatterTick { fill: var(--text-muted); font-size: var(--fz-11); }
 .scatterAxisTitle { fill: var(--text-secondary); font-size: var(--fz-12); font-weight: 500; }
+.scatterTrajectory { fill: none; stroke-dasharray: 3 3; stroke-width: 1.2; transition: opacity 0.1s; }
 .scatterDot { stroke: var(--surface); stroke-width: 1.2; cursor: pointer; transition: fill-opacity 0.1s, stroke-width 0.1s; }
 .scatterDot:hover { stroke: var(--gray-50); stroke-width: 2.2; }
 .scatterTip {
