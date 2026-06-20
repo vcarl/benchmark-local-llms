@@ -16,10 +16,12 @@
 import { Command } from "@effect/cli";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
 import { Effect } from "effect";
+import { exportCommand } from "./commands/export.js";
 import { listModelsCommand, listPromptsCommand } from "./commands/list.js";
 import { reportCommand } from "./commands/report.js";
 import { runCommand } from "./commands/run.js";
 import { scoreCommand } from "./commands/score.js";
+import { submitCommand } from "./commands/submit.js";
 import { installSubprocessSafetyNet } from "./subprocess-registry.js";
 
 const root = Command.make("llm-bench").pipe(
@@ -28,8 +30,10 @@ const root = Command.make("llm-bench").pipe(
     runCommand,
     reportCommand,
     scoreCommand,
+    exportCommand,
     listModelsCommand,
     listPromptsCommand,
+    submitCommand,
   ]),
 );
 

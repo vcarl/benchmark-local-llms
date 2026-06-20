@@ -122,6 +122,7 @@ export const runPromptPhase = (
         runId: input.manifest.runId,
         model,
         prompt,
+        systemPrompt: prompt.system.text,
         temperature,
         maxTokens: input.maxTokens,
         ...(input.requestTimeoutSec !== undefined ? { timeoutSec: input.requestTimeoutSec } : {}),

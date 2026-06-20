@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CodeExecConfig,
   ConstraintConfig,
+  CustomConfig,
   ExactMatchConfig,
   GameScorerConfig,
   ScorerConfig,
@@ -97,5 +98,12 @@ describe("ScorerConfig union", () => {
 
   it("rejects unknown type discriminator", () => {
     expect(() => Schema.decodeUnknownSync(ScorerConfig)({ type: "manual", score: 1 })).toThrow();
+  });
+});
+
+describe("CustomConfig", () => {
+  it("round-trips", () => {
+    const v = { type: "custom" as const, script: "scorers/weird_task.py" };
+    expect(roundTrip(CustomConfig, v)).toEqual(v);
   });
 });

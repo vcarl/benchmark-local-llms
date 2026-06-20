@@ -27,18 +27,36 @@ const sampleRssKb = (
   );
 
 /**
- * Fork a scoped poller that records the maximum RSS observed for `pid`.
- * Returns a reader effect for the current peak (KB). Peak is 0 until the
- * first successful sample; callers can treat 0 as "unknown".
+ * Returned by `trackPeakRss`. Contains:
  *
- * The first sample fires after `intervalMs` — not immediately — so short
- * test runs that share a mock `CommandExecutor` with the supervisor never
- * tick through the poller.
+ * - `peakRssKb` — reader effect for the current peak in KB. Returns 0 until
+ *   the first successful sample; treat 0 as "unknown".
+ * - `sampleNow` — fires a single immediate sample into the same backing Ref.
+ *   Call this right after the server becomes healthy (model + KV cache loaded)
+ *   so even benchmark runs shorter than the 30s poll interval record a
+ *   non-zero peak.
+ */
+export interface PeakRssTracker {
+  readonly peakRssKb: Effect.Effect<number>;
+  readonly sampleNow: Effect.Effect<void, never, CommandExecutor.CommandExecutor>;
+}
+
+/**
+ * Fork a scoped poller that records the maximum RSS observed for `pid`.
+ * Returns a `PeakRssTracker` with:
+ *
+ * - `peakRssKb` — current peak in KB (0 until first sample).
+ * - `sampleNow` — one immediate tick into the same Ref; call it right after
+ *   `waitForHealthy` so short runs still capture a reading.
+ *
+ * The periodic loop's first tick fires after `intervalMs` (not immediately),
+ * which is intentional — the immediate reading is taken via `sampleNow` at
+ * the meaningful moment (model loaded), not at spawn time when RSS is low.
  */
 export const trackPeakRss = (
   pid: number,
   intervalMs: number,
-): Effect.Effect<Effect.Effect<number>, never, CommandExecutor.CommandExecutor | Scope.Scope> =>
+): Effect.Effect<PeakRssTracker, never, CommandExecutor.CommandExecutor | Scope.Scope> =>
   Effect.gen(function* () {
     const peak = yield* Ref.make(0);
 
@@ -52,5 +70,8 @@ export const trackPeakRss = (
     const loop = Effect.forever(Effect.zipRight(Effect.sleep(intervalMs), tick));
     yield* Effect.forkScoped(loop);
 
-    return Ref.get(peak);
+    return {
+      peakRssKb: Ref.get(peak),
+      sampleNow: tick,
+    };
   });

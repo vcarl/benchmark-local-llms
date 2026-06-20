@@ -1,7 +1,6 @@
 name: effect_pipe_vs_gen
 category: effect-ts
 tier: 3
-system: direct
 prompt: In Effect-TS, when would you use `.pipe()` with combinators like Effect.map/Effect.flatMap versus `Effect.gen` with yield*? Reply in 2-3 sentences.
 scorer: constraint
 constraints:

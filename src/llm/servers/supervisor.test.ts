@@ -7,6 +7,7 @@ import {
   httpClientLayer,
   makeFailingExecutor,
   makeMockExecutor,
+  makeMockExecutorWithRss,
   makeUnresponsiveMockExecutor,
   startHealthyServer,
   startUnhealthyServer,
@@ -376,5 +377,35 @@ describe("superviseServer", () => {
     expect(sink.some((l) => l.match(/exit finalizer completed in \d.*\(graceful=true\)/))).toBe(
       true,
     );
+  });
+
+  it("records a non-zero peakRssKb immediately after health, even with a 30s poll interval", async () => {
+    // The poll loop sleeps BEFORE the first tick, so with a 30s interval no
+    // tick fires during a short benchmark run. The fix is to call sampleNow
+    // right after waitForHealthy resolves, capturing model + KV cache RSS.
+    const RSS_KB = 2_097_152; // 2 GiB in KB
+    ts = await startHealthyServer();
+    const port = ts.port;
+    // 30_000ms poll interval — will never elapse in this test.
+    const mock = makeMockExecutorWithRss({ behaviour: "alive", pid: 999 }, RSS_KB);
+
+    const peakKb = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const handle = yield* superviseServer({
+            runtime: "llamacpp",
+            port,
+            command: Command.make("fake-bin"),
+            healthUrl: `http://127.0.0.1:${port}/health`,
+            healthTimeoutSec: 2,
+            healthPollMs: 25,
+          });
+          // Read peakRssKb immediately — no sleep, the poll interval never fires.
+          return yield* handle.peakRssKb;
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(peakKb).toBe(RSS_KB);
   });
 });

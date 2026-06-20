@@ -1,7 +1,6 @@
 name: effect_yield_star
 category: effect-ts
 tier: 1
-system: direct
 prompt: In Effect-TS, what does `yield*` do inside an `Effect.gen(function* () { ... })` block? Explain in one sentence.
 scorer: constraint
 constraints:

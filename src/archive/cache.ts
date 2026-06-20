@@ -21,12 +21,17 @@
  * timestamp is what the operator cares about.
  */
 import { FileSystem, Path } from "@effect/platform";
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { FileIOError, type JsonlCorruptLine } from "../errors/index.js";
+import {
+  AttemptManifest,
+  type ItemResult,
+  ItemResult as ItemResultSchema,
+} from "../schema/attempt.js";
 import type { ExecutionResult } from "../schema/index.js";
 import { loadManifest } from "./loader.js";
 
-export interface CacheKey {
+interface LegacyCacheKey {
   readonly artifact: string;
   readonly runId: string;
   readonly promptName: string;
@@ -34,7 +39,7 @@ export interface CacheKey {
   readonly temperature: number;
 }
 
-const matchesKey = (r: ExecutionResult, key: CacheKey): boolean =>
+const matchesKey = (r: ExecutionResult, key: LegacyCacheKey): boolean =>
   r.runId === key.runId &&
   r.promptName === key.promptName &&
   r.promptHash === key.promptHash &&
@@ -52,7 +57,7 @@ const matchesKey = (r: ExecutionResult, key: CacheKey): boolean =>
  */
 export const findCachedResult = (
   archiveDir: string,
-  key: CacheKey,
+  key: LegacyCacheKey,
 ): Effect.Effect<
   Option.Option<ExecutionResult>,
   FileIOError | JsonlCorruptLine,
@@ -99,6 +104,121 @@ export const findCachedResult = (
         ? "0 candidates"
         : `${candidateCount} candidates, picked archiveId=${best?.archiveId ?? "?"} (most recent)`,
     ).pipe(Effect.annotateLogs("scope", "cache"));
+
+    return best === null ? Option.none() : Option.some(best);
+  });
+
+/**
+ * Cross-run item cache lookup. Scans completed attempt archives in
+ * `archiveDir` for a previously executed-and-scored `ItemResult` whose
+ * identity matches `key`, so `runChallenge` can copy it verbatim instead of
+ * re-running the model.
+ *
+ * Key shape: `(configHash, challengeId, challengeVersion, itemHash)`. The
+ * header pins config + challenge identity; `itemHash` (scorer-inclusive) pins
+ * the per-item content + scoring rules, so an edited scorer invalidates the
+ * cache even without a `challengeVersion` bump.
+ *
+ * Only *completed* attempts are eligible: `finishedAt !== null` AND
+ * `interrupted === false` (mirrors `isCompleted` in the report path). This is
+ * why the cache skips a partial archive being resumed — resume reads that
+ * archive's body explicitly instead.
+ *
+ * Tie-break: if multiple archives hold a matching item, return the one with
+ * the most recent matched-item `executedAt` (not file mtime — a re-run keeps
+ * the old file, and the item's own timestamp is what the operator cares about).
+ */
+export interface CacheKey {
+  readonly configHash: string;
+  readonly challengeId: string;
+  readonly challengeVersion: number;
+  readonly itemHash: string;
+}
+
+const decodeManifest = Schema.decodeUnknown(AttemptManifest);
+const decodeItem = Schema.decodeUnknown(ItemResultSchema);
+
+/** Eligible only if the attempt is completed (mirrors report `isCompleted`). */
+const isCompleted = (m: AttemptManifest): boolean =>
+  m.finishedAt !== null && m.interrupted === false;
+
+const headerMatches = (m: AttemptManifest, key: CacheKey): boolean =>
+  m.configHash === key.configHash &&
+  m.challengeId === key.challengeId &&
+  m.challengeVersion === key.challengeVersion;
+
+/**
+ * Scan every `*.jsonl` under `archiveDir` (non-recursive) for a cached
+ * `ItemResult` matching `key` in a completed attempt. Returns the most recent
+ * match by the matched item's `executedAt`, or `None` if nothing matches.
+ *
+ * A directory-read failure surfaces as `FileIOError`. A header or body line
+ * that fails to parse for a given file causes that file to be skipped (it is
+ * never a cache hit); the file-read itself surfaces as `FileIOError`.
+ */
+export const findCachedItem = (
+  archiveDir: string,
+  key: CacheKey,
+): Effect.Effect<
+  Option.Option<ItemResult>,
+  FileIOError | JsonlCorruptLine,
+  FileSystem.FileSystem | Path.Path
+> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const pathMod = yield* Path.Path;
+
+    const entries = yield* fs
+      .readDirectory(archiveDir)
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new FileIOError({ path: archiveDir, operation: "readDirectory", cause: String(cause) }),
+        ),
+      );
+    const archives = entries.filter((e) => e.endsWith(".jsonl")).sort();
+
+    let best: ItemResult | null = null;
+    for (const entry of archives) {
+      const filePath = pathMod.join(archiveDir, entry);
+      const source = yield* fs.readFileString(filePath).pipe(
+        Effect.mapError(
+          (cause) =>
+            new FileIOError({
+              path: filePath,
+              operation: "readFileString",
+              cause: String(cause),
+            }),
+        ),
+      );
+      const lines = source.split("\n").filter((l) => l.trim().length > 0);
+      if (lines.length === 0) continue;
+
+      // Header: decode-or-skip (a malformed/legacy header is not a cache hit).
+      const headerJson = yield* Effect.try({
+        try: () => JSON.parse(lines[0] as string) as unknown,
+        catch: () => null,
+      }).pipe(Effect.orElseSucceed(() => null));
+      if (headerJson === null) continue;
+      const manifestOpt = yield* decodeManifest(headerJson).pipe(Effect.option);
+      if (Option.isNone(manifestOpt)) continue;
+      const manifest = manifestOpt.value;
+      if (!isCompleted(manifest)) continue;
+      if (!headerMatches(manifest, key)) continue;
+
+      for (let i = 1; i < lines.length; i++) {
+        const itemJson = yield* Effect.try({
+          try: () => JSON.parse(lines[i] as string) as unknown,
+          catch: () => null,
+        }).pipe(Effect.orElseSucceed(() => null));
+        if (itemJson === null) continue;
+        const itemOpt = yield* decodeItem(itemJson).pipe(Effect.option);
+        if (Option.isNone(itemOpt)) continue;
+        const item = itemOpt.value;
+        if (item.itemHash !== key.itemHash) continue;
+        if (best === null || item.executedAt > best.executedAt) best = item;
+      }
+    }
 
     return best === null ? Option.none() : Option.some(best);
   });

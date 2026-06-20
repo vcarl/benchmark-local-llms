@@ -1,0 +1,5 @@
+id: smoke
+version: 1
+passThreshold: 0.5
+items:
+  - prompt: constraint_keywords_direct

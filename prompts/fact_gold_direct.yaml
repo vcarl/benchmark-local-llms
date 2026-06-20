@@ -1,7 +1,6 @@
 name: fact_gold_direct
 category: factual
 tier: 1
-system: direct
 prompt: What is the chemical symbol for gold? Reply with just the symbol.
 scorer: exact_match
 expected: Au

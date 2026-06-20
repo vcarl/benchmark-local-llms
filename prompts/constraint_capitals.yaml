@@ -1,8 +1,8 @@
 name: constraint_capitals
 category: constraint
 tier: 1
-system: structured
-prompt: List exactly 5 US state capitals, one per line, numbered 1 through 5.
+prompt: |-
+  List exactly 5 US state capitals, one per line, numbered 1 through 5. Output only the numbered list, nothing else.
 scorer: constraint
 constraints:
 - name: has 5 numbered lines

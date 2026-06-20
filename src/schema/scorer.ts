@@ -49,10 +49,18 @@ export const GameScorerConfig = Schema.Struct({
 });
 export type GameScorerConfig = typeof GameScorerConfig.Type;
 
+/** Challenge-supplied scorer. `script` is a path to an executable scored via subprocess (§ Scoring). */
+export const CustomConfig = Schema.Struct({
+  type: Schema.Literal("custom"),
+  script: Schema.String,
+});
+export type CustomConfig = typeof CustomConfig.Type;
+
 export const ScorerConfig = Schema.Union(
   ExactMatchConfig,
   ConstraintConfig,
   CodeExecConfig,
   GameScorerConfig,
+  CustomConfig,
 );
 export type ScorerConfig = typeof ScorerConfig.Type;

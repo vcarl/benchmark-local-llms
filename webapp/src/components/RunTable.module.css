@@ -85,7 +85,7 @@
 .resultVariantFill { display: block; position: absolute; top: 0; left: 0; height: 8px; border-radius: 2px 2px 0 0; }
 .resultVariantTokens { display: block; position: absolute; bottom: 0; left: 0; height: 3px; border-radius: 1px; filter: brightness(1.25) saturate(1.15); }
 /* Combined stat block: tokens / t·s / mem / wall as two side-by-side columns,
-   each a 2-row grid of right-aligned value + left-aligned unit. */
+   each a 2-row grid of right-aligned value + unit. */
 .resultStats {
   display: flex;
   justify-content: flex-end;
@@ -200,3 +200,14 @@
 }
 .resultScoreHeader, .resultStatsHeader { text-align: right; }
 .resultEmpty { padding: var(--space-16) var(--space-12); text-align: center; color: var(--text-faint); }
+
+/* New: coverage line under the model/variant identity. */
+.resultCoverage {
+  font-size: var(--fz-10);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--space-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,7 +1,6 @@
 name: effect_type_params
 category: effect-ts
 tier: 1
-system: direct
 prompt: 'In Effect-TS, the type `Effect.Effect<A, E, R>` has three type parameters. What do A, E, and R represent? Reply with exactly three short phrases, one per line, in order: A, E, R.'
 scorer: constraint
 constraints:

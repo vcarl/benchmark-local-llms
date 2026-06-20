@@ -1,7 +1,6 @@
 name: effect_schema
 category: effect-ts
 tier: 3
-system: direct
 prompt: The `effect` package exports a `Schema` module (formerly `@effect/schema`). What is its purpose? Name 2 things you can do with it. Reply in 2-3 sentences.
 scorer: constraint
 constraints:

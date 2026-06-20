@@ -1,8 +1,7 @@
 name: constraint_keywords_direct
 category: constraint
 tier: 1
-system: structured
-prompt: Write one paragraph about space exploration. You MUST include the words 'rocket', 'orbit', and 'gravity'.
+prompt: Write one paragraph about space exploration. You MUST include the words 'rocket', 'orbit', and 'gravity'. Output only the paragraph, no extra text.
 scorer: constraint
 constraints:
 - name: contains 'rocket'

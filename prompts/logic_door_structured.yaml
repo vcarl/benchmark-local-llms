@@ -1,7 +1,6 @@
 name: logic_door_structured
 category: logic
 tier: 3
-system: structured
 prompt: |-
   There are 3 doors. Behind one is a prize. You pick door 1.
   The host (who knows what's behind each door) opens door 3, showing no prize.

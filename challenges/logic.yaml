@@ -1,0 +1,14 @@
+id: logic
+version: 1
+passThreshold: 0.8
+items:
+  - prompt: logic_ages_cot
+  - prompt: logic_bat_ball_direct
+  - prompt: logic_bat_ball_noisy
+  - prompt: logic_door_structured
+  - prompt: logic_sequence
+  - prompt: logic_sheep_cot
+  - prompt: logic_sheep_direct
+  - prompt: logic_sheep_few_shot
+  - prompt: logic_widgets_adversarial
+  - prompt: logic_widgets_direct

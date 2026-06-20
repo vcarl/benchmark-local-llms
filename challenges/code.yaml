@@ -1,0 +1,16 @@
+id: code
+version: 1
+passThreshold: 0.8
+items:
+  - prompt: code_caesar_cipher_bugfix
+  - prompt: code_caesar_cipher_direct
+  - prompt: code_fibonacci_direct
+  - prompt: code_fibonacci_docstring
+  - prompt: code_flatten
+  - prompt: code_is_palindrome_direct
+  - prompt: code_is_palindrome_tdd
+  - prompt: code_lru_cache
+  - prompt: code_matrix_rotate
+  - prompt: code_two_sum_direct
+  - prompt: code_two_sum_noisy
+  - prompt: code_word_frequency_tdd

@@ -142,12 +142,88 @@ export interface MockExecutorHandle {
  * Build a mock `CommandExecutor` layer. `spec` controls how every spawn
  * behaves; pass `"alive"` for a well-behaved daemon or an object to
  * schedule an exit. Spawned processes are pushed to `runs` in order.
+ *
+ * `ps` commands (used by the RSS poller) are NOT pushed to `runs` and
+ * return an immediately-exited process with empty stdout, causing
+ * `sampleRssKb` to skip the sample via its `catchAll` handler.
  */
 export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
   const runs: Array<MockRun> = [];
   const executor = CommandExecutor.makeExecutor((cmd) =>
     Effect.gen(function* () {
       const { bin, args } = extractCommandPieces(cmd);
+      if (bin === "ps") {
+        // RSS poller: return a minimal process with empty stdout so
+        // sampleRssKb gets a null sample (skip this tick). Not tracked in runs.
+        const exited = yield* Deferred.make<number, never>();
+        yield* Deferred.succeed(exited, 1);
+        const psProc: CommandExecutor.Process = {
+          [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
+          pid: CommandExecutor.ProcessId(0),
+          exitCode: Effect.map(Deferred.await(exited), (c) => CommandExecutor.ExitCode(c)),
+          isRunning: Effect.succeed(false),
+          kill: (_signal) => Effect.void,
+          stderr: Stream.empty,
+          stdin: Sink.drain,
+          stdout: Stream.empty,
+          toJSON() {
+            return { _tag: "MockPsProcess" };
+          },
+          [Inspectable.NodeInspectSymbol]() {
+            return { _tag: "MockPsProcess" };
+          },
+        };
+        return psProc;
+      }
+      return yield* buildMockProcess(bin, args, spec, runs);
+    }),
+  );
+  return {
+    layer: Layer.succeed(CommandExecutor.CommandExecutor, executor),
+    runs,
+  };
+};
+
+/**
+ * Like `makeMockExecutor` but intercepts `ps` commands and returns a process
+ * whose stdout contains `rssKb` (as a decimal string). All other commands
+ * are handled by `buildMockProcess` as usual.
+ *
+ * Used for testing `peakRssKb` — the RSS poller calls `Command.string` on a
+ * `ps -o rss= -p <pid>` invocation, which reads from `process.stdout`.
+ */
+export const makeMockExecutorWithRss = (
+  spec: MockProcessSpec,
+  rssKb: number,
+): MockExecutorHandle => {
+  const runs: Array<MockRun> = [];
+  const encoder = new TextEncoder();
+  const executor = CommandExecutor.makeExecutor((cmd) =>
+    Effect.gen(function* () {
+      const { bin, args } = extractCommandPieces(cmd);
+      if (bin === "ps") {
+        // Return a minimal process whose stdout yields the RSS value.
+        const rssBytes = encoder.encode(`${rssKb}\n`);
+        const exited = yield* Deferred.make<number, never>();
+        yield* Deferred.succeed(exited, 0);
+        const psProc: CommandExecutor.Process = {
+          [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
+          pid: CommandExecutor.ProcessId(0),
+          exitCode: Effect.map(Deferred.await(exited), (c) => CommandExecutor.ExitCode(c)),
+          isRunning: Effect.succeed(false),
+          kill: (_signal) => Effect.void,
+          stderr: Stream.empty,
+          stdin: Sink.drain,
+          stdout: Stream.make(rssBytes),
+          toJSON() {
+            return { _tag: "MockPsProcess" };
+          },
+          [Inspectable.NodeInspectSymbol]() {
+            return { _tag: "MockPsProcess" };
+          },
+        };
+        return psProc;
+      }
       return yield* buildMockProcess(bin, args, spec, runs);
     }),
   );

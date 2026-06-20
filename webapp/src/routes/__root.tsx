@@ -1,131 +1,101 @@
-import {
-  createRootRoute,
-  Outlet,
-  useLocation,
-  useNavigate,
-  useSearch,
-} from "@tanstack/react-router";
-import { useMemo } from "react";
-import { DATA, uniqueSorted, modelFamily, modelSizeB } from "../lib/data";
-import { FilterPanel } from "../components/FilterPanel";
-import { parseFilters } from "../lib/filter-state";
+import { createRootRoute, Outlet, useNavigate, useSearch } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
-import { Scatter } from "../components/Scatter";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { encodeVariant } from "../lib/run-summary";
-import type { RunRow, RunSortKey } from "../lib/pipeline";
-import {
-  applyFilters,
-  applyVariantFilters,
-  aggregateForRunList,
-  groupRunsByModel,
-} from "../lib/pipeline";
+import { aggregateRuns, applyFilters, computeScatterPoints, type RunRow, type RunSortKey } from "../lib/pipeline";
+import { Scatter } from "../components/Scatter";
+import { FilterPanel } from "../components/FilterPanel";
+import { parseFilters, type SearchState } from "../lib/filter-state";
+import { DrilldownPanel } from "../components/DrilldownPanel";
 import styles from "./index.module.css";
 
 export const Route = createRootRoute({
   component: RootComponent,
+  validateSearch: (s: Record<string, unknown>): SearchState => ({
+    family: typeof s.family === "string" ? s.family : undefined,
+    runtime: typeof s.runtime === "string" ? s.runtime : undefined,
+    quant: typeof s.quant === "string" ? s.quant : undefined,
+    temperature: typeof s.temperature === "string" ? s.temperature : undefined,
+    challenge: typeof s.challenge === "string" ? s.challenge : undefined,
+    config: typeof s.config === "string" ? s.config : undefined,
+    attempt: typeof s.attempt === "string" ? s.attempt : undefined,
+    sortPrimary: typeof s.sortPrimary === "string" ? s.sortPrimary : undefined,
+    sortSecondary: typeof s.sortSecondary === "string" ? s.sortSecondary : undefined,
+  }),
 });
 
-const isRunSortKey = (v: unknown): v is RunSortKey =>
-  v === "score" || v === "efficiency" || v === "memory";
-
 function RootComponent() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
 
-  // Drill-down ↔ overview is route-driven now: /run/... is the shifted state.
-  const shifted = location.pathname.startsWith("/run/");
+  const [primary, setPrimary] = useState<RunSortKey>("score");
+  const [secondary, setSecondary] = useState<RunSortKey>("score");
+
+  const search = useSearch({ strict: false }) as SearchState;
+  const filters = useMemo(() => parseFilters(search), [search]);
+  const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
+
+  const groups = useMemo(() => aggregateRuns(filtered, primary, secondary), [filtered, primary, secondary]);
+  const points = useMemo(() => computeScatterPoints(filtered), [filtered]);
 
   const allValues = useMemo(() => ({
-    tags: Array.from(new Set(DATA.flatMap((d) => d.tags))).sort(),
-    categories: uniqueSorted(DATA, "category") as string[],
-    runtimes: uniqueSorted(DATA, "runtime") as string[],
-    families: Array.from(new Set(DATA.map((d) => modelFamily(d.model)))).sort(),
-    paramSizes: Array.from(new Set(
-      DATA.map((d) => modelSizeB(d.model)).filter((n): n is number => n !== null),
-    )).sort((a, b) => a - b),
-    quants: uniqueSorted(DATA, "quant") as string[],
-    temperatures: (uniqueSorted(DATA, "temperature") as number[]).sort((a, b) => a - b),
-    durationDomain: (() => {
-      const totals = new Map<string, number>();
-      for (const d of DATA) {
-        if (!Number.isFinite(d.wall_time_sec) || d.wall_time_sec <= 0) continue;
-        const k = `${d.model}|${d.runtime}|${d.quant}|${d.temperature}`;
-        totals.set(k, (totals.get(k) ?? 0) + d.wall_time_sec);
-      }
-      const vals = Array.from(totals.values());
-      if (vals.length === 0) return { min: 0, max: 0 };
-      return { min: Math.floor(Math.min(...vals)), max: Math.ceil(Math.max(...vals)) };
-    })(),
+    families: [...new Set(DATA.map((r) => modelFamily(r.artifact)))].sort(),
+    runtimes: uniqueSorted(DATA, "runtime").map(String),
+    quants: [...new Set(DATA.map((r) => r.quant ?? "—"))].sort(),
+    temperatures: [...new Set(DATA.map((r) => String(r.temperature)))].sort(),
+    challenges: [...new Set(DATA.map((r) => `${r.challenge_id}@${r.challenge_version}`))].sort(),
   }), []);
 
-  const filters = parseFilters(search as never);
+  const shifted = search.config !== undefined;
 
-  const sortPrimary: RunSortKey = isRunSortKey(search.sortPrimary) ? search.sortPrimary : "score";
-  const sortSecondary: RunSortKey = isRunSortKey(search.sortSecondary) ? search.sortSecondary : "score";
+  const closeDetails = () =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), config: undefined, attempt: undefined }) as never });
 
-  const filtered = useMemo(
-    () => applyVariantFilters(applyFilters(DATA, filters), filters),
-    [filters],
-  );
+  const onRowClick = (row: RunRow) =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), config: row.config_hash, attempt: undefined }) as never });
 
-  const runGroups = useMemo(
-    () => groupRunsByModel(aggregateForRunList(filtered), sortPrimary, sortSecondary),
-    [filtered, sortPrimary, sortSecondary],
-  );
-
-  // navigate without `to` keeps the user on the current route — important so
-  // changing a filter while on /run/... doesn't kick them back to /.
-  const setSearchPatch = (patch: Record<string, string | undefined>) =>
-    navigate({ search: (s) => ({ ...(s as object), ...patch }) as never });
-
-  const handleRunClick = (row: RunRow) =>
-    navigate({
-      to: "/run/$model/$variant",
-      params: {
-        model: row.baseModel,
-        variant: encodeVariant({
-          runtime: row.runtime,
-          quant: row.quant,
-          temperature: row.temperature,
-        }),
-      },
-    });
-
-  const closeDetails = () => navigate({ to: "/", search: (s) => s as never });
+  const onSelectAttempt = (id: string | undefined) =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), attempt: id }) as never });
 
   const ranking = (
     <RunGroupTable
-      groups={runGroups}
-      primary={sortPrimary}
-      secondary={sortSecondary}
-      onPrimaryChange={(k) => setSearchPatch({ sortPrimary: k })}
-      onSecondaryChange={(k) => setSearchPatch({ sortSecondary: k })}
-      onRowClick={handleRunClick}
+      groups={groups}
+      primary={primary}
+      secondary={secondary}
+      onPrimaryChange={setPrimary}
+      onSecondaryChange={setSecondary}
+      onRowClick={onRowClick}
     />
   );
+
+  const leftLane = (
+    <>
+      <Scatter points={points} />
+      <FilterPanel allValues={allValues} />
+    </>
+  );
+
+  const details =
+    search.config !== undefined ? (
+      <DrilldownPanel
+        records={filtered}
+        configHash={search.config}
+        attemptId={search.attempt}
+        onSelectAttempt={onSelectAttempt}
+      />
+    ) : (
+      <Outlet />
+    );
 
   return (
     <div className={styles.app}>
       <header className={styles.appHeader}>
         <h1>Benchmark Analysis</h1>
         <div className={styles.appSubtitle}>
-          {DATA.length} runs · {allValues.tags.length} tags · {allValues.runtimes.length} runtimes
+          {filtered.length} attempts · {groups.length} models
         </div>
       </header>
-      <ShiftFrame
-        shifted={shifted}
-        onClose={closeDetails}
-        scatter={
-          <>
-            <Scatter data={filtered} />
-            <FilterPanel allValues={allValues} />
-          </>
-        }
-        ranking={ranking}
-        details={<Outlet />}
-      />
+      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={details} />
     </div>
   );
 }

@@ -43,7 +43,7 @@ export const computeScenarioHash = (parts: {
  * hash identically regardless of input ordering. Mirrors Python's
  * `json.dumps(..., sort_keys=True)`.
  */
-const stableStringify = (value: unknown): string => {
+export const stableStringify = (value: unknown): string => {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>

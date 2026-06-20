@@ -1,8 +1,7 @@
 name: constraint_no_letter_e_direct
 category: constraint
 tier: 1
-system: structured
-prompt: Write a sentence about a cat. The sentence must NOT contain the letter 'e' anywhere.
+prompt: Write a sentence about a cat. The sentence must NOT contain the letter 'e' anywhere. Output only the sentence, nothing else.
 scorer: constraint
 constraints:
 - name: no letter e

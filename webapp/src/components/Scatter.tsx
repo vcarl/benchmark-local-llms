@@ -1,14 +1,11 @@
 import { useMemo, useState, useRef } from "react";
 import styles from "./Scatter.module.css";
-import type { BenchmarkResult } from "../lib/data";
+import type { ScatterPoint } from "../lib/pipeline";
 import {
-  aggregateForScatter,
   computeTpsDomain,
   opacityForTps,
   starPointsForWallTime,
-  type ScatterDot,
 } from "../lib/pipeline";
-import { ScatterLegend } from "./ScatterLegend";
 import {
   setHoveredModel,
   clearHoveredModel,
@@ -16,9 +13,10 @@ import {
 } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
 import { formatWallTime } from "../lib/format";
+import { ScatterLegend } from "./ScatterLegend";
 
 interface Props {
-  data: BenchmarkResult[];
+  points: ScatterPoint[];
 }
 
 const W = 860;
@@ -27,19 +25,18 @@ const M = { top: 20, right: 24, bottom: 50, left: 60 };
 const IW = W - M.left - M.right;
 const IH = H - M.top - M.bottom;
 
-const yScale = (v: number): number => M.top + (1 - v / 100) * IH;
+// y is a passRate in 0..1; render as 0..100%.
+const yScale = (v: number): number => M.top + (1 - v) * IH;
+
+// Radius encodes peak memory (area ≈ footprint), matching the original 1bc370e formula.
 const rScale = (mem: number): number => 6 + Math.sqrt(Math.max(mem, 0)) * 2.4;
 
-interface XDomain {
-  min: number;
-  max: number;
-  ticks: number[];
-}
+interface XDomain { min: number; max: number; ticks: number[]; }
 
 const FALLBACK_DOMAIN: XDomain = { min: 100, max: 100000, ticks: [100, 1000, 10000, 100000] };
 
-const computeXDomain = (dots: ScatterDot[]): XDomain => {
-  const values = dots.map((d) => d.tokens).filter((t) => t > 0);
+const computeXDomain = (points: ScatterPoint[]): XDomain => {
+  const values = points.map((d) => d.x).filter((t) => t > 0);
   if (values.length === 0) return FALLBACK_DOMAIN;
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
@@ -68,6 +65,9 @@ const formatTick = (v: number): string => {
   return String(v);
 };
 
+// y-axis ticks in 0..1 space
+const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
+
 const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: number): string => {
   let d = "";
   for (let i = 0; i < 2 * n; i += 1) {
@@ -80,48 +80,43 @@ const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: num
   return `${d}Z`;
 };
 
-const yTicks = [0, 20, 40, 60, 80, 100];
-
-
-export function Scatter({ data }: Props) {
-  const dots = useMemo(() => aggregateForScatter(data), [data]);
-  const xDomain = useMemo(() => computeXDomain(dots), [dots]);
+export function Scatter({ points }: Props) {
+  const xDomain = useMemo(() => computeXDomain(points), [points]);
   const xScale = useMemo(() => xScaleFor(xDomain), [xDomain]);
-  const tpsDomain = useMemo(() => computeTpsDomain(dots), [dots]);
+  const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
   const hovered = useHoveredModel();
-  const [tip, setTip] = useState<{ dot: ScatterDot; x: number; y: number } | null>(null);
+  const [tip, setTip] = useState<{ dot: ScatterPoint; x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   const families = useMemo(() => {
     const seen = new Set<string>();
     const out: Array<{ name: string; color: string }> = [];
-    for (const d of dots) {
+    for (const d of points) {
       if (!seen.has(d.family)) {
         seen.add(d.family);
         out.push({ name: d.family, color: familyColor(d.family) });
       }
     }
     return out;
-  }, [dots]);
+  }, [points]);
 
+  // Per-model trajectory polylines — connect dots of the same artifact (base model)
+  // sorted by x (tokens) ascending. executedAt is not on ScatterPoint; use x as proxy.
   const trajectories = useMemo(() => {
-    const byModel = new Map<string, ScatterDot[]>();
-    for (const d of dots) {
-      const arr = byModel.get(d.baseModel);
+    const byModel = new Map<string, ScatterPoint[]>();
+    for (const d of points) {
+      const arr = byModel.get(d.artifact);
       if (arr) arr.push(d);
-      else byModel.set(d.baseModel, [d]);
+      else byModel.set(d.artifact, [d]);
     }
     return Array.from(byModel.entries()).map(([model, list]) => ({
       model,
-      family: list[0].family,
-      dots: list.slice().sort((a, b) => {
-        if (a.executedAt && b.executedAt) return a.executedAt.localeCompare(b.executedAt);
-        return 0;
-      }),
+      family: list[0]!.family,
+      pts: list.slice().sort((a, b) => a.x - b.x),
     }));
-  }, [dots]);
+  }, [points]);
 
-  if (dots.length === 0) {
+  if (points.length === 0) {
     return (
       <div className={styles.scatterWrap} ref={wrapRef}>
         <div className={styles.scatterEmpty}>No data matches the current filters.</div>
@@ -131,23 +126,17 @@ export function Scatter({ data }: Props) {
 
   return (
     <div className={styles.scatterWrap} ref={wrapRef}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
-        className={styles.scatterSvg}
-      >
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className={styles.scatterSvg}>
         {yTicks.map((v) => (
           <g key={`y${v}`}>
             <line className={styles.scatterGrid} x1={M.left} x2={M.left + IW} y1={yScale(v)} y2={yScale(v)} />
-            <text className={styles.scatterTick} x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{v}%</text>
+            <text className={styles.scatterTick} x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{(v * 100).toFixed(0)}%</text>
           </g>
         ))}
         {xDomain.ticks.map((v) => (
           <g key={`x${v}`}>
             <line className={styles.scatterGrid} x1={xScale(v)} x2={xScale(v)} y1={M.top} y2={M.top + IH} />
-            <text className={styles.scatterTick} x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">
-              {formatTick(v)}
-            </text>
+            <text className={styles.scatterTick} x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">{formatTick(v)}</text>
           </g>
         ))}
         <line className={styles.scatterAxis} x1={M.left} x2={M.left} y1={M.top} y2={M.top + IH} />
@@ -165,39 +154,41 @@ export function Scatter({ data }: Props) {
           Pass rate
         </text>
 
+        {/* Trajectory polylines — faint colored lines connecting same-model dots */}
         {trajectories.map((t) => {
-          if (t.dots.length < 2) return null;
-          const points = t.dots.map((d) => `${xScale(d.tokens)},${yScale(d.score)}`).join(" ");
+          if (t.pts.length < 2) return null;
+          const ptStr = t.pts.map((d) => `${xScale(d.x)},${yScale(d.y)}`).join(" ");
           const dim = hovered !== null && hovered !== t.model;
           return (
             <polyline
               key={t.model}
               className={styles.scatterTrajectory}
-              points={points}
+              points={ptStr}
               stroke={familyColor(t.family)}
               style={{ opacity: dim ? 0.2 : 0.55 }}
             />
           );
         })}
 
-        {dots.map((d) => {
-          const outerR = rScale(d.mem);
+        {/* Star-shaped dots, fill-opacity encodes generation tps */}
+        {points.map((d) => {
+          const outerR = rScale(d.peak_memory_gb);
           const innerR = outerR * 0.75;
-          const n = starPointsForWallTime(d.wallTime);
-          const dim = hovered !== null && hovered !== d.baseModel;
-          const active = hovered === d.baseModel;
-          const baseOpacity = opacityForTps(d.gen_tps, tpsDomain);
+          const n = starPointsForWallTime(d.wall_time_sec);
+          const dim = hovered !== null && hovered !== d.artifact;
+          const active = hovered === d.artifact;
+          const baseOpacity = opacityForTps(d.generation_tps, tpsDomain);
           const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
           const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
           return (
             <path
-              key={`${d.baseModel}|${d.runtime}|${d.quant}|${d.temperature}|${d.run_id}`}
+              key={d.config_hash}
               className={styles.scatterDot}
-              d={starPath(xScale(d.tokens), yScale(d.score), n, outerR, innerR)}
+              d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
               fill={familyColor(d.family)}
               fillOpacity={fillOpacity}
               onMouseEnter={(ev) => {
-                setHoveredModel(d.baseModel);
+                setHoveredModel(d.artifact);
                 const rect = wrapRef.current?.getBoundingClientRect();
                 if (rect) setTip({ dot: d, x: ev.clientX - rect.left, y: ev.clientY - rect.top });
               }}
@@ -216,13 +207,12 @@ export function Scatter({ data }: Props) {
 
       {tip && (
         <div className={styles.scatterTip} style={{ left: tip.x + 12, top: tip.y + 12 }}>
-          <div className={styles.scatterTipTitle}>{tip.dot.baseModel}</div>
+          <div className={styles.scatterTipTitle}>{tip.dot.artifact}</div>
           <div className={styles.scatterTipMeta}>
-            {tip.dot.quant} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.gen_tps.toFixed(0)} tok/s · {formatWallTime(tip.dot.wallTime)}
-            {tip.dot.executedAt ? ` · ${tip.dot.executedAt.slice(0, 10)}` : ""}
+            {tip.dot.quant ?? "—"} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.generation_tps.toFixed(0)} tok/s · {formatWallTime(tip.dot.wall_time_sec)}
           </div>
           <div>
-            Pass: <strong>{tip.dot.score.toFixed(0)}%</strong> · Tokens: <strong>{Math.round(tip.dot.tokens)}</strong> · Mem: <strong>{tip.dot.mem.toFixed(1)} GB</strong>
+            Pass: <strong>{(tip.dot.y * 100).toFixed(0)}%</strong> · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong> · Mem: <strong>{tip.dot.peak_memory_gb.toFixed(1)} GB</strong>
           </div>
         </div>
       )}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CodeExecFailed, CodeExecTimeout, ConstraintEvalError, ScorerNotFound } from "./scorer.js";
+import {
+  CodeExecFailed,
+  CodeExecTimeout,
+  ConstraintEvalError,
+  ScorerNotFound,
+  ScorerSpawnFailed,
+} from "./scorer.js";
 
 describe("ScorerNotFound", () => {
   it("carries tag and scorerName", () => {
@@ -38,5 +44,17 @@ describe("CodeExecFailed", () => {
     expect(e._tag).toBe("CodeExecFailed");
     expect(e.exitCode).toBe(1);
     expect(e.stderr).toBe("AssertionError");
+  });
+});
+
+describe("ScorerSpawnFailed", () => {
+  it("carries tag, binary, and cause", () => {
+    const e = new ScorerSpawnFailed({
+      binary: "definitely-not-a-real-binary-xyz",
+      cause: "ENOENT",
+    });
+    expect(e._tag).toBe("ScorerSpawnFailed");
+    expect(e.binary).toBe("definitely-not-a-real-binary-xyz");
+    expect(e.cause).toBe("ENOENT");
   });
 });

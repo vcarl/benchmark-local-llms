@@ -137,7 +137,7 @@ export const superviseServer = (
     // read the peak for its log line. The poll fiber itself is scoped and
     // will be interrupted on scope close; the backing Ref survives, so
     // reading peak from inside or after the finalizer is safe.
-    const peakRssKb = yield* trackPeakRss(pid, PEAK_RSS_POLL_MS);
+    const { peakRssKb, sampleNow } = yield* trackPeakRss(pid, PEAK_RSS_POLL_MS);
 
     // Install graceful-shutdown finalizer BEFORE health wait — if health
     // times out mid-boot, we still escalate cleanly. This finalizer runs
@@ -254,6 +254,11 @@ export const superviseServer = (
     yield* Effect.logInfo(`healthy in ${elapsedSec}s`).pipe(
       Effect.annotateLogs("scope", "llm-server"),
     );
+
+    // Capture an immediate RSS sample now that the model and KV cache are
+    // loaded. The periodic poller sleeps BEFORE its first tick, so without
+    // this call a benchmark run shorter than 30s would leave peakRssKb = 0.
+    yield* sampleNow;
 
     return {
       runtime: params.runtime,

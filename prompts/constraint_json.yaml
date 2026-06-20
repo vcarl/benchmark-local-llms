@@ -1,7 +1,6 @@
 name: constraint_json
 category: constraint
 tier: 1
-system: structured
 prompt: 'Output a JSON object with exactly 3 keys: "name", "age", "city". All values must be strings. Output only the JSON, nothing else.'
 scorer: constraint
 constraints:

@@ -1,8 +1,7 @@
 name: constraint_keywords_adversarial
 category: constraint
 tier: 2
-system: structured
-prompt: 'Write one paragraph about the ocean. You MUST include ALL of these words: ''current'', ''pressure'', ''salinity'', ''bioluminescence'', and ''trench''. Do not use any word more than once.'
+prompt: 'Write one paragraph about the ocean. You MUST include ALL of these words: ''current'', ''pressure'', ''salinity'', ''bioluminescence'', and ''trench''. Do not use any word more than once. Output only the paragraph, no extra text.'
 scorer: constraint
 constraints:
 - name: contains 'current'

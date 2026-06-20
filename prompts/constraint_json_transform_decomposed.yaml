@@ -1,7 +1,6 @@
 name: constraint_json_transform_decomposed
 category: constraint
 tier: 3
-system: structured
 prompt: |-
   Given this input: {"items": ["apple", "banana", "cherry"]}
 

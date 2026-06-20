@@ -1,0 +1,13 @@
+id: factual
+version: 1
+passThreshold: 0.8
+items:
+  - prompt: fact_boiling_few_shot
+  - prompt: fact_chromosomes_adversarial
+  - prompt: fact_chromosomes_direct
+  - prompt: fact_elements_structured
+  - prompt: fact_gold_direct
+  - prompt: fact_gold_noisy
+  - prompt: fact_planck
+  - prompt: fact_treaty_direct
+  - prompt: fact_treaty_structured

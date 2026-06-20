@@ -1,7 +1,6 @@
 name: effect_schedule_types
 category: effect-ts
 tier: 3
-system: direct
 prompt: In Effect-TS, name 3 different Schedule types you can use for retry policies. Reply with just the names, one per line, like `Schedule.xxx`.
 scorer: constraint
 constraints:

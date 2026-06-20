@@ -1,7 +1,6 @@
 name: math_word_problem_decomposed
 category: math
 tier: 2
-system: direct
 prompt: |-
   Solve this step by step:
   1. A baker makes 4 batches of cookies, 36 per batch. How many total?
