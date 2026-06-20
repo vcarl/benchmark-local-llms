@@ -23,3 +23,16 @@ describe("normalizeRecord", () => {
     expect(r.quant).toBeNull();
   });
 });
+
+describe("normalizeRecord new fields", () => {
+  it("coerces peak_memory_gb / generation_tps / prompt_tps with 0 fallback", () => {
+    const a = normalizeRecord({ peak_memory_gb: 3.4, generation_tps: 15, prompt_tps: 5 });
+    expect(a.peak_memory_gb).toBe(3.4);
+    expect(a.generation_tps).toBe(15);
+    expect(a.prompt_tps).toBe(5);
+    const b = normalizeRecord({});
+    expect(b.peak_memory_gb).toBe(0);
+    expect(b.generation_tps).toBe(0);
+    expect(b.prompt_tps).toBe(0);
+  });
+});

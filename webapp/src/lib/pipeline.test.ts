@@ -11,7 +11,7 @@ const rec = (o: Partial<BenchmarkResult>): BenchmarkResult => ({
   quant: "q4", temperature: 0, system_prompt: "concise", max_tokens: 512,
   challenge_id: "code", challenge_version: 1, attempt_id: "a", finished_at: "t",
   score: 1, passed: true, generation_tokens: 100, wall_time_sec: 2,
-  item_count: 1, passed_items: 1, ...o,
+  item_count: 1, passed_items: 1, peak_memory_gb: 0, generation_tps: 0, prompt_tps: 0, ...o,
 });
 
 describe("bestAttempt", () => {

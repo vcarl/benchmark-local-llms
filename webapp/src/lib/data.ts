@@ -17,6 +17,9 @@ export interface BenchmarkResult {
   readonly wall_time_sec: number;
   readonly item_count: number;
   readonly passed_items: number;
+  readonly peak_memory_gb: number;
+  readonly generation_tps: number;
+  readonly prompt_tps: number;
 }
 
 declare global {
@@ -45,6 +48,9 @@ export const normalizeRecord = (raw: unknown): BenchmarkResult => {
     wall_time_sec: Number(r.wall_time_sec ?? 0),
     item_count: Number(r.item_count ?? 0),
     passed_items: Number(r.passed_items ?? 0),
+    peak_memory_gb: Number(r.peak_memory_gb ?? 0),
+    generation_tps: Number(r.generation_tps ?? 0),
+    prompt_tps: Number(r.prompt_tps ?? 0),
   };
 };
 
