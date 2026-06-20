@@ -81,4 +81,21 @@ describe("toWebappRecord", () => {
     const rec = toWebappRecord(manifest({ quant: undefined }), [item({})]);
     expect(rec.quant).toBeNull();
   });
+
+  it("aggregates peak_memory_gb (max), generation_tps (mean), prompt_tps (mean)", () => {
+    const rec = toWebappRecord(manifest({}), [
+      item({ peakMemoryGb: 1.2, generationTps: 10, promptTps: 4 }),
+      item({ itemId: "i2", peakMemoryGb: 3.4, generationTps: 20, promptTps: 6 }),
+    ]);
+    expect(rec.peak_memory_gb).toBe(3.4); // max
+    expect(rec.generation_tps).toBe(15); // mean (10+20)/2, 2dp
+    expect(rec.prompt_tps).toBe(5); // mean (4+6)/2, 2dp
+  });
+
+  it("zeroes the new fields when there are no items", () => {
+    const rec = toWebappRecord(manifest({}), []);
+    expect(rec.peak_memory_gb).toBe(0);
+    expect(rec.generation_tps).toBe(0);
+    expect(rec.prompt_tps).toBe(0);
+  });
 });

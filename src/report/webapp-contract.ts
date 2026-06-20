@@ -29,6 +29,9 @@ export interface WebappRecord {
   readonly wall_time_sec: number;
   readonly item_count: number;
   readonly passed_items: number;
+  readonly peak_memory_gb: number;
+  readonly generation_tps: number;
+  readonly prompt_tps: number;
 }
 
 /**
@@ -58,4 +61,9 @@ export const toWebappRecord = (
   wall_time_sec: round2(items.reduce((s, i) => s + i.wallTimeSec, 0)),
   item_count: items.length,
   passed_items: items.filter((i) => i.score === 1).length,
+  peak_memory_gb: items.reduce((m, i) => (i.peakMemoryGb > m ? i.peakMemoryGb : m), 0),
+  generation_tps:
+    items.length === 0 ? 0 : round2(items.reduce((s, i) => s + i.generationTps, 0) / items.length),
+  prompt_tps:
+    items.length === 0 ? 0 : round2(items.reduce((s, i) => s + i.promptTps, 0) / items.length),
 });
