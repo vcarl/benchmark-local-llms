@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateRuns,
   applyFilters,
+  challengeBreakdown,
   computeConfigScores,
   computeScatterPoints,
 } from "./pipeline";
@@ -96,6 +97,23 @@ describe("applyFilters", () => {
   });
   it("empty filters pass everything", () => {
     expect(applyFilters(data, {})).toHaveLength(2);
+  });
+});
+
+describe("challengeBreakdown", () => {
+  it("one row per (challenge,version) the config ran, pooled passRate per attempt", () => {
+    const rows = challengeBreakdown(
+      [
+        rec({ config_hash: "c1", attempt_id: "a1", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 3 }),
+        rec({ config_hash: "c1", attempt_id: "a2", challenge_id: "math", challenge_version: 2, item_count: 2, passed_items: 0 }),
+        rec({ config_hash: "c2", attempt_id: "a3", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 4 }),
+      ],
+      "c1",
+    );
+    expect(rows.map((r) => r.challengeKey)).toEqual(["code@1", "math@2"]);
+    expect(rows[0]!.passRate).toBeCloseTo(0.75, 10);
+    expect(rows[0]!.attemptId).toBe("a1");
+    expect(rows[1]!.passRate).toBe(0);
   });
 });
 

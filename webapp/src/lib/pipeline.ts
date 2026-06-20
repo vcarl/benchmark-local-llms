@@ -171,6 +171,39 @@ export interface ScatterPoint {
   generation_tps: number;
 }
 
+// ─── ChallengeBreakdown (per-challenge rows for one config_hash) ─────────────
+
+export interface ChallengeBreakdownRow {
+  challengeKey: string;
+  challengeId: string;
+  challengeVersion: number;
+  attemptId: string;
+  passRate: number;
+  itemCount: number;
+  passedItems: number;
+}
+
+export const challengeBreakdown = (
+  records: BenchmarkResult[],
+  configHash: string,
+): ChallengeBreakdownRow[] => {
+  const rows: ChallengeBreakdownRow[] = [];
+  for (const r of records) {
+    if (r.config_hash !== configHash) continue;
+    rows.push({
+      challengeKey: `${r.challenge_id}@${r.challenge_version}`,
+      challengeId: r.challenge_id,
+      challengeVersion: r.challenge_version,
+      attemptId: r.attempt_id,
+      passRate: r.item_count === 0 ? 0 : r.passed_items / r.item_count,
+      itemCount: r.item_count,
+      passedItems: r.passed_items,
+    });
+  }
+  rows.sort((a, b) => a.challengeKey.localeCompare(b.challengeKey));
+  return rows;
+};
+
 export const computeScatterPoints = (records: BenchmarkResult[]): ScatterPoint[] => {
   const byConfig = new Map<string, BenchmarkResult[]>();
   for (const r of records) {
