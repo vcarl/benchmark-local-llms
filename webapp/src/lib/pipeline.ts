@@ -25,8 +25,9 @@ export const computeConfigScores = (
 ): { passRate: number; efficiency: number | null } => {
   const completed = attempts.length;
   if (completed === 0) return { passRate: 0, efficiency: null };
-  const passed = attempts.filter((a) => a.passed).length;
-  const passRate = passed / completed;
+  const totalItems = attempts.reduce((s, a) => s + a.item_count, 0);
+  const passedItems = attempts.reduce((s, a) => s + a.passed_items, 0);
+  const passRate = totalItems === 0 ? 0 : passedItems / totalItems;
   const uniqueChallenges = new Set(
     attempts.map((a) => `${a.challenge_id}@${a.challenge_version}`),
   ).size;
