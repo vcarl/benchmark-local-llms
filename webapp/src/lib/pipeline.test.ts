@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateRuns,
   computeConfigScores,
+  computeScatterPoints,
 } from "./pipeline";
-import type { RunRow, RunGroup } from "./pipeline";
+import type { RunRow, RunGroup, ScatterPoint } from "./pipeline";
 import type { BenchmarkResult } from "./data";
 
 const rec = (o: Partial<BenchmarkResult>): BenchmarkResult => ({
@@ -74,5 +75,27 @@ describe("aggregateRuns", () => {
 
   it("returns [] for empty input", () => {
     expect(aggregateRuns([], "score", "score")).toEqual([]);
+  });
+});
+
+describe("computeScatterPoints", () => {
+  it("one point per config_hash with cost-x / quality-y / size / mem / tps", () => {
+    const pts = computeScatterPoints([
+      rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5 }),
+      rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "math", item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0 }),
+    ]);
+    expect(pts).toHaveLength(1);
+    const p = pts[0]!;
+    expect(p.config_hash).toBe("c1");
+    expect(p.family).toBe("Qwen");
+    expect(p.x).toBe(300); // Σ generation_tokens
+    expect(p.y).toBeCloseTo(0.75, 10); // (4+2)/(4+4)
+    expect(p.sizeB).toBe(7);
+    expect(p.peak_memory_gb).toBe(3.0); // max
+    expect(p.generation_tps).toBe(20); // mean
+  });
+
+  it("returns [] for empty input", () => {
+    expect(computeScatterPoints([])).toEqual([]);
   });
 });

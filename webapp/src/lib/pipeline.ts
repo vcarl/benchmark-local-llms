@@ -1,5 +1,5 @@
 import type { BenchmarkResult } from "./data";
-import { modelFamily } from "./data";
+import { modelFamily, modelSizeB } from "./data";
 import { EFFICIENCY_SCALE } from "./constants";
 
 // ─── Config scores (shared utility) ──────────────────────────────────────────
@@ -136,5 +136,52 @@ export const aggregateRuns = (
     return cmpPrimary(la, lb) || a.artifact.localeCompare(b.artifact);
   });
   return groups;
+};
+
+// ─── ScatterPoints (one cost/quality point per config_hash) ─────────────────────
+
+export interface ScatterPoint {
+  config_hash: string;
+  artifact: string;
+  family: string;
+  runtime: string;
+  quant: string | null;
+  temperature: number;
+  x: number;
+  y: number;
+  efficiency: number | null;
+  sizeB: number | null;
+  peak_memory_gb: number;
+  generation_tps: number;
+}
+
+export const computeScatterPoints = (records: BenchmarkResult[]): ScatterPoint[] => {
+  const byConfig = new Map<string, BenchmarkResult[]>();
+  for (const r of records) {
+    const list = byConfig.get(r.config_hash) ?? [];
+    list.push(r);
+    byConfig.set(r.config_hash, list);
+  }
+  const points: ScatterPoint[] = [];
+  for (const attempts of byConfig.values()) {
+    const head = attempts[0];
+    if (head === undefined) continue;
+    const { passRate, efficiency } = computeConfigScores(attempts);
+    points.push({
+      config_hash: head.config_hash,
+      artifact: head.artifact,
+      family: modelFamily(head.artifact),
+      runtime: head.runtime,
+      quant: head.quant,
+      temperature: head.temperature,
+      x: attempts.reduce((s, a) => s + a.generation_tokens, 0),
+      y: passRate,
+      efficiency,
+      sizeB: modelSizeB(head.artifact),
+      peak_memory_gb: attempts.reduce((m, a) => (a.peak_memory_gb > m ? a.peak_memory_gb : m), 0),
+      generation_tps: meanOrZero(attempts.map((a) => a.generation_tps)),
+    });
+  }
+  return points;
 };
 
