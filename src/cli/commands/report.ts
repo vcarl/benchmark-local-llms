@@ -26,6 +26,9 @@ export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
       `report: dropped ${summary.dropped.incomplete} (incomplete), ${summary.dropped.duplicate} (duplicate)`,
     );
     yield* Effect.logInfo(`report: wrote ${summary.recordCount} cells → ${summary.outputPath}`);
+    yield* Effect.logInfo(
+      `report: details ${summary.detailsWritten} written, ${summary.detailsSkipped} skipped (v1/no-store)`,
+    );
   });
 
 /**

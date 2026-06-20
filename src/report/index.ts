@@ -1,7 +1,7 @@
 /**
  * Report generator entry point. Wires the attempt-archive pipeline:
  *
- *   loadAttemptArchives → aggregateAttempts → writeDataJs
+ *   loadAttemptArchives → aggregateAttempts → writeDataJs → writeDetails
  *
  * The CLI (D1) calls {@link runReport} and formats the returned
  * {@link ReportSummary} for the operator.
@@ -18,6 +18,7 @@ import { aggregateAttempts } from "./aggregate.js";
 import { type AttemptLoadIssue, loadAttemptArchives } from "./load-attempts.js";
 import type { WebappRecord } from "./webapp-contract.js";
 import { writeDataJs } from "./write-data-js.js";
+import { type DetailWriteResult, writeDetails } from "./write-details.js";
 
 export interface ReportOptions {
   /** Directory containing `*.jsonl` archives to report on. */
@@ -41,11 +42,19 @@ export interface ReportSummary {
   readonly dryRun: boolean;
   /** Records returned for caller inspection (tests, CLI preview). */
   readonly records: ReadonlyArray<WebappRecord>;
+  readonly detailsWritten: number;
+  readonly detailsSkipped: number;
 }
 
 const defaultOutputPath = (archiveDir: string): string => {
   const repoRoot = path.resolve(archiveDir, "..");
   return path.join(repoRoot, "webapp", "src", "data", "data.js");
+};
+
+const defaultDetailsDir = (outputPath: string): string => {
+  // outputPath is .../webapp/src/data/data.js → details live at .../webapp/public/details
+  const webappRoot = path.resolve(path.dirname(outputPath), "..", "..");
+  return path.join(webappRoot, "public", "details");
 };
 
 /**
@@ -61,10 +70,12 @@ export const runReport = (
     const dryRun = options.dryRun ?? false;
 
     const loaded = yield* loadAttemptArchives(archiveDir);
-    const { records, dropped } = aggregateAttempts(loaded.attempts);
+    const { records, dropped, detailSources } = aggregateAttempts(loaded.attempts);
 
+    let details: DetailWriteResult = { written: 0, skipped: 0 };
     if (!dryRun) {
       yield* writeDataJs(outputPath, records);
+      details = yield* writeDetails(defaultDetailsDir(outputPath), detailSources);
     }
 
     return {
@@ -76,6 +87,8 @@ export const runReport = (
       dropped,
       dryRun,
       records,
+      detailsWritten: details.written,
+      detailsSkipped: details.skipped,
     };
   });
 
