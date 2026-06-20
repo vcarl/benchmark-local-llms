@@ -8,6 +8,7 @@ models/
 benchmark-results/
 webapp/src/data/data.js
 webapp/src/data/events/
+webapp/public/details/
 .git-gh-pages/
 .run-state.json
 
