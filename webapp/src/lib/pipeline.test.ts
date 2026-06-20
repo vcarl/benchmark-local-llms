@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  aggregateMatrix,
-  bestAttempt,
+  aggregateRuns,
   computeConfigScores,
 } from "./pipeline";
+import type { RunRow, RunGroup } from "./pipeline";
 import type { BenchmarkResult } from "./data";
 
 const rec = (o: Partial<BenchmarkResult>): BenchmarkResult => ({
@@ -13,17 +13,6 @@ const rec = (o: Partial<BenchmarkResult>): BenchmarkResult => ({
   score: 1, passed: true, generation_tokens: 100, wall_time_sec: 2,
   item_count: 1, passed_items: 1, peak_memory_gb: 0, generation_tps: 0, prompt_tps: 0,
   ...o,
-});
-
-describe("bestAttempt", () => {
-  it("returns the highest-score attempt", () => {
-    const best = bestAttempt([rec({ score: 0.4 }), rec({ score: 0.9 }), rec({ score: 0.7 })]);
-    expect(best!.score).toBe(0.9);
-  });
-
-  it("returns null for empty array", () => {
-    expect(bestAttempt([])).toBeNull();
-  });
 });
 
 describe("computeConfigScores (pooled over items)", () => {
@@ -58,39 +47,32 @@ describe("computeConfigScores (pooled over items)", () => {
   });
 });
 
-describe("aggregateMatrix", () => {
-  it("groups configs under artifact, columns = sorted challenges, cell = best attempt", () => {
-    const { columns, groups } = aggregateMatrix([
-      rec({ config_hash: "c1", challenge_id: "code", attempt_id: "1", score: 0.4, passed: false }),
-      rec({ config_hash: "c1", challenge_id: "code", attempt_id: "2", score: 0.9, passed: true }),
-      rec({ config_hash: "c1", challenge_id: "math", attempt_id: "3", score: 1, passed: true }),
-      rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", attempt_id: "4", score: 0.5, passed: false }),
-    ]);
-    expect(columns).toEqual(["code", "math"]);
-    expect(groups.map((g) => g.artifact)).toEqual(["llama", "qwen"]);
-    const qwen = groups.find((g) => g.artifact === "qwen")!;
-    expect(qwen.rows[0]!.cells.code).toEqual({ score: 0.9, passed: true }); // best of 0.4/0.9
-    expect(qwen.rows[0]!.cells.math).toEqual({ score: 1, passed: true });
+describe("aggregateRuns", () => {
+  it("one row per config_hash, grouped by artifact, with stats-block aggregates", () => {
+    const groups = aggregateRuns(
+      [
+        rec({ config_hash: "c1", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5 }),
+        rec({ config_hash: "c1", challenge_id: "math", challenge_version: 1, item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0 }),
+        rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 1, generation_tokens: 50, wall_time_sec: 1, generation_tps: 5, peak_memory_gb: 8.0 }),
+      ],
+      "score",
+      "score",
+    );
+    expect(groups.map((g) => g.artifact)).toEqual(["qwen", "llama"]); // qwen 0.75 > llama 0.25
+    const qwen = groups.find((g) => g.artifact === "qwen");
+    const row = qwen?.rows[0];
+    expect(row?.passRate).toBeCloseTo(0.75, 10); // (4+2)/(4+4)
+    expect(row?.tokens).toBe(300);
+    expect(row?.wallTime).toBe(6);
+    expect(row?.mem).toBe(3.0); // max
+    expect(row?.genTps).toBe(20); // mean (10+30)/2
+    expect(row?.uniqueChallenges).toBe(2);
+    expect(row?.itemCount).toBe(8);
+    expect(row?.attemptsCompleted).toBe(2);
+    expect(row?.family).toBe("Qwen");
   });
 
-  it("returns empty columns and groups for empty input", () => {
-    const { columns, groups } = aggregateMatrix([]);
-    expect(columns).toEqual([]);
-    expect(groups).toEqual([]);
-  });
-
-  it("populates passRate and efficiency on ConfigRow", () => {
-    // code attempt: item_count=1, passed_items=1; math attempt: item_count=1, passed_items=0
-    // pooled passRate = (1+0)/(1+1) = 0.5
-    // unique=2, completed=2, tokens=300, time=6, denom=1800
-    // efficiency = (0.5 * 2 * 2) / 1800 * 1e6 = 1111.1111
-    const { groups } = aggregateMatrix([
-      rec({ config_hash: "c1", challenge_id: "code", passed: true, passed_items: 1, item_count: 1, generation_tokens: 100, wall_time_sec: 2 }),
-      rec({ config_hash: "c1", challenge_id: "math", passed: false, passed_items: 0, item_count: 1, generation_tokens: 200, wall_time_sec: 4 }),
-    ]);
-    const row = groups[0]!.rows[0]!;
-    expect(row.passRate).toBeCloseTo(0.5, 10);
-    expect(row.efficiency).toBeCloseTo(1111.1111, 3);
-    expect(row.attemptsCompleted).toBe(2);
+  it("returns [] for empty input", () => {
+    expect(aggregateRuns([], "score", "score")).toEqual([]);
   });
 });
