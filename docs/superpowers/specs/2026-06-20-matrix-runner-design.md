@@ -13,18 +13,30 @@ and boots `deps.llmServer(...)` inside it). A single model against six challenge
 six times; for multi-GB local models that reload dominates wall-clock. The fix is to lift server
 lifetime from **per-attempt** to **per-configuration**.
 
-## 2. Sequencing dependency
+## 2. Sequencing & build strategy
 
-This spec assumes the obsolete-`run`-path removal
-(`docs/superpowers/plans/2026-06-20-obsolete-run-path-removal.md`) lands **first**. That pass frees
-the `run` command name and untangles `defaultRunEnv` / `RunModelDeps` / `RunEnv` from the run-only
-code, leaving a single clean orchestration path. The matrix runner is then built on the tidy tree and
-reclaims `run`.
+The command is reached by **evolving `submit` in place, then renaming it to `run`** once the new
+behaviors land — not by building a separate `run` command beside it. Today's single
+`(config × challenge)` submit becomes the degenerate **1×1 sweep**: when the selectors match exactly
+one configuration and one challenge, `run` does precisely what `submit` does now. This keeps a single
+orchestration entry point throughout and avoids a parallel command.
+
+Ordering:
+
+1. The obsolete-`run`-path removal
+   (`docs/superpowers/plans/2026-06-20-obsolete-run-path-removal.md`) lands **first** — it frees the
+   `run` command name and untangles `defaultRunEnv` / `RunModelDeps` / `RunEnv` from the run-only
+   code, leaving a clean tree.
+2. Migrate `submit` to support the selection + sweep behaviors in this spec (the §4 refactor + §5
+   selection + §6 output), keeping the command named `submit` while the work is in progress.
+3. **Rename `submit` → `run`** once the migration is complete.
 
 ## 3. Command surface — `bench run`
 
-Reclaims the `run` verb. Mirrors `submit`'s loaders (system prompts → corpus → configs → challenges),
-adds two pattern selectors and the sweep loop.
+Final name after the §2 rename; during migration these flags are added to `submit`. Keeps `submit`'s
+loaders (system prompts → corpus → configs → challenges) and adds two pattern selectors and the sweep
+loop. The existing `--config` / `--challenge` single-target behavior is subsumed by the 1×1 case of
+the selectors below.
 
 | Flag | Default | Meaning |
 |---|---|---|
