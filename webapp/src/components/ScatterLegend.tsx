@@ -60,6 +60,15 @@ export function ScatterLegend({ families, tpsDomain }: Props) {
         ))}
       </div>
       <div className={styles.scatterLegendRow}>
+        <span className={styles.scatterLegendGroup}>memory (area):</span>
+        <svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="4" fill="currentColor" /></svg>
+        <span>1 GB</span>
+        <svg width="24" height="24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor" /></svg>
+        <span>5 GB</span>
+        <svg width="32" height="32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="currentColor" /></svg>
+        <span>15 GB</span>
+      </div>
+      <div className={styles.scatterLegendRow}>
         <span className={styles.scatterLegendGroup}>wall time (bumps):</span>
         {WALL_TIME_REFS.map(({ seconds, label }) => {
           const n = starPointsForWallTime(seconds);

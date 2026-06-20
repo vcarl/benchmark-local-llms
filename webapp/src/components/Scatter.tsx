@@ -28,11 +28,8 @@ const IH = H - M.top - M.bottom;
 // y is a passRate in 0..1; render as 0..100%.
 const yScale = (v: number): number => M.top + (1 - v) * IH;
 
-// Radius driven by sizeB (model size in billions of parameters).
-// Original used peak_memory_gb; sizeB used here because peak_memory_gb=0
-// for llamacpp (the primary local runtime), which would make every dot uniform.
-const SIZE_FALLBACK_B = 3;
-const rScale = (sizeB: number | null): number => 6 + Math.sqrt(Math.max(sizeB ?? SIZE_FALLBACK_B, 0)) * 2.4;
+// Radius encodes peak memory (area ≈ footprint), matching the original 1bc370e formula.
+const rScale = (mem: number): number => 6 + Math.sqrt(Math.max(mem, 0)) * 2.4;
 
 interface XDomain { min: number; max: number; ticks: number[]; }
 
@@ -175,7 +172,7 @@ export function Scatter({ points }: Props) {
 
         {/* Star-shaped dots, fill-opacity encodes generation tps */}
         {points.map((d) => {
-          const outerR = rScale(d.sizeB);
+          const outerR = rScale(d.peak_memory_gb);
           const innerR = outerR * 0.75;
           const n = starPointsForWallTime(d.wall_time_sec);
           const dim = hovered !== null && hovered !== d.artifact;
@@ -215,7 +212,7 @@ export function Scatter({ points }: Props) {
             {tip.dot.quant ?? "—"} · {tip.dot.runtime} · t{tip.dot.temperature} · {tip.dot.generation_tps.toFixed(0)} tok/s · {formatWallTime(tip.dot.wall_time_sec)}
           </div>
           <div>
-            Pass: <strong>{(tip.dot.y * 100).toFixed(0)}%</strong> · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong>
+            Pass: <strong>{(tip.dot.y * 100).toFixed(0)}%</strong> · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong> · Mem: <strong>{tip.dot.peak_memory_gb.toFixed(1)} GB</strong>
           </div>
         </div>
       )}
