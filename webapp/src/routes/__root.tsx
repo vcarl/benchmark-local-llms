@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { DATA } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, type RunRow, type RunSortKey } from "../lib/pipeline";
+import { aggregateRuns, computeScatterPoints, type RunRow, type RunSortKey } from "../lib/pipeline";
+import { Scatter } from "../components/Scatter";
 import styles from "./index.module.css";
 
 export const Route = createRootRoute({ component: RootComponent });
@@ -17,6 +18,7 @@ function RootComponent() {
   const [secondary, setSecondary] = useState<RunSortKey>("score");
 
   const groups = useMemo(() => aggregateRuns(DATA, primary, secondary), [primary, secondary]);
+  const points = useMemo(() => computeScatterPoints(DATA), []);
   const closeDetails = () => navigate({ to: "/", search: (s) => s as never });
   const onRowClick = (_row: RunRow) => {};
 
@@ -39,7 +41,7 @@ function RootComponent() {
           {DATA.length} attempts · {groups.length} models
         </div>
       </header>
-      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={null} ranking={ranking} details={<Outlet />} />
+      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={<Scatter points={points} />} ranking={ranking} details={<Outlet />} />
     </div>
   );
 }
