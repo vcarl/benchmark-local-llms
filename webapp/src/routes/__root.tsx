@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, useLocation, useNavigate, useSearch } from "@tanstack/react-router";
+import { createRootRoute, Outlet, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
@@ -7,6 +7,7 @@ import { aggregateRuns, applyFilters, computeScatterPoints, type RunRow, type Ru
 import { Scatter } from "../components/Scatter";
 import { FilterPanel } from "../components/FilterPanel";
 import { parseFilters, type SearchState } from "../lib/filter-state";
+import { DrilldownPanel } from "../components/DrilldownPanel";
 import styles from "./index.module.css";
 
 export const Route = createRootRoute({
@@ -25,9 +26,7 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const shifted = location.pathname.startsWith("/run/");
 
   const [primary, setPrimary] = useState<RunSortKey>("score");
   const [secondary, setSecondary] = useState<RunSortKey>("score");
@@ -47,8 +46,16 @@ function RootComponent() {
     challenges: [...new Set(DATA.map((r) => `${r.challenge_id}@${r.challenge_version}`))].sort(),
   }), []);
 
-  const closeDetails = () => navigate({ to: "/", search: (s) => s as never });
-  const onRowClick = (_row: RunRow) => {};
+  const shifted = search.config !== undefined;
+
+  const closeDetails = () =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), config: undefined, attempt: undefined }) as never });
+
+  const onRowClick = (row: RunRow) =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), config: row.config_hash, attempt: undefined }) as never });
+
+  const onSelectAttempt = (id: string | undefined) =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), attempt: id }) as never });
 
   const ranking = (
     <RunGroupTable
@@ -68,6 +75,18 @@ function RootComponent() {
     </>
   );
 
+  const details =
+    search.config !== undefined ? (
+      <DrilldownPanel
+        records={filtered}
+        configHash={search.config}
+        attemptId={search.attempt}
+        onSelectAttempt={onSelectAttempt}
+      />
+    ) : (
+      <Outlet />
+    );
+
   return (
     <div className={styles.app}>
       <header className={styles.appHeader}>
@@ -76,7 +95,7 @@ function RootComponent() {
           {filtered.length} attempts · {groups.length} models
         </div>
       </header>
-      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={<Outlet />} />
+      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={details} />
     </div>
   );
 }
