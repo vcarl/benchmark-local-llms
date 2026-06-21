@@ -12,21 +12,18 @@
  * `runChallenge` does not construct it.
  */
 
-import type { CommandExecutor, HttpClient, Path } from "@effect/platform";
-import { FileSystem } from "@effect/platform";
-import { Clock, Data, Effect, Option, Schema } from "effect";
+import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
+import { Clock, Effect, Option } from "effect";
 import { appendItem, finalizeAttempt, writeAttemptHeader } from "../archive/attempt-writer.js";
 import { findCachedItem } from "../archive/cache.js";
 import { scorerHash, writeBlob } from "../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
 import { stableStringify } from "../config/hashing.js";
-import type { JsonlCorruptLine } from "../errors/index.js";
-import { FileIOError } from "../errors/index.js";
+import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
 import type { ServerHandle } from "../llm/servers/supervisor.js";
-import type { AttemptAggregate } from "../schema/attempt.js";
-import { AttemptManifest, ItemResult } from "../schema/attempt.js";
+import type { AttemptAggregate, AttemptManifest, ItemResult } from "../schema/attempt.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { RunEnv } from "../schema/run-manifest.js";
 import { scoreByConfig } from "../scoring/dispatch.js";
@@ -258,173 +255,5 @@ export const runChallenge = (
     Effect.gen(function* () {
       const server = yield* input.deps.llmServer(modelFromConfig(input.config)).pipe(Effect.orDie);
       return yield* runChallengeWithServer(input, server);
-    }),
-  );
-
-// ── Resume ──────────────────────────────────────────────────────────────────
-
-const decodeManifest = Schema.decodeUnknown(AttemptManifest);
-const decodeItem = Schema.decodeUnknown(ItemResult);
-
-/** Raised when a resumed attempt's re-resolved config/challenge identity does not match its archive header. */
-export class ResumeMismatchError extends Data.TaggedError("ResumeMismatchError")<{
-  readonly attemptId: string;
-  readonly field: "configHash" | "challengeHash";
-  readonly expected: string;
-  readonly actual: string;
-}> {}
-
-/**
- * Resume an interrupted attempt. Re-resolves config + challenge from `input`
- * (the caller did the YAML load), validates the resolved hashes against the
- * partial archive's header, executes only the items not already present in the
- * body, re-aggregates over the union, and finalizes.
- *
- * Distinct from the cross-run cache: the partial archive is `interrupted: true`,
- * so `findCachedItem` skips it; resume reads its body explicitly here. Missing
- * items still flow through `executeOrCacheItem`, so a completed sibling attempt
- * can still serve a cache hit (unless `noCache`).
- */
-export const resumeChallenge = (
-  input: RunChallengeInput,
-): Effect.Effect<
-  AttemptManifest,
-  FileIOError | JsonlCorruptLine | ResumeMismatchError,
-  | FileSystem.FileSystem
-  | Path.Path
-  | CommandExecutor.CommandExecutor
-  | HttpClient.HttpClient
-  | ChatCompletion
-> =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const source = yield* fs.readFileString(input.archivePath).pipe(
-        Effect.mapError(
-          (cause) =>
-            new FileIOError({
-              path: input.archivePath,
-              operation: "resume-read",
-              cause: String(cause),
-            }),
-        ),
-      );
-      const lines = source.split("\n").filter((l) => l.trim().length > 0);
-
-      const headerJson = yield* Effect.try({
-        try: () => JSON.parse(lines[0] ?? "") as unknown,
-        catch: (e) =>
-          new FileIOError({
-            path: input.archivePath,
-            operation: "resume-parse-header",
-            cause: String(e),
-          }),
-      });
-      const header = yield* decodeManifest(headerJson).pipe(
-        Effect.mapError(
-          (cause) =>
-            new FileIOError({
-              path: input.archivePath,
-              operation: "resume-decode-header",
-              cause: String(cause),
-            }),
-        ),
-      );
-
-      // Fail loudly on identity mismatch — do not append mismatched items.
-      if (input.config.configHash !== header.configHash) {
-        return yield* Effect.fail(
-          new ResumeMismatchError({
-            attemptId: input.attemptId,
-            field: "configHash",
-            expected: header.configHash,
-            actual: input.config.configHash,
-          }),
-        );
-      }
-      if (input.challenge.challengeHash !== header.challengeHash) {
-        return yield* Effect.fail(
-          new ResumeMismatchError({
-            attemptId: input.attemptId,
-            field: "challengeHash",
-            expected: header.challengeHash,
-            actual: input.challenge.challengeHash,
-          }),
-        );
-      }
-
-      // Store completeness: write the system blob and every item's prompt/scorer
-      // blob (idempotent) so the sidecar is complete without rewriting body rows.
-      yield* writeBlob(
-        input.archiveDir,
-        "system",
-        input.config.configHash,
-        input.config.systemPromptText,
-      );
-      yield* Effect.forEach(input.challenge.items, (it) =>
-        Effect.gen(function* () {
-          yield* writeBlob(input.archiveDir, "prompts", it.promptHash, it.prompt.promptText);
-          yield* writeBlob(
-            input.archiveDir,
-            "scorers",
-            scorerHash(it.scorer),
-            stableStringify(it.scorer),
-          );
-        }),
-      );
-
-      // Decode the already-present body rows. Unlike the cross-run cache reader
-      // (which skips a corrupt line), a corrupt body row fails the resume rather
-      // than silently re-running an item we already have a completed result for.
-      const existing: ItemResult[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const json = yield* Effect.try({
-          try: () => JSON.parse(lines[i] as string) as unknown,
-          catch: (e) =>
-            new FileIOError({
-              path: input.archivePath,
-              operation: "resume-parse-item",
-              cause: String(e),
-            }),
-        });
-        existing.push(
-          yield* decodeItem(json).pipe(
-            Effect.mapError(
-              (cause) =>
-                new FileIOError({
-                  path: input.archivePath,
-                  operation: "resume-decode-item",
-                  cause: String(cause),
-                }),
-            ),
-          ),
-        );
-      }
-      const doneIds = new Set(existing.map((r) => r.itemId));
-
-      // Boot the server only if there is at least one missing item.
-      // Capture the handle so its peakRssKb reader can be threaded to runPrompt.
-      const missing = input.challenge.items.filter((it) => !doneIds.has(it.itemId));
-      let resumeHandle: import("../llm/servers/supervisor.js").ServerHandle | undefined;
-      if (missing.length > 0) {
-        resumeHandle = yield* input.deps
-          .llmServer(modelFromConfig(input.config))
-          .pipe(Effect.orDie);
-      }
-
-      const newRows: ItemResult[] = [];
-      for (const item of missing) {
-        const row = yield* executeOrCacheItem(input, item, resumeHandle?.peakRssKb);
-        yield* appendItem(input.archivePath, row);
-        newRows.push(row);
-      }
-
-      const union = [...existing, ...newRows];
-      const agg = aggregate(union, input.challenge.passThreshold);
-      const finishedMs = yield* Clock.currentTimeMillis;
-      const finishedAt = new Date(finishedMs).toISOString();
-      yield* finalizeAttempt(input.archivePath, finishedAt, agg);
-
-      return { ...header, finishedAt, interrupted: false, aggregate: agg };
     }),
   );

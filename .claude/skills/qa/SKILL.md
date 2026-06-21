@@ -100,7 +100,7 @@ Verify with:
 
 ## Tier B — live (only if detected)
 
-**B0 gate** — if `TIER_B=off`, SKIP B1–B4 and print exact enable instructions: cache
+**B0 gate** — if `TIER_B=off`, SKIP B1–B3 and print exact enable instructions: cache
 `Qwen/Qwen2.5-0.5B-Instruct-GGUF` (quant `Q4_K_M`) under `~/.cache/huggingface/hub/`, and
 provide `llama-server` on PATH (or `mlx_lm` via venv). Tier A still passes; Tier B SKIP is
 expected, not a failure.
@@ -109,24 +109,9 @@ When `TIER_B=on`:
 
 | # | Command | PASS assertion (evidence) |
 | --- | --- | --- |
-| B1 | `./bench submit --config smoke-config --challenge challenges/smoke.yaml --archive-dir "$SCRATCH_ARCH"` | exit 0; an `att-*.jsonl` written; header **finalized** (`interrupted:false`, `finishedAt` set); **exactly 1** `ItemResult` line; one-line summary printed. THE core e2e assertion. Record the item's `executedAt`. |
-| B2 | Re-run the SAME submit into the SAME `$SCRATCH_ARCH` | new attempt's item `executedAt` **EQUALS** B1's (cache hit = verbatim copy, not re-executed). |
-| B3 | Re-run with `--no-cache` | new attempt's item `executedAt` is **fresh/newer** (re-executed despite populated archive). |
-| B4 | Resume (+ mismatch) — below | only the missing item runs; header finalizes over the union; mismatch fails with `ResumeMismatchError`, archive untouched. |
-
-### B4 — Resume (+ negative mismatch)
-
-1. Pick a **2-item** challenge (e.g. a 2-item subset/small challenge) and do a real `submit`
-   into `$SCRATCH_ARCH` to learn its real `configHash`/`challengeHash` (or read them from A4
-   against that challenge).
-2. Synthesize a **partial** archive under a NEW `attemptId` (`att-<configHash>-<challengeHash>-<ts>.jsonl`):
-   header `interrupted:true`, `finishedAt:null`, with the **first item only** and the **matching
-   hashes**. (Reuse `seed-archive.ts` as a template; set `interrupted:true` and drop item 2.)
-3. `./bench submit --resume <attemptId> --config <cfg> --challenge <that-challenge> --archive-dir "$SCRATCH_ARCH"`
-   — PASS: only the missing 2nd item executes; finalized header has **both** items, `interrupted:false`,
-   aggregate covering all items.
-4. **Negative**: `./bench submit --resume <attemptId> --config <cfg> --challenge <DIFFERENT challenge> --archive-dir "$SCRATCH_ARCH"`
-   — PASS: fails loudly with `ResumeMismatchError`; the partial archive is left untouched.
+| B1 | `./bench run --configs smoke-config --challenges smoke --archive-dir "$SCRATCH_ARCH" --no-report` | exit 0; an `att-*.jsonl` written; header **finalized** (`interrupted:false`, `finishedAt` set); **exactly 4** `ItemResult` lines (one per item in `challenges/smoke.yaml`); a live per-cell line printed (e.g. `[1/1 smoke-config] smoke@1 → … PASS\|FAIL`) and an end-of-run grid. THE core e2e assertion. Record one item's `executedAt`. |
+| B2 | Re-run the SAME `./bench run --configs smoke-config --challenges smoke --archive-dir "$SCRATCH_ARCH" --no-report` | new attempt's items' `executedAt` values **EQUAL** B1's (cache hit = verbatim copy, not re-executed). |
+| B3 | Re-run with `--no-cache` added | new attempt's item `executedAt` values are **fresh/newer** (re-executed despite populated archive). |
 
 ## Output
 
