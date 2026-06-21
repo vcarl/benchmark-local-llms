@@ -2,7 +2,7 @@
 
 > _Last verified: 2026-06-20 against `9a651b2`._
 
-The harness runs work as **attempts** — one `(configuration × challenge)` pairing executed by `submit`. Around that unit it commits to a small set of invariants. Each section names an invariant, explains what it means today, and points at the canonical implementation. For the on-disk shape these guarantees protect, see [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md).
+The harness runs work as **attempts** — one `(configuration × challenge)` pairing executed by `run`. Around that unit it commits to a small set of invariants. Each section names an invariant, explains what it means today, and points at the canonical implementation. For the on-disk shape these guarantees protect, see [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md).
 
 ## Scope-managed resources
 
@@ -48,7 +48,7 @@ Ref: `src/orchestration/run-challenge.ts` (`resumeChallenge`).
 
 ## Re-scoring stability and identity preservation
 
-`score` re-applies scorers to recorded outputs and never calls the model. By default it re-scores from the content store, needing no corpus or challenge YAML; `--corpus` instead resolves the current on-disk challenge and scores against it. Either way it never rewrites identity or provenance fields — `challengeHash` and every other recorded identity stay as written; a clean identity requires a real re-run via `submit`. In the corpus path a guard keeps the stored score for any item whose `promptHash` has drifted from the resolved corpus, so only genuinely matching items are re-applied.
+`score` re-applies scorers to recorded outputs and never calls the model. By default it re-scores from the content store, needing no corpus or challenge YAML; `--corpus` instead resolves the current on-disk challenge and scores against it. Either way it never rewrites identity or provenance fields — `challengeHash` and every other recorded identity stay as written; a clean identity requires a real re-run via `run`. In the corpus path a guard keeps the stored score for any item whose `promptHash` has drifted from the resolved corpus, so only genuinely matching items are re-applied.
 
 Ref: `src/cli/commands/score.ts`, `src/orchestration/run-challenge.ts` (`aggregate`).
 

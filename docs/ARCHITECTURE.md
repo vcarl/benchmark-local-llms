@@ -14,8 +14,8 @@ The codebase is layered, and three rules hold across every layer:
 
 ```
 src/cli/                 process boundary — argv, exit codes, console, subprocess safety net
-  main.ts                wires subcommands (submit, report, score, export, list-models, list-prompts)
-  commands/submit.ts     run one config × one challenge → one attempt archive
+  main.ts                wires subcommands (run, report, score, export, list-models, list-prompts)
+  commands/run.ts        sweep matched configurations × challenges → one attempt archive per cell
   commands/report.ts     aggregate attempts → webapp data + detail files
   commands/score.ts      re-score an attempt archive in place
   commands/export.ts     bundle an attempt + its blobs into a portable archive
@@ -66,15 +66,15 @@ src/errors/              typed Data.TaggedError classes, re-exported from index.
 
 ## Attempt lifecycle
 
-`submit` runs exactly one attempt, in order:
+`run` executes each `(configuration × challenge)` cell as one attempt, in order:
 
 1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items directly, computing every identity hash. Build an `attemptId` of the form `att-<configHash>-<challengeHash>-<timestamp>`.
 2. **Open the archive.** Inside `Effect.scoped`, write line 1 — the `AttemptManifest` header — in its open state (`finishedAt: null`, `interrupted: true`, zeroed aggregate). Write the resolved system-prompt blob to the content store.
-3. **Boot the LLM server.** Acquire the runtime's server within the same scope. A server that won't boot is `orDie` — a single submit has nothing to recover to. The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller.
+3. **Boot the LLM server.** `run` boots the runtime's server **once per configuration** and reuses it across that configuration's challenges. A server that won't boot skips the whole configuration's row — every cell is recorded `SKIPPED` and the sweep continues to the next configuration. (The single-attempt `runChallenge` wrapper instead `orDie`s, having nothing to recover to.) The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller.
 4. **Run each item.** For every challenge item: write its prompt and scorer blobs to the content store, then either serve a cross-attempt cache hit (copied verbatim) or execute it freshly via `runPrompt`. Score the cleaned output with `scoreByConfig` — a scorer error folds to score 0, never a crashed attempt. An item whose execution carried an `error` scores 0. Append the resulting `ItemResult` as a new line.
 5. **Finalize.** Aggregate the items into `{ score, passed }` (`score` = fraction of items scoring exactly 1; `passed` = `score >= passThreshold`), then rewrite line 1 with `finishedAt`, `interrupted: false`, and the filled aggregate. Body lines are never touched once appended.
 
-The header→append→finalize order is what makes interruption safe: if the process dies before finalize, the archive keeps `interrupted: true` and `finishedAt: null`, and the report ignores it. An interrupted attempt can be resumed by id — `resumeChallenge` re-resolves config and challenge, validates their hashes against the partial header (a mismatch fails with `ResumeMismatchError` and leaves the file untouched), executes only the missing items, re-aggregates over the union, and finalizes.
+The header→append→finalize order is what makes interruption safe: if the process dies before finalize, the archive keeps `interrupted: true` and `finishedAt: null`, and the report ignores it. An interrupted sweep is simply re-run: the cross-attempt item cache serves already-completed items verbatim, so re-invoking `run` only re-executes the gaps. (The lower-level `resumeChallenge` — re-resolve config and challenge, validate their hashes against the partial header, execute only the missing items, re-aggregate, finalize — remains in the orchestrator but is not exposed by the current CLI.)
 
 ## Report pipeline
 

@@ -1,6 +1,6 @@
 /**
  * CLI entry point (§8). Wires the subcommand definitions (report, score,
- * submit, list-models, list-prompts) into a single `llm-bench` program and
+ * run, list-models, list-prompts) into a single `llm-bench` program and
  * hands off to `NodeRuntime.runMain`.
  *
  * This is the one module where the Effect runtime touches `process.argv`
@@ -19,8 +19,8 @@ import { Effect } from "effect";
 import { exportCommand } from "./commands/export.js";
 import { listModelsCommand, listPromptsCommand } from "./commands/list.js";
 import { reportCommand } from "./commands/report.js";
+import { runCommand } from "./commands/run.js";
 import { scoreCommand } from "./commands/score.js";
-import { submitCommand } from "./commands/submit.js";
 import { installSubprocessSafetyNet } from "./subprocess-registry.js";
 
 const root = Command.make("llm-bench").pipe(
@@ -31,7 +31,7 @@ const root = Command.make("llm-bench").pipe(
     exportCommand,
     listModelsCommand,
     listPromptsCommand,
-    submitCommand,
+    runCommand,
   ]),
 );
 

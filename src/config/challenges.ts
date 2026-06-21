@@ -199,3 +199,29 @@ export const loadChallenge = (
     );
     return yield* resolveChallenge(decoded, path.dirname(challengePath));
   });
+
+export interface ChallengeFile {
+  readonly stem: string;
+  readonly path: string;
+}
+
+/**
+ * List every `*.yaml` in `dir` as `{ stem, path }`, sorted by stem. Selection
+ * matches on the filename stem, so this never parses the YAML — the loaded
+ * challenge's own `id` is still authoritative for the archive.
+ */
+export const listChallengeFiles = (
+  dir: string,
+): Effect.Effect<
+  ReadonlyArray<ChallengeFile>,
+  import("@effect/platform/Error").PlatformError,
+  FileSystem.FileSystem
+> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const entries = yield* fs.readDirectory(dir);
+    return entries
+      .filter((f) => f.endsWith(".yaml"))
+      .map((f) => ({ stem: f.replace(/\.yaml$/, ""), path: path.join(dir, f) }))
+      .sort((a, b) => a.stem.localeCompare(b.stem));
+  });

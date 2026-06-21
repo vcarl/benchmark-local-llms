@@ -38,7 +38,7 @@ All commands run from the repo root. `./bench` is the repo-root executable.
 
 | # | Command | PASS assertion (evidence) |
 | --- | --- | --- |
-| A1 | `./bench --help` | exit 0; output lists the attempt-pipeline subcommands: `submit`, `report`, `score`, `export`, `list-models`, `list-prompts`. Assert these are present — do **not** gate on an exact count, since extra/legacy subcommands may also appear. |
+| A1 | `./bench --help` | exit 0; output lists the attempt-pipeline subcommands: `run`, `report`, `score`, `export`, `list-models`, `list-prompts`. Assert these are present — do **not** gate on an exact count, since extra/legacy subcommands may also appear. |
 | A2 | `./bench list-models` | exit 0; ≥1 non-empty model row printed. |
 | A3 | `./bench list-prompts` | exit 0; prompt count in the ~90 ballpark across the 6 categories. |
 | A4 | `node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts` | exit 0; prints `configHash`/`challengeHash`/`itemHash` (each 12-hex) and `RESOLUTION OK` (identical on re-resolve = deterministic). The golden-`challengeHash` invariant for the canonical challenge is pinned by `src/config/challenges.test.ts` (unit), not re-checked here. |

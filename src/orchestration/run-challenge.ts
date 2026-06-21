@@ -24,6 +24,7 @@ import { stableStringify } from "../config/hashing.js";
 import type { JsonlCorruptLine } from "../errors/index.js";
 import { FileIOError } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
+import type { ServerHandle } from "../llm/servers/supervisor.js";
 import type { AttemptAggregate } from "../schema/attempt.js";
 import { AttemptManifest, ItemResult } from "../schema/attempt.js";
 import type { ModelConfig } from "../schema/model.js";
@@ -72,7 +73,7 @@ export interface RunChallengeInput {
  * Build the `ModelConfig` shape the LLM-server factory + runPrompt expect.
  * Uses conditional spreads for optional fields to satisfy `exactOptionalPropertyTypes: true`.
  */
-const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
+export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   artifact: c.artifact,
   runtime: c.runtime,
   name: c.id,
@@ -194,12 +195,53 @@ export const executeOrCacheItem = (
 // ── Main entry ─────────────────────────────────────────────────────────────
 
 /**
+ * Inner body of a challenge run. Accepts an already-booted `ServerHandle` so
+ * server lifetime can be hoisted to per-configuration in the matrix runner.
+ * Does NOT acquire or release the server scope.
+ */
+export const runChallengeWithServer = (
+  input: RunChallengeInput,
+  server: ServerHandle,
+): Effect.Effect<
+  AttemptManifest,
+  FileIOError | JsonlCorruptLine,
+  | FileSystem.FileSystem
+  | Path.Path
+  | CommandExecutor.CommandExecutor
+  | HttpClient.HttpClient
+  | ChatCompletion
+> =>
+  Effect.gen(function* () {
+    const startedMs = yield* Clock.currentTimeMillis;
+    const header = baseHeader(input, new Date(startedMs).toISOString());
+    yield* writeAttemptHeader(input.archivePath, header);
+    yield* writeBlob(
+      input.archiveDir,
+      "system",
+      input.config.configHash,
+      input.config.systemPromptText,
+    );
+    const scored: ItemResult[] = [];
+    for (const item of input.challenge.items) {
+      const row = yield* executeOrCacheItem(input, item, server.peakRssKb);
+      yield* appendItem(input.archivePath, row);
+      scored.push(row);
+    }
+    const agg = aggregate(scored, input.challenge.passThreshold);
+    const finishedMs = yield* Clock.currentTimeMillis;
+    const finishedAt = new Date(finishedMs).toISOString();
+    yield* finalizeAttempt(input.archivePath, finishedAt, agg);
+    return { ...header, finishedAt, interrupted: false, aggregate: agg };
+  });
+
+/**
  * Run one `(config × challenge)` attempt end-to-end.
  *
- * Error channel: `FileIOError` (archive I/O) + `JsonlCorruptLine` (cache scan).
- * Scorer errors are caught and fold to score 0 per item. LLM server failures
- * are hard defects (`orDie`). `ChatCompletion` is required in the environment —
- * the caller provides it.
+ * Thin wrapper: boots the LLM server within an `Effect.scoped` then delegates
+ * to `runChallengeWithServer`. Error channel: `FileIOError` (archive I/O) +
+ * `JsonlCorruptLine` (cache scan). Scorer errors fold to score 0 per item.
+ * LLM server failures are hard defects (`orDie`). `ChatCompletion` is required
+ * in the environment — the caller provides it.
  */
 export const runChallenge = (
   input: RunChallengeInput,
@@ -214,37 +256,8 @@ export const runChallenge = (
 > =>
   Effect.scoped(
     Effect.gen(function* () {
-      const startedMs = yield* Clock.currentTimeMillis;
-      const header = baseHeader(input, new Date(startedMs).toISOString());
-      yield* writeAttemptHeader(input.archivePath, header);
-      yield* writeBlob(
-        input.archiveDir,
-        "system",
-        input.config.configHash,
-        input.config.systemPromptText,
-      );
-
-      // Acquire the LLM server within this scope. The caller-provided ChatCompletion
-      // talks to it on the runtime's fixed port. A server that won't boot is a hard
-      // failure for a single submit → orDie keeps it out of the typed error channel.
-      // Capture the handle so its peakRssKb reader can be threaded to runPrompt.
-      const llmHandle = yield* input.deps
-        .llmServer(modelFromConfig(input.config))
-        .pipe(Effect.orDie);
-
-      const scored: ItemResult[] = [];
-      for (const item of input.challenge.items) {
-        const row = yield* executeOrCacheItem(input, item, llmHandle.peakRssKb);
-        yield* appendItem(input.archivePath, row);
-        scored.push(row);
-      }
-
-      const agg = aggregate(scored, input.challenge.passThreshold);
-      const finishedMs = yield* Clock.currentTimeMillis;
-      const finishedAt = new Date(finishedMs).toISOString();
-      yield* finalizeAttempt(input.archivePath, finishedAt, agg);
-
-      return { ...header, finishedAt, interrupted: false, aggregate: agg };
+      const server = yield* input.deps.llmServer(modelFromConfig(input.config)).pipe(Effect.orDie);
+      return yield* runChallengeWithServer(input, server);
     }),
   );
 

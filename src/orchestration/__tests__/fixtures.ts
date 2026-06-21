@@ -12,6 +12,8 @@ import * as path from "node:path";
 import { HttpClient, HttpClientResponse } from "@effect/platform";
 import { NodeFileSystem, NodePath } from "@effect/platform-node";
 import { Deferred, Effect, Layer, Stream } from "effect";
+import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
+import type { ResolvedConfiguration } from "../../config/configurations.js";
 import type { AdmiralClient } from "../../game/admiral/client.js";
 import type { GameAdminClient, PlayerCredential } from "../../game/server/admin-client.js";
 import {
@@ -103,6 +105,45 @@ export const sampleScenario = (
   ...overrides,
 });
 
+// ── Shared challenge/config fixtures (used by run-challenge and run-matrix tests) ─
+
+export const config: ResolvedConfiguration = {
+  id: "smoke-config",
+  artifact: "fake-artifact",
+  runtime: "mlx",
+  temperature: 0,
+  systemPrompt: "direct",
+  maxTokens: 128,
+  systemPromptText: "Be concise.",
+  configHash: "cfg-hash",
+};
+
+export const env: RunEnv = {
+  hostname: "test",
+  platform: "test",
+  runtimeVersion: "test",
+  nodeVersion: "test",
+  benchmarkGitSha: "test",
+};
+
+export const makeChallenge = (): ResolvedChallenge => {
+  const prompt = samplePromptExact();
+  const item: ResolvedItem = {
+    itemId: prompt.name,
+    promptHash: prompt.promptHash,
+    itemHash: "ih-fixed",
+    scorer: prompt.scorer,
+    prompt,
+  };
+  return {
+    id: "store-ch",
+    version: 1,
+    passThreshold: 0.5,
+    challengeHash: "store-hash",
+    items: [item],
+  };
+};
+
 // ── ChatCompletion mock ────────────────────────────────────────────────────
 
 export type ChatCompletionStub =
@@ -153,6 +194,22 @@ export const makeChatCompletionMock = (
     },
   };
 };
+
+export const okStub = () =>
+  makeChatCompletionMock(
+    {},
+    {
+      kind: "ok",
+      result: {
+        output: "4",
+        reasoning: null,
+        promptTokens: 5,
+        generationTokens: 5,
+        promptTps: 0,
+        generationTps: 0,
+      },
+    },
+  );
 
 // ── HttpClient stub (no-op — satisfies the type; never used in mocks) ─────
 

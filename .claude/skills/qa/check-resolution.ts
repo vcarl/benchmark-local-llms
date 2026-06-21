@@ -1,7 +1,7 @@
 /**
  * QA Tier-A4: resolution + hashing + determinism verifier.
  *
- * Mirrors submit.ts's config/challenge loading sequence against the REAL
+ * Mirrors run.ts's config/challenge loading sequence against the REAL
  * loaders. Resolves a config id + challenge, prints configHash/challengeHash/
  * first itemHash, asserts each is 12-hex, then re-resolves and asserts the
  * three hashes are identical across runs (deterministic stableStringify).
