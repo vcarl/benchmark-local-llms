@@ -1,0 +1,267 @@
+id: trust
+version: 1
+passThreshold: 0.8
+items:
+  # Orin kept all 3 promises (3/3). Tarl 2/3, Mira 1/2, Bex 0/2 — only Orin has a perfect record.
+  - name: trust_most_reliable
+    category: social
+    tier: 2
+    prompt: >-
+      Track record:
+
+      - Tarl promised to fund the village well, and kept their word.
+
+      - Tarl promised to share the autumn harvest, and kept their word.
+
+      - Tarl promised to repair the old mill, then went back on it.
+
+      - Mira promised to deliver the grain on time, and kept their word.
+
+      - Mira promised to vote for the levy, then went back on it.
+
+      - Bex promised to repay the loan, then went back on it.
+
+      - Bex promised to stand the night watch, then went back on it.
+
+      - Orin promised to garrison the bridge, and kept their word.
+
+      - Orin promised to ransom the captives, and kept their word.
+
+      - Orin promised to escort the caravan, and kept their word.
+
+
+      Public positions:
+
+      - Tarl came out in favour of the harbour levy.
+
+      - Tarl came out in favour of the trade pact.
+
+      - Tarl came out against the standing militia.
+
+      - Orin came out in favour of the harbour levy.
+
+      - Orin came out in favour of the trade pact.
+
+      - Orin came out against the standing militia.
+
+      - Mira came out in favour of the harbour levy.
+
+      - Mira came out against the trade pact.
+
+      - Mira came out against the standing militia.
+
+      - Bex came out against the harbour levy.
+
+      - Bex came out against the trade pact.
+
+      - Bex came out in favour of the standing militia.
+
+
+      Based only on this history, which person has been the most reliable at
+      keeping their word? Reply with just the name.
+    scorer: constraint
+    constraints:
+      - name: matches Orin
+        check: regex
+        pattern: \b[Oo][Rr][Ii][Nn]\b
+    tags:
+      - TODO
+      - trust
+      - reputation
+  # Bex broke both promises he made (0 of 2 kept) — a track record of zero reliability, so: no.
+  - name: trust_can_bex_be_trusted
+    category: social
+    tier: 1
+    prompt: >-
+      Track record:
+
+      - Tarl promised to fund the village well, and kept their word.
+
+      - Tarl promised to share the autumn harvest, and kept their word.
+
+      - Tarl promised to repair the old mill, then went back on it.
+
+      - Mira promised to deliver the grain on time, and kept their word.
+
+      - Mira promised to vote for the levy, then went back on it.
+
+      - Bex promised to repay the loan, then went back on it.
+
+      - Bex promised to stand the night watch, then went back on it.
+
+      - Orin promised to garrison the bridge, and kept their word.
+
+      - Orin promised to ransom the captives, and kept their word.
+
+      - Orin promised to escort the caravan, and kept their word.
+
+
+      Public positions:
+
+      - Tarl came out in favour of the harbour levy.
+
+      - Tarl came out in favour of the trade pact.
+
+      - Tarl came out against the standing militia.
+
+      - Orin came out in favour of the harbour levy.
+
+      - Orin came out in favour of the trade pact.
+
+      - Orin came out against the standing militia.
+
+      - Mira came out in favour of the harbour levy.
+
+      - Mira came out against the trade pact.
+
+      - Mira came out against the standing militia.
+
+      - Bex came out against the harbour levy.
+
+      - Bex came out against the trade pact.
+
+      - Bex came out in favour of the standing militia.
+
+
+      Judging only by their track record, can Bex be trusted to keep a promise?
+      Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches no
+        check: regex
+        pattern: \b[Nn][Oo]\b
+    tags:
+      - TODO
+      - trust
+      - reputation
+  # Tarl and Orin take the same side on all 3 issues (levy, pact, militia). Mira matches 2/3, Bex 0/3 (opposite on every one) — Orin is the exact match.
+  - name: alignment_tarl_closest
+    category: social
+    tier: 3
+    prompt: >-
+      Track record:
+
+      - Tarl promised to fund the village well, and kept their word.
+
+      - Tarl promised to share the autumn harvest, and kept their word.
+
+      - Tarl promised to repair the old mill, then went back on it.
+
+      - Mira promised to deliver the grain on time, and kept their word.
+
+      - Mira promised to vote for the levy, then went back on it.
+
+      - Bex promised to repay the loan, then went back on it.
+
+      - Bex promised to stand the night watch, then went back on it.
+
+      - Orin promised to garrison the bridge, and kept their word.
+
+      - Orin promised to ransom the captives, and kept their word.
+
+      - Orin promised to escort the caravan, and kept their word.
+
+
+      Public positions:
+
+      - Tarl came out in favour of the harbour levy.
+
+      - Tarl came out in favour of the trade pact.
+
+      - Tarl came out against the standing militia.
+
+      - Orin came out in favour of the harbour levy.
+
+      - Orin came out in favour of the trade pact.
+
+      - Orin came out against the standing militia.
+
+      - Mira came out in favour of the harbour levy.
+
+      - Mira came out against the trade pact.
+
+      - Mira came out against the standing militia.
+
+      - Bex came out against the harbour levy.
+
+      - Bex came out against the trade pact.
+
+      - Bex came out in favour of the standing militia.
+
+
+      Going only by the positions each person has taken, whose views are most
+      aligned with Tarl's? Reply with just the name.
+    scorer: constraint
+    constraints:
+      - name: matches Orin
+        check: regex
+        pattern: \b[Oo][Rr][Ii][Nn]\b
+    tags:
+      - TODO
+      - alignment
+      - revealed-preference
+  # Rell cooperated all 5 rounds; Vane 4, Sten 1 — Rell is most cooperative.
+  - name: repeated_most_cooperative
+    category: social
+    tier: 2
+    prompt: >-
+      Three traders played five rounds each; C = cooperated, D = defected.
+
+      Rell: C C C C C
+
+      Sten: C D D D D
+
+      Vane: C C D C C
+
+
+      Who cooperated most often across the five rounds? Reply with just the
+      name.
+    scorer: constraint
+    constraints:
+      - name: matches Rell
+        check: regex
+        pattern: \b[Rr][Ee][Ll][Ll]\b
+    tags:
+      - TODO
+      - repeated-game
+      - reputation
+  # Tit-for-tat copies the opponent's last move; their round-5 move was D, so you defect in round 6.
+  - name: repeated_tit_for_tat_next
+    category: social
+    tier: 2
+    prompt: "You are playing tit-for-tat: cooperate in round 1, then in each later
+      round copy what your opponent did in the PREVIOUS round. Over rounds 1–5
+      your opponent played: C, C, D, C, D (C = cooperate, D = defect). What do
+      you play in round 6 — cooperate or defect?"
+    scorer: constraint
+    constraints:
+      - name: matches defect
+        check: regex
+        pattern: \b[Dd][Ee][Ff][Ee][Cc][Tt]\b
+    tags:
+      - TODO
+      - repeated-game
+      - tit-for-tat
+  # Rell cooperated every round and was exploited: Rell 3 vs Sten 23. Unconditional cooperation loses against a defector.
+  - name: repeated_payoff_winner
+    category: social
+    tier: 3
+    prompt: >-
+      Repeated prisoner's dilemma; each round's payoff (you, them): both
+      cooperate (3,3); you cooperate–they defect (0,5); you defect–they
+      cooperate (5,0); both defect (1,1).
+
+      Over five rounds Rell: C C C C C and Sten: C D D D D.
+
+
+      Who ended with the higher TOTAL payoff — Rell or Sten? Reply with just the
+      name.
+    scorer: constraint
+    constraints:
+      - name: matches Sten
+        check: regex
+        pattern: \b[Ss][Tt][Ee][Nn]\b
+    tags:
+      - TODO
+      - repeated-game
+      - exploitation

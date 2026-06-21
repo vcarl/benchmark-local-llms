@@ -1,0 +1,202 @@
+id: economics
+version: 1
+passThreshold: 0.8
+items:
+  # Confess beats Stay silent in both columns (3>2 if they stay silent, 1>0 if they confess), so it strictly dominates whatever the other does.
+  - name: econ_dominant_strategy
+    category: economics
+    tier: 2
+    prompt: >-
+      Two suspects are interrogated separately. Payoffs are years of freedom
+      gained (higher is better):
+
+      (payoffs shown as You, Them)
+
+      - If You plays Stay silent — Stay silent: (2, 2); Confess: (0, 3)
+
+      - If You plays Confess — Stay silent: (3, 0); Confess: (1, 1)
+
+
+      What is your strictly dominant strategy — the choice that is better no
+      matter what Them does? Reply with just that choice.
+    scorer: constraint
+    constraints:
+      - name: matches Confess
+        check: regex
+        pattern: \b[Cc][Oo][Nn][Ff][Ee][Ss][Ss]\b
+    tags:
+      - TODO
+      - game-theory
+      - dominant-strategy
+  # Both Confess: given the other confesses, 1>0 makes confessing each player's best reply, so neither can profitably deviate. Mutual silence pays more jointly but is unstable.
+  - name: econ_nash_equilibrium
+    category: economics
+    tier: 3
+    prompt: >-
+      Two suspects are interrogated separately. Payoffs are years of freedom
+      gained (higher is better):
+
+      (payoffs shown as You, Them)
+
+      - If You plays Stay silent — Stay silent: (2, 2); Confess: (0, 3)
+
+      - If You plays Confess — Stay silent: (3, 0); Confess: (1, 1)
+
+
+      In the game's only Nash equilibrium, what does each suspect do? Reply with
+      just that one choice.
+    scorer: constraint
+    constraints:
+      - name: matches Confess
+        check: regex
+        pattern: \b[Cc][Oo][Nn][Ff][Ee][Ss][Ss]\b
+    tags:
+      - TODO
+      - game-theory
+      - nash-equilibrium
+  # Opportunity cost of one barrel of wine: Borland 1 cloth (6/6) vs Atland 2 cloth (20/10). Lower cost ⇒ Borland — even though Atland is absolutely more productive.
+  - name: econ_comparative_advantage
+    category: economics
+    tier: 3
+    prompt: In one day Atland can produce 10 barrels of wine OR 20 bolts of cloth.
+      Borland can produce 6 barrels of wine OR 6 bolts of cloth. Which country
+      holds the comparative advantage in wine (gives up less cloth per barrel)?
+      Reply with just the country name.
+    scorer: constraint
+    constraints:
+      - name: matches Borland
+        check: regex
+        pattern: \b[Bb][Oo][Rr][Ll][Aa][Nn][Dd]\b
+    tags:
+      - TODO
+      - economics
+      - comparative-advantage
+  # Truthful bidding is weakly dominant in a second-price auction — bid your value, 80. Shading down only risks losing a profitable win; bidding up only risks overpaying.
+  - name: econ_vickrey_bid
+    category: economics
+    tier: 2
+    prompt: In a sealed-bid, second-price (Vickrey) auction the winner pays the
+      second-highest bid. Your private value for the item is $80. What single
+      bid is your weakly dominant strategy, in dollars? Reply with only that
+      number and no other figures.
+    scorer: exact_match
+    expected: "80"
+    extract: (\d+)
+    tags:
+      - TODO
+      - economics
+      - auctions
+  # A binding ceiling (below equilibrium) raises quantity demanded and cuts quantity supplied, so demand outstrips supply ⇒ persistent shortage.
+  - name: econ_price_ceiling
+    category: economics
+    tier: 1
+    prompt: A government sets a price ceiling BELOW the market equilibrium price for
+      bread. In a competitive market, does this create a persistent shortage or
+      a persistent surplus? Answer in one word.
+    scorer: constraint
+    constraints:
+      - name: matches shortage
+        check: regex
+        pattern: \b[Ss][Hh][Oo][Rr][Tt][Aa][Gg][Ee]\b
+    tags:
+      - TODO
+      - economics
+      - price-controls
+  # %ΔQ = −10/200 = −5%; %ΔP = +1/4 = +25%; elasticity = |−5% / 25%| = 0.2.
+  - name: econ_elasticity_value
+    category: economics
+    tier: 2
+    prompt: When the price of coffee rises from $4 to $5, the quantity demanded
+      falls from 200 to 190 cups/day. Using the simple percentage-change method
+      (changes relative to the initial values), what is the price elasticity of
+      demand, as a positive decimal? Reply with just the number (e.g. 0.5).
+    scorer: constraint
+    constraints:
+      - name: equals 0.2
+        check: regex
+        pattern: (?<![\d.])0?\.20*(?!\d)
+    tags:
+      - TODO
+      - economics
+      - elasticity
+  # Elasticity is 0.2 (< 1): quantity changes less than proportionally to price, so demand is inelastic.
+  - name: econ_elasticity_classify
+    category: economics
+    tier: 1
+    prompt: When the price of coffee rises from $4 to $5, the quantity demanded
+      falls from 200 to 190 cups/day. Over this range, is demand elastic or
+      inelastic? Answer in one word.
+    scorer: constraint
+    constraints:
+      - name: matches inelastic
+        check: regex
+        pattern: \b[Ii][Nn][Ee][Ll][Aa][Ss][Tt][Ii][Cc]\b
+    tags:
+      - TODO
+      - economics
+      - elasticity
+  # Produce each unit whose marginal cost ≤ $10: units 1–4 ($3,5,7,9) qualify; unit 5 ($11) exceeds MR. Optimal quantity 4.
+  - name: econ_marginal_quantity
+    category: economics
+    tier: 2
+    prompt: "A firm sells every unit for $10 (constant marginal revenue). The
+      marginal cost of each successive unit is: unit 1 $3, unit 2 $5, unit 3 $7,
+      unit 4 $9, unit 5 $11, unit 6 $13. How many units should it produce to
+      maximise profit? Reply with only that number and no other figures."
+    scorer: exact_match
+    expected: "4"
+    extract: (\d+)
+    tags:
+      - TODO
+      - economics
+      - marginal-analysis
+  # Sunk costs are irrelevant. Forward-looking: $300 revenue − $200 to finish = +$100, so finish. The $500 already spent does not enter the decision.
+  - name: econ_sunk_cost
+    category: economics
+    tier: 1
+    prompt: You have already spent $500 developing a product (non-refundable).
+      Finishing it will cost another $200, and the finished product will then
+      sell for $300. Should you finish it? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches yes
+        check: regex
+        pattern: \b[Yy][Ee][Ss]\b
+    tags:
+      - TODO
+      - economics
+      - sunk-cost
+  # Your private return is $0.30 per $1 contributed (< $1), so contributing is individually irrational — the free-rider problem — even though everyone contributing is collectively efficient.
+  - name: econ_public_good_freeride
+    category: economics
+    tier: 2
+    prompt: Ten villagers can fund a shared bridge. Every $1 anyone contributes
+      creates $3 of total value, split equally among all ten — so you personally
+      receive $0.30 back for every $1 you contribute. Acting purely in your own
+      self-interest, do you contribute? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches no
+        check: regex
+        pattern: \b[Nn][Oo]\b
+    tags:
+      - TODO
+      - economics
+      - public-goods
+  # Each herder internalises the gain but externalises the cost of depletion, so collectively they over-exploit — the tragedy of the commons.
+  - name: econ_tragedy_commons
+    category: economics
+    tier: 1
+    prompt: Many herders graze animals on a shared, unregulated pasture. Each adds
+      more animals because they capture the full gain from each animal but share
+      the cost of depletion with everyone. Left unmanaged, does the pasture tend
+      toward overgrazing or toward underuse? Answer in one word.
+    scorer: constraint
+    constraints:
+      - name: matches overgrazing
+        check: regex
+        pattern: \b[Oo][Vv][Ee][Rr][Gg][Rr][Aa][Zz][Ii][Nn][Gg]\b
+    tags:
+      - TODO
+      - economics
+      - externalities
