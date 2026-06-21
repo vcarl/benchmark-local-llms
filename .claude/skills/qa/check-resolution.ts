@@ -7,31 +7,29 @@
  * three hashes are identical across runs (deterministic stableStringify).
  *
  * Run: node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts
- *   argv: [configsFile] [challenge] [promptsDir]  (defaults to repo-root paths)
+ *   argv: [configsFile] [challenge] [systemPromptsFile]  (defaults to repo-root paths)
  */
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { loadChallenge } from "../../../src/config/challenges.js";
 import { loadConfigurations } from "../../../src/config/configurations.js";
-import { loadPromptCorpus } from "../../../src/config/prompt-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../../src/config/system-prompts.js";
-import { systemPromptsPath } from "../../../src/cli/paths.js";
+import { DEFAULT_SYSTEM_PROMPTS_PATH } from "../../../src/cli/paths.js";
 
 const configsFile = process.argv[2] ?? "configs.yaml";
 const challengePath = process.argv[3] ?? "challenges/smoke.yaml";
-const promptsDir = process.argv[4] ?? "prompts";
+const systemPromptsFile = process.argv[4] ?? DEFAULT_SYSTEM_PROMPTS_PATH;
 const configId = "smoke-config";
 
 const HEX12 = /^[0-9a-f]{12}$/;
 
 const resolveOnce = Effect.gen(function* () {
-  const systemPrompts = yield* loadSystemPrompts(systemPromptsPath(promptsDir));
+  const systemPrompts = yield* loadSystemPrompts(systemPromptsFile);
   const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
-  const corpus = yield* loadPromptCorpus(promptsDir).pipe(Effect.provide(registryLayer));
   const configs = yield* loadConfigurations(configsFile).pipe(Effect.provide(registryLayer));
   const cfg = configs.find((c) => c.id === configId);
   if (cfg === undefined) return yield* Effect.dieMessage(`Unknown config id '${configId}'`);
-  const challenge = yield* loadChallenge(challengePath, corpus);
+  const challenge = yield* loadChallenge(challengePath);
   const item = challenge.items[0];
   if (item === undefined) return yield* Effect.dieMessage("challenge has no items");
   return { configHash: cfg.configHash, challengeHash: challenge.challengeHash, itemHash: item.itemHash };
