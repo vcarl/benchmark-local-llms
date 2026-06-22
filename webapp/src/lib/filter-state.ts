@@ -5,7 +5,7 @@ export type SearchState = {
   runtime?: string;
   quant?: string;
   temperature?: string;
-  challenge?: string;       // `${challenge_id}@${challenge_version}` keys
+  challenge?: string;       // base challenge_id keys (version-agnostic)
   config?: string;          // expanded leaderboard row (config_hash)
   attempt?: string;         // expanded challenge line (attempt_id)
   sortPrimary?: string;

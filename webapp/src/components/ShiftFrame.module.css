@@ -46,7 +46,11 @@
   }
 }
 
-.regionScatter { grid-area: scatter; overflow-y: auto; min-width: 0; }
+/* Scatter lane fills its grid row and does NOT scroll itself: the plot must be
+   free to grow/shrink to the lane height while the inner bottom pane carries its
+   own overflow guard. */
+.regionScatter { grid-area: scatter; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.regionScatter > * { flex: 1 1 auto; min-height: 0; }
 .regionRanking { grid-area: ranking; overflow-y: auto; min-width: 0; z-index: var(--z-raised); }
 .regionDetails { grid-area: details; overflow-y: auto; min-width: 0; }
 
@@ -84,6 +88,9 @@
       "ranking";
     --shift-x: 0px;
   }
+  /* Stacked lanes have no fixed row height here, so the height:100% plot would
+     collapse — pin the scatter lane to a usable viewport-relative height. */
+  :where(.regionScatter) { height: 70vh; min-height: 360px; }
   :where(.regionRanking) { z-index: auto; }
   :where(.regionDetails) {
     position: fixed;

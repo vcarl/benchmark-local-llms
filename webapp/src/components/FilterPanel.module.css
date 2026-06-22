@@ -1,42 +1,47 @@
-/* Filter panel: categorical chips below the scatter in the left lane. */
+/* Filter controls: flat, always-visible multi-select pill rows. Lives in the
+   scatter lane's bottom pane (which owns the surrounding padding/border). */
 .panel {
-  padding: var(--space-6) var(--space-8);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--gray-950);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 2fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+.pillRow {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  align-items: flex-start;
+  gap: var(--space-2);
 }
-.chipRow { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
-.chip { position: relative; }
-.chip > button {
-  background: var(--surface-4);
-  color: var(--text-primary);
+.pillLabel {
+  font-size: var(--fz-11);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: var(--space-1);
+}
+.pillGroup { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+/* Challenge variant: pills fill 2 equal columns within the double-width grid
+   cell, still left-aligned. */
+.pillGroupTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  justify-items: start;
+}
+.pill {
+  background: transparent;
+  color: var(--text-muted);
   border: 1px solid var(--border-default);
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--r-4);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--r-10);
   cursor: pointer;
   font-size: var(--fz-12);
+  line-height: 1.4;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-.chipPopover {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: var(--surface-3);
-  border: 1px solid var(--border-default);
-  padding: var(--space-4);
-  border-radius: var(--r-4);
-  z-index: var(--z-overlay);
-  min-width: 180px;
-  max-height: 280px;
-  overflow-y: auto;
-  margin-top: var(--space-2);
-}
-.chipPopover label {
-  display: block;
-  font-size: var(--fz-12);
-  padding: var(--space-1) 0;
+.pill:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.pill[data-active="true"] {
+  background: var(--accent-700);
+  border-color: var(--accent-300);
   color: var(--text-primary);
-  cursor: pointer;
 }
-.chipPopover input { margin-right: var(--space-3); }

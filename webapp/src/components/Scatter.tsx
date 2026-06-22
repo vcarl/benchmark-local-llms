@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import styles from "./Scatter.module.css";
 import type { ScatterPoint } from "../lib/pipeline";
 import {
@@ -13,20 +13,16 @@ import {
 } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
 import { formatWallTime } from "../lib/format";
-import { ScatterLegend } from "./ScatterLegend";
 
 interface Props {
   points: ScatterPoint[];
 }
 
-const W = 860;
-const H = 460;
 const M = { top: 20, right: 24, bottom: 50, left: 60 };
-const IW = W - M.left - M.right;
-const IH = H - M.top - M.bottom;
 
-// y is a passRate in 0..1; render as 0..100%.
-const yScale = (v: number): number => M.top + (1 - v) * IH;
+// Minimum inner plotting area so scales never collapse to zero / negative.
+const MIN_W = M.left + M.right + 80;
+const MIN_H = M.top + M.bottom + 80;
 
 // Radius encodes peak memory (area ≈ footprint), matching the original 1bc370e formula.
 const rScale = (mem: number): number => 6 + Math.sqrt(Math.max(mem, 0)) * 2.4;
@@ -54,9 +50,9 @@ const computeXDomain = (points: ScatterPoint[]): XDomain => {
   return { min, max, ticks };
 };
 
-const xScaleFor = (domain: XDomain) => (v: number): number => {
+const xScaleFor = (domain: XDomain, iw: number) => (v: number): number => {
   const clamped = Math.max(Math.min(v, domain.max), domain.min);
-  return M.left + ((Math.log10(clamped) - Math.log10(domain.min)) / (Math.log10(domain.max) - Math.log10(domain.min))) * IW;
+  return M.left + ((Math.log10(clamped) - Math.log10(domain.min)) / (Math.log10(domain.max) - Math.log10(domain.min))) * iw;
 };
 
 const formatTick = (v: number): string => {
@@ -82,23 +78,34 @@ const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: num
 
 export function Scatter({ points }: Props) {
   const xDomain = useMemo(() => computeXDomain(points), [points]);
-  const xScale = useMemo(() => xScaleFor(xDomain), [xDomain]);
   const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
   const hovered = useHoveredModel();
   const [tip, setTip] = useState<{ dot: ScatterPoint; x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const families = useMemo(() => {
-    const seen = new Set<string>();
-    const out: Array<{ name: string; color: string }> = [];
-    for (const d of points) {
-      if (!seen.has(d.family)) {
-        seen.add(d.family);
-        out.push({ name: d.family, color: familyColor(d.family) });
-      }
-    }
-    return out;
-  }, [points]);
+  // Measure the wrapper's live pixel size and drive the viewBox from it so the
+  // plot fills its container instead of letterboxing at a fixed aspect ratio.
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      setSize({ w: Math.max(width, MIN_W), h: Math.max(height, MIN_H) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const W = size?.w ?? 0;
+  const H = size?.h ?? 0;
+  const IW = W - M.left - M.right;
+  const IH = H - M.top - M.bottom;
+
+  const yScale = useMemo(() => (v: number): number => M.top + (1 - v) * IH, [IH]);
+  const xScale = useMemo(() => xScaleFor(xDomain, IW), [xDomain, IW]);
 
   // Per-model trajectory polylines — connect dots of the same artifact (base model)
   // sorted by x (tokens) ascending. executedAt is not on ScatterPoint; use x as proxy.
@@ -126,84 +133,86 @@ export function Scatter({ points }: Props) {
 
   return (
     <div className={styles.scatterWrap} ref={wrapRef}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className={styles.scatterSvg}>
-        {yTicks.map((v) => (
-          <g key={`y${v}`}>
-            <line className={styles.scatterGrid} x1={M.left} x2={M.left + IW} y1={yScale(v)} y2={yScale(v)} />
-            <text className={styles.scatterTick} x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{(v * 100).toFixed(0)}%</text>
-          </g>
-        ))}
-        {xDomain.ticks.map((v) => (
-          <g key={`x${v}`}>
-            <line className={styles.scatterGrid} x1={xScale(v)} x2={xScale(v)} y1={M.top} y2={M.top + IH} />
-            <text className={styles.scatterTick} x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">{formatTick(v)}</text>
-          </g>
-        ))}
-        <line className={styles.scatterAxis} x1={M.left} x2={M.left} y1={M.top} y2={M.top + IH} />
-        <line className={styles.scatterAxis} x1={M.left} x2={M.left + IW} y1={M.top + IH} y2={M.top + IH} />
-        <text className={styles.scatterAxisTitle} x={M.left + IW / 2} y={H - 10} textAnchor="middle">
-          Total gen tokens (log)
-        </text>
-        <text
-          className={styles.scatterAxisTitle}
-          x={16}
-          y={M.top + IH / 2}
-          textAnchor="middle"
-          transform={`rotate(-90 16 ${M.top + IH / 2})`}
-        >
-          Pass rate
-        </text>
+      {size && (
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className={styles.scatterSvg}>
+          {yTicks.map((v) => (
+            <g key={`y${v}`}>
+              <line className={styles.scatterGrid} x1={M.left} x2={M.left + IW} y1={yScale(v)} y2={yScale(v)} />
+              <text className={styles.scatterTick} x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{(v * 100).toFixed(0)}%</text>
+            </g>
+          ))}
+          {xDomain.ticks.map((v) => (
+            <g key={`x${v}`}>
+              <line className={styles.scatterGrid} x1={xScale(v)} x2={xScale(v)} y1={M.top} y2={M.top + IH} />
+              <text className={styles.scatterTick} x={xScale(v)} y={M.top + IH + 18} textAnchor="middle">{formatTick(v)}</text>
+            </g>
+          ))}
+          <line className={styles.scatterAxis} x1={M.left} x2={M.left} y1={M.top} y2={M.top + IH} />
+          <line className={styles.scatterAxis} x1={M.left} x2={M.left + IW} y1={M.top + IH} y2={M.top + IH} />
+          <text className={styles.scatterAxisTitle} x={M.left + IW / 2} y={H - 10} textAnchor="middle">
+            Total gen tokens (log)
+          </text>
+          <text
+            className={styles.scatterAxisTitle}
+            x={16}
+            y={M.top + IH / 2}
+            textAnchor="middle"
+            transform={`rotate(-90 16 ${M.top + IH / 2})`}
+          >
+            Pass rate
+          </text>
 
-        {/* Trajectory polylines — faint colored lines connecting same-model dots */}
-        {trajectories.map((t) => {
-          if (t.pts.length < 2) return null;
-          const ptStr = t.pts.map((d) => `${xScale(d.x)},${yScale(d.y)}`).join(" ");
-          const dim = hovered !== null && hovered !== t.model;
-          return (
-            <polyline
-              key={t.model}
-              className={styles.scatterTrajectory}
-              points={ptStr}
-              stroke={familyColor(t.family)}
-              style={{ opacity: dim ? 0.2 : 0.55 }}
-            />
-          );
-        })}
+          {/* Trajectory polylines — faint colored lines connecting same-model dots */}
+          {trajectories.map((t) => {
+            if (t.pts.length < 2) return null;
+            const ptStr = t.pts.map((d) => `${xScale(d.x)},${yScale(d.y)}`).join(" ");
+            const dim = hovered !== null && hovered !== t.model;
+            return (
+              <polyline
+                key={t.model}
+                className={styles.scatterTrajectory}
+                points={ptStr}
+                stroke={familyColor(t.family)}
+                style={{ opacity: dim ? 0.2 : 0.55 }}
+              />
+            );
+          })}
 
-        {/* Star-shaped dots, fill-opacity encodes generation tps */}
-        {points.map((d) => {
-          const outerR = rScale(d.peak_memory_gb);
-          const innerR = outerR * 0.75;
-          const n = starPointsForWallTime(d.wall_time_sec);
-          const dim = hovered !== null && hovered !== d.artifact;
-          const active = hovered === d.artifact;
-          const baseOpacity = opacityForTps(d.generation_tps, tpsDomain);
-          const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
-          const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
-          return (
-            <path
-              key={d.config_hash}
-              className={styles.scatterDot}
-              d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
-              fill={familyColor(d.family)}
-              fillOpacity={fillOpacity}
-              onMouseEnter={(ev) => {
-                setHoveredModel(d.artifact);
-                const rect = wrapRef.current?.getBoundingClientRect();
-                if (rect) setTip({ dot: d, x: ev.clientX - rect.left, y: ev.clientY - rect.top });
-              }}
-              onMouseMove={(ev) => {
-                const rect = wrapRef.current?.getBoundingClientRect();
-                if (rect) setTip((prev) => prev ? { ...prev, x: ev.clientX - rect.left, y: ev.clientY - rect.top } : null);
-              }}
-              onMouseLeave={() => {
-                clearHoveredModel();
-                setTip(null);
-              }}
-            />
-          );
-        })}
-      </svg>
+          {/* Star-shaped dots, fill-opacity encodes generation tps */}
+          {points.map((d) => {
+            const outerR = rScale(d.peak_memory_gb);
+            const innerR = outerR * 0.75;
+            const n = starPointsForWallTime(d.wall_time_sec);
+            const dim = hovered !== null && hovered !== d.artifact;
+            const active = hovered === d.artifact;
+            const baseOpacity = opacityForTps(d.generation_tps, tpsDomain);
+            const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
+            const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
+            return (
+              <path
+                key={d.config_hash}
+                className={styles.scatterDot}
+                d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
+                fill={familyColor(d.family)}
+                fillOpacity={fillOpacity}
+                onMouseEnter={(ev) => {
+                  setHoveredModel(d.artifact);
+                  const rect = wrapRef.current?.getBoundingClientRect();
+                  if (rect) setTip({ dot: d, x: ev.clientX - rect.left, y: ev.clientY - rect.top });
+                }}
+                onMouseMove={(ev) => {
+                  const rect = wrapRef.current?.getBoundingClientRect();
+                  if (rect) setTip((prev) => prev ? { ...prev, x: ev.clientX - rect.left, y: ev.clientY - rect.top } : null);
+                }}
+                onMouseLeave={() => {
+                  clearHoveredModel();
+                  setTip(null);
+                }}
+              />
+            );
+          })}
+        </svg>
+      )}
 
       {tip && (
         <div className={styles.scatterTip} style={{ left: tip.x + 12, top: tip.y + 12 }}>
@@ -216,8 +225,6 @@ export function Scatter({ points }: Props) {
           </div>
         </div>
       )}
-
-      <ScatterLegend families={families} tpsDomain={tpsDomain} />
     </div>
   );
 }

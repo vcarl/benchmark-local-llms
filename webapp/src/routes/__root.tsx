@@ -3,9 +3,11 @@ import { useMemo, useState } from "react";
 import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, applyFilters, computeScatterPoints, type RunRow, type RunSortKey } from "../lib/pipeline";
+import { aggregateRuns, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, type RunRow, type RunSortKey } from "../lib/pipeline";
 import { Scatter } from "../components/Scatter";
+import { ScatterLegend } from "../components/ScatterLegend";
 import { FilterPanel } from "../components/FilterPanel";
+import { familyColor } from "../lib/colors";
 import { parseFilters, type SearchState } from "../lib/filter-state";
 import { DrilldownPanel } from "../components/DrilldownPanel";
 import styles from "./index.module.css";
@@ -38,12 +40,25 @@ function RootComponent() {
   const groups = useMemo(() => aggregateRuns(filtered, primary, secondary), [filtered, primary, secondary]);
   const points = useMemo(() => computeScatterPoints(filtered), [filtered]);
 
+  const legendFamilies = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ name: string; color: string }> = [];
+    for (const d of points) {
+      if (!seen.has(d.family)) {
+        seen.add(d.family);
+        out.push({ name: d.family, color: familyColor(d.family) });
+      }
+    }
+    return out;
+  }, [points]);
+  const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
+
   const allValues = useMemo(() => ({
     families: [...new Set(DATA.map((r) => modelFamily(r.artifact)))].sort(),
     runtimes: uniqueSorted(DATA, "runtime").map(String),
     quants: [...new Set(DATA.map((r) => r.quant ?? "—"))].sort(),
     temperatures: [...new Set(DATA.map((r) => String(r.temperature)))].sort(),
-    challenges: [...new Set(DATA.map((r) => `${r.challenge_id}@${r.challenge_version}`))].sort(),
+    challenges: [...new Set(DATA.map((r) => baseChallengeId(`${r.challenge_id}@${r.challenge_version}`)))].sort(),
   }), []);
 
   const shifted = search.config !== undefined;
@@ -69,10 +84,15 @@ function RootComponent() {
   );
 
   const leftLane = (
-    <>
-      <Scatter points={points} />
-      <FilterPanel allValues={allValues} />
-    </>
+    <div className={styles.scatterLane}>
+      <div className={styles.scatterPlotRegion}>
+        <Scatter points={points} />
+      </div>
+      <div className={styles.scatterBottomPane}>
+        <ScatterLegend families={legendFamilies} tpsDomain={tpsDomain} />
+        <FilterPanel allValues={allValues} />
+      </div>
+    </div>
   );
 
   const details =

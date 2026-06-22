@@ -9,3 +9,25 @@
 .appHeader { padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--border-subtle); }
 .appHeader h1 { margin: 0; font-size: var(--fz-16); }
 .appSubtitle { font-size: var(--fz-11); color: var(--text-muted); margin-top: var(--space-1); }
+
+/* Scatter lane: plot fills the top (1fr, min-height:0 so it can shrink), with a
+   single bottom pane holding the filter controls + legend pinned below it. The
+   bottom pane is height-capped and scrolls so a tall Challenge pill row never
+   eats the whole lane. */
+.scatterLane {
+  display: grid;
+  grid-template-rows: 2fr 1fr;
+  height: 100%;
+  min-height: 0;
+}
+.scatterPlotRegion { min-height: 0; min-width: 0; }
+.scatterBottomPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--gray-955);
+  min-height: 0;
+  overflow-y: auto;
+}

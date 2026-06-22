@@ -5,6 +5,15 @@ import type { Filters } from "./filter-state";
 
 // ─── Filtering ───────────────────────────────────────────────────────────────
 
+// Strip the `@version` suffix from a challenge key so filtering operates on the
+// base challenge id only (one pill per challenge, matching any version). Used at
+// both the option-generation site (__root) and the match site below so they
+// can't drift.
+export const baseChallengeId = (key: string): string => {
+  const at = key.indexOf("@");
+  return at === -1 ? key : key.slice(0, at);
+};
+
 const passesDim = (selected: string[] | undefined, v: string): boolean =>
   selected === undefined || selected.length === 0 || selected.includes(v);
 
@@ -14,7 +23,7 @@ export const applyFilters = (records: BenchmarkResult[], f: Filters): BenchmarkR
     if (!passesDim(f.runtime, r.runtime)) return false;
     if (!passesDim(f.quant, r.quant ?? "—")) return false;
     if (!passesDim(f.temperature, String(r.temperature))) return false;
-    if (!passesDim(f.challenge, `${r.challenge_id}@${r.challenge_version}`)) return false;
+    if (!passesDim(f.challenge, baseChallengeId(`${r.challenge_id}@${r.challenge_version}`))) return false;
     return true;
   });
 
