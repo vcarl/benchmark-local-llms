@@ -16,28 +16,29 @@
   container-name: shiftFrame;
 }
 
-/* The canvas is wider than the frame so the shift can sweep most — but not all —
-   of the visible content out of view, leaving the right portion of the ranking
-   row in sight while details slides in.
-     scatter  : 50/170 of canvas  → 50% of frame
-     ranking  : 50/170 of canvas  → 50% of frame  (right 60% stays visible after shift)
-     details  : 70/170 of canvas  → 70% of frame
-   Shift is -70/170 of canvas (= -70% of frame), so the visible window moves
-   from canvas[0..100%] to canvas[70%..170%] of the frame's width. */
+/* The canvas is wider than the frame so the shift can sweep one full lane of
+   content out of view, swapping the scatter lane for the details lane while the
+   ranking lane stays fully on screen.
+     scatter  : 50/150 of canvas  → 50% of frame
+     ranking  : 50/150 of canvas  → 50% of frame  (fully visible after shift)
+     details  : 50/150 of canvas  → 50% of frame
+   Shift is -50/150 of canvas (= -50% of frame), so the visible window moves
+   from canvas[0..100%] to canvas[50%..150%] of the frame's width: ranking lane
+   becomes flush to the left edge and details fills the right half. */
 .shiftCanvas {
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-columns: 5fr 5fr 7fr;
+  grid-template-columns: 5fr 5fr 5fr;
   grid-template-areas: "scatter ranking details";
-  width: calc(100% * 17 / 10);
+  width: calc(100% * 15 / 10);
   --shift-x: 0px;
   transform: translateX(var(--shift-x));
-  transition: transform 0.4s ease-out;
+  transition: transform 0.267s ease-out;
   will-change: transform;
 
   &[data-shifted="true"] {
-    --shift-x: calc(-7 / 17 * 100%);
+    --shift-x: calc(-5 / 15 * 100%);
 
     & .backOverlay {
       opacity: 1;
@@ -58,7 +59,7 @@
   position: absolute;
   top: var(--space-6);
   /* place above the details region — same coordinate space as the canvas */
-  left: calc(10 / 17 * 100% + var(--space-6));
+  left: calc(10 / 15 * 100% + var(--space-6));
   z-index: var(--z-overlay);
   background: var(--surface-3);
   color: var(--text-primary);
@@ -101,7 +102,7 @@
     z-index: var(--z-modal);
     overflow-y: auto;
     transform: translateX(100%);
-    transition: transform 0.3s ease-out;
+    transition: transform 0.2s ease-out;
   }
   :where(.shiftCanvas[data-shifted="true"]) .regionDetails { transform: translateX(0); }
   :where(.backOverlay) {
