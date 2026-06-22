@@ -242,11 +242,20 @@ export const challengeBreakdown = (
   records: BenchmarkResult[],
   configHash: string,
 ): ChallengeBreakdownRow[] => {
-  const rows: ChallengeBreakdownRow[] = [];
+  // One row per (challenge, version) the config ran. A config+challenge can have
+  // multiple attempts (re-runs); collapse them keeping the most recent attempt
+  // (latest finished_at) so the pane shows each challenge exactly once.
+  const latest = new Map<string, BenchmarkResult>();
   for (const r of records) {
     if (r.config_hash !== configHash) continue;
+    const key = `${r.challenge_id}@${r.challenge_version}`;
+    const prev = latest.get(key);
+    if (prev === undefined || r.finished_at > prev.finished_at) latest.set(key, r);
+  }
+  const rows: ChallengeBreakdownRow[] = [];
+  for (const [challengeKey, r] of latest) {
     rows.push({
-      challengeKey: `${r.challenge_id}@${r.challenge_version}`,
+      challengeKey,
       challengeId: r.challenge_id,
       challengeVersion: r.challenge_version,
       attemptId: r.attempt_id,

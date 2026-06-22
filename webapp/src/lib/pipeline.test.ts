@@ -120,6 +120,23 @@ describe("challengeBreakdown", () => {
     expect(rows[0]!.attemptId).toBe("a1");
     expect(rows[1]!.passRate).toBe(0);
   });
+
+  it("collapses re-runs of the same config+challenge to one row (latest attempt)", () => {
+    // Same config_hash ran "code@1" twice (a re-run). The pane must show one row,
+    // not accumulate a duplicate-keyed row per attempt.
+    const rows = challengeBreakdown(
+      [
+        rec({ config_hash: "c1", attempt_id: "old", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 1, finished_at: "2026-06-21T00:00:00.000Z" }),
+        rec({ config_hash: "c1", attempt_id: "new", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 3, finished_at: "2026-06-22T00:00:00.000Z" }),
+      ],
+      "c1",
+    );
+    expect(rows.map((r) => r.challengeKey)).toEqual(["code@1"]);
+    expect(rows).toHaveLength(1);
+    // keeps the most recent attempt
+    expect(rows[0]!.attemptId).toBe("new");
+    expect(rows[0]!.passRate).toBeCloseTo(0.75, 10);
+  });
 });
 
 describe("computeScatterPoints", () => {
