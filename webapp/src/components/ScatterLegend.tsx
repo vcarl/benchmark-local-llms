@@ -4,6 +4,7 @@ import {
   starPointsForWallTime,
   type TpsDomain,
 } from "../lib/pipeline";
+import { starPath } from "./ScatterGlyph";
 
 interface Props {
   families: Array<{ name: string; color: string }>;
@@ -17,18 +18,6 @@ const WALL_TIME_REFS: Array<{ seconds: number; label: string }> = [
   { seconds: 7200, label: "2h" },
   { seconds: 36000, label: "10h" },
 ];
-
-const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: number): string => {
-  let d = "";
-  for (let i = 0; i < 2 * n; i += 1) {
-    const r = i % 2 === 0 ? outerR : innerR;
-    const a = (Math.PI / n) * i - Math.PI / 2;
-    const x = cx + Math.cos(a) * r;
-    const y = cy + Math.sin(a) * r;
-    d += (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2);
-  }
-  return `${d}Z`;
-};
 
 const formatTps = (v: number): string => {
   if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;

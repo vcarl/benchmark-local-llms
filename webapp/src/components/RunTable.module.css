@@ -3,16 +3,18 @@
    nest a <button> inside the row's <button>. */
 .runRowWrap { position: relative; }
 
-/* Shared 6-column track for header + lead row + compact row.
-   Inner half-grids (.resultRowBreakdown, .resultRowAlways) consume these tracks
-   via `grid-template-columns: subgrid` so headers always align with cells.
+/* Shared 4-column track for header + lead row + compact row.
+   The score/tokens vis is no longer a grid track: it's the model's descriptor
+   GLYPH — the exact scatterplot star marker for that config, drawn at its true
+   scatter size (varies per row by peak memory) — absolutely positioned in a
+   leading-edge lane (see `--vis-width` reservation in .resultRow padding-left +
+   the absolute .resultGlyph rule below).
 
-   Track legend:
-     1. variants block (1fr, may be wide)
-     2. rank        (--col-rank)
-     3. model       (1fr)
-     4. score       (--col-score)
-     5. stats block (--col-stats) — tokens / t·s / mem / wall as two columns of
+   Track legend (consumed by .resultRowAlways via subgrid):
+     1. rank        (--col-rank)
+     2. model       (1fr — now reclaims the width freed by the old vis column)
+     3. score       (--col-score)
+     4. stats block (--col-stats) — tokens / t·s / mem / wall as two columns of
         value/unit pairs. MUST be a fixed width: an `auto` track here varies with
         the per-row stat content, which shoves the fixed Score column left/right
         and makes scores look "wibbly" down the table.
@@ -23,16 +25,25 @@
   --col-rank: 24px;
   --col-score: 78px;
   --col-stats: 184px;
+  /* Leading glyph lane: reserved width + the gutter between it and content.
+     Markers run ~16px (smallest-memory model) to ~42px (largest) in diameter;
+     the lane is sized so the common run is centered. On expanded/lead rows the
+     glyph renders at true scatter size and oversized markers bleed (centered)
+     rather than being shrunk off-scale; compact rows override --vis-width and
+     cap the glyph (see .resultRowCompact). */
+  --vis-width: 30px;
+  --vis-gutter: var(--space-5);
   display: grid;
   grid-template-columns:
-    minmax(0, 1fr)
     var(--col-rank) minmax(0, 1fr) var(--col-score) var(--col-stats);
   gap: var(--space-6);
   align-items: center;
 }
 
 .resultRow {
-  padding: var(--space-5) var(--space-6);
+  /* Extra left padding reserves the lane for the leading descriptor glyph + gutter. */
+  padding: var(--space-5) var(--space-6) var(--space-5)
+    calc(var(--space-6) + var(--vis-width) + var(--vis-gutter));
   border: none;
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
@@ -44,33 +55,22 @@
   background: transparent;
   text-align: inherit;
   width: 100%;
+  /* No overflow clipping: the descriptor glyph is drawn at true scatter size and
+     the largest-memory markers (~42px) are intentionally allowed to bleed past
+     the row box rather than being shrunk off-scale. */
 
   &:hover { background: var(--surface-hover); }
   /* Group expand/collapse anchor — lead row in a multi-run group */
   &.runRow { position: relative; }
 }
 
-/* Breakdown half: spans track 1 (the score/tokens bar) via subgrid.
-   The dashed divider lives on this element. */
-.resultRowBreakdown {
-  grid-column: 1 / 2;
-  display: grid;
-  grid-template-columns: subgrid;
-  gap: var(--space-6);
-  align-items: center;
-  padding-right: var(--space-6);
-  border-right: 1px dashed var(--border-subtle);
-  min-width: 0;
-}
-
-/* Always-visible half: spans tracks 2-5 via subgrid. */
+/* Always-visible content: spans all 4 tracks via subgrid. */
 .resultRowAlways {
-  grid-column: 2 / 6;
+  grid-column: 1 / 5;
   display: grid;
   grid-template-columns: subgrid;
   gap: var(--space-4);
   align-items: center;
-  padding-left: var(--space-6);
   min-width: 0;
 }
 
@@ -81,9 +81,23 @@
 .resultScoreCell { text-align: right; }
 .resultScore { font-size: var(--fz-15); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; color: var(--band, var(--text-primary)); }
 .resultEfficiency { font-size: var(--fz-11); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
-.resultVariantTrack { position: relative; flex: 1 1 auto; height: 12px; background: var(--surface); border: 1px solid var(--gray-850); border-radius: var(--r-2); overflow: hidden; min-width: 60px; }
-.resultVariantFill { display: block; position: absolute; top: 0; left: 0; height: 8px; border-radius: 2px 2px 0 0; }
-.resultVariantTokens { display: block; position: absolute; bottom: 0; left: 0; height: 3px; border-radius: 1px; filter: brightness(1.25) saturate(1.15); }
+/* Descriptor glyph — the model's exact scatterplot star marker, drawn at its
+   true scatter size by <ScatterGlyph>. Absolutely positioned in the leading-edge
+   lane (centered on a --vis-width-wide column), vertically centered on the row.
+   Size encodes peak memory and so VARIES per row, identical to the scatterplot.
+   Decorative (the numbers live in the cells); kept aria-hidden. */
+.resultGlyph {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-6) + var(--vis-width) / 2);
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  line-height: 0;
+}
+.resultGlyph svg { display: block; }
 /* Combined stat block: tokens / t·s / mem / wall as two side-by-side columns,
    each a 2-row grid of right-aligned value + unit. */
 .resultStats {
@@ -116,7 +130,15 @@
    `.resultRowCompact` is always applied alongside `.resultRow`, so it only
    overrides the visual/density properties that differ. */
 .resultRowCompact {
-  padding: var(--space-2) var(--space-6);
+  /* Compact rows cap the descriptor glyph to COMPACT_GLYPH_MAX_PX (20px) so it
+     fits the short row. Re-tighten the leading lane to that capped size (rather
+     than the full-size 30px lead-row lane) so it isn't wider than needed — the
+     glyph still centers in the lane. Since the glyph is now capped to the row's
+     content height, it can't bleed, so clip with overflow:hidden. */
+  --vis-width: 22px;
+  padding: var(--space-2) var(--space-6) var(--space-2)
+    calc(var(--space-6) + var(--vis-width) + var(--vis-gutter));
+  overflow: hidden;
   font-size: var(--fz-12);
   background: var(--gray-975);
   color: var(--text-secondary);
@@ -124,22 +146,16 @@
   & .resultRank          { visibility: hidden; }
   & .resultScore         { font-size: var(--fz-13); }
   & .resultStatVal       { font-size: var(--fz-11); color: var(--gray-150); }
-  & .resultVariantTrack  { height: 8px; }
-  & .resultVariantFill   { height: 5px; }
-  & .resultVariantTokens { height: 2px; }
 }
 .runRowVariant { font-family: ui-monospace, SFMono-Regular, monospace; font-size: var(--fz-11); color: var(--text-secondary); }
 
-/* Single-bar score visualization for run rows (replaces the multi-variant strip) */
-.runBar { display: flex; align-items: center; min-width: 0; }
-.runBar .resultVariantTrack { flex: 1 1 auto; min-width: 60px; }
-
-/* Group expand/collapse toggle, anchored to the lead row's bottom-left —
-   sits in the open space beneath the score bar so it can't collide with the
-   right-aligned stat stack (tokens / t·s / wall). */
+/* Group expand/collapse toggle, anchored to the lead row's bottom-right —
+   the model name now reclaims the row's left/center, so the toggle sits in the
+   open space beneath the right-aligned stat stack (tokens / t·s / wall) where it
+   can't collide with the name or the leading vertical accent bar. */
 .resultGroupToggle {
   position: absolute;
-  left: var(--space-6);
+  right: var(--space-6);
   bottom: var(--space-2);
   background: var(--surface-3);
   color: var(--text-muted);

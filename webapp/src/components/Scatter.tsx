@@ -1,11 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import styles from "./Scatter.module.css";
 import type { ScatterPoint } from "../lib/pipeline";
-import {
-  computeTpsDomain,
-  opacityForTps,
-  starPointsForWallTime,
-} from "../lib/pipeline";
+import { computeTpsDomain } from "../lib/pipeline";
 import {
   setHoveredModel,
   clearHoveredModel,
@@ -13,6 +9,7 @@ import {
 } from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
 import { formatWallTime } from "../lib/format";
+import { glyphDrawParams, starPath } from "./ScatterGlyph";
 
 interface Props {
   points: ScatterPoint[];
@@ -23,9 +20,6 @@ const M = { top: 20, right: 24, bottom: 50, left: 60 };
 // Minimum inner plotting area so scales never collapse to zero / negative.
 const MIN_W = M.left + M.right + 80;
 const MIN_H = M.top + M.bottom + 80;
-
-// Radius encodes peak memory (area ≈ footprint), matching the original 1bc370e formula.
-const rScale = (mem: number): number => 6 + Math.sqrt(Math.max(mem, 0)) * 2.4;
 
 interface XDomain { min: number; max: number; ticks: number[]; }
 
@@ -63,18 +57,6 @@ const formatTick = (v: number): string => {
 
 // y-axis ticks in 0..1 space
 const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
-
-const starPath = (cx: number, cy: number, n: number, outerR: number, innerR: number): string => {
-  let d = "";
-  for (let i = 0; i < 2 * n; i += 1) {
-    const r = i % 2 === 0 ? outerR : innerR;
-    const a = (Math.PI / n) * i - Math.PI / 2;
-    const x = cx + Math.cos(a) * r;
-    const y = cy + Math.sin(a) * r;
-    d += (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2);
-  }
-  return `${d}Z`;
-};
 
 export function Scatter({ points }: Props) {
   const xDomain = useMemo(() => computeXDomain(points), [points]);
@@ -180,12 +162,10 @@ export function Scatter({ points }: Props) {
 
           {/* Star-shaped dots, fill-opacity encodes generation tps */}
           {points.map((d) => {
-            const outerR = rScale(d.peak_memory_gb);
-            const innerR = outerR * 0.75;
-            const n = starPointsForWallTime(d.wall_time_sec);
+            const { outerR, innerR, points: n, fill, fillOpacity: baseOpacity } =
+              glyphDrawParams(d, tpsDomain);
             const dim = hovered !== null && hovered !== d.artifact;
             const active = hovered === d.artifact;
-            const baseOpacity = opacityForTps(d.generation_tps, tpsDomain);
             const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
             const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
             return (
@@ -193,7 +173,7 @@ export function Scatter({ points }: Props) {
                 key={d.config_hash}
                 className={styles.scatterDot}
                 d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
-                fill={familyColor(d.family)}
+                fill={fill}
                 fillOpacity={fillOpacity}
                 onMouseEnter={(ev) => {
                   setHoveredModel(d.artifact);

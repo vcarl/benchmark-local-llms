@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import styles from "./RunTable.module.css";
-import type { RunGroup, RunRow, RunSortKey } from "../lib/pipeline";
+import type { RunGroup, RunRow, RunSortKey, TpsDomain } from "../lib/pipeline";
 import { RunRowItem } from "./RunRowItem";
 
 interface Props {
   groups: RunGroup[];
   primary: RunSortKey;
   secondary: RunSortKey;
+  tpsDomain: TpsDomain; // shared with the scatter so row glyphs match markers
   onPrimaryChange: (k: RunSortKey) => void;
   onSecondaryChange: (k: RunSortKey) => void;
   onRowClick: (row: RunRow) => void;
@@ -19,7 +20,7 @@ const SORT_OPTIONS: { value: RunSortKey; label: string }[] = [
 ];
 
 export function RunGroupTable({
-  groups, primary, secondary, onPrimaryChange, onSecondaryChange, onRowClick,
+  groups, primary, secondary, tpsDomain, onPrimaryChange, onSecondaryChange, onRowClick,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
@@ -49,12 +50,6 @@ export function RunGroupTable({
     () => groups.reduce((s, g) => s + g.rows.length, 0),
     [groups],
   );
-
-  const maxTokens = useMemo(() => {
-    let m = 0;
-    for (const g of groups) for (const r of g.rows) if (r.tokens > m) m = r.tokens;
-    return m;
-  }, [groups]);
 
   if (groups.length === 0) {
     return <div className={styles.resultEmpty}>No results match the current filters.</div>;
@@ -97,9 +92,6 @@ export function RunGroupTable({
         </div>
       </div>
       <div className={styles.resultHeader}>
-        <div className={styles.resultRowBreakdown}>
-          <div>Score / tokens</div>
-        </div>
         <div className={styles.resultRowAlways}>
           <div className={styles.resultRank}>#</div>
           <div>Model / variant</div>
@@ -121,7 +113,7 @@ export function RunGroupTable({
               expanded={open}
               onToggle={g.rows.length > 1 ? () => toggleGroup(g.artifact) : undefined}
               onClick={() => onRowClick(lead)}
-              maxTokens={maxTokens}
+              tpsDomain={tpsDomain}
             />
             {open && rest.map((r) => (
               <RunRowItem
@@ -131,7 +123,7 @@ export function RunGroupTable({
                 groupSize={g.rows.length}
                 expanded={open}
                 onClick={() => onRowClick(r)}
-                maxTokens={maxTokens}
+                tpsDomain={tpsDomain}
               />
             ))}
           </div>

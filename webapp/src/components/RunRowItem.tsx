@@ -1,9 +1,9 @@
 import styles from "./RunTable.module.css";
-import type { RunRow } from "../lib/pipeline";
+import type { RunRow, TpsDomain } from "../lib/pipeline";
 import { scoreBand, formatEfficiency } from "../lib/constants";
 import { formatWallTime } from "../lib/format";
 import { setHoveredModel, clearHoveredModel } from "../lib/hover-store";
-import { familyColor } from "../lib/colors";
+import { ScatterGlyph } from "./ScatterGlyph";
 
 interface Props {
   row: RunRow;
@@ -13,8 +13,14 @@ interface Props {
   expanded: boolean;
   onToggle?: () => void; // present on lead row when groupSize > 1
   onClick: () => void;
-  maxTokens: number; // max tokens across all rendered rows, for token-bar scale
+  tpsDomain: TpsDomain; // shared TPS domain (same one the scatter uses) for glyph opacity
 }
+
+// Max rendered diameter (px) for the descriptor glyph on COMPACT rows. Compact
+// rows are ~24px tall; this caps oversized markers to the row's content height
+// (with a couple px of inset) so they don't bleed into adjacent rows. Markers
+// already smaller than this keep their true scatter size.
+const COMPACT_GLYPH_MAX_PX = 20;
 
 const abbrevRuntime = (runtime: string): string =>
   runtime === "llamacpp" ? "lcpp" : runtime;
@@ -22,11 +28,12 @@ const abbrevRuntime = (runtime: string): string =>
 const variantTag = (r: RunRow): string =>
   `${abbrevRuntime(r.runtime)} · ${r.quant ?? "—"} · t${r.temperature}`;
 
-export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, maxTokens }: Props) {
-  const rowColor = familyColor(row.family);
+export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, tpsDomain }: Props) {
   const scorePct = Math.max(0, Math.min(100, row.passRate * 100));
-  const tokenPct = Math.max(0, Math.min(100, (row.tokens / Math.max(1, maxTokens)) * 100));
-  const tokensTitle = `${Math.round(row.tokens).toLocaleString()} gen tokens (total)`;
+  // The descriptor glyph encodes the SAME four channels as this model's scatter
+  // marker (family→color, peak memory→size, wall time→points, TPS→opacity),
+  // drawn at true scatter size via the shared ScatterGlyph.
+  const glyphTitle = `${row.mem.toFixed(1)} GB · ${formatWallTime(row.wallTime)} · ${row.genTps > 0 ? row.genTps.toFixed(0) : "—"} tok/s`;
 
   const handleMouseEnter = () => setHoveredModel(row.artifact);
   const handleMouseLeave = () => clearHoveredModel();
@@ -47,20 +54,21 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className={styles.resultRowBreakdown}>
-        <div className={styles.runBar}>
-          <span className={styles.resultVariantTrack} title={tokensTitle}>
-            <span
-              className={styles.resultVariantFill}
-              style={{ width: `${scorePct}%`, background: rowColor }}
-            />
-            <span
-              className={styles.resultVariantTokens}
-              style={{ width: `${tokenPct}%`, background: rowColor, boxShadow: `0 0 6px ${rowColor}` }}
-            />
-          </span>
-        </div>
-      </div>
+      <span className={styles.resultGlyph} title={glyphTitle} aria-hidden="true">
+        <ScatterGlyph
+          enc={{
+            family: row.family,
+            peak_memory_gb: row.mem,
+            wall_time_sec: row.wallTime,
+            generation_tps: row.genTps,
+          }}
+          tpsDomain={tpsDomain}
+          // Compact rows are ~24px tall; cap oversized markers so they fit the
+          // row instead of bleeding into neighbours. Expanded/lead rows render
+          // at true scatter size (no cap), matching the scatterplot exactly.
+          maxPx={compact ? COMPACT_GLYPH_MAX_PX : undefined}
+        />
+      </span>
 
       <div className={styles.resultRowAlways}>
         <div className={styles.resultRank}>

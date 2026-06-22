@@ -77,6 +77,7 @@ function RootComponent() {
       groups={groups}
       primary={primary}
       secondary={secondary}
+      tpsDomain={tpsDomain}
       onPrimaryChange={setPrimary}
       onSecondaryChange={setSecondary}
       onRowClick={onRowClick}
