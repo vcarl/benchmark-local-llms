@@ -27,3 +27,64 @@
 .itemText { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, monospace; font-size: var(--fz-11); color: var(--text-secondary); margin: var(--space-2) 0; }
 .itemScore { font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
 .loading, .error { color: var(--text-muted); padding: var(--space-6); }
+
+/* ─── Config summary panel (top of drilldown) ─────────────────────────────── */
+.summaryPanel {
+  border: 1px solid var(--border-strong, var(--border-subtle));
+  border-radius: 4px;
+  padding: var(--space-4);
+  margin-bottom: var(--space-6);
+  background: var(--surface-hover);
+}
+
+/* ─── Debug panel ─────────────────────────────────────────────────────────── */
+.debugPanel {
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  background: var(--surface-hover);
+}
+.debugGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin-top: var(--space-3);
+}
+.debugGroup:first-of-type { margin-top: var(--space-2); }
+.debugStat { display: flex; flex-direction: column; gap: 1px; }
+.debugStatLabel {
+  color: var(--text-faint);
+  font-size: var(--fz-10);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.debugStatValue {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: var(--fz-11);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.debugTally {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+  font-size: var(--fz-11);
+}
+.debugTallyNum { font-variant-numeric: tabular-nums; font-weight: 600; }
+.debugErrors { margin-top: var(--space-2); }
+.debugUnavailable { color: var(--text-muted); font-size: var(--fz-11); margin-top: var(--space-2); }
+
+/* ─── Per-item thinking <details> ─────────────────────────────────────────── */
+.thinking { margin: var(--space-2) 0; }
+.thinkingSummary {
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: var(--fz-10);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+.thinkingEmpty { color: var(--text-faint); font-size: var(--fz-11); font-style: italic; margin: var(--space-2) 0; }

@@ -11,6 +11,10 @@ interface Props {
   onPrimaryChange: (k: RunSortKey) => void;
   onSecondaryChange: (k: RunSortKey) => void;
   onRowClick: (row: RunRow) => void;
+  // Shared, ephemeral cross-component hover (config_hash). Highlights the row
+  // whose config matches, and reports row hover up so the scatter can mirror it.
+  hoveredConfig: string | null;
+  onHoverConfig: (configHash: string | null) => void;
 }
 
 const SORT_OPTIONS: { value: RunSortKey; label: string }[] = [
@@ -21,6 +25,7 @@ const SORT_OPTIONS: { value: RunSortKey; label: string }[] = [
 
 export function RunGroupTable({
   groups, primary, secondary, tpsDomain, onPrimaryChange, onSecondaryChange, onRowClick,
+  hoveredConfig, onHoverConfig,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
@@ -114,6 +119,8 @@ export function RunGroupTable({
               onToggle={g.rows.length > 1 ? () => toggleGroup(g.artifact) : undefined}
               onClick={() => onRowClick(lead)}
               tpsDomain={tpsDomain}
+              highlighted={lead.config_hash === hoveredConfig}
+              onHoverConfig={onHoverConfig}
             />
             {open && rest.map((r) => (
               <RunRowItem
@@ -124,6 +131,8 @@ export function RunGroupTable({
                 expanded={open}
                 onClick={() => onRowClick(r)}
                 tpsDomain={tpsDomain}
+                highlighted={r.config_hash === hoveredConfig}
+                onHoverConfig={onHoverConfig}
               />
             ))}
           </div>

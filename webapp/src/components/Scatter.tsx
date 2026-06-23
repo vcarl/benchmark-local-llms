@@ -2,17 +2,17 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import styles from "./Scatter.module.css";
 import type { ScatterPoint } from "../lib/pipeline";
 import { computeTpsDomain } from "../lib/pipeline";
-import {
-  setHoveredModel,
-  clearHoveredModel,
-  useHoveredModel,
-} from "../lib/hover-store";
 import { familyColor } from "../lib/colors";
 import { formatWallTime } from "../lib/format";
 import { glyphDrawParams, starPath } from "./ScatterGlyph";
 
 interface Props {
   points: ScatterPoint[];
+  // Shared, ephemeral cross-component hover (config_hash). One point ⇄ one row.
+  hoveredConfig: string | null;
+  onHoverConfig: (configHash: string | null) => void;
+  // Open the drilldown for a config — same handler a ranking-row click uses.
+  onSelectConfig: (configHash: string) => void;
 }
 
 const M = { top: 20, right: 24, bottom: 50, left: 60 };
@@ -58,10 +58,16 @@ const formatTick = (v: number): string => {
 // y-axis ticks in 0..1 space
 const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
-export function Scatter({ points }: Props) {
+export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }: Props) {
   const xDomain = useMemo(() => computeXDomain(points), [points]);
   const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
-  const hovered = useHoveredModel();
+  // The artifact (base model) of the currently-hovered config, if any — drives
+  // the SECONDARY family-level dimming (keep the "dim the rest of the model"
+  // effect) while the matching config is the PRIMARY emphasis.
+  const hoveredArtifact = useMemo(
+    () => points.find((p) => p.config_hash === hoveredConfig)?.artifact ?? null,
+    [points, hoveredConfig],
+  );
   const [tip, setTip] = useState<{ dot: ScatterPoint; x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -148,7 +154,7 @@ export function Scatter({ points }: Props) {
           {trajectories.map((t) => {
             if (t.pts.length < 2) return null;
             const ptStr = t.pts.map((d) => `${xScale(d.x)},${yScale(d.y)}`).join(" ");
-            const dim = hovered !== null && hovered !== t.model;
+            const dim = hoveredArtifact !== null && hoveredArtifact !== t.model;
             return (
               <polyline
                 key={t.model}
@@ -164,19 +170,24 @@ export function Scatter({ points }: Props) {
           {points.map((d) => {
             const { outerR, innerR, points: n, fill, fillOpacity: baseOpacity } =
               glyphDrawParams(d, tpsDomain);
-            const dim = hovered !== null && hovered !== d.artifact;
-            const active = hovered === d.artifact;
-            const hoverMultiplier = dim ? 0.4 : active ? 1.05 : 1;
+            // PRIMARY: the single config that matches the hovered row/point.
+            const active = hoveredConfig === d.config_hash;
+            // SECONDARY: dim everything that isn't the hovered config's model
+            // family — preserves the prior "dim the others" look around the
+            // emphasized point.
+            const dim = hoveredConfig !== null && !active && d.artifact !== hoveredArtifact;
+            const hoverMultiplier = active ? 1.05 : dim ? 0.4 : 1;
             const fillOpacity = Math.max(0, Math.min(1, baseOpacity * hoverMultiplier));
             return (
               <path
                 key={d.config_hash}
-                className={styles.scatterDot}
+                className={`${styles.scatterDot}${active ? ` ${styles.scatterDotActive}` : ""}`}
                 d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
                 fill={fill}
                 fillOpacity={fillOpacity}
+                onClick={() => onSelectConfig(d.config_hash)}
                 onMouseEnter={(ev) => {
-                  setHoveredModel(d.artifact);
+                  onHoverConfig(d.config_hash);
                   const rect = wrapRef.current?.getBoundingClientRect();
                   if (rect) setTip({ dot: d, x: ev.clientX - rect.left, y: ev.clientY - rect.top });
                 }}
@@ -185,7 +196,7 @@ export function Scatter({ points }: Props) {
                   if (rect) setTip((prev) => prev ? { ...prev, x: ev.clientX - rect.left, y: ev.clientY - rect.top } : null);
                 }}
                 onMouseLeave={() => {
-                  clearHoveredModel();
+                  onHoverConfig(null);
                   setTip(null);
                 }}
               />

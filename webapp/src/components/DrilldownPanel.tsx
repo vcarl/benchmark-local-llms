@@ -1,17 +1,22 @@
 import styles from "./DrilldownPanel.module.css";
 import type { BenchmarkResult } from "../lib/data";
-import { challengeBreakdown } from "../lib/pipeline";
+import { challengeBreakdown, type RunRow } from "../lib/pipeline";
 import { useAttemptDetail } from "../lib/use-attempt-detail";
 import { scoreBand } from "../lib/constants";
+import { DebugPanel } from "./DebugPanel";
+import { ConfigSummaryPanel } from "./ConfigSummaryPanel";
 
 interface Props {
   records: BenchmarkResult[];
   configHash: string;
+  // The per-config aggregate for this config, threaded from the same
+  // aggregateRuns output that feeds the ranking table (null if not found).
+  runRow: RunRow | null;
   attemptId: string | undefined;
   onSelectAttempt: (id: string | undefined) => void;
 }
 
-export function DrilldownPanel({ records, configHash, attemptId, onSelectAttempt }: Props) {
+export function DrilldownPanel({ records, configHash, runRow, attemptId, onSelectAttempt }: Props) {
   const rows = challengeBreakdown(records, configHash);
   const detail = useAttemptDetail(attemptId);
 
@@ -19,8 +24,13 @@ export function DrilldownPanel({ records, configHash, attemptId, onSelectAttempt
     return <div className={styles.empty}>No challenges for this config.</div>;
   }
 
+  const configRecords = records.filter((r) => r.config_hash === configHash);
+
   return (
     <div className={styles.panel}>
+      {runRow !== null && (
+        <ConfigSummaryPanel row={runRow} records={configRecords} breakdown={rows} />
+      )}
       {rows.map((row) => {
         const open = row.attemptId === attemptId;
         return (
@@ -45,6 +55,7 @@ export function DrilldownPanel({ records, configHash, attemptId, onSelectAttempt
                 {detail.status === "error" && <div className={styles.error}>Failed to load: {detail.message}</div>}
                 {detail.status === "loaded" && (
                   <>
+                    <DebugPanel record={row.record} items={detail.detail.items} />
                     <div className={styles.itemLabel}>System prompt</div>
                     <div className={styles.itemText}>{detail.detail.system_prompt_text}</div>
                     {detail.detail.items.map((it) => (
@@ -56,12 +67,14 @@ export function DrilldownPanel({ records, configHash, attemptId, onSelectAttempt
                         <div className={styles.itemText}>{it.prompt_text}</div>
                         <div className={styles.itemLabel}>Output</div>
                         <div className={styles.itemText}>{it.output}</div>
-                        {it.reasoning !== null && (
-                          <>
-                            <div className={styles.itemLabel}>Reasoning</div>
+                        <details className={styles.thinking}>
+                          <summary className={styles.thinkingSummary}>Thinking</summary>
+                          {it.reasoning !== null && it.reasoning !== "" ? (
                             <div className={styles.itemText}>{it.reasoning}</div>
-                          </>
-                        )}
+                          ) : (
+                            <div className={styles.thinkingEmpty}>No thinking captured</div>
+                          )}
+                        </details>
                         {it.error !== null && (
                           <>
                             <div className={styles.itemLabel}>Error</div>

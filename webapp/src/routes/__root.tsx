@@ -33,6 +33,13 @@ function RootComponent() {
   const [primary, setPrimary] = useState<RunSortKey>("score");
   const [secondary, setSecondary] = useState<RunSortKey>("score");
 
+  // Ephemeral cross-component hover, keyed on config_hash — the identity that maps
+  // exactly one scatter point (computeScatterPoints groups by config_hash) to one
+  // ranking row (aggregateRuns groups by config_hash). Lifted here so the scatter
+  // and the ranking table can highlight each other symmetrically. Kept as React
+  // state (not URL state): hover is transient and shouldn't pollute history.
+  const [hoveredConfig, setHoveredConfig] = useState<string | null>(null);
+
   const search = useSearch({ strict: false }) as SearchState;
   const filters = useMemo(() => parseFilters(search), [search]);
   const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
@@ -66,8 +73,13 @@ function RootComponent() {
   const closeDetails = () =>
     navigate({ search: (prev) => ({ ...(prev as SearchState), config: undefined, attempt: undefined }) as never });
 
-  const onRowClick = (row: RunRow) =>
-    navigate({ search: (prev) => ({ ...(prev as SearchState), config: row.config_hash, attempt: undefined }) as never });
+  // Select a config (open/drive the details drilldown) by writing the `config`
+  // search param. Shared by a ranking-row click and a scatter-icon click so both
+  // open the same drilldown.
+  const selectConfig = (configHash: string) =>
+    navigate({ search: (prev) => ({ ...(prev as SearchState), config: configHash, attempt: undefined }) as never });
+
+  const onRowClick = (row: RunRow) => selectConfig(row.config_hash);
 
   const onSelectAttempt = (id: string | undefined) =>
     navigate({ search: (prev) => ({ ...(prev as SearchState), attempt: id }) as never });
@@ -81,13 +93,20 @@ function RootComponent() {
       onPrimaryChange={setPrimary}
       onSecondaryChange={setSecondary}
       onRowClick={onRowClick}
+      hoveredConfig={hoveredConfig}
+      onHoverConfig={setHoveredConfig}
     />
   );
 
   const leftLane = (
     <div className={styles.scatterLane}>
       <div className={styles.scatterPlotRegion}>
-        <Scatter points={points} />
+        <Scatter
+          points={points}
+          hoveredConfig={hoveredConfig}
+          onHoverConfig={setHoveredConfig}
+          onSelectConfig={selectConfig}
+        />
       </div>
       <div className={styles.scatterBottomPane}>
         <ScatterLegend families={legendFamilies} tpsDomain={tpsDomain} />
@@ -96,11 +115,25 @@ function RootComponent() {
     </div>
   );
 
+  // The per-config aggregate (RunRow) for the open drilldown, pulled from the
+  // SAME aggregateRuns output that feeds the ranking table so the config summary
+  // panel's headline numbers can't diverge from the ranking row.
+  const selectedRow = useMemo<RunRow | null>(() => {
+    if (search.config === undefined) return null;
+    for (const g of groups) {
+      for (const r of g.rows) {
+        if (r.config_hash === search.config) return r;
+      }
+    }
+    return null;
+  }, [groups, search.config]);
+
   const details =
     search.config !== undefined ? (
       <DrilldownPanel
         records={filtered}
         configHash={search.config}
+        runRow={selectedRow}
         attemptId={search.attempt}
         onSelectAttempt={onSelectAttempt}
       />
@@ -111,10 +144,22 @@ function RootComponent() {
   return (
     <div className={styles.app}>
       <header className={styles.appHeader}>
-        <h1>Benchmark Analysis</h1>
-        <div className={styles.appSubtitle}>
-          {filtered.length} attempts · {groups.length} models
+        <div className={styles.appHeaderTitle}>
+          <h1>Benchmark Analysis</h1>
+          <div className={styles.appSubtitle}>
+            {filtered.length} attempts · {groups.length} models
+          </div>
         </div>
+        {shifted && (
+          <button
+            type="button"
+            className={styles.overviewButton}
+            onClick={closeDetails}
+            aria-label="Back to overview"
+          >
+            ← Overview
+          </button>
+        )}
       </header>
       <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={details} />
     </div>

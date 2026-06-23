@@ -39,11 +39,6 @@
 
   &[data-shifted="true"] {
     --shift-x: calc(-5 / 15 * 100%);
-
-    & .backOverlay {
-      opacity: 1;
-      pointer-events: auto;
-    }
   }
 }
 
@@ -54,26 +49,6 @@
 .regionScatter > * { flex: 1 1 auto; min-height: 0; }
 .regionRanking { grid-area: ranking; overflow-y: auto; min-width: 0; z-index: var(--z-raised); }
 .regionDetails { grid-area: details; overflow-y: auto; min-width: 0; }
-
-.backOverlay {
-  position: absolute;
-  top: var(--space-6);
-  /* place above the details region — same coordinate space as the canvas */
-  left: calc(10 / 15 * 100% + var(--space-6));
-  z-index: var(--z-overlay);
-  background: var(--surface-3);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-4);
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--fz-12);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s;
-
-  &:hover { background: var(--surface-4); }
-}
 
 /* Narrow frame: container query, not viewport media query.
    Single-column stack; details becomes a fixed overlay sliding in from the right.
@@ -105,11 +80,6 @@
     transition: transform 0.2s ease-out;
   }
   :where(.shiftCanvas[data-shifted="true"]) .regionDetails { transform: translateX(0); }
-  :where(.backOverlay) {
-    position: fixed;
-    top: var(--space-6);
-    left: var(--space-6);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

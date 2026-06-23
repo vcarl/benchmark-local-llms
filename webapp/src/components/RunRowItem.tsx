@@ -2,7 +2,6 @@ import styles from "./RunTable.module.css";
 import type { RunRow, TpsDomain } from "../lib/pipeline";
 import { scoreBand, formatEfficiency } from "../lib/constants";
 import { formatWallTime } from "../lib/format";
-import { setHoveredModel, clearHoveredModel } from "../lib/hover-store";
 import { ScatterGlyph } from "./ScatterGlyph";
 
 interface Props {
@@ -14,6 +13,8 @@ interface Props {
   onToggle?: () => void; // present on lead row when groupSize > 1
   onClick: () => void;
   tpsDomain: TpsDomain; // shared TPS domain (same one the scatter uses) for glyph opacity
+  highlighted: boolean; // this row's config === the shared hoveredConfig
+  onHoverConfig: (configHash: string | null) => void; // report row hover up (config_hash)
 }
 
 // Max rendered diameter (px) for the descriptor glyph on COMPACT rows. Compact
@@ -28,15 +29,15 @@ const abbrevRuntime = (runtime: string): string =>
 const variantTag = (r: RunRow): string =>
   `${abbrevRuntime(r.runtime)} · ${r.quant ?? "—"} · t${r.temperature}`;
 
-export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, tpsDomain }: Props) {
+export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, tpsDomain, highlighted, onHoverConfig }: Props) {
   const scorePct = Math.max(0, Math.min(100, row.passRate * 100));
   // The descriptor glyph encodes the SAME four channels as this model's scatter
   // marker (family→color, peak memory→size, wall time→points, TPS→opacity),
   // drawn at true scatter size via the shared ScatterGlyph.
   const glyphTitle = `${row.mem.toFixed(1)} GB · ${formatWallTime(row.wallTime)} · ${row.genTps > 0 ? row.genTps.toFixed(0) : "—"} tok/s`;
 
-  const handleMouseEnter = () => setHoveredModel(row.artifact);
-  const handleMouseLeave = () => clearHoveredModel();
+  const handleMouseEnter = () => onHoverConfig(row.config_hash);
+  const handleMouseLeave = () => onHoverConfig(null);
 
   const handleToggleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -49,7 +50,7 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
     <div className={styles.runRowWrap}>
     <button
       type="button"
-      className={`${styles.resultRow} ${styles.runRow}${compact ? ` ${styles.resultRowCompact}` : ""}`}
+      className={`${styles.resultRow} ${styles.runRow}${compact ? ` ${styles.resultRowCompact}` : ""}${highlighted ? ` ${styles.resultRowHighlighted}` : ""}`}
       onClick={onClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

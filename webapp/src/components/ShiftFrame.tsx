@@ -25,14 +25,6 @@ export function ShiftFrame({ shifted, onClose, scatter, ranking, details }: Prop
         <div className={styles.regionScatter}>{scatter}</div>
         <div className={styles.regionRanking}>{ranking}</div>
         <div className={styles.regionDetails}>{details}</div>
-        <button
-          type="button"
-          className={styles.backOverlay}
-          onClick={onClose}
-          aria-label="Back to overview"
-        >
-          ← Overview
-        </button>
       </div>
     </div>
   );

@@ -6,9 +6,29 @@
   row-gap: var(--space-8);
   height: 100dvh;
 }
-.appHeader { padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--border-subtle); }
+.appHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.appHeaderTitle { min-width: 0; }
 .appHeader h1 { margin: 0; font-size: var(--fz-16); }
 .appSubtitle { font-size: var(--fz-11); color: var(--text-muted); margin-top: var(--space-1); }
+
+.overviewButton {
+  flex: 0 0 auto;
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-4);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--fz-12);
+  cursor: pointer;
+}
+.overviewButton:hover { background: var(--surface-4); }
 
 /* Scatter lane: plot fills the top (1fr, min-height:0 so it can shrink), with a
    single bottom pane holding the filter controls + legend pinned below it. The

@@ -64,6 +64,16 @@
   &.runRow { position: relative; }
 }
 
+/* Cross-linked highlight: applied when this row's config === the shared
+   hoveredConfig (e.g. the user is hovering the matching scatter icon). Mirrors
+   the native :hover surface so direct row-hover and icon-driven highlight look
+   identical, plus a leading accent bar to make the 1:1 link obvious. */
+.resultRowHighlighted,
+.resultRowHighlighted.resultRowCompact {
+  background: var(--surface-hover);
+  box-shadow: inset 2px 0 0 0 var(--accent-300);
+}
+
 /* Always-visible content: spans all 4 tracks via subgrid. */
 .resultRowAlways {
   grid-column: 1 / 5;

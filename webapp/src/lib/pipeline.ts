@@ -236,6 +236,10 @@ export interface ChallengeBreakdownRow {
   passRate: number;
   itemCount: number;
   passedItems: number;
+  // The BenchmarkResult this row was derived from (latest attempt for the
+  // challenge). Carries runtime metrics the per-attempt detail JSON lacks, so
+  // the drilldown can render its debug panel without re-querying DATA.
+  record: BenchmarkResult;
 }
 
 export const challengeBreakdown = (
@@ -262,6 +266,7 @@ export const challengeBreakdown = (
       passRate: r.item_count === 0 ? 0 : r.passed_items / r.item_count,
       itemCount: r.item_count,
       passedItems: r.passed_items,
+      record: r,
     });
   }
   rows.sort((a, b) => a.challengeKey.localeCompare(b.challengeKey));
