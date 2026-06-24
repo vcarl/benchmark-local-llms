@@ -24,5 +24,11 @@ export const ModelConfig = Schema.Struct({
   scenarioCtxSize: Schema.optional(Schema.Number),
   active: Schema.optional(Schema.Boolean),
   temperature: Schema.optional(Schema.Number),
+  /**
+   * Optional vendored chat-template name (see {@link Configuration.chatTemplate}).
+   * Resolved to `templates/<chatTemplate>.jinja` and passed to llama-server
+   * as `--jinja --chat-template-file`.
+   */
+  chatTemplate: Schema.optional(Schema.String),
 });
 export type ModelConfig = typeof ModelConfig.Type;

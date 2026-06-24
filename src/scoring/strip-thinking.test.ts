@@ -23,10 +23,23 @@ describe("stripThinkingTags — DeepSeek <think> blocks", () => {
     expect(r.error).toBeNull();
   });
 
-  it("treats orphaned </think> without an opener as no-tag passthrough", () => {
+  it("treats a lone </think> with no opener as a reasoning/answer split", () => {
+    // Real-world: some models (qwen3.6/qwen3.5 via llama.cpp --reasoning-format
+    // none) emit a reasoning preamble then close with </think> WITHOUT ever
+    // emitting the <think> opener. The text before </think> is chain-of-thought
+    // and must not leak into the stored answer.
     const r = stripThinkingTags("answer text </think> trailing");
-    expect(r.output).toBe("answer text </think> trailing");
-    expect(r.reasoning).toBeNull();
+    expect(r.output).toBe("trailing");
+    expect(r.reasoning).toBe("answer text ");
+    expect(r.error).toBeNull();
+  });
+
+  it("strips a leaked reasoning preamble closed by a lone </think> (qwen3.6 case)", () => {
+    const r = stripThinkingTags(
+      "Here's a thinking process:\n1. analyze\n2. solve\n</think>\n\n1. Austin\n2. Boston",
+    );
+    expect(r.output).toBe("1. Austin\n2. Boston");
+    expect(r.reasoning).toBe("Here's a thinking process:\n1. analyze\n2. solve\n");
     expect(r.error).toBeNull();
   });
 
@@ -52,6 +65,52 @@ describe("stripThinkingTags — DeepSeek <think> blocks", () => {
     expect(r.output).toBe("");
     expect(r.reasoning).toBe("\nfirst, I'll consider…\nthen I'll");
     expect(r.error).toBe("thinking_truncated");
+  });
+});
+
+describe("stripThinkingTags — Magistral [THINK] blocks (MLX gap)", () => {
+  it("separates a closed [THINK]...[/THINK] block into reasoning + output", () => {
+    const r = stripThinkingTags("[THINK]reasoning here[/THINK]red, blue, green");
+    expect(r.output).toBe("red, blue, green");
+    expect(r.reasoning).toBe("reasoning here");
+    expect(r.error).toBeNull();
+  });
+
+  it("separates a multi-line [THINK] block with leading whitespace before the answer", () => {
+    const r = stripThinkingTags("[THINK]\nstep 1\nstep 2\n[/THINK]\n\n391");
+    expect(r.output).toBe("391");
+    expect(r.reasoning).toBe("\nstep 1\nstep 2\n");
+    expect(r.error).toBeNull();
+  });
+
+  it("returns error=thinking_truncated when [THINK] opens with no [/THINK]", () => {
+    const r = stripThinkingTags("[THINK]I was reasoning when the budget ran ou");
+    expect(r.output).toBe("");
+    expect(r.reasoning).toBe("I was reasoning when the budget ran ou");
+    expect(r.error).toBe("thinking_truncated");
+  });
+
+  it("treats a lone [/THINK] with no opener as a reasoning/answer split", () => {
+    const r = stripThinkingTags("reasoning preamble[/THINK]the answer");
+    expect(r.output).toBe("the answer");
+    expect(r.reasoning).toBe("reasoning preamble");
+    expect(r.error).toBeNull();
+  });
+});
+
+describe("stripThinkingTags — stray sentence tokens", () => {
+  it("strips a trailing </s> from a plain answer", () => {
+    const r = stripThinkingTags("the answer is 42</s>");
+    expect(r.output).toBe("the answer is 42");
+    expect(r.reasoning).toBeNull();
+    expect(r.error).toBeNull();
+  });
+
+  it("strips </s> and <s> left around the answer after a think block", () => {
+    const r = stripThinkingTags("<think>reason</think>\n<s>the answer</s>");
+    expect(r.output).toBe("the answer");
+    expect(r.reasoning).toBe("reason");
+    expect(r.error).toBeNull();
   });
 });
 

@@ -16,5 +16,13 @@ export const Configuration = Schema.Struct({
   maxTokens: Schema.Number,
   ctxSize: Schema.optional(Schema.Number),
   active: Schema.optional(Schema.Boolean),
+  /**
+   * Optional vendored chat-template name. When set, resolves to
+   * `templates/<chatTemplate>.jinja` and is passed to llama-server as
+   * `--jinja --chat-template-file`. Needed for official `mistralai/*-GGUF`
+   * artifacts that ship without an embedded template; configs that omit it
+   * use the runtime's built-in / embedded template unchanged.
+   */
+  chatTemplate: Schema.optional(Schema.String),
 });
 export type Configuration = typeof Configuration.Type;

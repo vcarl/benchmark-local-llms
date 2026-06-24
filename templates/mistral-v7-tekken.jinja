@@ -1,0 +1,75 @@
+{%- set default_system_message = 'First draft your thinking process (inner monologue) until you arrive at a response. Format your response using Markdown, and use LaTeX for any mathematical equations. Write both your thoughts and the response in the same language as the input.
+
+Your thinking process must follow the template below:[THINK]Your thoughts or/and draft, like working through an exercise on scratch paper. Be as casual and as long as you want until you are confident to generate the response. Use the same language as the input.[/THINK]Here, provide a self-contained response.' %}
+{{- bos_token }}
+{%- if messages[0]['role'] == 'system' %}
+    {%- if messages[0]['content'] is string %}
+        {%- set system_message = messages[0]['content'] %}
+    {%- else %}
+        {%- set system_message = messages[0]['content'][0]['text'] %}
+    {%- endif %}
+    {%- set loop_messages = messages[1:] %}
+{%- else %}
+    {%- set system_message = default_system_message %}
+    {%- set loop_messages = messages %}
+{%- endif %}
+{%- if tools %}
+    {%- set system_message = system_message + '
+
+If you choose to call any of the tools made available to you, use only this exact format: [TOOL_CALLS]function_name[ARGS]{"arg1": "value1", "arg2": "value2"}[TOOL_CALLS]function_name2[ARGS]{"arg1": "value1"}...' %}
+{%- endif %}
+{{- '[SYSTEM_PROMPT]' + system_message + '[/SYSTEM_PROMPT]' }}
+{%- if tools %}
+    {{- '[AVAILABLE_TOOLS]' }}
+    {%- for tool in tools %}
+        {{- tool | tojson }}
+    {%- endfor %}
+    {{- '[/AVAILABLE_TOOLS]' }}
+{%- endif %}
+{%- for message in loop_messages %}
+    {%- if message['role'] == 'user' %}
+        {%- if message['content'] is string %}
+            {{- '[INST]' + message['content'] + '[/INST]' }}
+        {%- else %}
+            {{- '[INST]' }}
+        {%- for block in message['content'] %}
+            {%- if block['type'] == 'text' %}
+                {{- block['text'] }}
+            {%- elif block['type'] == 'image' or block['type'] == 'image_url' %}
+                {{- '[IMG]' }}
+            {%- else %}
+                {{- raise_exception('Only text and image blocks are supported in message content!') }}
+            {%- endif %}
+        {%- endfor %}
+        {{- '[/INST]' }}
+        {%- endif %}
+    {%- elif message['role'] == 'system' %}
+        {%- if message['content'] is string %}
+            {{- '[SYSTEM_PROMPT]' + message['content'] + '[/SYSTEM_PROMPT]' }}
+        {%- else %}
+            {{- '[SYSTEM_PROMPT]' + message['content'][0]['text'] + '[/SYSTEM_PROMPT]' }}
+    {%- endif %}
+    {%- elif message['role'] == 'assistant' %}
+        {%- if message.get('tool_calls') %}
+            {%- if message['content'] is string and message['content'] %}
+                {{- message['content'] }}
+            {%- elif message['content'] and message['content'][0]['text'] %}
+                {{- message['content'][0]['text'] }}
+            {%- endif %}
+            {%- for tool_call in message['tool_calls'] %}
+                {{- '[TOOL_CALLS]' + tool_call['function']['name'] + '[ARGS]' + (tool_call['function']['arguments'] | tojson) }}
+            {%- endfor %}
+            {{- eos_token }}
+        {%- else %}
+            {%- if message['content'] is string %}
+                {{- message['content'] + eos_token }}
+            {%- else %}
+                {{- message['content'][0]['text'] + eos_token }}
+            {%- endif %}
+        {%- endif %}
+    {%- elif message['role'] == 'tool' %}
+        {{- '[TOOL_RESULTS]' + message['content'] + '[/TOOL_RESULTS]' }}
+    {%- else %}
+        {{- raise_exception('Only user, system, assistant and tool roles are supported!') }}
+    {%- endif %}
+{%- endfor %}

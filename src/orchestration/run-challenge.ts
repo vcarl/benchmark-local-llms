@@ -77,6 +77,7 @@ export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   temperature: c.temperature,
   ...(c.quant !== undefined ? { quant: c.quant } : {}),
   ...(c.ctxSize !== undefined ? { ctxSize: c.ctxSize } : {}),
+  ...(c.chatTemplate !== undefined ? { chatTemplate: c.chatTemplate } : {}),
 });
 
 const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({

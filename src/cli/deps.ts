@@ -25,6 +25,7 @@ import { makeGameAdminClient } from "../game/server/admin-client.js";
 import { gameServer } from "../game/server/game-server.js";
 import { llamacppServer } from "../llm/servers/llamacpp.js";
 import { mlxServer } from "../llm/servers/mlx.js";
+import { resolveChatTemplate } from "../llm/servers/resolve-chat-template.js";
 import { resolveLlamacppGguf } from "../llm/servers/resolve-gguf.js";
 import { resolveMlxModel } from "../llm/servers/resolve-mlx.js";
 import { probeRuntimeVersion } from "../llm/servers/runtime-version.js";
@@ -104,10 +105,15 @@ export const makeLlmServerFactory =
           );
         }
         const artifactPath = yield* resolveLlamacppGguf(model.artifact, model.quant);
+        const chatTemplatePath =
+          model.chatTemplate !== undefined
+            ? yield* resolveChatTemplate(model.chatTemplate)
+            : undefined;
         return yield* llamacppServer({
           artifactPath,
           ...(llamaServerBinary !== undefined ? { binPath: llamaServerBinary } : {}),
           ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
+          ...(chatTemplatePath !== undefined ? { chatTemplatePath } : {}),
         });
       });
     }

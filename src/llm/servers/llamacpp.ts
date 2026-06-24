@@ -9,8 +9,19 @@
  *     --port <port>
  *     --cache-type-k q8_0
  *     --cache-type-v q8_0
- *     --reasoning-format none
+ *     --reasoning-format auto
  *     [-c <ctxSize>]
+ *
+ * `--reasoning-format auto` makes llama-server parse the model's native
+ * thinking dialect (`<think>…</think>`, `[THINK]…[/THINK]`, …), strip it out
+ * of `content`, and expose it on the separate `reasoning_content` field — so
+ * the stored answer is clean and the chain-of-thought is preserved separately.
+ * Verified empirically against Magistral (`[THINK]` dialect): with `auto`,
+ * `content` carries no thinking tags and no stray `</s>`. The prior value
+ * `none` left the chain-of-thought inline in `content`, which leaked reasoning
+ * markers into the stored output. Runtimes that do NOT separate reasoning
+ * natively (notably `mlx_lm.server`) are handled by the receive-path fallback
+ * in `src/scoring/strip-thinking.ts`.
  *
  * The prototype's log tee to /tmp/testbench-llamacpp.log is intentionally
  * dropped — Effect's logger captures the interesting lifecycle events, and
@@ -36,6 +47,13 @@ export interface LlamacppConfig {
   readonly binPath?: string;
   /** Seconds to allow for /health to respond 200. Default 300. */
   readonly healthTimeoutSec?: number;
+  /**
+   * Absolute path to a vendored jinja chat template. When set, the server
+   * is launched with `--jinja --chat-template-file <path>`. Needed for
+   * official `mistralai/*-GGUF` artifacts that ship without an embedded
+   * template; omitted for runtimes that use their embedded template.
+   */
+  readonly chatTemplatePath?: string;
   /** Extra CLI args appended after the built-in flags. */
   readonly extraArgs?: ReadonlyArray<string>;
 }
@@ -53,10 +71,13 @@ const buildArgs = (cfg: LlamacppConfig, port: number): ReadonlyArray<string> => 
     "--cache-type-v",
     "q8_0",
     "--reasoning-format",
-    "none",
+    "auto",
   ];
   if (cfg.ctxSize !== undefined) {
     base.push("-c", String(cfg.ctxSize));
+  }
+  if (cfg.chatTemplatePath !== undefined) {
+    base.push("--jinja", "--chat-template-file", cfg.chatTemplatePath);
   }
   if (cfg.extraArgs) {
     base.push(...cfg.extraArgs);
