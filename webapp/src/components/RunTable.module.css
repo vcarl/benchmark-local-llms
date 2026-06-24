@@ -233,6 +233,18 @@
 
   &:hover { background: var(--surface-4); border-color: var(--gray-550); }
 }
+.resultSortDirButton {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-4);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fz-11);
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover { background: var(--surface-4); border-color: var(--gray-550); color: var(--text-primary); }
+}
 
 /* Result table */
 .resultTable { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--r-8); padding: 0; margin: 0 var(--space-8) var(--space-8); }

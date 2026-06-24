@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import styles from "./RunTable.module.css";
-import type { RunGroup, RunRow, RunSortKey, TpsDomain } from "../lib/pipeline";
+import type { RunGroup, RunRow, RunSortKey, SortDir, TpsDomain } from "../lib/pipeline";
 import { RunRowItem } from "./RunRowItem";
 import { issueTemplateUrl } from "../lib/constants";
 
@@ -9,9 +9,13 @@ interface Props {
   groups: RunGroup[];
   primary: RunSortKey;
   secondary: RunSortKey;
+  primaryDir: SortDir;
+  secondaryDir: SortDir;
   tpsDomain: TpsDomain; // shared with the scatter so row glyphs match markers
   onPrimaryChange: (k: RunSortKey) => void;
   onSecondaryChange: (k: RunSortKey) => void;
+  onPrimaryDirToggle: () => void;
+  onSecondaryDirToggle: () => void;
   onRowClick: (row: RunRow) => void;
   // Shared, ephemeral cross-component hover (config_hash). Highlights the row
   // whose config matches, and reports row hover up so the scatter can mirror it.
@@ -25,8 +29,13 @@ const SORT_OPTIONS: { value: RunSortKey; label: string }[] = [
   { value: "memory", label: "memory" },
 ];
 
+const dirGlyph = (dir: SortDir): string => (dir === "desc" ? "▼" : "▲");
+const dirLabel = (dir: SortDir): string =>
+  `Toggle sort direction (currently ${dir === "desc" ? "descending" : "ascending"})`;
+
 export function RunGroupTable({
-  groups, primary, secondary, tpsDomain, onPrimaryChange, onSecondaryChange, onRowClick,
+  groups, primary, secondary, primaryDir, secondaryDir, tpsDomain,
+  onPrimaryChange, onSecondaryChange, onPrimaryDirToggle, onSecondaryDirToggle, onRowClick,
   hoveredConfig, onHoverConfig,
 }: Props) {
   // Artifact-group expand (reveals a model's sibling configs).
@@ -98,6 +107,15 @@ export function RunGroupTable({
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            <button
+              type="button"
+              className={styles.resultSortDirButton}
+              onClick={onPrimaryDirToggle}
+              aria-label={dirLabel(primaryDir)}
+              title={dirLabel(primaryDir)}
+            >
+              {dirGlyph(primaryDir)}
+            </button>
           </label>
           <label className={styles.resultSortGroup}>
             <span className={styles.resultSortLabel}>runs by:</span>
@@ -110,6 +128,15 @@ export function RunGroupTable({
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            <button
+              type="button"
+              className={styles.resultSortDirButton}
+              onClick={onSecondaryDirToggle}
+              aria-label={dirLabel(secondaryDir)}
+              title={dirLabel(secondaryDir)}
+            >
+              {dirGlyph(secondaryDir)}
+            </button>
           </label>
           <button type="button" className={styles.resultSortBtn} onClick={toggleAll}>
             {allExpanded ? "collapse all" : "expand all"}

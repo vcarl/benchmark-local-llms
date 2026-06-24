@@ -51,6 +51,13 @@ export const computeConfigScores = (
 // ─── RunRow / RunGroup / aggregateRuns ───────────────────────────────────────
 
 export type RunSortKey = "score" | "efficiency" | "memory";
+export type SortDir = "asc" | "desc";
+
+// The natural direction for a metric: memory is lower-is-better (asc), while
+// score and efficiency are higher-is-better (desc). Picking a new metric resets
+// that side to this default; the toggle button only flips it afterward.
+export const defaultSortDir = (key: RunSortKey): SortDir =>
+  key === "memory" ? "asc" : "desc";
 
 export interface RunRow {
   config_hash: string;
@@ -187,17 +194,17 @@ const rowForConfig = (attempts: BenchmarkResult[]): RunRow | null => {
 const sortValue = (r: RunRow, key: RunSortKey): number =>
   key === "score" ? r.passRate : key === "efficiency" ? (r.efficiency ?? 0) : r.mem;
 
-// score desc; efficiency/memory asc.
-const compareRuns = (key: RunSortKey) => (a: RunRow, b: RunRow): number => {
-  const va = sortValue(a, key);
-  const vb = sortValue(b, key);
-  return key === "score" ? vb - va : va - vb;
+const compareRuns = (key: RunSortKey, dir: SortDir) => (a: RunRow, b: RunRow): number => {
+  const asc = sortValue(a, key) - sortValue(b, key);
+  return dir === "desc" ? -asc : asc;
 };
 
 export const aggregateRuns = (
   records: BenchmarkResult[],
   primary: RunSortKey,
   secondary: RunSortKey,
+  primaryDir: SortDir = defaultSortDir(primary),
+  secondaryDir: SortDir = defaultSortDir(secondary),
 ): RunGroup[] => {
   const byConfig = new Map<string, BenchmarkResult[]>();
   for (const r of records) {
@@ -218,8 +225,8 @@ export const aggregateRuns = (
     byArtifact.set(row.artifact, list);
   }
 
-  const cmpSecondary = compareRuns(secondary);
-  const cmpPrimary = compareRuns(primary);
+  const cmpSecondary = compareRuns(secondary, secondaryDir);
+  const cmpPrimary = compareRuns(primary, primaryDir);
   const tieBreak = (a: RunRow, b: RunRow): number =>
     a.runtime.localeCompare(b.runtime) ||
     (a.quant ?? "").localeCompare(b.quant ?? "") ||

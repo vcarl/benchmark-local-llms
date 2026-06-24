@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, type RunRow, type RunSortKey } from "../lib/pipeline";
+import { aggregateRuns, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, defaultSortDir, type RunRow, type RunSortKey, type SortDir } from "../lib/pipeline";
 import { Scatter } from "../components/Scatter";
 import { ScatterLegend } from "../components/ScatterLegend";
 import { FilterPanel } from "../components/FilterPanel";
@@ -25,6 +25,8 @@ export const Route = createRootRoute({
     attempt: typeof s.attempt === "string" ? s.attempt : undefined,
     sortPrimary: typeof s.sortPrimary === "string" ? s.sortPrimary : undefined,
     sortSecondary: typeof s.sortSecondary === "string" ? s.sortSecondary : undefined,
+    sortPrimaryDir: typeof s.sortPrimaryDir === "string" ? s.sortPrimaryDir : undefined,
+    sortSecondaryDir: typeof s.sortSecondaryDir === "string" ? s.sortSecondaryDir : undefined,
   }),
 });
 
@@ -33,6 +35,23 @@ function RootComponent() {
 
   const [primary, setPrimary] = useState<RunSortKey>("score");
   const [secondary, setSecondary] = useState<RunSortKey>("score");
+  const [primaryDir, setPrimaryDir] = useState<SortDir>(defaultSortDir("score"));
+  const [secondaryDir, setSecondaryDir] = useState<SortDir>(defaultSortDir("score"));
+
+  // Picking a new metric resets that side to the metric's natural direction;
+  // the toggle button flips only the current direction (metric unchanged).
+  const onPrimaryChange = (k: RunSortKey) => {
+    setPrimary(k);
+    setPrimaryDir(defaultSortDir(k));
+  };
+  const onSecondaryChange = (k: RunSortKey) => {
+    setSecondary(k);
+    setSecondaryDir(defaultSortDir(k));
+  };
+  const onPrimaryDirToggle = () =>
+    setPrimaryDir((d) => (d === "desc" ? "asc" : "desc"));
+  const onSecondaryDirToggle = () =>
+    setSecondaryDir((d) => (d === "desc" ? "asc" : "desc"));
 
   // Ephemeral cross-component hover, keyed on config_hash — the identity that maps
   // exactly one scatter point (computeScatterPoints groups by config_hash) to one
@@ -45,7 +64,10 @@ function RootComponent() {
   const filters = useMemo(() => parseFilters(search), [search]);
   const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
 
-  const groups = useMemo(() => aggregateRuns(filtered, primary, secondary), [filtered, primary, secondary]);
+  const groups = useMemo(
+    () => aggregateRuns(filtered, primary, secondary, primaryDir, secondaryDir),
+    [filtered, primary, secondary, primaryDir, secondaryDir],
+  );
   const points = useMemo(() => computeScatterPoints(filtered), [filtered]);
 
   const legendFamilies = useMemo(() => {
@@ -90,9 +112,13 @@ function RootComponent() {
       groups={groups}
       primary={primary}
       secondary={secondary}
+      primaryDir={primaryDir}
+      secondaryDir={secondaryDir}
       tpsDomain={tpsDomain}
-      onPrimaryChange={setPrimary}
-      onSecondaryChange={setSecondary}
+      onPrimaryChange={onPrimaryChange}
+      onSecondaryChange={onSecondaryChange}
+      onPrimaryDirToggle={onPrimaryDirToggle}
+      onSecondaryDirToggle={onSecondaryDirToggle}
       onRowClick={onRowClick}
       hoveredConfig={hoveredConfig}
       onHoverConfig={setHoveredConfig}

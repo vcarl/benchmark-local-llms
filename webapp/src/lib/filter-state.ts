@@ -10,6 +10,8 @@ export type SearchState = {
   attempt?: string;         // expanded challenge line (attempt_id)
   sortPrimary?: string;
   sortSecondary?: string;
+  sortPrimaryDir?: string;
+  sortSecondaryDir?: string;
 };
 
 export const csv = (s: string | undefined): string[] =>
