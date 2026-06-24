@@ -15,6 +15,7 @@
   quant: Q8_0
   params: 7B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/Qwen2.5-7B-Instruct-4bit
   runtime: mlx
@@ -22,6 +23,7 @@
   quant: 4bit
   params: 7B
   temperature: 0.7
+  active: false
 
 # ── Qwen 2.5 32B Instruct ─────────────────────────────────────────────────
 - artifact: Qwen/Qwen2.5-32B-Instruct-GGUF
@@ -38,6 +40,7 @@
   quant: 4bit
   params: 32B
   temperature: 0.7
+  active: false
 
 # ── Qwen 2.5 72B Instruct ─────────────────────────────────────────────────
 - artifact: Qwen/Qwen2.5-72B-Instruct-GGUF
@@ -71,6 +74,7 @@
   quant: 4bit
   params: 32B
   temperature: 0.7
+  active: false
 
 # ── QwQ 32B ───────────────────────────────────────────────────────────────
 - artifact: Qwen/QwQ-32B-GGUF
@@ -108,6 +112,7 @@
   quant: Q6_K
   params: 32B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/Qwen3-32B-4bit
   runtime: mlx
@@ -115,6 +120,7 @@
   quant: 4bit
   params: 32B
   temperature: 0.7
+  active: false
 
 # ── Qwen 3.5 9B ───────────────────────────────────────────────────────────
 - artifact: unsloth/Qwen3.5-9B-GGUF
@@ -130,6 +136,7 @@
   quant: 4bit
   params: 9B
   temperature: 0.7
+  active: false
 
 # ── Qwen 3.5 27B ──────────────────────────────────────────────────────────
 - artifact: unsloth/Qwen3.5-27B-GGUF
@@ -138,6 +145,7 @@
   quant: Q6_K
   params: 27B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/Qwen3.5-27B-4bit
   runtime: mlx
@@ -145,6 +153,7 @@
   quant: 4bit
   params: 27B
   temperature: 0.7
+  active: false
 
 # ── Qwen 3.5 35B-A3B (MoE) ────────────────────────────────────────────────
 - artifact: unsloth/Qwen3.5-35B-A3B-GGUF
@@ -197,6 +206,7 @@
   quant: Q6_K
   params: 35B-A3B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/Qwen3.6-35B-A3B-4bit
   runtime: mlx
@@ -287,6 +297,7 @@
   quant: Q6_K
   params: 24B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit
   runtime: mlx
@@ -294,6 +305,7 @@
   quant: 4bit
   params: 24B
   temperature: 0.7
+  active: false
 
 # ── Magistral Small 1.2 24B ───────────────────────────────────────────────
 - artifact: mistralai/Magistral-Small-2509-GGUF
@@ -309,6 +321,7 @@
   quant: 4bit
   params: 24B
   temperature: 0.7
+  active: false
 
 # ── Devstral Small 2 24B ──────────────────────────────────────────────────
 - artifact: unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF
@@ -325,6 +338,7 @@
   quant: 4bit
   params: 24B
   temperature: 0.7
+  active: false
 
 # ── Llama 3.1 8B Instruct ─────────────────────────────────────────────────
 - artifact: bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
@@ -355,6 +369,7 @@
   quant: 4bit
   params: 7B
   temperature: 0.7
+  active: false
 
 # ── DeepSeek R1 Distill Qwen 14B ──────────────────────────────────────────
 - artifact: bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF
@@ -370,6 +385,7 @@
   quant: 4bit
   params: 14B
   temperature: 0.7
+  active: false
 
 # ── DeepSeek R1 Distill Qwen 32B ──────────────────────────────────────────
 - artifact: bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF
@@ -409,6 +425,7 @@
   quant: Q8_0
   params: 16B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit
   runtime: mlx
@@ -416,6 +433,7 @@
   quant: 4bit
   params: 16B
   temperature: 0.7
+  active: false
 
 # ── DeepSeek R1 Distill Llama 70B ─────────────────────────────────────────
 - artifact: bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF
@@ -485,6 +503,7 @@
   quant: Q6_K
   params: 31B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/gemma-4-31b-it-4bit
   runtime: mlx
@@ -536,6 +555,7 @@
   quant: 4bit
   params: 14B
   temperature: 0.7
+  active: false
 
 - artifact: mlx-community/phi-4-8bit
   runtime: mlx
