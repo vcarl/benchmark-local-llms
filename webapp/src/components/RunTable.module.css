@@ -262,6 +262,53 @@
   background: var(--gray-955);
 }
 .resultScoreHeader, .resultStatsHeader { text-align: right; }
+/* Score-column info marker — the Popover trigger. A real <button>, so strip the
+   native button chrome and keep the glyph subtle (muted → primary on hover),
+   matching how the old inline marker read. */
+.resultScoreInfo {
+  margin-left: var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--fz-12);
+  text-transform: none;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover { color: var(--text-primary); }
+}
+
+/* Score-info Popover popup — an elevated surface portaled out of the table so
+   it isn't clipped by row overflow. */
+.scoreInfoPopup {
+  max-width: 280px;
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-6);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+  font-size: var(--fz-12);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  z-index: var(--z-tooltip);
+
+  & p { margin: 0 0 var(--space-4); }
+}
+
+/* Request-a-challenge link inside the popup — mirrors the app's .requestLink. */
+.scoreInfoLink {
+  display: inline-block;
+  font-size: var(--fz-12);
+  color: var(--text-muted);
+  text-decoration: none;
+
+  &:hover { color: var(--text-primary); text-decoration: underline; }
+}
 .resultEmpty { padding: var(--space-16) var(--space-12); text-align: center; color: var(--text-faint); }
 
 /* New: coverage line under the model/variant identity. */

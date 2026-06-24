@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
+import { Popover } from "@base-ui/react/popover";
 import styles from "./RunTable.module.css";
 import type { RunGroup, RunRow, RunSortKey, TpsDomain } from "../lib/pipeline";
 import { RunRowItem } from "./RunRowItem";
+import { issueTemplateUrl } from "../lib/constants";
 
 interface Props {
   groups: RunGroup[];
@@ -118,7 +120,34 @@ export function RunGroupTable({
         <div className={styles.resultRowAlways}>
           <div className={styles.resultRank}>#</div>
           <div>Model / variant</div>
-          <div className={styles.resultScoreHeader}>Score</div>
+          <div className={styles.resultScoreHeader}>
+            Score
+            <Popover.Root>
+              <Popover.Trigger
+                className={styles.resultScoreInfo}
+                aria-label="What do these scores mean?"
+              >
+                ⓘ
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Positioner side="bottom" align="end" sideOffset={6}>
+                  <Popover.Popup className={styles.scoreInfoPopup}>
+                    <p>% = pass rate: the share of scored test items this model passed.</p>
+                    <p>The number below = efficiency: pass rate and challenge breadth balanced against token and time cost.</p>
+                    <p>These challenge sets are still a work in progress.</p>
+                    <a
+                      className={styles.scoreInfoLink}
+                      href={issueTemplateUrl("request-challenge-set.yml")}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Request a challenge →
+                    </a>
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            </Popover.Root>
+          </div>
           <div className={styles.resultStatsHeader}>tok · t/s · mem · wall</div>
         </div>
       </div>

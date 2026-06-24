@@ -7,6 +7,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@tanstack/react-router": "^1",
     "react": "^19",
     "react-dom": "^19"
