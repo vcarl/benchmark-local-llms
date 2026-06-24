@@ -1,0 +1,49 @@
+name: Request a model
+description: Suggest a model you'd like to see added to the leaderboard.
+title: "[Model] "
+labels: ["model-request"]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model (Hugging Face repo)
+      description: The repo id, ideally a quantized build that runs locally.
+      placeholder: mlx-community/Qwen3-30B-A3B-Instruct-4bit
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Preferred runtime
+      options:
+        - No preference
+        - MLX
+        - llama.cpp
+        - vLLM
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: quant
+    attributes:
+      label: Preferred quantization
+      options:
+        - No preference
+        - 4-bit
+        - 8-bit
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this model?
+      description: What makes it worth benchmarking? (architecture, claims, your own results)
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+    validations:
+      required: false

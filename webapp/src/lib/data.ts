@@ -83,3 +83,16 @@ export function modelSizeB(name: string): number | null {
   const match = name.match(/(\d+)B\b/i);
   return match ? parseInt(match[1], 10) : null;
 }
+
+/**
+ * Split a model artifact (e.g. `mlx-community/Qwen3.6-35B-A3B-4bit`) on its
+ * FIRST `/`: everything before becomes `prefix` (the org, e.g. `mlx-community`)
+ * and everything after becomes `name` (the useful model part). When there is no
+ * `/`, `prefix` is null and `name` is the whole string. Only the first `/` is a
+ * boundary — any later slashes stay in `name`.
+ */
+export function splitArtifact(artifact: string): { prefix: string | null; name: string } {
+  const idx = artifact.indexOf("/");
+  if (idx === -1) return { prefix: null, name: artifact };
+  return { prefix: artifact.slice(0, idx), name: artifact.slice(idx + 1) };
+}

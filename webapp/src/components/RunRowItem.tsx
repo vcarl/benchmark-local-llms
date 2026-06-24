@@ -1,7 +1,9 @@
 import styles from "./RunTable.module.css";
-import type { RunRow, TpsDomain } from "../lib/pipeline";
+import type { InvocationRow, RunRow, TpsDomain } from "../lib/pipeline";
 import { scoreBand, formatEfficiency } from "../lib/constants";
 import { formatWallTime } from "../lib/format";
+import { formatFinishedAt } from "../lib/debug-metrics";
+import { splitArtifact } from "../lib/data";
 import { ScatterGlyph } from "./ScatterGlyph";
 
 interface Props {
@@ -15,6 +17,11 @@ interface Props {
   tpsDomain: TpsDomain; // shared TPS domain (same one the scatter uses) for glyph opacity
   highlighted: boolean; // this row's config === the shared hoveredConfig
   onHoverConfig: (configHash: string | null) => void; // report row hover up (config_hash)
+  // Invocation expand: independent of the artifact-group expand above. When this
+  // config has >1 invocation, the row shows a toggle that reveals the OLDER
+  // invocations (invocations.slice(1)) as nested sub-rows.
+  invocationsExpanded: boolean;
+  onToggleInvocations?: () => void;
 }
 
 // Max rendered diameter (px) for the descriptor glyph on COMPACT rows. Compact
@@ -26,10 +33,15 @@ const COMPACT_GLYPH_MAX_PX = 20;
 const abbrevRuntime = (runtime: string): string =>
   runtime === "llamacpp" ? "lcpp" : runtime;
 
-const variantTag = (r: RunRow): string =>
-  `${abbrevRuntime(r.runtime)} · ${r.quant ?? "—"} · t${r.temperature}`;
+// Variant metadata line: `runtime · quant · t<temp>`, optionally prefixed with
+// the artifact org (e.g. `mlx-community`) once the model name has moved up to be
+// the primary label. When `prefix` is null the line is unchanged.
+const variantTag = (r: RunRow, prefix: string | null = null): string => {
+  const base = `${abbrevRuntime(r.runtime)} · ${r.quant ?? "—"} · t${r.temperature}`;
+  return prefix === null ? base : `${prefix} · ${base}`;
+};
 
-export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, tpsDomain, highlighted, onHoverConfig }: Props) {
+export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, onClick, tpsDomain, highlighted, onHoverConfig, invocationsExpanded, onToggleInvocations }: Props) {
   const scorePct = Math.max(0, Math.min(100, row.passRate * 100));
   // The descriptor glyph encodes the SAME four channels as this model's scatter
   // marker (family→color, peak memory→size, wall time→points, TPS→opacity),
@@ -44,7 +56,14 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
     onToggle?.();
   };
 
+  const handleInvocationsToggleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleInvocations?.();
+  };
+
   const showToggle = !compact && groupSize > 1 && onToggle !== undefined;
+  const olderInvocations = row.invocations.slice(1);
+  const showInvocationsToggle = olderInvocations.length > 0 && onToggleInvocations !== undefined;
 
   return (
     <div className={styles.runRowWrap}>
@@ -80,8 +99,8 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
             <div className={`${styles.resultModelName} ${styles.runRowVariant}`}>{variantTag(row)}</div>
           ) : (
             <>
-              <div className={styles.resultModelName}>{row.artifact}</div>
-              <div className={styles.resultModelFamily}>{variantTag(row)}</div>
+              <div className={styles.resultModelName}>{splitArtifact(row.artifact).name}</div>
+              <div className={styles.resultModelFamily}>{variantTag(row, splitArtifact(row.artifact).prefix)}</div>
             </>
           )}
           <div className={styles.resultCoverage}>
@@ -119,6 +138,17 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
       </div>
 
     </button>
+    {showInvocationsToggle && (
+      <button
+        type="button"
+        className={`${styles.resultGroupToggle} ${styles.resultInvocationsToggle}${compact ? ` ${styles.resultInvocationsToggleCompact}` : ""}`}
+        aria-label={invocationsExpanded ? "Collapse earlier runs" : "Expand earlier runs"}
+        onClick={handleInvocationsToggleClick}
+      >
+        <span className={styles.resultGroupToggleCaret}>{invocationsExpanded ? "▾" : "▸"}</span>
+        {olderInvocations.length} earlier {olderInvocations.length === 1 ? "run" : "runs"}
+      </button>
+    )}
     {showToggle && (
       <button
         type="button"
@@ -130,6 +160,101 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
         {groupSize - 1} more
       </button>
     )}
+    {showInvocationsToggle && invocationsExpanded &&
+      olderInvocations.map((inv) => (
+        <InvocationRowItem
+          key={inv.finishedAt + inv.records[0]?.attempt_id}
+          inv={inv}
+          configHash={row.config_hash}
+          onClick={onClick}
+          tpsDomain={tpsDomain}
+          highlighted={highlighted}
+          onHoverConfig={onHoverConfig}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface InvocationRowProps {
+  inv: InvocationRow;
+  configHash: string; // PARENT config_hash — hover/highlight target stays the config
+  onClick: () => void; // opens the whole-config drilldown (unchanged)
+  tpsDomain: TpsDomain;
+  highlighted: boolean;
+  onHoverConfig: (configHash: string | null) => void;
+}
+
+// A nested sub-row for one OLDER invocation of a config. Shares the row grid but
+// renders the invocation's date where the model name goes, plus that
+// invocation's coverage / score / stats / glyph. Hover/click both target the
+// PARENT config (no per-invocation drilldown), so it highlights the same scatter
+// dot and parent row.
+function InvocationRowItem({ inv, configHash, onClick, tpsDomain, highlighted, onHoverConfig }: InvocationRowProps) {
+  const scorePct = Math.max(0, Math.min(100, inv.passRate * 100));
+  const glyphTitle = `${inv.mem.toFixed(1)} GB · ${formatWallTime(inv.wallTime)} · ${inv.genTps > 0 ? inv.genTps.toFixed(0) : "—"} tok/s`;
+
+  return (
+    <div className={styles.runRowWrap}>
+      <button
+        type="button"
+        className={`${styles.resultRow} ${styles.runRow} ${styles.resultRowCompact} ${styles.resultInvocationRow}${highlighted ? ` ${styles.resultRowHighlighted}` : ""}`}
+        onClick={onClick}
+        onMouseEnter={() => onHoverConfig(configHash)}
+        onMouseLeave={() => onHoverConfig(null)}
+      >
+        <span className={styles.resultGlyph} title={glyphTitle} aria-hidden="true">
+          <ScatterGlyph
+            enc={{
+              family: inv.family,
+              peak_memory_gb: inv.mem,
+              wall_time_sec: inv.wallTime,
+              generation_tps: inv.genTps,
+            }}
+            tpsDomain={tpsDomain}
+            maxPx={COMPACT_GLYPH_MAX_PX}
+          />
+        </span>
+
+        <div className={styles.resultRowAlways}>
+          <div className={styles.resultRank}></div>
+          <div className={styles.resultModel}>
+            <div className={`${styles.resultModelName} ${styles.runRowVariant}`}>
+              {formatFinishedAt(inv.finishedAt)}
+            </div>
+            <div className={styles.resultCoverage}>
+              {inv.uniqueChallenges} challenges · {inv.itemCount} items
+            </div>
+          </div>
+          <div className={styles.resultScoreCell}>
+            <div className={styles.resultScore} data-band={scoreBand(inv.passRate)}>
+              {scorePct.toFixed(0)}%
+            </div>
+          </div>
+          <div className={styles.resultStats}>
+            <div className={styles.resultStatCol}>
+              <span className={styles.resultStatVal} title={`${Math.round(inv.tokens).toLocaleString()} generation tokens (total)`}>
+                {Math.round(inv.tokens).toLocaleString()}
+              </span>
+              <span className={styles.resultStatUnit}>tok</span>
+              <span className={styles.resultStatVal} title={`${inv.genTps.toFixed(1)} generation tokens/sec (mean)`}>
+                {inv.genTps > 0 ? inv.genTps.toFixed(0) : "—"}
+              </span>
+              <span className={styles.resultStatUnit}>tok/s</span>
+            </div>
+            <div className={styles.resultStatCol}>
+              <span className={styles.resultStatVal} title={`${inv.mem.toFixed(2)} GB peak memory`}>
+                {inv.mem.toFixed(1)}
+              </span>
+              <span className={styles.resultStatUnit}>GB</span>
+              <span className={styles.resultStatVal} title={`${Math.round(inv.wallTime).toLocaleString()}s total wall time`}>
+                {inv.wallTime > 0 ? formatWallTime(inv.wallTime) : "—"}
+              </span>
+              <span className={styles.resultStatUnit}>wall</span>
+            </div>
+          </div>
+        </div>
+      </button>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { FilterPanel } from "../components/FilterPanel";
 import { familyColor } from "../lib/colors";
 import { parseFilters, type SearchState } from "../lib/filter-state";
 import { DrilldownPanel } from "../components/DrilldownPanel";
+import { issueTemplateUrl } from "../lib/constants";
 import styles from "./index.module.css";
 
 export const Route = createRootRoute({
@@ -150,16 +151,34 @@ function RootComponent() {
             {filtered.length} attempts · {groups.length} models
           </div>
         </div>
-        {shifted && (
-          <button
-            type="button"
-            className={styles.overviewButton}
-            onClick={closeDetails}
-            aria-label="Back to overview"
+        <div className={styles.appHeaderActions}>
+          <a
+            className={styles.requestLink}
+            href={issueTemplateUrl("request-model.yml")}
+            target="_blank"
+            rel="noreferrer"
           >
-            ← Overview
-          </button>
-        )}
+            Request a model
+          </a>
+          <a
+            className={styles.requestLink}
+            href={issueTemplateUrl("request-challenge-set.yml")}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Request a challenge
+          </a>
+          {shifted && (
+            <button
+              type="button"
+              className={styles.overviewButton}
+              onClick={closeDetails}
+              aria-label="Back to overview"
+            >
+              ← Overview
+            </button>
+          )}
+        </div>
       </header>
       <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={details} />
     </div>

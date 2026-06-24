@@ -5,11 +5,12 @@ import {
   challengeBreakdown,
   computeConfigScores,
   computeScatterPoints,
+  splitInvocations,
   starPointsForWallTime,
   computeTpsDomain,
   opacityForTps,
 } from "./pipeline";
-import type { RunRow, RunGroup, ScatterPoint, TpsDomain } from "./pipeline";
+import type { RunRow, RunGroup, ScatterPoint, TpsDomain, InvocationRow } from "./pipeline";
 import type { BenchmarkResult } from "./data";
 
 const rec = (o: Partial<BenchmarkResult>): BenchmarkResult => ({
@@ -76,6 +77,48 @@ describe("aggregateRuns", () => {
     expect(row?.itemCount).toBe(8);
     expect(row?.attemptsCompleted).toBe(2);
     expect(row?.family).toBe("Qwen");
+    // Single invocation: code + math, no repeated bare id.
+    expect(row?.invocations).toHaveLength(1);
+  });
+
+  it("multi-invocation config: headline === invocations[0] (latest run), and invocations are listed", () => {
+    // c1 ran "code" twice and "math" twice across two invocations.
+    // Newer invocation (finished 11:xx): code passes 4/4, math passes 4/4 → 1.0
+    // Older invocation (finished 09:xx): code 1/4, math 0/4 → 0.125
+    const groups = aggregateRuns(
+      [
+        rec({ config_hash: "c1", challenge_id: "code", item_count: 4, passed_items: 1, finished_at: "2026-06-20T09:00:00", attempt_id: "o-code" }),
+        rec({ config_hash: "c1", challenge_id: "math", item_count: 4, passed_items: 0, finished_at: "2026-06-20T09:00:01", attempt_id: "o-math" }),
+        rec({ config_hash: "c1", challenge_id: "code", item_count: 4, passed_items: 4, finished_at: "2026-06-20T11:00:00", attempt_id: "n-code" }),
+        rec({ config_hash: "c1", challenge_id: "math", item_count: 4, passed_items: 4, finished_at: "2026-06-20T11:00:01", attempt_id: "n-math" }),
+      ],
+      "score",
+      "score",
+    );
+    const row = groups[0]!.rows[0]!;
+    expect(row.invocations).toHaveLength(2);
+    // Headline mirrors the newest invocation, not the pooled set.
+    expect(row.passRate).toBeCloseTo(1.0, 10);
+    expect(row.passRate).toBe(row.invocations[0]!.passRate);
+    expect(row.itemCount).toBe(row.invocations[0]!.itemCount); // 8, the newest run only
+    expect(row.invocations[0]!.records.map((r) => r.attempt_id).sort()).toEqual(["n-code", "n-math"]);
+    expect(row.invocations[1]!.passRate).toBeCloseTo(0.125, 10);
+  });
+
+  it("sorting is unchanged: ranks by headline passRate (newest invocation)", () => {
+    // c1 newest run scores low; c2 (single run) scores high → c2 ranks first
+    // even though c1's OLDER run scored 1.0. Sorting must read headline fields.
+    const groups = aggregateRuns(
+      [
+        rec({ config_hash: "c1", artifact: "qwen", challenge_id: "code", item_count: 4, passed_items: 4, finished_at: "2026-06-20T09:00:00", attempt_id: "c1-old" }),
+        rec({ config_hash: "c1", artifact: "qwen", challenge_id: "code", item_count: 4, passed_items: 0, finished_at: "2026-06-20T11:00:00", attempt_id: "c1-new" }),
+        rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", item_count: 4, passed_items: 3, finished_at: "2026-06-20T10:00:00", attempt_id: "c2" }),
+      ],
+      "score",
+      "score",
+    );
+    // llama headline 0.75 > qwen headline 0.0 (qwen's old 1.0 run is ignored)
+    expect(groups.map((g) => g.artifact)).toEqual(["llama", "qwen"]);
   });
 
   it("returns [] for empty input", () => {
@@ -139,6 +182,114 @@ describe("challengeBreakdown", () => {
   });
 });
 
+describe("splitInvocations", () => {
+  // Helper: build a v2 (10-challenge) suite of attempts at a given timestamp
+  // prefix, with bare challenge ids c0..c9.
+  const suite = (
+    ids: string[],
+    finishedAtBase: string,
+    extra: Partial<BenchmarkResult> = {},
+  ): BenchmarkResult[] =>
+    ids.map((id, i) =>
+      rec({
+        challenge_id: id,
+        // Distinct finished_at within the batch (all share the same hour-ish),
+        // strictly increasing so DESC sort is deterministic.
+        finished_at: `${finishedAtBase}:${String(i).padStart(2, "0")}`,
+        attempt_id: `${finishedAtBase}-${id}`,
+        ...extra,
+      }),
+    );
+
+  const V1 = ["c0", "c1", "c2", "c3", "c4", "c5"]; // 6-challenge suite
+  const V2 = ["c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9"]; // 10
+
+  it("a single run of one set is exactly one invocation", () => {
+    const invs = splitInvocations(suite(V2, "2026-06-20T10:00"));
+    expect(invs).toHaveLength(1);
+    expect(invs[0]!.uniqueChallenges).toBe(10);
+    expect(invs[0]!.itemCount).toBe(10);
+    expect(invs[0]!.records).toHaveLength(10);
+  });
+
+  it("pure re-runs of one set split into N invocations (10,10,6,6 newest→oldest)", () => {
+    // qwen2.5-7b shape: two 10-challenge runs then two 6-challenge runs.
+    const attempts = [
+      ...suite(V1, "2026-06-20T08:00"), // oldest 6
+      ...suite(V1, "2026-06-20T09:00"), // 6
+      ...suite(V2, "2026-06-20T10:00"), // 10
+      ...suite(V2, "2026-06-20T11:00"), // newest 10
+    ];
+    const invs = splitInvocations(attempts);
+    expect(invs).toHaveLength(4);
+    // newest first
+    expect(invs.map((i) => i.uniqueChallenges)).toEqual([10, 10, 6, 6]);
+    // invocations[0] is the newest batch
+    expect(invs[0]!.finishedAt).toBe("2026-06-20T11:00:09");
+    expect(invs[3]!.finishedAt).toBe("2026-06-20T08:00:05");
+  });
+
+  it("v1 ⊂ v2 boundary: an older 6-set after a newer 10-set splits (ids repeat)", () => {
+    // Newer batch has c0..c9. Older batch reuses c0..c5 → a repeat forces a
+    // boundary even though the older set is a strict subset of the newer one.
+    const attempts = [
+      ...suite(V1, "2026-06-20T09:00"), // older 6 (c0..c5)
+      ...suite(V2, "2026-06-20T10:00"), // newer 10 (c0..c9)
+    ];
+    const invs = splitInvocations(attempts);
+    expect(invs).toHaveLength(2);
+    expect(invs[0]!.uniqueChallenges).toBe(10); // newest
+    expect(invs[1]!.uniqueChallenges).toBe(6);
+  });
+
+  it("a challenge appearing twice in one burst forces a boundary mid-burst", () => {
+    // No big gap, but c0 appears again before the set is exhausted.
+    const attempts = [
+      rec({ challenge_id: "c0", finished_at: "2026-06-20T10:00:03", attempt_id: "a4" }),
+      rec({ challenge_id: "c1", finished_at: "2026-06-20T10:00:02", attempt_id: "a3" }),
+      rec({ challenge_id: "c0", finished_at: "2026-06-20T10:00:01", attempt_id: "a2" }),
+      rec({ challenge_id: "c2", finished_at: "2026-06-20T10:00:00", attempt_id: "a1" }),
+    ];
+    const invs = splitInvocations(attempts);
+    // DESC: [c0@03, c1@02, c0@01, c2@00] → c0 repeats at index 2 → split there.
+    expect(invs).toHaveLength(2);
+    expect(invs[0]!.records.map((r) => r.attempt_id)).toEqual(["a4", "a3"]);
+    expect(invs[1]!.records.map((r) => r.attempt_id)).toEqual(["a2", "a1"]);
+  });
+
+  it("a singleton is one invocation of size 1", () => {
+    const invs = splitInvocations([rec({ challenge_id: "c0", finished_at: "2026-06-20T10:00:00" })]);
+    expect(invs).toHaveLength(1);
+    expect(invs[0]!.uniqueChallenges).toBe(1);
+    expect(invs[0]!.itemCount).toBe(1);
+  });
+
+  it("missing / equal finished_at is deterministic via attempt_id tie-break", () => {
+    // All empty finished_at — order must come from attempt_id, not input order.
+    const attempts = [
+      rec({ challenge_id: "c1", finished_at: "", attempt_id: "b" }),
+      rec({ challenge_id: "c0", finished_at: "", attempt_id: "a" }),
+      rec({ challenge_id: "c2", finished_at: "", attempt_id: "c" }),
+    ];
+    const invs = splitInvocations(attempts);
+    expect(invs).toHaveLength(1);
+    // attempt_id DESC tie-break → c, b, a
+    expect(invs[0]!.records.map((r) => r.attempt_id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("invocations[0] headline fields match rowForConfig over its own records", () => {
+    const attempts = [
+      ...suite(V1, "2026-06-20T09:00"),
+      ...suite(V2, "2026-06-20T10:00", { generation_tokens: 50 }),
+    ];
+    const invs = splitInvocations(attempts);
+    const newest: InvocationRow = invs[0]!;
+    expect(newest.uniqueChallenges).toBe(10);
+    // tokens are the sum over the newest invocation's 10 records only
+    expect(newest.tokens).toBe(500);
+  });
+});
+
 describe("computeScatterPoints", () => {
   it("one point per config_hash with cost-x / quality-y / size / mem / tps", () => {
     const pts = computeScatterPoints([
@@ -163,6 +314,34 @@ describe("computeScatterPoints", () => {
     ]);
     expect(pts).toHaveLength(1);
     expect(pts[0]!.wall_time_sec).toBe(35); // 10 + 25
+  });
+
+  it("multi-invocation config: point reflects the LATEST invocation, matching the headline RunRow", () => {
+    const records = [
+      // older invocation (low score, big tokens) — must be ignored
+      rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", item_count: 4, passed_items: 0, generation_tokens: 999, wall_time_sec: 99, generation_tps: 2, peak_memory_gb: 9, finished_at: "2026-06-20T09:00:00", attempt_id: "o-code" }),
+      rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "math", item_count: 4, passed_items: 0, generation_tokens: 999, wall_time_sec: 99, generation_tps: 2, peak_memory_gb: 9, finished_at: "2026-06-20T09:00:01", attempt_id: "o-math" }),
+      // newer invocation
+      rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5, finished_at: "2026-06-20T11:00:00", attempt_id: "n-code" }),
+      rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "math", item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0, finished_at: "2026-06-20T11:00:01", attempt_id: "n-math" }),
+    ];
+    const pts = computeScatterPoints(records);
+    expect(pts).toHaveLength(1);
+    const p = pts[0]!;
+    // matches the newest invocation only
+    expect(p.x).toBe(300); // 100 + 200, not 999*2
+    expect(p.y).toBeCloseTo(0.75, 10); // (4+2)/(4+4)
+    expect(p.peak_memory_gb).toBe(3.0);
+    expect(p.generation_tps).toBe(20);
+    expect(p.wall_time_sec).toBe(6);
+    // and equals the headline RunRow built from the same records
+    const groups = aggregateRuns(records, "score", "score");
+    const headline = groups[0]!.rows[0]!;
+    expect(p.x).toBe(headline.tokens);
+    expect(p.y).toBe(headline.passRate);
+    expect(p.peak_memory_gb).toBe(headline.mem);
+    expect(p.generation_tps).toBe(headline.genTps);
+    expect(p.wall_time_sec).toBe(headline.wallTime);
   });
 
   it("returns [] for empty input", () => {

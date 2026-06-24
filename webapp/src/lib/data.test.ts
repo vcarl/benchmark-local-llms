@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRecord } from "./data";
+import { normalizeRecord, splitArtifact } from "./data";
+
+describe("splitArtifact", () => {
+  it("splits an org-prefixed artifact on the first slash", () => {
+    expect(splitArtifact("mlx-community/Qwen3.6-35B-A3B-4bit")).toEqual({
+      prefix: "mlx-community",
+      name: "Qwen3.6-35B-A3B-4bit",
+    });
+  });
+
+  it("returns a null prefix when there is no slash", () => {
+    expect(splitArtifact("qwen")).toEqual({ prefix: null, name: "qwen" });
+  });
+
+  it("splits only on the FIRST slash, leaving later slashes in name", () => {
+    expect(splitArtifact("bartowski/nvidia_Llama/v1-GGUF")).toEqual({
+      prefix: "bartowski",
+      name: "nvidia_Llama/v1-GGUF",
+    });
+  });
+
+  it("handles an empty string", () => {
+    expect(splitArtifact("")).toEqual({ prefix: null, name: "" });
+  });
+});
 
 const raw = {
   config_id: "cfg", config_hash: "ch", artifact: "qwen", runtime: "llama-server",

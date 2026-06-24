@@ -1,0 +1,33 @@
+name: Request a challenge set
+description: Suggest a set of challenges you'd like to see run against the models.
+title: "[Challenge set] "
+labels: ["challenge-request"]
+body:
+  - type: input
+    id: theme
+    attributes:
+      label: Theme / name
+      description: A short name for the set.
+      placeholder: SQL query writing
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: What should it test?
+      description: The concepts or skills the challenges should exercise.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example tasks or prompts
+      description: Concrete examples help a lot — even rough ones.
+    validations:
+      required: false
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is this interesting?
+    validations:
+      required: false

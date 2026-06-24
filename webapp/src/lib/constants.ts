@@ -14,5 +14,9 @@ export const scoreBand = (
   return "red";
 };
 
-export const EFFICIENCY_SCALE = 1_000_000;
+export const REPO_URL = "https://github.com/vcarl/benchmark-local-llms";
+export const issueTemplateUrl = (template: string): string =>
+  `${REPO_URL}/issues/new?template=${template}`;
+
+export const EFFICIENCY_SCALE = 100;
 export const formatEfficiency = (e: number | null): string => (e === null ? "—" : e.toFixed(2));

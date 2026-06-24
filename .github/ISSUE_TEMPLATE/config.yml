@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Leaderboard & README
+    url: https://github.com/vcarl/benchmark-local-llms
+    about: Browse current results and read about how the benchmark works.

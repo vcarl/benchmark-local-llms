@@ -27,11 +27,17 @@ export function RunGroupTable({
   groups, primary, secondary, tpsDomain, onPrimaryChange, onSecondaryChange, onRowClick,
   hoveredConfig, onHoverConfig,
 }: Props) {
+  // Artifact-group expand (reveals a model's sibling configs).
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Invocation expand, keyed by config_hash (reveals a config's older runs).
+  const [expandedInvocations, setExpandedInvocations] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
 
   const isExpanded = (artifact: string): boolean =>
     allExpanded ? true : expanded.has(artifact);
+
+  const isInvocationsExpanded = (configHash: string): boolean =>
+    allExpanded ? true : expandedInvocations.has(configHash);
 
   const toggleGroup = (artifact: string) => {
     setExpanded((prev) => {
@@ -42,10 +48,22 @@ export function RunGroupTable({
     });
   };
 
+  const toggleInvocations = (configHash: string) => {
+    setExpandedInvocations((prev) => {
+      const next = new Set(prev);
+      if (next.has(configHash)) next.delete(configHash);
+      else next.add(configHash);
+      return next;
+    });
+  };
+
+  // "expand all" / "collapse all" drives BOTH axes: artifact groups and
+  // per-config invocations.
   const toggleAll = () => {
     if (allExpanded) {
       setAllExpanded(false);
       setExpanded(new Set());
+      setExpandedInvocations(new Set());
     } else {
       setAllExpanded(true);
     }
@@ -121,6 +139,8 @@ export function RunGroupTable({
               tpsDomain={tpsDomain}
               highlighted={lead.config_hash === hoveredConfig}
               onHoverConfig={onHoverConfig}
+              invocationsExpanded={isInvocationsExpanded(lead.config_hash)}
+              onToggleInvocations={lead.invocations.length > 1 ? () => toggleInvocations(lead.config_hash) : undefined}
             />
             {open && rest.map((r) => (
               <RunRowItem
@@ -133,6 +153,8 @@ export function RunGroupTable({
                 tpsDomain={tpsDomain}
                 highlighted={r.config_hash === hoveredConfig}
                 onHoverConfig={onHoverConfig}
+                invocationsExpanded={isInvocationsExpanded(r.config_hash)}
+                onToggleInvocations={r.invocations.length > 1 ? () => toggleInvocations(r.config_hash) : undefined}
               />
             ))}
           </div>

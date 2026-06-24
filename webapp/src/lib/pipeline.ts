@@ -42,7 +42,7 @@ export const computeConfigScores = (
   ).size;
   const overallTokens = attempts.reduce((s, a) => s + a.generation_tokens, 0);
   const timeSpent = attempts.reduce((s, a) => s + a.wall_time_sec, 0);
-  const denom = overallTokens * timeSpent;
+  const denom = Math.log(overallTokens) * Math.min(timeSpent / 60);
   if (denom === 0) return { passRate, efficiency: null };
   const efficiency = ((passRate * uniqueChallenges * completed) / denom) * EFFICIENCY_SCALE;
   return { passRate, efficiency };
@@ -68,6 +68,18 @@ export interface RunRow {
   uniqueChallenges: number;
   itemCount: number;
   attemptsCompleted: number;
+  // The config's attempts split into distinct benchmarking invocations
+  // (newest → oldest). Always non-empty; `invocations[0]` is the most recent
+  // and supplies this row's headline metric fields (see `rowForConfig`).
+  invocations: InvocationRow[];
+}
+
+// A single benchmarking invocation (run) for one config: the RunRow metric
+// fields scoped to that invocation's attempts, plus the invocation's most-recent
+// finished_at and its underlying records.
+export interface InvocationRow extends RunRow {
+  finishedAt: string;
+  records: BenchmarkResult[];
 }
 
 export interface RunGroup {
@@ -83,7 +95,12 @@ const meanOrZero = (values: number[]): number => {
   return sum / values.length;
 };
 
-const rowForConfig = (attempts: BenchmarkResult[]): RunRow | null => {
+// Aggregate a flat list of attempts into the metric fields of a RunRow (no
+// invocation splitting — this is the leaf aggregation reused by both
+// `splitInvocations` and `rowForConfig`). Returns null on empty input.
+const metricsForAttempts = (
+  attempts: BenchmarkResult[],
+): Omit<RunRow, "invocations"> | null => {
   const head = attempts[0];
   if (head === undefined) return null;
   const { passRate, efficiency } = computeConfigScores(attempts);
@@ -104,6 +121,67 @@ const rowForConfig = (attempts: BenchmarkResult[]): RunRow | null => {
     itemCount: attempts.reduce((s, a) => s + a.item_count, 0),
     attemptsCompleted: attempts.length,
   };
+};
+
+// Sort a COPY of attempts by finished_at DESC (lexicographic ISO, same ordering
+// as challengeBreakdown / finishedSpan), tie-broken by attempt_id DESC so equal
+// or empty finished_at is deterministic.
+const sortedByFinishedDesc = (attempts: BenchmarkResult[]): BenchmarkResult[] =>
+  attempts.slice().sort((a, b) => {
+    if (a.finished_at !== b.finished_at) return a.finished_at < b.finished_at ? 1 : -1;
+    return a.attempt_id < b.attempt_id ? 1 : a.attempt_id > b.attempt_id ? -1 : 0;
+  });
+
+/**
+ * Split a config's attempts into distinct benchmarking invocations (runs),
+ * newest → oldest. Walking the attempts in finished_at-DESC order, attempts
+ * accumulate into the current invocation until a BARE `challenge_id` already
+ * present in the current batch repeats — that repeat opens a new (older)
+ * invocation. This matches the >1h-gap rule in the data (v1 = 6-challenge suite,
+ * v2 = 10-challenge suite, v1 ⊂ v2): a fresh run necessarily re-runs challenge
+ * ids already seen, so the first repeat marks the run boundary.
+ *
+ * Each returned InvocationRow carries the RunRow metric fields aggregated over
+ * just that invocation's attempts, the invocation's max finished_at, and its
+ * underlying records. `invocations` is always [] on these rows (no recursion).
+ */
+export const splitInvocations = (attempts: BenchmarkResult[]): InvocationRow[] => {
+  const sorted = sortedByFinishedDesc(attempts);
+  const batches: BenchmarkResult[][] = [];
+  let current: BenchmarkResult[] = [];
+  let seen = new Set<string>();
+  for (const a of sorted) {
+    if (seen.has(a.challenge_id)) {
+      batches.push(current);
+      current = [];
+      seen = new Set<string>();
+    }
+    current.push(a);
+    seen.add(a.challenge_id);
+  }
+  if (current.length > 0) batches.push(current);
+
+  const rows: InvocationRow[] = [];
+  for (const batch of batches) {
+    const metrics = metricsForAttempts(batch);
+    if (metrics === null) continue;
+    const finishedAt = batch.reduce(
+      (m, a) => (a.finished_at > m ? a.finished_at : m),
+      "",
+    );
+    rows.push({ ...metrics, invocations: [], finishedAt, records: batch });
+  }
+  return rows;
+};
+
+const rowForConfig = (attempts: BenchmarkResult[]): RunRow | null => {
+  const invocations = splitInvocations(attempts);
+  const headline = invocations[0];
+  if (headline === undefined) return null;
+  // The headline IS the most-recent invocation (no metric drift), plus the full
+  // invocation list. headline already carries invocations: [] from
+  // splitInvocations; overwrite it with the real list here.
+  return { ...headline, invocations };
 };
 
 const sortValue = (r: RunRow, key: RunSortKey): number =>
@@ -282,9 +360,13 @@ export const computeScatterPoints = (records: BenchmarkResult[]): ScatterPoint[]
   }
   const points: ScatterPoint[] = [];
   for (const attempts of byConfig.values()) {
-    const head = attempts[0];
-    if (head === undefined) continue;
-    const { passRate, efficiency } = computeConfigScores(attempts);
+    // One point per config_hash, computed from the LATEST invocation only (so it
+    // matches the headline RunRow and links 1:1 to the ranking row), not all
+    // pooled attempts.
+    const latest = splitInvocations(attempts)[0]?.records;
+    const head = latest?.[0];
+    if (latest === undefined || head === undefined) continue;
+    const { passRate, efficiency } = computeConfigScores(latest);
     points.push({
       config_hash: head.config_hash,
       artifact: head.artifact,
@@ -292,13 +374,13 @@ export const computeScatterPoints = (records: BenchmarkResult[]): ScatterPoint[]
       runtime: head.runtime,
       quant: head.quant,
       temperature: head.temperature,
-      x: attempts.reduce((s, a) => s + a.generation_tokens, 0),
+      x: latest.reduce((s, a) => s + a.generation_tokens, 0),
       y: passRate,
       efficiency,
       sizeB: modelSizeB(head.artifact),
-      peak_memory_gb: attempts.reduce((m, a) => (a.peak_memory_gb > m ? a.peak_memory_gb : m), 0),
-      generation_tps: meanOrZero(attempts.map((a) => a.generation_tps)),
-      wall_time_sec: attempts.reduce((s, a) => s + a.wall_time_sec, 0),
+      peak_memory_gb: latest.reduce((m, a) => (a.peak_memory_gb > m ? a.peak_memory_gb : m), 0),
+      generation_tps: meanOrZero(latest.map((a) => a.generation_tps)),
+      wall_time_sec: latest.reduce((s, a) => s + a.wall_time_sec, 0),
     });
   }
   return points;

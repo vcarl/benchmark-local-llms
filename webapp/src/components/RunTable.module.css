@@ -23,7 +23,10 @@
 .resultRowCompact,
 .resultHeader {
   --col-rank: 24px;
-  --col-score: 78px;
+  /* Score column holds a short value only ("100%" max, 4 chars, or "0.54"-style).
+     Sized to fit the widest value plus a little breathing room; the freed space
+     redistributes to the 1fr model column. Header label ("Score") is shorter still. */
+  --col-score: 5ch;
   --col-stats: 184px;
   /* Leading glyph lane: reserved width + the gutter between it and content.
      Markers run ~16px (smallest-memory model) to ~42px (largest) in diameter;
@@ -182,6 +185,40 @@
   &:hover { background: var(--surface-4); color: var(--text-primary); border-color: var(--gray-650); }
 }
 .resultGroupToggleCaret { font-size: var(--fz-9); }
+
+/* Invocation expand toggle — reveals a config's OLDER benchmarking runs. Reuses
+   the group-toggle pill chrome but anchors to the bottom-LEFT (under the model
+   name) so it never collides with the bottom-right group toggle on the lead row.
+   The leading glyph lane is reserved on the left, so offset past it. */
+.resultInvocationsToggle {
+  right: auto;
+  left: calc(var(--space-6) + var(--vis-width) + var(--vis-gutter));
+  bottom: var(--space-2);
+}
+/* On compact (artifact-sibling) rows the row is shorter and the glyph lane is
+   tighter; keep the toggle inline-anchored to that row's content edge. */
+.resultInvocationsToggleCompact {
+  bottom: 1px;
+}
+
+/* Nested invocation sub-row: a SECOND nesting level below the config-compact
+   row. Indent further and tint differently from both the config-compact bg
+   (--gray-975) and the hover highlight, so the two nesting depths stay legible.
+   A leading inset rule marks the nesting visually. */
+.resultInvocationRow {
+  /* Darker than the config-compact bg (--gray-975) to read as a deeper nesting
+     level; no darker design token exists, so use an explicit near-black. */
+  background: #0b0b0d;
+  box-shadow: inset 3px 0 0 0 var(--gray-800);
+  padding-left: calc(var(--space-6) + var(--vis-width) + var(--vis-gutter) + var(--space-8));
+
+  & .resultModelName { color: var(--text-muted); }
+}
+/* Keep the cross-link highlight reading on top of the invocation tint. */
+.resultInvocationRow.resultRowHighlighted {
+  background: var(--surface-hover);
+  box-shadow: inset 3px 0 0 0 var(--accent-300);
+}
 
 /* Two-axis sort UI */
 .resultSortGroup { display: inline-flex; align-items: center; gap: var(--space-2); }
