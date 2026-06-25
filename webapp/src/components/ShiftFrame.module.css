@@ -82,6 +82,11 @@
   :where(.shiftCanvas[data-shifted="true"]) .regionDetails { transform: translateX(0); }
 }
 
+/* Phone breakpoint — keep 600px in sync across modules */
+@media (max-width: 600px) {
+  .regionScatter { height: 40vh; min-height: 260px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shiftCanvas { transition: none; }
   .regionDetails { transition: none; }
