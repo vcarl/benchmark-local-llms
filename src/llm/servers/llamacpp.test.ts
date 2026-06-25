@@ -1,12 +1,19 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { llamacppServer } from "./llamacpp.js";
 import {
   httpClientLayer,
   makeMockExecutor,
-  startHealthyServer,
+  startHealthyTemplateServer,
   type TestHttpServer,
 } from "./test-mocks.js";
+
+// `startHealthyServer` answers 200 "ok" on every path; once the supervisor
+// runs the template gate, llamacpp boots need a server that also answers the
+// /props + /apply-template routes. `startHealthyTemplateServer` does both.
+const startHealthyServer = startHealthyTemplateServer;
 
 describe("llamacppServer", () => {
   let ts: TestHttpServer | null = null;
@@ -49,6 +56,7 @@ describe("llamacppServer", () => {
       "q8_0",
       "--reasoning-format",
       "auto",
+      "--jinja",
     ]);
   });
 
@@ -95,9 +103,15 @@ describe("llamacppServer", () => {
     const idx = run.log.args.indexOf("--chat-template-file");
     expect(idx).toBeGreaterThanOrEqual(0);
     expect(run.log.args[idx + 1]).toBe("/repo/templates/mistral-v7-tekken.jinja");
+    // --jinja must precede --chat-template-file so llama.cpp treats the file as
+    // arbitrary Jinja, and must appear exactly once (no duplicate from base + cond).
+    const jinjaIdx = run.log.args.indexOf("--jinja");
+    expect(jinjaIdx).toBeGreaterThanOrEqual(0);
+    expect(jinjaIdx).toBeLessThan(idx);
+    expect(run.log.args.filter((a) => a === "--jinja")).toHaveLength(1);
   });
 
-  it("omits --jinja and --chat-template-file when chatTemplatePath is absent", async () => {
+  it("always passes --jinja even when chatTemplatePath is absent", async () => {
     ts = await startHealthyServer();
     const mock = makeMockExecutor({ behaviour: "alive" });
 
@@ -114,7 +128,8 @@ describe("llamacppServer", () => {
     const run = mock.runs[0];
     expect(run).toBeDefined();
     if (!run) return;
-    expect(run.log.args).not.toContain("--jinja");
+    expect(run.log.args).toContain("--jinja");
+    expect(run.log.args.filter((a) => a === "--jinja")).toHaveLength(1);
     expect(run.log.args).not.toContain("--chat-template-file");
   });
 
@@ -137,5 +152,46 @@ describe("llamacppServer", () => {
     expect(run).toBeDefined();
     if (!run) return;
     expect(run.log.command).toBe("/opt/homebrew/bin/llama-server");
+  });
+
+  it("aborts boot with TemplateVerificationError when /props reports an empty chat_template", async () => {
+    // Stand up a server that is healthy (/v1/models → 200) but reports an
+    // empty chat_template — the ChatML-fallback symptom the gate must catch.
+    let server: Server | null = null;
+    const port = await new Promise<number>((resolve) => {
+      server = createServer((req, res) => {
+        if (req.method === "GET" && req.url === "/props") {
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ chat_template: "" }));
+          return;
+        }
+        res.statusCode = 200;
+        res.end("ok");
+      });
+      server.listen(0, "127.0.0.1", () => {
+        resolve((server?.address() as AddressInfo).port);
+      });
+    });
+
+    const mock = makeMockExecutor({ behaviour: "alive" });
+    const exit = await Effect.runPromiseExit(
+      Effect.scoped(
+        llamacppServer({
+          artifactPath: "/tmp/fake.gguf",
+          port,
+          healthTimeoutSec: 2,
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    await new Promise<void>((r) => (server as unknown as Server).close(() => r()));
+
+    expect(exit._tag).toBe("Failure");
+    expect(JSON.stringify(exit)).toContain("TemplateVerificationError");
+    // The subprocess must still have been torn down (scope-close finalizer).
+    const run = mock.runs[0];
+    expect(run).toBeDefined();
+    if (run) expect(run.log.signalsReceived).toContain("SIGTERM");
   });
 });

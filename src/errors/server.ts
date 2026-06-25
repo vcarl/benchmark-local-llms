@@ -27,3 +27,18 @@ export class HealthCheckTimeout extends Data.TaggedError("HealthCheckTimeout")<{
 export class PortConflict extends Data.TaggedError("PortConflict")<{
   readonly port: number;
 }> {}
+
+/**
+ * The server booted and passed health, but its chat template failed
+ * verification — e.g. llama-server fell back to ChatML because the GGUF
+ * shipped no template, or the rendered prompt still contains raw Jinja
+ * (the template never executed). A verification failure aborts boot so a
+ * silent template fault becomes a loud abort instead of a corrupted score.
+ *
+ * Surfaced through the same typed channel as `ServerSpawnError` so the boot
+ * path can treat a bad template like any other failed spawn.
+ */
+export class TemplateVerificationError extends Data.TaggedError("TemplateVerificationError")<{
+  readonly runtime: Runtime;
+  readonly reason: string;
+}> {}

@@ -17,7 +17,11 @@ import type { AddressInfo } from "node:net";
 import { dirname } from "node:path";
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
 import { Effect } from "effect";
-import type { HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
+import type {
+  HealthCheckTimeout,
+  ServerSpawnError,
+  TemplateVerificationError,
+} from "../../errors/index.js";
 import { type ServerHandle, superviseServer } from "../../llm/servers/supervisor.js";
 
 export interface GameServerConfig {
@@ -69,7 +73,10 @@ export const gameServer = (
   cfg: GameServerConfig,
 ): Effect.Effect<
   GameServerHandle,
-  ServerSpawnError | HealthCheckTimeout,
+  // TemplateVerificationError flows from the shared supervisor's error
+  // channel; the game server never supplies a verifyTemplate descriptor, so
+  // it cannot occur at runtime, but the union must admit it to typecheck.
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {

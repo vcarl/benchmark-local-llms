@@ -10,7 +10,13 @@
  *     --cache-type-k q8_0
  *     --cache-type-v q8_0
  *     --reasoning-format auto
+ *     --jinja
  *     [-c <ctxSize>]
+ *     [--chat-template-file <path>]
+ *
+ * `--jinja` is pinned unconditionally so a future llama.cpp default flip can't
+ * silently change prompt rendering; it must precede `--chat-template-file`,
+ * which llama.cpp only treats as arbitrary Jinja when `--jinja` is set first.
  *
  * `--reasoning-format auto` makes llama-server parse the model's native
  * thinking dialect (`<think>…</think>`, `[THINK]…[/THINK]`, …), strip it out
@@ -31,7 +37,11 @@
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
 import { Effect } from "effect";
-import type { HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
+import type {
+  HealthCheckTimeout,
+  ServerSpawnError,
+  TemplateVerificationError,
+} from "../../errors/index.js";
 import { type ServerHandle, superviseServer } from "./supervisor.js";
 
 export const LLAMACPP_DEFAULT_PORT = 18080;
@@ -49,7 +59,8 @@ export interface LlamacppConfig {
   readonly healthTimeoutSec?: number;
   /**
    * Absolute path to a vendored jinja chat template. When set, the server
-   * is launched with `--jinja --chat-template-file <path>`. Needed for
+   * is launched with `--chat-template-file <path>` (`--jinja` is always
+   * passed; see {@link buildArgs}). Needed for
    * official `mistralai/*-GGUF` artifacts that ship without an embedded
    * template; omitted for runtimes that use their embedded template.
    */
@@ -72,12 +83,16 @@ const buildArgs = (cfg: LlamacppConfig, port: number): ReadonlyArray<string> => 
     "q8_0",
     "--reasoning-format",
     "auto",
+    // Always pin --jinja so a future llama.cpp default flip can't silently
+    // change prompt rendering. Must precede --chat-template-file below, which
+    // llama.cpp only treats as arbitrary Jinja when --jinja is set first.
+    "--jinja",
   ];
   if (cfg.ctxSize !== undefined) {
     base.push("-c", String(cfg.ctxSize));
   }
   if (cfg.chatTemplatePath !== undefined) {
-    base.push("--jinja", "--chat-template-file", cfg.chatTemplatePath);
+    base.push("--chat-template-file", cfg.chatTemplatePath);
   }
   if (cfg.extraArgs) {
     base.push(...cfg.extraArgs);
@@ -93,7 +108,7 @@ export const llamacppServer = (
   cfg: LlamacppConfig,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -106,5 +121,7 @@ export const llamacppServer = (
       command,
       healthUrl: `http://127.0.0.1:${port}/v1/models`,
       ...(cfg.healthTimeoutSec !== undefined ? { healthTimeoutSec: cfg.healthTimeoutSec } : {}),
+      // After health, verify the chat template via /props + /apply-template.
+      verifyTemplate: { runtime: "llamacpp", port },
     });
   });

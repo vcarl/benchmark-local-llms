@@ -10,6 +10,7 @@ import {
   makeMockExecutorWithRss,
   makeUnresponsiveMockExecutor,
   startHealthyServer,
+  startHealthyTemplateServer,
   startUnhealthyServer,
   type TestHttpServer,
 } from "./test-mocks.js";
@@ -377,6 +378,79 @@ describe("superviseServer", () => {
     expect(sink.some((l) => l.match(/exit finalizer completed in \d.*\(graceful=true\)/))).toBe(
       true,
     );
+  });
+
+  it("runs the template gate when a verifyTemplate descriptor is supplied, returning a handle on success", async () => {
+    ts = await startHealthyTemplateServer();
+    const mock = makeMockExecutor({ behaviour: "alive", pid: 321 });
+
+    const handle = await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+          verifyTemplate: { runtime: "llamacpp", port: ts.port },
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(handle.pid).toBe(321);
+  });
+
+  it("aborts boot (no handle) when the template gate fails", async () => {
+    // Healthy on /health but /props is plain text, not JSON → the gate fails
+    // and the supervisor never returns a handle.
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    const exit = await Effect.runPromiseExit(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+          verifyTemplate: { runtime: "llamacpp", port: ts.port },
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      expect(JSON.stringify(exit.cause)).toContain("TemplateVerificationError");
+    }
+    // Gate runs after health; the subprocess must be torn down on abort.
+    const run = mock.runs[0];
+    expect(run).toBeDefined();
+    if (run) expect(run.log.signalsReceived).toContain("SIGTERM");
+  });
+
+  it("skips the template gate entirely when no descriptor is supplied (game/admiral reuse)", async () => {
+    // No verifyTemplate descriptor → no /props call → a server that only
+    // answers /health (and would 404 /props) still boots cleanly.
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive", pid: 555 });
+
+    const handle = await Effect.runPromise(
+      Effect.scoped(
+        superviseServer({
+          runtime: "llamacpp",
+          port: ts.port,
+          command: Command.make("fake-bin"),
+          healthUrl: `http://127.0.0.1:${ts.port}/health`,
+          healthTimeoutSec: 2,
+          healthPollMs: 25,
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    expect(handle.pid).toBe(555);
   });
 
   it("records a non-zero peakRssKb immediately after health, even with a 30s poll interval", async () => {

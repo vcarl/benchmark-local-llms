@@ -6,7 +6,7 @@ import { Runtime } from "./enums.js";
  * a model to a challenge. The system prompt is part of the configuration
  * (resolved from `system-prompts.yaml` by key), not the prompt.
  */
-export const Configuration = Schema.Struct({
+const ConfigurationFields = Schema.Struct({
   id: Schema.String,
   artifact: Schema.String,
   runtime: Runtime,
@@ -32,4 +32,24 @@ export const Configuration = Schema.Struct({
    */
   extraArgs: Schema.optional(Schema.Array(Schema.String)),
 });
+
+/**
+ * The `chatTemplate` field is consumed only by the llamacpp server factory
+ * (rendered as `--chat-template-file`). On an `mlx` entry it would be silently
+ * ignored, so reject it at decode time — fail-fast on decorative config rather
+ * than letting a no-op flag pass. This surfaces through the same typed
+ * `SchemaDecodeError` channel as every other config-decode failure
+ * (see `src/config/configurations.ts`).
+ */
+export const Configuration = ConfigurationFields.pipe(
+  Schema.filter((c) =>
+    c.runtime === "mlx" && c.chatTemplate !== undefined
+      ? {
+          path: ["chatTemplate"],
+          message:
+            "chatTemplate is not supported for runtime 'mlx' (only llamacpp applies it); remove it or use extraArgs",
+        }
+      : undefined,
+  ),
+);
 export type Configuration = typeof Configuration.Type;

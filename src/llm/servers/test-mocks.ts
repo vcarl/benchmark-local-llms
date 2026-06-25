@@ -330,6 +330,62 @@ export const startHealthyServer = (): Promise<TestHttpServer> =>
     });
   });
 
+/**
+ * Like `startHealthyServer` but also answers the chat-template verification
+ * routes a healthy llama-server exposes: `GET /props` (returns a non-empty
+ * `chat_template`) and `POST /apply-template` (echoes a clean prompt that
+ * threads the probe sentinel through with no unrendered Jinja). Any other path
+ * (notably the `/v1/models` health probe) returns 200 "ok" as before.
+ *
+ * Used by llamacpp tests so the supervisor's template gate passes against a
+ * realistic happy-path server.
+ */
+export const startHealthyTemplateServer = (): Promise<TestHttpServer> =>
+  new Promise((resolve) => {
+    let hits = 0;
+    const server: Server = createServer((req, res) => {
+      hits += 1;
+      const json = (body: unknown) => {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify(body));
+      };
+      if (req.method === "GET" && req.url === "/props") {
+        json({ chat_template: "<|im_start|>{{ messages }}<|im_end|>" });
+        return;
+      }
+      if (req.method === "POST" && req.url === "/apply-template") {
+        req.on("data", () => {});
+        req.on("end", () =>
+          json({
+            prompt:
+              "<|im_start|>system\nYou are a helpful assistant.\n<|im_start|>user\nPROBE_TEMPLATE_CHECK_XYZZY<|im_end|>",
+          }),
+        );
+        return;
+      }
+      if (req.method === "POST" && req.url === "/tokenize") {
+        req.on("data", () => {});
+        // Distinct leading token ids → no double-BOS warning.
+        req.on("end", () => json({ tokens: [1, 2, 3] }));
+        return;
+      }
+      res.statusCode = 200;
+      res.end("ok");
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as AddressInfo;
+      resolve({
+        port,
+        close: () =>
+          new Promise<void>((r) => {
+            server.close(() => r());
+          }),
+        hits: () => hits,
+      });
+    });
+  });
+
 export const startUnhealthyServer = (): Promise<TestHttpServer> =>
   new Promise((resolve) => {
     let hits = 0;

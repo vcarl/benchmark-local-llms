@@ -14,7 +14,11 @@
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
 import { Effect } from "effect";
-import type { HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
+import type {
+  HealthCheckTimeout,
+  ServerSpawnError,
+  TemplateVerificationError,
+} from "../../errors/index.js";
 import { type ServerHandle, superviseServer } from "./supervisor.js";
 
 export const MLX_DEFAULT_PORT = 18081;
@@ -59,7 +63,7 @@ export const mlxServer = (
   cfg: MlxConfig,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -76,5 +80,11 @@ export const mlxServer = (
       // MLX loads large safetensor files from disk; the prototype uses a
       // 600s budget here (runner.py:600), so match that.
       healthTimeoutSec: cfg.healthTimeoutSec ?? 600,
+      // mlx_lm.server exposes no template-inspection endpoint, so verify
+      // OFFLINE against the resolved model directory. For mlx, `artifactPath`
+      // is the local HF cache snapshot dir (see `resolveMlxModel`), which is
+      // exactly where tokenizer_config.json / chat_template.jinja live. When a
+      // raw HF id (not a local dir) is passed, the verifier warns-and-skips.
+      verifyTemplate: { runtime: "mlx", modelDir: cfg.artifactPath },
     });
   });

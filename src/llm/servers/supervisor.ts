@@ -15,11 +15,16 @@
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
 import { Clock, Deferred, Duration, Effect, Exit, Fiber, Stream } from "effect";
 import { deregisterSubprocess, registerSubprocess } from "../../cli/subprocess-registry.js";
-import { type HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
+import {
+  type HealthCheckTimeout,
+  ServerSpawnError,
+  type TemplateVerificationError,
+} from "../../errors/index.js";
 import type { Runtime } from "../../schema/enums.js";
 import { waitForHealthy } from "./health.js";
 import { trackPeakRss } from "./peak-rss.js";
 import { type ProcessHealthMonitor, watchProcess } from "./process-health.js";
+import { type VerifyTemplateArgs, verifyTemplate } from "./template-verification.js";
 
 const PEAK_RSS_POLL_MS = 30_000;
 
@@ -85,6 +90,15 @@ export interface SuperviseParams {
    * (matches `runner.py:stop_llamacpp_server` / `stop_mlx_server`).
    */
   readonly gracefulShutdownSec?: number;
+  /**
+   * When set, run a chat-template verification gate after the server is
+   * healthy and BEFORE the handle is returned. A verification fault aborts
+   * boot with `TemplateVerificationError`. Model-server callers (llamacpp,
+   * mlx) populate this; the game/admiral HTTP servers that reuse this
+   * supervisor omit it (they expose no template endpoints), so they are
+   * never subject to the gate.
+   */
+  readonly verifyTemplate?: VerifyTemplateArgs;
 }
 
 /**
@@ -96,7 +110,7 @@ export const superviseServer = (
   params: SuperviseParams,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -259,6 +273,16 @@ export const superviseServer = (
     // loaded. The periodic poller sleeps BEFORE its first tick, so without
     // this call a benchmark run shorter than 30s would leave peakRssKb = 0.
     yield* sampleNow;
+
+    // Template-verification gate. Runs only when the caller supplied a
+    // descriptor (model servers do; the game/admiral HTTP servers do not). A
+    // fault here aborts boot through the same typed channel as a spawn
+    // failure, so a silent template fault becomes a loud abort instead of a
+    // corrupted score. The surrounding scope is still open, so the
+    // graceful-shutdown finalizer tears the subprocess down on failure.
+    if (params.verifyTemplate !== undefined) {
+      yield* verifyTemplate(params.verifyTemplate);
+    }
 
     return {
       runtime: params.runtime,

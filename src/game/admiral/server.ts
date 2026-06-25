@@ -16,7 +16,11 @@
  */
 import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
 import { Clock, Effect } from "effect";
-import type { HealthCheckTimeout, ServerSpawnError } from "../../errors/index.js";
+import type {
+  HealthCheckTimeout,
+  ServerSpawnError,
+  TemplateVerificationError,
+} from "../../errors/index.js";
 import { type ServerHandle, superviseServer } from "../../llm/servers/supervisor.js";
 
 export const ADMIRAL_DEFAULT_PORT = 3031;
@@ -49,7 +53,10 @@ export const admiralServer = (
   cfg: AdmiralServerConfig,
 ): Effect.Effect<
   AdmiralServerHandle,
-  ServerSpawnError | HealthCheckTimeout,
+  // TemplateVerificationError flows from the shared supervisor's error
+  // channel; the admiral server never supplies a verifyTemplate descriptor,
+  // so it cannot occur at runtime, but the union must admit it to typecheck.
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
