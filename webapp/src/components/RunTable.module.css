@@ -354,4 +354,16 @@
   .resultScoreCell { grid-area: score; }
   .resultStats     { grid-area: stats; justify-content: flex-start; }
   .resultStatsHeader { display: none; }
+
+  /* Controls row: the count + the two sort groups can't share one
+     space-between flex row at phone width (they collide into a "models models"
+     tangle). Stack the count above the sort controls and let the sort groups
+     wrap onto their own lines. */
+  .resultControls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-6);
+  }
+  .resultSort { flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
 }

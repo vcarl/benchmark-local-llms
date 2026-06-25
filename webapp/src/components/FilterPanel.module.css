@@ -50,5 +50,15 @@
   .panel { grid-template-columns: 1fr; gap: var(--space-5); }
   .pillGroup { flex-direction: row; flex-wrap: wrap; }
   .pillGroupTwoCol { display: flex; flex-direction: row; flex-wrap: wrap; }
-  .pill { min-height: 44px; display: inline-flex; align-items: center; }
+  /* Long artifact ids (e.g. "mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit")
+     are unbreakable tokens that overflow the pill at phone width — let them wrap
+     inside the pill rather than blow past the viewport edge. */
+  .pill {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
 }
