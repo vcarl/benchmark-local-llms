@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ModelConfig } from "../../../schema/model.js";
+import type { ResolvedConfiguration } from "../../../config/configurations.js";
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
 import type { ScenarioCorpusEntry } from "../../../schema/scenario.js";
 import {
@@ -10,8 +10,25 @@ import {
   formatScenarioLine,
 } from "../list.js";
 
-const model = (artifact: string, runtime: "llamacpp" | "mlx", quant?: string): ModelConfig =>
-  quant === undefined ? { artifact, runtime } : { artifact, runtime, quant };
+const cfg = (
+  id: string,
+  artifact: string,
+  runtime: "llamacpp" | "mlx",
+  quant?: string,
+  active?: boolean,
+): ResolvedConfiguration =>
+  ({
+    id,
+    artifact,
+    runtime,
+    quant,
+    temperature: 0.7,
+    systemPrompt: "default",
+    maxTokens: 4096,
+    active,
+    systemPromptText: "x",
+    configHash: "h",
+  }) as ResolvedConfiguration;
 
 const prompt = (
   name: string,
@@ -43,25 +60,28 @@ const scenario = (name: string, tier: number): ScenarioCorpusEntry =>
   }) as unknown as ScenarioCorpusEntry;
 
 describe("formatModelLine", () => {
-  it("renders artifact  runtime  quant", () => {
-    expect(formatModelLine(model("qwen-72b.gguf", "llamacpp", "Q4_K_M"))).toBe(
-      "qwen-72b.gguf\tllamacpp\tQ4_K_M",
+  it("renders id  artifact  runtime  quant  active", () => {
+    expect(formatModelLine(cfg("qwen-72b-llamacpp", "qwen-72b.gguf", "llamacpp", "Q4_K_M"))).toBe(
+      "qwen-72b-llamacpp\tqwen-72b.gguf\tllamacpp\tQ4_K_M\ttrue",
     );
   });
 
-  it("uses '-' when quant is absent", () => {
-    expect(formatModelLine(model("mlx-community/mistral", "mlx"))).toBe(
-      "mlx-community/mistral\tmlx\t-",
-    );
+  it("uses '-' for absent quant and 'false' for active: false", () => {
+    expect(
+      formatModelLine(cfg("mistral-mlx", "mlx-community/mistral", "mlx", undefined, false)),
+    ).toBe("mistral-mlx\tmlx-community/mistral\tmlx\t-\tfalse");
   });
 });
 
 describe("formatModelList", () => {
   it("joins rows with newlines", () => {
-    const out = formatModelList([model("a.gguf", "llamacpp", "Q4"), model("b", "mlx")]);
+    const out = formatModelList([
+      cfg("a-llamacpp", "a.gguf", "llamacpp", "Q4"),
+      cfg("b-mlx", "b", "mlx"),
+    ]);
     expect(out.split("\n")).toHaveLength(2);
-    expect(out).toContain("a.gguf");
-    expect(out).toContain("b\tmlx\t-");
+    expect(out).toContain("a-llamacpp\ta.gguf\tllamacpp\tQ4\ttrue");
+    expect(out).toContain("b-mlx\tb\tmlx\t-\ttrue");
   });
 });
 

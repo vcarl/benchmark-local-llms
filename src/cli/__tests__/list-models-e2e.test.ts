@@ -1,6 +1,7 @@
 /**
  * End-to-end-ish test for the `list-models` handler: point it at a fixture
- * `models.yaml`, capture stdout, assert the rendered lines match the fixture.
+ * `configs.yaml` (plus a `system-prompts.yaml` defining every referenced key),
+ * capture stdout, assert the rendered lines match the fixture.
  *
  * Runs the real @effect/cli command via `Command.run`, which proves flag
  * parsing + handler wiring + FileSystem layer provisioning all work together.
@@ -16,23 +17,31 @@ import { listModelsCommand } from "../commands/list.js";
 
 describe("list-models subcommand handler (e2e)", () => {
   let tmpDir: string;
-  let modelsPath: string;
+  let configsPath: string;
+  let systemPromptsPath: string;
 
   beforeAll(() => {
     tmpDir = mkdtempSync(path.join(tmpdir(), "llm-bench-list-"));
-    modelsPath = path.join(tmpDir, "models.yaml");
+    configsPath = path.join(tmpDir, "configs.yaml");
+    systemPromptsPath = path.join(tmpDir, "system-prompts.yaml");
+    writeFileSync(systemPromptsPath, 'default: "You are a helpful assistant."\n');
     writeFileSync(
-      modelsPath,
+      configsPath,
       [
-        "- artifact: models/qwen-72b.gguf",
+        "- id: qwen-72b-llamacpp",
+        "  artifact: models/qwen-72b.gguf",
         "  runtime: llamacpp",
-        "  name: Qwen 2.5 72B",
         "  quant: Q4_K_M",
         "  temperature: 0.7",
-        "- artifact: mlx-community/mistral-7b",
+        "  systemPrompt: default",
+        "  maxTokens: 4096",
+        "- id: mistral-7b-mlx",
+        "  artifact: mlx-community/mistral-7b",
         "  runtime: mlx",
-        "  name: Mistral 7B",
         "  temperature: 0.7",
+        "  systemPrompt: default",
+        "  maxTokens: 4096",
+        "  active: false",
         "",
       ].join("\n"),
     );
@@ -42,7 +51,7 @@ describe("list-models subcommand handler (e2e)", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("prints one line per model with artifact/runtime/quant", async () => {
+  it("prints one line per configuration with id/artifact/runtime/quant/active", async () => {
     const captured: string[] = [];
     const spy = vi.spyOn(console, "log").mockImplementation((msg: unknown) => {
       captured.push(String(msg));
@@ -51,21 +60,24 @@ describe("list-models subcommand handler (e2e)", () => {
     const root = Command.make("llm-bench").pipe(Command.withSubcommands([listModelsCommand]));
     const run = Command.run(root, { name: "llm-bench", version: "0.0.0" });
     const exit = await Effect.runPromiseExit(
-      // Command.run expects process.argv-style input: first two entries
-      // (node bin, script path) are dropped internally.
-      run(["node", "cli", "list-models", "--models", modelsPath]).pipe(
-        Effect.provide(NodeContext.layer),
-      ),
+      run([
+        "node",
+        "cli",
+        "list-models",
+        "--configs-file",
+        configsPath,
+        "--system-prompts-file",
+        systemPromptsPath,
+      ]).pipe(Effect.provide(NodeContext.layer)),
     );
 
     spy.mockRestore();
     expect(exit._tag).toBe("Success");
 
-    // console.log prints the whole block joined by newlines; capture then split.
     const text = captured.join("\n");
     const lines = text.split("\n").filter((l) => l.length > 0);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toBe("models/qwen-72b.gguf\tllamacpp\tQ4_K_M");
-    expect(lines[1]).toBe("mlx-community/mistral-7b\tmlx\t-");
+    expect(lines[0]).toBe("qwen-72b-llamacpp\tmodels/qwen-72b.gguf\tllamacpp\tQ4_K_M\ttrue");
+    expect(lines[1]).toBe("mistral-7b-mlx\tmlx-community/mistral-7b\tmlx\t-\tfalse");
   });
 });

@@ -24,21 +24,22 @@ describe("ModelConfig", () => {
       runtime: "llamacpp",
       name: "Qwen 3 32B",
       quant: "Q4_K_M",
-      params: "32B",
       ctxSize: 16384,
-      scenarioCtxSize: 32768,
-      active: true,
     };
     expect(roundTrip(ModelConfig, v)).toEqual(v);
   });
 
-  it("round-trips with active=false", () => {
-    const v: ModelConfig = {
-      artifact: "legacy/model",
-      runtime: "mlx",
+  it("strips removed roster fields (params, scenarioCtxSize, active)", () => {
+    const decoded = Schema.decodeUnknownSync(ModelConfig)({
+      artifact: "Qwen/Qwen3-32B-GGUF",
+      runtime: "llamacpp",
+      params: "32B",
+      scenarioCtxSize: 32768,
       active: false,
-    };
-    expect(roundTrip(ModelConfig, v)).toEqual(v);
+    });
+    expect("params" in decoded).toBe(false);
+    expect("scenarioCtxSize" in decoded).toBe(false);
+    expect("active" in decoded).toBe(false);
   });
 
   it("round-trips with only ctxSize override", () => {

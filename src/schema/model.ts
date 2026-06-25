@@ -2,27 +2,23 @@ import { Schema } from "effect";
 import { Runtime } from "./enums.js";
 
 /**
- * One entry in `models.yaml` (§2.6). Each entry represents a single model
- * artifact served by a single runtime. `name`, `quant`, and `params` can be
- * derived from the artifact string at load time; the optional fields here
- * let config override the derivation when it produces wrong values.
+ * The runtime model shape produced by `modelFromConfig`
+ * (`src/orchestration/run-challenge.ts`) and consumed by the LLM-server
+ * factory, `run-prompt`, `run-scenario`, `run-session`, and `run-id`.
  *
- * `ctxSize` and `scenarioCtxSize` go to the backing server's `--ctx-size`
- * flag. If they differ, the server is restarted between prompt and scenario
- * phases (§5.3).
+ * `ctxSize` flows to the llamacpp server's `-c` flag; the mlx server takes no
+ * context flag, so `ctxSize` is a benign no-op there. There is no per-phase
+ * server restart — a single server serves both the prompt and scenario phases.
  *
- * `active` defaults to true; set false to skip a model without removing its
- * entry.
+ * `name` defaults to the configuration id at construction; `quant`,
+ * `temperature`, and `chatTemplate` carry through from the configuration.
  */
 export const ModelConfig = Schema.Struct({
   artifact: Schema.String,
   runtime: Runtime,
   name: Schema.optional(Schema.String),
   quant: Schema.optional(Schema.String),
-  params: Schema.optional(Schema.String),
   ctxSize: Schema.optional(Schema.Number),
-  scenarioCtxSize: Schema.optional(Schema.Number),
-  active: Schema.optional(Schema.Boolean),
   temperature: Schema.optional(Schema.Number),
   /**
    * Optional vendored chat-template name (see {@link Configuration.chatTemplate}).

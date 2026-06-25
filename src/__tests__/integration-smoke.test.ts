@@ -4,7 +4,6 @@ import { NodeContext } from "@effect/platform-node";
 import { Effect, type Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import { loadChallenge } from "../config/challenges.js";
-import { loadModels } from "../config/models.js";
 import { loadScenarioCorpus } from "../config/scenario-corpus.js";
 import { loadSystemPrompts } from "../config/system-prompts.js";
 import type { ExecutionResult } from "../schema/index.js";
@@ -16,8 +15,7 @@ import { scoreExecution } from "../scoring/score-result.js";
  *   1. Load system-prompts.yaml (config registry) from the repo root
  *   2. Load a real challenge inline (challenges/math.yaml) and take its items
  *   3. Load the real scenario corpus from scenarios/
- *   4. Load models.yaml
- *   5. Score a synthetic ExecutionResult against a real PromptCorpusEntry
+ *   4. Score a synthetic ExecutionResult against a real PromptCorpusEntry
  *
  * No orchestration (no HTTP, no subprocess, no SSE) — this is strictly the
  * YAML-read / data-shape / scoring pipeline.
@@ -27,7 +25,6 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const challengesDir = path.join(repoRoot, "challenges");
 const scenariosDir = path.join(repoRoot, "scenarios");
 const systemPromptsPath = path.join(repoRoot, "system-prompts.yaml");
-const modelsPath = path.join(repoRoot, "models.yaml");
 
 const run = <A, E>(eff: Effect.Effect<A, E, never>): Promise<Exit.Exit<A, E>> =>
   Effect.runPromiseExit(eff);
@@ -36,7 +33,6 @@ describe("integration smoke: YAML -> score pipeline", () => {
   it("loads all corpora and scores a synthetic execution end-to-end", async () => {
     const pipeline = Effect.gen(function* () {
       const systemPrompts = yield* loadSystemPrompts(systemPromptsPath);
-      const models = yield* loadModels(modelsPath);
       const math = yield* loadChallenge(path.join(challengesDir, "math.yaml"));
       const prompts = math.items.map((i) => i.prompt);
       const scenarios = yield* loadScenarioCorpus(scenariosDir);
@@ -80,23 +76,18 @@ describe("integration smoke: YAML -> score pipeline", () => {
       };
 
       const score = yield* scoreExecution(executionResult, prompt);
-      return { systemPrompts, models, prompts, scenarios, score };
+      return { systemPrompts, prompts, scenarios, score };
     });
 
     const exit = await run(pipeline.pipe(Effect.provide(NodeContext.layer)));
 
     expect(exit._tag).toBe("Success");
     if (exit._tag !== "Success") return;
-    const { systemPrompts, models, prompts, scenarios, score } = exit.value;
+    const { systemPrompts, prompts, scenarios, score } = exit.value;
 
     // System prompts loaded: at least the keys referenced by loaded prompts
     expect(Object.keys(systemPrompts).length).toBeGreaterThan(0);
     expect(systemPrompts["concise"]).toContain("helpful assistant");
-
-    // Models loaded
-    expect(models.length).toBeGreaterThan(0);
-    expect(models[0]).toHaveProperty("artifact");
-    expect(models[0]).toHaveProperty("runtime");
 
     // Prompt corpus non-empty and contains our chosen variant
     expect(prompts.length).toBeGreaterThan(0);

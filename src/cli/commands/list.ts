@@ -10,19 +10,24 @@
 import path from "node:path";
 import { Command, Options } from "@effect/cli";
 import { FileSystem } from "@effect/platform";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { loadChallenge } from "../../config/challenges.js";
-import { loadModels } from "../../config/models.js";
+import { loadConfigurations, type ResolvedConfiguration } from "../../config/configurations.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
-import type { ModelConfig } from "../../schema/model.js";
+import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
 import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
 import { makeLoggerLayer } from "../logger.js";
-import { DEFAULT_SCENARIOS_DIR } from "../paths.js";
+import { DEFAULT_SCENARIOS_DIR, DEFAULT_SYSTEM_PROMPTS_PATH } from "../paths.js";
 
-const modelsPathOpt = Options.file("models").pipe(
-  Options.withDescription("Path to models.yaml"),
-  Options.withDefault("models.yaml"),
+const configsFileOpt = Options.file("configs-file").pipe(
+  Options.withDescription("Path to configs.yaml"),
+  Options.withDefault("configs.yaml"),
+);
+
+const systemPromptsFileOpt = Options.file("system-prompts-file").pipe(
+  Options.withDescription("Path to system-prompts YAML"),
+  Options.withDefault(DEFAULT_SYSTEM_PROMPTS_PATH),
 );
 
 const challengesDirOpt = Options.directory("challenges").pipe(
@@ -38,16 +43,17 @@ const scenariosDirOpt = Options.directory("scenarios").pipe(
 // ── formatting (pure) ──────────────────────────────────────────────────────
 
 /**
- * Render one model row: `artifact  runtime  quant`. Missing quant is
- * rendered as `"-"` so columns line up even when config omits it.
+ * Render one configuration row: `id  artifact  runtime  quant  active`.
+ * Missing quant renders as `"-"`; `active` is the effective boolean
+ * (`active !== false`), so a config that omits the flag shows `true`.
  */
-export const formatModelLine = (m: ModelConfig): string => {
-  const quant = m.quant ?? "-";
-  return `${m.artifact}\t${m.runtime}\t${quant}`;
+export const formatModelLine = (c: ResolvedConfiguration): string => {
+  const quant = c.quant ?? "-";
+  return `${c.id}\t${c.artifact}\t${c.runtime}\t${quant}\t${c.active !== false}`;
 };
 
-export const formatModelList = (models: ReadonlyArray<ModelConfig>): string =>
-  models.map(formatModelLine).join("\n");
+export const formatModelList = (configs: ReadonlyArray<ResolvedConfiguration>): string =>
+  configs.map(formatModelLine).join("\n");
 
 /** One prompt row: `name  category  tier`. */
 export const formatPromptLine = (p: PromptCorpusEntry): string =>
@@ -111,13 +117,19 @@ const verbose = Options.boolean("verbose").pipe(
 
 export const listModelsCommand = Command.make(
   "list-models",
-  { modelsPath: modelsPathOpt, verbose },
-  ({ modelsPath, verbose: isVerbose }) =>
+  { configsFile: configsFileOpt, systemPromptsFile: systemPromptsFileOpt, verbose },
+  ({ configsFile, systemPromptsFile, verbose: isVerbose }) =>
     Effect.gen(function* () {
-      const models = yield* loadModels(modelsPath);
-      yield* printLine(formatModelList(models));
+      const systemPrompts = yield* loadSystemPrompts(systemPromptsFile);
+      const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
+      const configs = yield* loadConfigurations(configsFile).pipe(Effect.provide(registryLayer));
+      yield* printLine(formatModelList(configs));
     }).pipe(Effect.provide(makeLoggerLayer(isVerbose))),
-).pipe(Command.withDescription("Print one line per configured model (artifact, runtime, quant)"));
+).pipe(
+  Command.withDescription(
+    "Print one line per configuration (id, artifact, runtime, quant, active)",
+  ),
+);
 
 export const listPromptsCommand = Command.make(
   "list-prompts",

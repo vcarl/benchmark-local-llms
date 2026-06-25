@@ -11,11 +11,11 @@ import {
 describe("ConfigError", () => {
   it("carries tag, path, and message", () => {
     const e = new ConfigError({
-      path: "models.yaml",
+      path: "configs.yaml",
       message: "artifact missing",
     });
     expect(e._tag).toBe("ConfigError");
-    expect(e.path).toBe("models.yaml");
+    expect(e.path).toBe("configs.yaml");
   });
 });
 

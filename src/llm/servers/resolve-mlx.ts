@@ -59,7 +59,7 @@ export const resolveMlxModel = (artifact: string): Effect.Effect<string, ServerS
         ? Effect.fail(
             new ServerSpawnError({
               runtime: "mlx",
-              reason: `No cached MLX model for ${artifact}. Run \`hf download ${artifact}\` or adjust models.yaml.`,
+              reason: `No cached MLX model for ${artifact}. Run \`hf download ${artifact}\` or adjust configs.yaml.`,
             }),
           )
         : Effect.succeed(found),
