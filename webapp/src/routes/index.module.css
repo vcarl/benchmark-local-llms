@@ -65,3 +65,9 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+/* Phone breakpoint — keep 600px in sync across modules */
+@media (max-width: 600px) {
+  .appHeader { flex-wrap: wrap; gap: var(--space-4); padding: var(--space-5) var(--space-6); }
+  .appHeaderActions { flex-wrap: wrap; gap: var(--space-4); width: 100%; }
+}
