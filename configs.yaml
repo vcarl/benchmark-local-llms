@@ -484,6 +484,7 @@
   temperature: 0.7
   systemPrompt: default
   maxTokens: 4096
+  extraArgs: ["--trust-remote-code"]
 
 - id: seed-oss-36b-mlx
   artifact: lmstudio-community/Seed-OSS-36B-Instruct-MLX-4bit
@@ -500,6 +501,7 @@
   temperature: 0.7
   systemPrompt: default
   maxTokens: 4096
+  extraArgs: ["--trust-remote-code"]
 
 # ── Large (>100B) — cached but OFF by default; opt in with explicit --configs ──
 - id: qwen3.5-122b-a10b-llamacpp

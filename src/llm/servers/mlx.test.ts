@@ -68,4 +68,35 @@ describe("mlxServer", () => {
     if (!run) return;
     expect(run.log.command).toBe("/usr/local/bin/python3.12");
   });
+
+  it("appends extraArgs after the built-in flags", async () => {
+    ts = await startHealthyServer();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        mlxServer({
+          artifactPath: "mlx-community/Hunyuan-A13B-Instruct-4bit",
+          port: ts.port,
+          healthTimeoutSec: 2,
+          extraArgs: ["--trust-remote-code"],
+        }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    const run = mock.runs[0];
+    expect(run).toBeDefined();
+    if (!run) return;
+    expect(run.log.args).toEqual([
+      "-m",
+      "mlx_lm.server",
+      "--model",
+      "mlx-community/Hunyuan-A13B-Instruct-4bit",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(ts.port),
+      "--trust-remote-code",
+    ]);
+  });
 });

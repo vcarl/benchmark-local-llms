@@ -26,5 +26,11 @@ export const ModelConfig = Schema.Struct({
    * as `--jinja --chat-template-file`.
    */
   chatTemplate: Schema.optional(Schema.String),
+  /**
+   * Extra CLI args appended verbatim after the mlx server's built-in flags
+   * (see {@link Configuration.extraArgs}). Carried into the mlx `MlxConfig`;
+   * the llamacpp path ignores it.
+   */
+  extraArgs: Schema.optional(Schema.Array(Schema.String)),
 });
 export type ModelConfig = typeof ModelConfig.Type;

@@ -60,6 +60,23 @@ describe("ModelConfig", () => {
     expect(decoded.temperature).toBe(0.7);
   });
 
+  it("round-trips with extraArgs override", () => {
+    const v: ModelConfig = {
+      artifact: "mlx-community/Hunyuan-A13B-Instruct-4bit",
+      runtime: "mlx",
+      extraArgs: ["--trust-remote-code"],
+    };
+    expect(roundTrip(ModelConfig, v)).toEqual(v);
+  });
+
+  it("decodes without extraArgs (backward compatible)", () => {
+    const decoded = Schema.decodeUnknownSync(ModelConfig)({
+      artifact: "test/m",
+      runtime: "mlx",
+    });
+    expect(decoded.extraArgs).toBeUndefined();
+  });
+
   it("accepts a model without temperature when not validated", () => {
     const decoded = Schema.decodeUnknownSync(ModelConfig)({
       artifact: "test/m",

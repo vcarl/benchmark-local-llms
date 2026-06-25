@@ -24,5 +24,12 @@ export const Configuration = Schema.Struct({
    * use the runtime's built-in / embedded template unchanged.
    */
   chatTemplate: Schema.optional(Schema.String),
+  /**
+   * Extra CLI args appended verbatim after the server's built-in flags. Only
+   * consumed by the mlx runtime (threaded to `mlx_lm.server` via
+   * {@link ModelConfig.extraArgs}); the llamacpp path ignores it. Used to pass
+   * flags like `--trust-remote-code` for models that require custom code.
+   */
+  extraArgs: Schema.optional(Schema.Array(Schema.String)),
 });
 export type Configuration = typeof Configuration.Type;

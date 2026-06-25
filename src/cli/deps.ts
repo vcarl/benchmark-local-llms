@@ -119,7 +119,11 @@ export const makeLlmServerFactory =
     }
     return Effect.gen(function* () {
       const artifactPath = yield* resolveMlxModel(model.artifact);
-      return yield* mlxServer({ artifactPath, pythonBin: resolveMlxPython() });
+      return yield* mlxServer({
+        artifactPath,
+        pythonBin: resolveMlxPython(),
+        ...(model.extraArgs !== undefined ? { extraArgs: model.extraArgs } : {}),
+      });
     });
   };
 

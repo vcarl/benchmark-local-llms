@@ -78,6 +78,7 @@ export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   ...(c.quant !== undefined ? { quant: c.quant } : {}),
   ...(c.ctxSize !== undefined ? { ctxSize: c.ctxSize } : {}),
   ...(c.chatTemplate !== undefined ? { chatTemplate: c.chatTemplate } : {}),
+  ...(c.extraArgs !== undefined ? { extraArgs: c.extraArgs } : {}),
 });
 
 const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
