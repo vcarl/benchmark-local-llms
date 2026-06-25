@@ -52,7 +52,11 @@ export const useAttemptDetail = (attemptId: string | undefined): DetailState => 
       | { kind: "not-found" }
       | { kind: "error"; message: string };
 
-    fetch(`/details/${attemptId}.json`)
+    // Document-relative (not root-absolute) so it honors the deploy base path —
+    // e.g. /benchmark-local-llms/details/... on GitHub Pages — matching how
+    // index.html loads ./data.js. A root-absolute /details/ would resolve to
+    // the domain root and 404 under GitHub Pages' project subpath.
+    fetch(`./details/${attemptId}.json`)
       .then((res): Promise<FetchResult> => {
         if (res.status === 404) return Promise.resolve({ kind: "not-found" });
         if (!res.ok) return Promise.resolve({ kind: "error", message: `HTTP ${res.status}` });
