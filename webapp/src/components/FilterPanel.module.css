@@ -45,3 +45,10 @@
   border-color: var(--accent-300);
   color: var(--text-primary);
 }
+/* Phone breakpoint — keep 600px in sync across modules */
+@media (max-width: 600px) {
+  .panel { grid-template-columns: 1fr; gap: var(--space-5); }
+  .pillGroup { flex-direction: row; flex-wrap: wrap; }
+  .pillGroupTwoCol { display: flex; flex-direction: row; flex-wrap: wrap; }
+  .pill { min-height: 44px; display: inline-flex; align-items: center; }
+}
