@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Commit directly to `main` (repo's established pattern); each task ends in a commit.
+- Work on the `standardize-configs-roster` feature branch (matches the repo's SDD history); each task ends in a commit. The branch merges to `main` via finishing-a-development-branch after the final whole-branch review.
 - `bash scripts/lint-strict.sh` must stay clean; its throw-ban exempts `*.test.ts`.
 - Do NOT touch `webapp/**`.
 - The `Configuration` schema is UNCHANGED — `scenarioCtxSize` is NOT added anywhere; it is only REMOVED from `ModelConfig`.

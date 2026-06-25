@@ -81,7 +81,7 @@ All subcommands take `--help`. Paths default to convention.
 
 ./bench export <attempt> [--archive-dir DIR] [--out PATH] [--dir] [--verbose]
 
-./bench list-models [--models FILE]
+./bench list-models [--configs-file FILE] [--system-prompts-file FILE]
 ./bench list-prompts [--challenges DIR] [--scenarios DIR]
 ```
 
@@ -89,7 +89,7 @@ All subcommands take `--help`. Paths default to convention.
 - **`report`** scans the archive directory, keeps only completed attempts, deduplicates by `attemptId`, and writes `data.js` plus a per-attempt detail file for every reconstructible attempt. It prints an audit block: attempts loaded, dropped (incomplete / duplicate), cells written, and details written / skipped.
 - **`score`** re-applies scorers to an attempt's stored outputs and rewrites the archive in place — no model call. By default it re-scores from the content store; `--corpus` instead re-resolves the current challenge inline from `challenges/` so an edited scorer takes effect. `--dry-run` reports the changes without writing.
 - **`export`** bundles an attempt's `.jsonl` and exactly the content blobs it references into a portable, self-verifying archive — a `.tar.gz` by default, or a plain directory with `--dir`. Accepts an `attemptId` (resolved under `--archive-dir`) or a direct `.jsonl` path.
-- **`list-models`** reads `models.yaml` and prints one line per model (`artifact`, `runtime`, `quant`). **`list-prompts`** aggregates every challenge file's inline items and prints each item's name, category, and tier (tab-separated), followed by a `# Scenarios` section. Both are read-only sanity checks.
+- **`list-models`** reads `configs.yaml` and prints one line per configuration (`id`, `artifact`, `runtime`, `quant`, `active`). **`list-prompts`** aggregates every challenge file's inline items and prints each item's name, category, and tier (tab-separated), followed by a `# Scenarios` section. Both are read-only sanity checks.
 
 For invariants the harness commits to (cache validity, scope-managed cleanup, archive immutability, error-channel discipline) see [`docs/GUARANTEES.md`](./docs/GUARANTEES.md).
 
