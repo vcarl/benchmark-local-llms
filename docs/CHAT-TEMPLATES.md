@@ -1,6 +1,6 @@
 # Chat Templates
 
-> _Last verified: 2026-06-25 against `28d7cb2` (llama.cpp build b9780, mlx-lm current)._
+> _Last verified: 2026-06-25 against `f12b589` (llama.cpp build b9780, mlx-lm current)._
 
 A chat template is the Jinja2 program that turns a structured `[{role, content}]`
 message list into the exact token sequence a model was fine-tuned on. It is the
@@ -21,7 +21,7 @@ harness never pre-renders a prompt string.
 | Backend | Who renders the template | Default source | Is `chatTemplate` config wired? |
 |---|---|---|---|
 | **llamacpp** | `llama-server` | GGUF-embedded `tokenizer.chat_template`, else built-in fallback | **Yes** — resolves `templates/<name>.jinja` → `--jinja --chat-template-file` |
-| **mlx** | `mlx_lm.server` | HF `tokenizer_config.json` `chat_template` (or external `chat_template.jinja`) | **No** — the field is silently ignored for mlx (see [Known gaps](#known-gaps--remediation-backlog)) |
+| **mlx** | `mlx_lm.server` | HF `tokenizer_config.json` `chat_template` (or external `chat_template.jinja`) | **N/A** — setting `chatTemplate` on an mlx entry is rejected at config decode (only llamacpp applies it) |
 
 The request shape the server receives is always the same
 (`src/llm/chat-completion.ts`):
@@ -99,10 +99,11 @@ On current `llama-server`, `--jinja` is **on by default**; you opt out with
 `--jinja` to honor an embedded template — the default flipped. Two consequences:
 
 - A plain GGUF with an embedded Jinja template renders correctly with no flags.
-- The harness still passes `--jinja` explicitly **whenever** it supplies
-  `--chat-template-file` (`src/llm/servers/llamacpp.ts:79-81`). That is correct
-  and belt-and-suspenders: a non-built-in custom template file is only accepted as
-  arbitrary Jinja when `--jinja` is active.
+- The harness passes `--jinja` **unconditionally** on every llamacpp launch
+  (`src/llm/servers/llamacpp.ts`, `buildArgs`), so rendering never depends on
+  llama.cpp's default and survives a future default flip. When a `chatTemplate` is
+  set, `--chat-template-file <path>` is appended after it — a custom template file
+  is only treated as arbitrary Jinja when `--jinja` precedes it on the line.
 
 Because this default is version-sensitive, treat "jinja on" as a property of the
 pinned llama.cpp build, and re-check it on every llama.cpp upgrade.
@@ -202,7 +203,9 @@ active entries use it after a source audit of the custom code:
 
 Note the asymmetry with llamacpp: mlx's override flag takes a template **string**,
 not a file path, so the `chatTemplate` → `templates/<name>.jinja` mechanism does
-not transfer directly. See [Known gaps](#known-gaps--remediation-backlog).
+not transfer. Setting `chatTemplate` on a `runtime: mlx` entry is therefore
+rejected at config decode rather than silently ignored; use `extraArgs` (e.g.
+`--chat-template`, `--chat-template-args`) for mlx-side template control.
 
 ## Why fidelity matters for scoring
 
@@ -217,10 +220,39 @@ them invalidate cross-model comparison:
 | Leaked template literals | Raw `<|im_start|>`, `[INST]`, `{{ }}` in output | Exact-match / regex graders fail despite correct substance |
 | Double BOS | No visible marker; subtly worse coherence | Uniformly lowers quality with no error — blamed on the model |
 
+## Startup verification gate
+
+Every model backend is template-verified at boot. After the server passes health,
+the supervisor runs an assertion step before handing the server to the caller; a
+failure aborts the boot with a typed `TemplateVerificationError` rather than
+letting a malformed template reach a scored run. Verification is opt-in per caller
+(`src/llm/servers/template-verification.ts`) — only the model backends request it,
+so internal HTTP servers that reuse the supervisor are not gated.
+
+**llamacpp** (hard failures, using the rich endpoints):
+
+- `GET /props` — `chat_template` must be a non-empty string (catches a missing
+  embedded template falling back to ChatML).
+- `POST /apply-template` with a canonical system+user probe — the rendered prompt
+  must be non-empty, must contain the probe's user sentinel, and must contain no
+  literal `{{` or `{%` (catches a template that did not execute). There is no
+  separate system-slot check, so families that merge system into the first turn
+  (Gemma, Mistral) pass.
+- `POST /tokenize` — a duplicate leading token id is logged as a warning, never a
+  hard failure (BOS detection is model-specific and too fragile to gate on).
+
+**mlx** (offline, since `mlx_lm.server` exposes no template endpoints): the model
+directory is read directly — a non-empty `chat_template.jinja`, or a non-empty
+`chat_template` in `tokenizer_config.json`, passes; their absence is a hard failure
+(the real mlx risk: no template → silent role-concat). If the directory cannot be
+located the step warns and continues rather than blocking. A generation probe is
+deliberately not used — a broken template still returns plausible text.
+
 ## Verification & detection
 
-The harness owns no template-verification step today; these are the manual checks.
-Prefer the live endpoints over log-scraping.
+These are the manual checks behind the automated gate above — useful for ad-hoc
+inspection and for the mlx endpoints the gate cannot reach. Prefer the live
+endpoints over log-scraping.
 
 **What template is actually loaded** (`llama-server`):
 
@@ -268,34 +300,14 @@ gguf-dump --no-tensors --json model.gguf | jq '.metadata | has("tokenizer.chat_t
 
 ## Known gaps & remediation backlog
 
-Ordered by priority.
-
-1. **`chatTemplate` is silently ignored for mlx.** The field decodes on any
-   configuration but only the llamacpp factory consumes it
-   (`src/cli/deps.ts`); the mlx factory drops it. Setting it on an mlx model is
-   decorative config. **Fix:** either (a) fail-fast at decode when `chatTemplate`
-   is set on a `runtime: mlx` entry, so it can never be silently ignored, or (b)
-   wire it through by reading `templates/<name>.jinja` and passing its contents to
-   `mlx_lm.server --chat-template <string>`. Option (a) is the minimum; (b) only if
-   an mlx model is found to need an override.
-
-2. **No startup template-verification gate.** A wrong/missing template is currently
-   invisible until someone reads outputs. **Fix:** after a backend reports healthy,
-   assert via `/props` + `/apply-template` that the rendered canonical conversation
-   has a real system slot, correct delimiters, no literal Jinja, and exactly one
-   BOS — fail the run loudly otherwise. Turns every fault in the table above from a
-   silent score-skew into an abort.
-
-3. **`--jinja` is not pinned for plain llamacpp models.** Models without a
-   `chatTemplate` inherit llama.cpp's default (jinja on at b9780). A future
-   llama.cpp upgrade that flips the default would silently change rendering. **Fix:**
-   pass `--jinja` (or `--no-jinja`) unconditionally in `buildArgs` so behavior is
-   reproducible across upgrades.
-
-4. **No per-model embedded-template assertion for official `mistralai/*-GGUF`.**
-   The no-template failure is contained today by convention, not enforcement.
-   **Fix:** a config-load or CI check that any `mistralai/*-GGUF` llamacpp entry
-   either sets `chatTemplate` or is verified (via `gguf-dump`) to embed one.
+1. **No config-load assertion that official `mistralai/*-GGUF` entries carry a
+   template.** The no-template failure is contained by convention:
+   `magistral-small-2509-llamacpp` is the only official-Mistral GGUF and it sets
+   `chatTemplate`. The startup gate catches a missing template at boot, but a
+   config-load or CI check — any `mistralai/*-GGUF` llamacpp entry must set
+   `chatTemplate` or be verified via `gguf-dump` to embed one — fails earlier and
+   cheaper, before a server is ever spawned. **Fix:** add the check to the
+   `configs.yaml` decode path (alongside the existing fail-fast invariants) or CI.
 
 ## References
 
@@ -310,4 +322,5 @@ Ordered by priority.
 Harness code: `src/llm/chat-completion.ts` (request), `src/llm/servers/llamacpp.ts`
 + `src/llm/servers/mlx.ts` (spawn args), `src/cli/deps.ts` (factory wiring),
 `src/llm/servers/resolve-chat-template.ts` (template resolution),
-`templates/*.jinja` (vendored templates).
+`src/llm/servers/template-verification.ts` + `src/llm/servers/supervisor.ts`
+(startup gate), `templates/*.jinja` (vendored templates).
