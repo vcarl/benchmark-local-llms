@@ -42,8 +42,8 @@ export const computeConfigScores = (
   ).size;
   const overallTokens = attempts.reduce((s, a) => s + a.generation_tokens, 0);
   const timeSpent = attempts.reduce((s, a) => s + a.wall_time_sec, 0);
-  const denom = Math.log(overallTokens) * Math.min(timeSpent / 60);
-  if (denom === 0) return { passRate, efficiency: null };
+  const denom = Math.log(overallTokens) * (timeSpent / 60);
+  if (!Number.isFinite(denom) || denom <= 0) return { passRate, efficiency: null };
   const efficiency = ((passRate * uniqueChallenges * completed) / denom) * EFFICIENCY_SCALE;
   return { passRate, efficiency };
 };

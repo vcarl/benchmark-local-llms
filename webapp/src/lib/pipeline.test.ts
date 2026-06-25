@@ -30,10 +30,11 @@ describe("computeConfigScores (pooled over items)", () => {
       rec({ item_count: 4, passed_items: 3, generation_tokens: 100, wall_time_sec: 2, challenge_id: "code" }),
       rec({ item_count: 4, passed_items: 1, generation_tokens: 200, wall_time_sec: 4, challenge_id: "math" }),
     ]);
-    // unique=2, completed=2, overallTokens=300, timeSpent=6, denom=1800
-    // efficiency = (0.5 * 2 * 2) / 1800 * 1e6 = 1111.1111
+    // unique=2, completed=2, overallTokens=300, timeSpent=6
+    // denom = Math.log(300) * (6/60) ≈ 5.7038 * 0.1 = 0.57038
+    // efficiency = (0.5 * 2 * 2) / 0.57038 * 100 ≈ 350.645
     expect(s.passRate).toBeCloseTo(0.5, 10);
-    expect(s.efficiency).toBeCloseTo(1111.1111, 3);
+    expect(s.efficiency).toBeCloseTo(350.64450807629214, 3);
   });
 
   it("passRate falls back to 0 when Σ item_count == 0", () => {
