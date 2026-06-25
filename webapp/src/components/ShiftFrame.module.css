@@ -82,9 +82,41 @@
   :where(.shiftCanvas[data-shifted="true"]) .regionDetails { transform: translateX(0); }
 }
 
+.sheetBackdrop { display: none; }
+.sheetClose { display: none; }
+
+@media (max-width: 899px) {
+  .sheetBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.5);
+    z-index: calc(var(--z-modal) - 1);
+  }
+  .sheetClose {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: sticky;
+    top: var(--space-4);
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    background: var(--surface-3);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--r-4);
+    font-size: var(--fz-16);
+    line-height: 1;
+    cursor: pointer;
+    z-index: 1;
+  }
+}
+
 /* Phone breakpoint — keep 600px in sync across modules */
 @media (max-width: 600px) {
   .regionScatter { height: 40vh; min-height: 260px; }
+  .regionDetails { width: 100vw; border-left: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

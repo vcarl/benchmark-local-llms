@@ -21,10 +21,23 @@ export function ShiftFrame({ shifted, onClose, scatter, ranking, details }: Prop
 
   return (
     <div className={styles.shiftFrame}>
+      {shifted && (
+        <div className={styles.sheetBackdrop} onClick={onClose} aria-hidden="true" />
+      )}
       <div className={styles.shiftCanvas} data-shifted={shifted}>
         <div className={styles.regionScatter}>{scatter}</div>
         <div className={styles.regionRanking}>{ranking}</div>
-        <div className={styles.regionDetails}>{details}</div>
+        <div className={styles.regionDetails}>
+          <button
+            type="button"
+            className={styles.sheetClose}
+            onClick={onClose}
+            aria-label="Close details"
+          >
+            ×
+          </button>
+          {details}
+        </div>
       </div>
     </div>
   );
