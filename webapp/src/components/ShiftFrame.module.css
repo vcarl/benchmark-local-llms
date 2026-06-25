@@ -94,7 +94,7 @@
     z-index: calc(var(--z-modal) - 1);
   }
   .sheetClose {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
     position: sticky;
