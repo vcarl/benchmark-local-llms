@@ -1,9 +1,11 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { computeConfigHash, loadConfigurations } from "./configurations.js";
-import { SystemPromptRegistry } from "./system-prompts.js";
+import { loadSystemPrompts, SystemPromptRegistry } from "./system-prompts.js";
 
 const registry = Layer.succeed(SystemPromptRegistry, { direct: "Be concise." } as Record<
   string,
@@ -43,5 +45,27 @@ describe("loadConfigurations", () => {
       "Be concise.",
     );
     expect(h1).toBe(h2);
+  });
+});
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+describe("configs.yaml catalog-only entries", () => {
+  it("loads the inactive catalog entries and they resolve as inactive", async () => {
+    const program = Effect.gen(function* () {
+      const prompts = yield* loadSystemPrompts(path.join(repoRoot, "system-prompts.yaml"));
+      return yield* loadConfigurations(path.join(repoRoot, "configs.yaml")).pipe(
+        Effect.provide(Layer.succeed(SystemPromptRegistry, prompts)),
+      );
+    });
+    const configs = await Effect.runPromise(program.pipe(Effect.provide(NodeContext.layer)));
+
+    const byId = new Map(configs.map((c) => [c.id, c]));
+    const sample = byId.get("qwen2.5-7b-llamacpp");
+    expect(sample).toBeDefined();
+    expect(sample?.active).toBe(false);
+    expect(byId.get("llama4-maverick-17b-128e-mlx")?.active).toBe(false);
+    // ctxSize copied verbatim where present
+    expect(byId.get("devstral-2-123b-llamacpp")?.ctxSize).toBe(2048);
   });
 });

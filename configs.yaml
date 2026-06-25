@@ -528,3 +528,232 @@
   systemPrompt: default
   maxTokens: 4096
   active: false
+
+# ── Catalog-only entries (inactive) ──────────────────────────────────────────
+# Cached/known artifacts that are not part of any active sweep. `systemPrompt`,
+# `maxTokens`, and `temperature` are placeholders here — these entries never run
+# (active: false), so those fields are inert. Flip `active: true` and tune them
+# before running any of these.
+- id: qwen2.5-7b-llamacpp
+  artifact: Qwen/Qwen2.5-7B-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q8_0
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: qwen2.5-32b-llamacpp
+  artifact: Qwen/Qwen2.5-32B-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q6_K
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: qwen2.5-72b-llamacpp
+  artifact: Qwen/Qwen2.5-72B-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q5_K_M
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: qwen2.5-72b-mlx
+  artifact: mlx-community/Qwen2.5-72B-Instruct-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: qwen2.5-coder-32b-llamacpp
+  artifact: Qwen/Qwen2.5-Coder-32B-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q6_K
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: qwen2.5-coder-32b-mlx
+  artifact: mlx-community/Qwen2.5-Coder-32B-Instruct-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: devstral-2-123b-llamacpp
+  artifact: unsloth/Devstral-2-123B-Instruct-2512-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: devstral-2-123b-mlx
+  artifact: mlx-community/Devstral-2-123B-Instruct-2512-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: devstral-small-2-24b-llamacpp
+  artifact: unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF
+  runtime: llamacpp
+  quant: Q6_K
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-qwen-7b-llamacpp
+  artifact: bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF
+  runtime: llamacpp
+  quant: Q8_0
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-qwen-14b-llamacpp
+  artifact: bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF
+  runtime: llamacpp
+  quant: Q8_0
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-qwen-14b-mlx
+  artifact: mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-qwen-32b-llamacpp
+  artifact: bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF
+  runtime: llamacpp
+  quant: Q6_K
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-qwen-32b-mlx
+  artifact: mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-coder-v2-lite-mlx
+  artifact: mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-llama-70b-llamacpp
+  artifact: bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF
+  runtime: llamacpp
+  quant: Q5_K_M
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: deepseek-r1-distill-llama-70b-mlx
+  artifact: mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: gpt-oss-120b-llamacpp
+  artifact: unsloth/gpt-oss-120b-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: gpt-oss-120b-mlx
+  artifact: mlx-community/gpt-oss-120b-MXFP4-Q4
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: nemotron-super-49b-llamacpp
+  artifact: bartowski/nvidia_Llama-3_3-Nemotron-Super-49B-v1_5-GGUF
+  runtime: llamacpp
+  quant: Q8_0
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: llama4-scout-17b-16e-llamacpp
+  artifact: unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q8_0
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: llama4-scout-17b-16e-mlx
+  artifact: mlx-community/Llama-4-Scout-17B-16E-Instruct-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: llama4-maverick-17b-128e-llamacpp
+  artifact: unsloth/Llama-4-Maverick-17B-128E-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
+
+- id: llama4-maverick-17b-128e-mlx
+  artifact: mlx-community/Llama-4-Maverick-17B-128E-Instruct-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  ctxSize: 2048
+  active: false
