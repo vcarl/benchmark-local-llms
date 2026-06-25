@@ -333,3 +333,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Phone breakpoint — keep 600px in sync across modules */
+@media (max-width: 600px) {
+  .resultRow,
+  .resultRowCompact,
+  .resultHeader {
+    grid-template-columns: var(--col-rank) minmax(0, 1fr) var(--col-score);
+  }
+  .resultRowAlways {
+    grid-column: 1 / -1;
+    grid-template-columns: var(--col-rank) minmax(0, 1fr) var(--col-score);
+    grid-template-areas:
+      "rank model score"
+      "stats stats stats";
+    row-gap: var(--space-3);
+  }
+  .resultRank      { grid-area: rank; }
+  .resultModel     { grid-area: model; }
+  .resultScoreCell { grid-area: score; }
+  .resultStats     { grid-area: stats; justify-content: flex-start; }
+  .resultStatsHeader { display: none; }
+}
