@@ -52,11 +52,13 @@
 
 /* Narrow frame: container query, not viewport media query.
    Single-column stack; details becomes a fixed overlay sliding in from the right.
-   :where() keeps specificity flat so the unshifted state below can revert without
-   reaching for !important. */
+   Plain class selectors (specificity 0-1-0) are required so these rules win over
+   the wide base rules above — `:where()` here is specificity 0 and silently loses
+   the cascade, so the stack never engages. This block sits after the base rules,
+   so equal-specificity ties resolve to it by source order. */
 @container shiftFrame (max-width: 899px) {
-  :where(.shiftFrame) { overflow: visible; min-height: 0; margin: 0; border: none; }
-  :where(.shiftCanvas) {
+  .shiftFrame { overflow: visible; min-height: 0; margin: 0; border: none; }
+  .shiftCanvas {
     width: 100%;
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -64,11 +66,15 @@
       "ranking";
     --shift-x: 0px;
   }
+  /* The base `.shiftCanvas[data-shifted="true"]` shift rule is 0-2-0; reset it at
+     matching specificity so an open drilldown doesn't translate the stacked canvas
+     (in narrow mode the details overlay slides in on its own transform instead). */
+  .shiftCanvas[data-shifted="true"] { --shift-x: 0px; }
   /* Stacked lanes have no fixed row height here, so the height:100% plot would
      collapse — pin the scatter lane to a usable viewport-relative height. */
-  :where(.regionScatter) { height: 70vh; min-height: 360px; }
-  :where(.regionRanking) { z-index: auto; }
-  :where(.regionDetails) {
+  .regionScatter { height: 70vh; min-height: 360px; }
+  .regionRanking { z-index: auto; }
+  .regionDetails {
     position: fixed;
     top: 0; right: 0; bottom: 0;
     width: 90vw;
@@ -79,7 +85,7 @@
     transform: translateX(100%);
     transition: transform 0.2s ease-out;
   }
-  :where(.shiftCanvas[data-shifted="true"]) .regionDetails { transform: translateX(0); }
+  .shiftCanvas[data-shifted="true"] .regionDetails { transform: translateX(0); }
 }
 
 .sheetBackdrop { display: none; }
