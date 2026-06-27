@@ -117,3 +117,597 @@ items:
       - financial-model
       - cascade
       - bailout
+  # Senior is paid first and its $520 claim is fully covered by the $640 pool, so it receives $520.
+  - name: financial_waterfall_senior_payout
+    category: financial
+    tier: 2
+    prompt: >-
+      A securitization distributes a $640 cash pool to its tranches in strict
+      priority order. Each tranche is paid in full before the next receives
+      anything, and no tranche is ever paid more than its claim. Claims, in
+      priority order, are: Senior $520, Mezzanine $310, Junior $185. Whatever
+      cash remains after all three are paid goes to the Equity tranche.
+
+
+      How many dollars does the Senior tranche receive? Reply with only that
+      number and no other figures.
+    scorer: exact_match
+    expected: "520"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - waterfall
+      - tranche-priority
+  # After Senior takes $520, only $120 of the pool remains, so Mezzanine is partially filled at $120 against its $310 claim — the discriminating partial-fill figure.
+  - name: financial_waterfall_mezz_payout
+    category: financial
+    tier: 3
+    prompt: >-
+      A securitization distributes a $640 cash pool to its tranches in strict
+      priority order. Each tranche is paid in full before the next receives
+      anything, and no tranche is ever paid more than its claim. Claims, in
+      priority order, are: Senior $520, Mezzanine $310, Junior $185. Whatever
+      cash remains after all three are paid goes to the Equity tranche.
+
+
+      How many dollars does the Mezzanine tranche receive? Reply with only that
+      number and no other figures.
+    scorer: exact_match
+    expected: "120"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - waterfall
+      - tranche-priority
+  # The pool is exhausted partway through Mezzanine, so Junior and Equity both receive $0; Equity gets $0.
+  - name: financial_waterfall_equity_residual
+    category: financial
+    tier: 2
+    prompt: >-
+      A securitization distributes a $640 cash pool to its tranches in strict
+      priority order. Each tranche is paid in full before the next receives
+      anything, and no tranche is ever paid more than its claim. Claims, in
+      priority order, are: Senior $520, Mezzanine $310, Junior $185. Whatever
+      cash remains after all three are paid goes to the Equity tranche.
+
+
+      How many dollars are left for the Equity tranche? Reply with only that
+      number and no other figures.
+    scorer: exact_match
+    expected: "0"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - waterfall
+      - residual
+  # Senior is paid in full; Mezzanine is the first tranche underpaid ($120 of $310), so Mezzanine is the first to take a loss.
+  - name: financial_waterfall_first_loss
+    category: financial
+    tier: 3
+    prompt: >-
+      A securitization distributes a $640 cash pool to its tranches in strict
+      priority order. Each tranche is paid in full before the next receives
+      anything, and no tranche is ever paid more than its claim. Claims, in
+      priority order, are: Senior $520, Mezzanine $310, Junior $185. Whatever
+      cash remains after all three are paid goes to the Equity tranche.
+
+
+      Name the most senior tranche that is NOT paid in full. Reply with just
+      that tranche's name.
+    scorer: constraint
+    constraints:
+      - name: matches Mezzanine
+        check: regex
+        pattern: \b[Mm][Ee][Zz][Zz][Aa][Nn][Ii][Nn][Ee]\b
+    tags:
+      - TODO
+      - financial-model
+      - waterfall
+      - first-loss
+  # Equity gets a positive residual only once every senior claim is fully paid, i.e. above the sum of all non-equity claims 520+310+185 = $1015. At or below $1015, equity gets $0.
+  - name: financial_waterfall_pool_equity_zero
+    category: financial
+    tier: 4
+    prompt: >-
+      A securitization distributes a $640 cash pool to its tranches in strict
+      priority order. Each tranche is paid in full before the next receives
+      anything, and no tranche is ever paid more than its claim. Claims, in
+      priority order, are: Senior $520, Mezzanine $310, Junior $185. Whatever
+      cash remains after all three are paid goes to the Equity tranche.
+
+
+      Ignore the specific $640 figure for this part. At or below what total cash
+      pool size (in dollars) do the Equity holders receive nothing? Reply with
+      only that number and no other figures.
+    scorer: exact_match
+    expected: "1015"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - waterfall
+      - capstone
+      - breakpoint
+  # B defaults and passes $120 to C, exceeding C's $60 buffer, so C defaults — answer: no.
+  - name: financial_contagion_firm_c_survives
+    category: financial
+    tier: 3
+    prompt: >-
+      Five banks A, B, C, D and E are linked by interbank loans. Each holds a
+      capital buffer that absorbs losses: A=$50, B=$80, C=$60, D=$300, E=$45. A
+      bank defaults when its total incoming losses exceed its buffer; on default
+      it passes the full face value of every loan it owes to its creditor (loss
+      given default = 100%). The loans (debtor → creditor: amount) are: A owes B
+      $100; B owes C $120; C owes E $70; D owes E $55; B owes D $40. An external
+      shock hits bank A with a $120 loss. Resolve the cascade until no further
+      bank defaults; if two banks would default at the same time, the one
+      earlier in the order A, B, C, D, E is taken first.
+
+
+      Does bank C survive the shock? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches no
+        check: regex
+        pattern: \b[Nn][Oo]\b
+    tags:
+      - TODO
+      - financial-model
+      - contagion
+      - default-cascade
+  # Strict chain: A (120>50) → B (100>80) → C (120>60) → E (70>45); D's incoming $40 < $300 survives. Order A, B, C, E.
+  - name: financial_contagion_default_order
+    category: financial
+    tier: 4
+    prompt: >-
+      Five banks A, B, C, D and E are linked by interbank loans. Each holds a
+      capital buffer that absorbs losses: A=$50, B=$80, C=$60, D=$300, E=$45. A
+      bank defaults when its total incoming losses exceed its buffer; on default
+      it passes the full face value of every loan it owes to its creditor (loss
+      given default = 100%). The loans (debtor → creditor: amount) are: A owes B
+      $100; B owes C $120; C owes E $70; D owes E $55; B owes D $40. An external
+      shock hits bank A with a $120 loss. Resolve the cascade until no further
+      bank defaults; if two banks would default at the same time, the one
+      earlier in the order A, B, C, D, E is taken first.
+
+
+      List every bank that defaults, in the order they fail, from first to last.
+      Give the bank letters in order.
+    scorer: ordered_match
+    vocabulary:
+      - A
+      - B
+      - C
+      - D
+      - E
+    expected:
+      - A
+      - B
+      - C
+      - E
+    tags:
+      - TODO
+      - financial-model
+      - contagion
+      - ordered
+      - default-order
+  # A, B, C and E default; D survives — 4 failures.
+  - name: financial_contagion_total_failed
+    category: financial
+    tier: 3
+    prompt: >-
+      Five banks A, B, C, D and E are linked by interbank loans. Each holds a
+      capital buffer that absorbs losses: A=$50, B=$80, C=$60, D=$300, E=$45. A
+      bank defaults when its total incoming losses exceed its buffer; on default
+      it passes the full face value of every loan it owes to its creditor (loss
+      given default = 100%). The loans (debtor → creditor: amount) are: A owes B
+      $100; B owes C $120; C owes E $70; D owes E $55; B owes D $40. An external
+      shock hits bank A with a $120 loss. Resolve the cascade until no further
+      bank defaults; if two banks would default at the same time, the one
+      earlier in the order A, B, C, D, E is taken first.
+
+
+      How many banks fail in total? Reply with only that number and no other
+      figures.
+    scorer: exact_match
+    expected: "4"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - contagion
+      - count
+  # B's incoming loss is exactly $100; raising its buffer from $80 to $100 (a +$20 bump) stops B defaulting, so the cascade halts after A — only 1 failure instead of 4.
+  - name: financial_contagion_buffer_bump_halts
+    category: financial
+    tier: 4
+    prompt: >-
+      Five banks A, B, C, D and E are linked by interbank loans. Each holds a
+      capital buffer that absorbs losses: A=$50, B=$80, C=$60, D=$300, E=$45. A
+      bank defaults when its total incoming losses exceed its buffer; on default
+      it passes the full face value of every loan it owes to its creditor (loss
+      given default = 100%). The loans (debtor → creditor: amount) are: A owes B
+      $100; B owes C $120; C owes E $70; D owes E $55; B owes D $40. An external
+      shock hits bank A with a $120 loss. Resolve the cascade until no further
+      bank defaults; if two banks would default at the same time, the one
+      earlier in the order A, B, C, D, E is taken first.
+
+
+      What is the smallest whole-dollar increase to bank B's buffer alone that
+      reduces the total number of banks that fail? Reply with only that number
+      and no other figures.
+    scorer: exact_match
+    expected: "20"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - contagion
+      - capstone
+      - buffer
+  # Shoring up bank A (the shock's entry point) absorbs the original loss and stops the cascade entirely (0 failures); any other single top-up leaves more banks failing.
+  - name: financial_contagion_best_bailout
+    category: financial
+    tier: 4
+    prompt: >-
+      Five banks A, B, C, D and E are linked by interbank loans. Each holds a
+      capital buffer that absorbs losses: A=$50, B=$80, C=$60, D=$300, E=$45. A
+      bank defaults when its total incoming losses exceed its buffer; on default
+      it passes the full face value of every loan it owes to its creditor (loss
+      given default = 100%). The loans (debtor → creditor: amount) are: A owes B
+      $100; B owes C $120; C owes E $70; D owes E $55; B owes D $40. An external
+      shock hits bank A with a $120 loss. Resolve the cascade until no further
+      bank defaults; if two banks would default at the same time, the one
+      earlier in the order A, B, C, D, E is taken first.
+
+
+      A one-time buffer top-up to which single bank prevents the most failures
+      overall? Reply with just that bank's letter.
+    scorer: constraint
+    constraints:
+      - name: matches A
+        check: regex
+        pattern: \b[Aa]\b
+    tags:
+      - TODO
+      - financial-model
+      - contagion
+      - bailout
+  # Month 1: NOI $130 ÷ debt service $80 = 1.625.
+  - name: financial_covenant_dscr_month_1
+    category: financial
+    tier: 2
+    prompt: >-
+      A property loan carries a covenant requiring its Debt Service Coverage
+      Ratio (DSCR = net operating income ÷ debt service) to stay at or above
+      1.25 every month; the covenant is breached only when the DSCR falls
+      strictly below 1.25 (a DSCR of exactly 1.25 passes). Net operating income
+      (NOI) is $130 in month 1 and grows 2% each month thereafter, so NOI in
+      month t = 130 × 1.02^(t−1). Scheduled debt service steps up over time:
+      $80/month in months 1–3, $110/month in months 4–6, and $140/month in
+      months 7–12. Consider the 12-month horizon.
+
+
+      What is the DSCR in month 1? Give your answer as a decimal.
+    scorer: constraint
+    constraints:
+      - name: equals 1.625
+        check: regex
+        pattern: (?<![\d.])1\.6250*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - covenant
+      - dscr
+  # Months 1–6 clear their tiers (month 4: 130·1.02³/110 ≈ 1.25+); the month-7 step-up to $140 binds: NOI₇ = 130·1.02⁶ ≈ 146.4, /140 ≈ 1.046 < 1.25. First breach = month 7.
+  - name: financial_covenant_first_breach_month
+    category: financial
+    tier: 4
+    prompt: >-
+      A property loan carries a covenant requiring its Debt Service Coverage
+      Ratio (DSCR = net operating income ÷ debt service) to stay at or above
+      1.25 every month; the covenant is breached only when the DSCR falls
+      strictly below 1.25 (a DSCR of exactly 1.25 passes). Net operating income
+      (NOI) is $130 in month 1 and grows 2% each month thereafter, so NOI in
+      month t = 130 × 1.02^(t−1). Scheduled debt service steps up over time:
+      $80/month in months 1–3, $110/month in months 4–6, and $140/month in
+      months 7–12. Consider the 12-month horizon.
+
+
+      In which month does the DSCR first fall below 1.25? Reply with only the
+      month number.
+    scorer: exact_match
+    expected: "7"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - covenant
+      - capstone
+      - breach-timing
+  # The DSCR dips below 1.25 from month 7 but its minimum over the horizon stays above 1.0, so the borrower is in breach, not insolvent.
+  - name: financial_covenant_state
+    category: financial
+    tier: 3
+    prompt: >-
+      A property loan carries a covenant requiring its Debt Service Coverage
+      Ratio (DSCR = net operating income ÷ debt service) to stay at or above
+      1.25 every month; the covenant is breached only when the DSCR falls
+      strictly below 1.25 (a DSCR of exactly 1.25 passes). Net operating income
+      (NOI) is $130 in month 1 and grows 2% each month thereafter, so NOI in
+      month t = 130 × 1.02^(t−1). Scheduled debt service steps up over time:
+      $80/month in months 1–3, $110/month in months 4–6, and $140/month in
+      months 7–12. Consider the 12-month horizon.
+
+
+      By the end of the 12 months, is the borrower insolvent (DSCR ever below
+      1.0) or merely in breach of the covenant (DSCR below 1.25 but never below
+      1.0)? Answer "insolvent" or "in breach".
+    scorer: constraint
+    constraints:
+      - name: matches in breach
+        check: regex
+        pattern: \b[Ii][Nn]\s+[Bb][Rr][Ee][Aa][Cc][Hh]\b
+    tags:
+      - TODO
+      - financial-model
+      - covenant
+      - classification
+  # The month-7 step-up binds: 130·(1+g)⁶ ≥ 1.25·140 ⇒ g ≥ (175/130)^(1/6) − 1 ≈ 0.0508.
+  - name: financial_covenant_min_growth_no_breach
+    category: financial
+    tier: 4
+    prompt: >-
+      A property loan carries a covenant requiring its Debt Service Coverage
+      Ratio (DSCR = net operating income ÷ debt service) to stay at or above
+      1.25 every month; the covenant is breached only when the DSCR falls
+      strictly below 1.25 (a DSCR of exactly 1.25 passes). Net operating income
+      (NOI) is $130 in month 1 and grows 2% each month thereafter, so NOI in
+      month t = 130 × 1.02^(t−1). Scheduled debt service steps up over time:
+      $80/month in months 1–3, $110/month in months 4–6, and $140/month in
+      months 7–12. Consider the 12-month horizon.
+
+
+      Holding everything else fixed, what is the minimum constant monthly NOI
+      growth rate that would avoid any covenant breach across all 12 months?
+      Give your answer as a decimal to 4 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.0508
+        check: regex
+        pattern: (?<![\d.])0?\.05080*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - covenant
+      - min-growth
+  # NPV(A) = −1000 + 600/1.08 + 500/1.08² + 200/1.08³ = 142.99.
+  - name: financial_npv_project_a
+    category: financial
+    tier: 3
+    prompt: >-
+      You must choose between two mutually exclusive three-year projects. All
+      cash flows occur at year-end. Project A: invest $1,000 now (year 0), then
+      receive $600 in year 1, $500 in year 2, and $200 in year 3. Project B:
+      invest $1,000 now, then receive $200 in year 1, $400 in year 2, and $800
+      in year 3. Unless a part states otherwise, discount at 8% per year.
+
+
+      What is the net present value of Project A at the 8% discount rate? Give
+      your answer in dollars to the nearest cent.
+    scorer: constraint
+    constraints:
+      - name: equals 142.99
+        check: regex
+        pattern: (?<![\d.])142\.990*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - npv
+      - discounting
+  # NPV(B) = −1000 + 200/1.08 + 400/1.08² + 800/1.08³ = 163.19.
+  - name: financial_npv_project_b
+    category: financial
+    tier: 3
+    prompt: >-
+      You must choose between two mutually exclusive three-year projects. All
+      cash flows occur at year-end. Project A: invest $1,000 now (year 0), then
+      receive $600 in year 1, $500 in year 2, and $200 in year 3. Project B:
+      invest $1,000 now, then receive $200 in year 1, $400 in year 2, and $800
+      in year 3. Unless a part states otherwise, discount at 8% per year.
+
+
+      What is the net present value of Project B at the 8% discount rate? Give
+      your answer in dollars to the nearest cent.
+    scorer: constraint
+    constraints:
+      - name: equals 163.19
+        check: regex
+        pattern: (?<![\d.])163\.190*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - npv
+      - discounting
+  # At 8% (below the crossover rate), NPV(B) 163.19 > NPV(A) 142.99, so pick B.
+  - name: financial_npv_which_project
+    category: financial
+    tier: 2
+    prompt: >-
+      You must choose between two mutually exclusive three-year projects. All
+      cash flows occur at year-end. Project A: invest $1,000 now (year 0), then
+      receive $600 in year 1, $500 in year 2, and $200 in year 3. Project B:
+      invest $1,000 now, then receive $200 in year 1, $400 in year 2, and $800
+      in year 3. Unless a part states otherwise, discount at 8% per year.
+
+
+      At the 8% discount rate, which project has the higher NPV — A or B? Reply
+      with just the letter.
+    scorer: constraint
+    constraints:
+      - name: matches B
+        check: regex
+        pattern: \b[Bb]\b
+    tags:
+      - TODO
+      - financial-model
+      - npv
+      - project-choice
+  # The difference stream A−B = [0, 400, 100, −600] has one sign change, so a unique crossover exists where NPV(A)=NPV(B): r ≈ 0.1061 (both ≈ $98.90).
+  - name: financial_npv_crossover_rate
+    category: financial
+    tier: 4
+    prompt: >-
+      You must choose between two mutually exclusive three-year projects. All
+      cash flows occur at year-end. Project A: invest $1,000 now (year 0), then
+      receive $600 in year 1, $500 in year 2, and $200 in year 3. Project B:
+      invest $1,000 now, then receive $200 in year 1, $400 in year 2, and $800
+      in year 3. Unless a part states otherwise, discount at 8% per year.
+
+
+      At what single discount rate do the two projects have equal NPV (the
+      crossover rate)? Give your answer as a decimal to 4 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.1061
+        check: regex
+        pattern: (?<![\d.])0?\.10610*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - npv
+      - capstone
+      - crossover
+  # Project A recovers $600 by end of year 1, needing $400 more of year 2's $500 inflow: 1 + 400/500 = 1.8 years.
+  - name: financial_npv_payback_a
+    category: financial
+    tier: 3
+    prompt: >-
+      You must choose between two mutually exclusive three-year projects. All
+      cash flows occur at year-end. Project A: invest $1,000 now (year 0), then
+      receive $600 in year 1, $500 in year 2, and $200 in year 3. Project B:
+      invest $1,000 now, then receive $200 in year 1, $400 in year 2, and $800
+      in year 3. Unless a part states otherwise, discount at 8% per year.
+
+
+      What is the payback period of Project A, in years, interpolating
+      fractionally within the year the outlay is recovered? Give your answer as
+      a decimal.
+    scorer: constraint
+    constraints:
+      - name: equals 1.8
+        check: regex
+        pattern: (?<![\d.])1\.80*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - npv
+      - payback
+  # A = P·i / (1 − (1+i)^−N) = 20000·0.005 / (1 − 1.005^−60) = $386.66.
+  - name: financial_amort_monthly_payment
+    category: financial
+    tier: 3
+    prompt: >-
+      A borrower takes a $20,000 loan at 6% annual interest compounded monthly
+      (a 0.5% monthly rate) on a 60-month level-payment schedule. On top of the
+      scheduled payment, the borrower pays an extra $100 of principal every
+      month starting in month 1. Each month interest accrues on the outstanding
+      balance first, then the scheduled payment and the extra $100 are applied
+      to principal. Work to exact cents; the final payment is whatever amount
+      clears the remaining balance.
+
+
+      What is the scheduled monthly payment (ignoring the extra principal)? Give
+      your answer in dollars to the nearest cent.
+    scorer: constraint
+    constraints:
+      - name: equals 386.66
+        check: regex
+        pattern: (?<![\d.])386\.660*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - amortization
+      - payment
+  # Simulating 12 months with the $100 extra principal each month leaves a balance of $15230.38 (vs $16,463.94 with no extra).
+  - name: financial_amort_balance_after_12
+    category: financial
+    tier: 4
+    prompt: >-
+      A borrower takes a $20,000 loan at 6% annual interest compounded monthly
+      (a 0.5% monthly rate) on a 60-month level-payment schedule. On top of the
+      scheduled payment, the borrower pays an extra $100 of principal every
+      month starting in month 1. Each month interest accrues on the outstanding
+      balance first, then the scheduled payment and the extra $100 are applied
+      to principal. Work to exact cents; the final payment is whatever amount
+      clears the remaining balance.
+
+
+      What is the outstanding balance immediately after the 12th monthly payment
+      (including the $100 extra each month)? Give your answer in dollars to the
+      nearest cent.
+    scorer: constraint
+    constraints:
+      - name: equals 15230.38
+        check: regex
+        pattern: (?<![\d.])15230\.380*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - amortization
+      - balance
+  # Summing the interest portion of every payment until the balance clears gives $2444.38 (vs $3,199.36 on the scheduled 60-month plan).
+  - name: financial_amort_total_interest
+    category: financial
+    tier: 4
+    prompt: >-
+      A borrower takes a $20,000 loan at 6% annual interest compounded monthly
+      (a 0.5% monthly rate) on a 60-month level-payment schedule. On top of the
+      scheduled payment, the borrower pays an extra $100 of principal every
+      month starting in month 1. Each month interest accrues on the outstanding
+      balance first, then the scheduled payment and the extra $100 are applied
+      to principal. Work to exact cents; the final payment is whatever amount
+      clears the remaining balance.
+
+
+      What is the total interest paid over the life of the loan, given the $100
+      extra principal each month? Give your answer in dollars to the nearest
+      cent.
+    scorer: constraint
+    constraints:
+      - name: equals 2444.38
+        check: regex
+        pattern: (?<![\d.])2444\.380*(?!\d)
+    tags:
+      - TODO
+      - financial-model
+      - amortization
+      - interest
+  # The extra principal accelerates payoff: the balance reaches zero in month 47 (vs the scheduled 60).
+  - name: financial_amort_payoff_month
+    category: financial
+    tier: 4
+    prompt: >-
+      A borrower takes a $20,000 loan at 6% annual interest compounded monthly
+      (a 0.5% monthly rate) on a 60-month level-payment schedule. On top of the
+      scheduled payment, the borrower pays an extra $100 of principal every
+      month starting in month 1. Each month interest accrues on the outstanding
+      balance first, then the scheduled payment and the extra $100 are applied
+      to principal. Work to exact cents; the final payment is whatever amount
+      clears the remaining balance.
+
+
+      In which month is the loan fully paid off, given the $100 extra principal
+      each month? Reply with only the month number.
+    scorer: exact_match
+    expected: "47"
+    extract: (\d+)
+    tags:
+      - TODO
+      - financial-model
+      - amortization
+      - capstone
+      - payoff

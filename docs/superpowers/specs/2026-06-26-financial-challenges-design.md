@@ -1,13 +1,13 @@
 # Financial challenge batteries — design plan
 
-A challenge here is a **scenario battery**: one scenario world, authored once, carrying 4–6 sibling sub-question **items**, each its own scored dimension. Partial credit is per-item — answering 4 of 5 dimensions on a scenario yields 0.8 on that scenario — exactly mirroring the existing `financial_bailout_target` / `financial_bailout_amount` pair that share the single `chain` model in `scripts/author/draft.ts`. Every battery below **must** include a wide-numeric **capstone** dimension (an open dollar / period / rate figure that is not guessable); narrow 1-of-2 / 1-of-3 dimensions are permitted only as **minority weight** beside the wide factors, never as the main signal. Some dimensions want a set or ordered-list scorer that does not yet exist in `emit.ts` (marked ⊕); for those the spec gives a single-name fallback the author ships today.
+A challenge here is a **scenario battery**: one scenario world, authored once, carrying 4–6 sibling sub-question **items**, each its own scored dimension. Partial credit is per-item — answering 4 of 5 dimensions on a scenario yields 0.8 on that scenario — exactly mirroring the existing `financial_bailout_target` / `financial_bailout_amount` pair that share the single `chain` model in `scripts/author/draft.ts`. Every battery below **must** include a wide-numeric **capstone** dimension (an open dollar / period / rate figure that is not guessable); narrow 1-of-2 / 1-of-3 dimensions are permitted only as **minority weight** beside the wide factors, never as the main signal. The set/ordered-list scorers some dimensions want (marked ⊕) are live in `emit.ts` (`setItem` / `orderedItem`, backed by the `set_match` / `ordered_match` scorers), so those dimensions use the real scorer; no single-name fallback is needed.
 
 **Source of truth for all formulas, citations, edge cases, and variation axes:** `/private/tmp/claude-501/-Users-vcarl-workspace-testbench-llms/5b29f6fb-cee3-475b-8ca1-f2c540a48381/scratchpad/resources-financial.md` (the "resource pack"). Section numbers below (`pack §N`) point into it. Do not re-derive math — pull it from there and cross-check against the worked answers in this doc.
 
 ## Conventions shared by all five batteries
 
-- **Where code lands.** New pure helpers go in a single new file `scripts/author/financialModels.ts` (sibling to `financial.ts`), imported by `draft.ts` exactly like `financial.js` is today. `financial.ts` stays the monthly cash-sim; do **not** bolt these onto its `Model`/`simulate()` — they are different shapes. The covenant-breach loop (§3) and amortization loop (§5) are the only two that echo the `insolvency()` / `simulate()` month-loop idiom and may be cross-referenced for style.
-- **Scorers available now** (`emit.ts`): `exactItem` (integer, last-match regex extract), `wordItem` (whole-word name/label), `regexItem` + `decimalPattern(value)` (decimal accepting `0.5`/`.5`/`0.50`). There is **no** native percentage scorer and **no** set/ordered-list scorer. Decimals (rates, dollars-with-cents) score via `decimalPattern`; integers via `exactItem`; names/labels via `wordItem`.
+- **Where code lands.** The new pure helpers live in `scripts/author/financial.ts`, exported alongside its monthly cash-sim and imported by `draft.ts`. They are kept separate from the `Model`/`simulate()` shapes — they are different shapes — and are pure closed-form / fixed-point computations. The covenant-breach loop (§3) and amortization loop (§5) echo the `insolvency()` / `simulate()` month-loop idiom for style.
+- **Scorers available** (`emit.ts`): `exactItem` (integer, last-match regex extract), `wordItem` (whole-word name/label), `regexItem` + `decimalPattern(value)` (decimal accepting `0.5`/`.5`/`0.50`), and `setItem` / `orderedItem` (closed-vocabulary set / ordered-sequence answers, partial credit). There is **no** native percentage scorer. Decimals (rates, dollars-with-cents) score via `decimalPattern`; integers via `exactItem`; names/labels via `wordItem`; ordered sequences via `orderedItem`.
 - **Decimal & percentage answers.** Author rates as **decimals** (`0.1061`) and dollars rounded to a stated precision, then score with `decimalPattern`. Pin the rounding rule in the prompt ("to the nearest cent", "as a decimal to 4 places"). Never ask for a `%` token — `decimalPattern` does not model the percent sign.
 - **Every battery's `why` field** must restate the ground-truth number and the one-line reason, as the existing items do.
 - Each item keeps `tags: ["TODO", ...]` until reviewed, per the existing convention.
@@ -146,14 +146,14 @@ A challenge here is a **scenario battery**: one scenario world, authored once, c
 
 ## Build summary
 
-| Battery | New helper(s) in `financialModels.ts` | Capstone (wide) | Scorer gap |
+| Battery | New helper(s) in `financial.ts` | Capstone (wide) | Scorer |
 |---|---|---|---|
-| 1 Waterfall | `waterfall()` reducer | pool where equity = $0 (`1015`) | none |
-| 2 Contagion | `defaultCascade()`, `minBumpToHalt()`, `bestBailout()` | buffer bump halting cascade (`20`) | ⊕ ordered-list — ship "fails 2nd?" fallback |
+| 1 Waterfall | `waterfall()` reducer | pool where equity = $0 (`1015`) | exact / word |
+| 2 Contagion | `defaultCascade()`, `isAcyclic()`, `minBumpToHalt()`, `bestBailout()` | buffer bump halting cascade (`20`) | ⊕ `ordered_match` for `default_order` |
 | 3 Covenant | `firstBreach()`, `dscrSeries()`, `classifyState()`, `minGrowthToAvoidBreach()` | first breach month (`7`) | none |
 | 4 NPV | `npv()`, `crossoverRate()`, `paybackPeriod()` | crossover rate (`0.1061`) | none (reject multi-sign / equal-total streams) |
 | 5 Amortization | `amortize()` | payoff month (`47`) | none |
 
-**Wire-up.** Author all five in `scripts/author/draft.ts` alongside the existing financial block, import helpers from `./financialModels.js`, emit via the same `writeSuiteFile(CHALLENGES_DIR, "financial", items)` path (append to the existing `financial` suite or split a new suite id). Each scenario's items share one authored world object, computed once, so the answers stay in sync — the `bailout_target`/`bailout_amount` pattern.
+**Wire-up.** All five are authored in `scripts/author/draft.ts` alongside the existing financial block, importing helpers from `./financial.js`, emitted via the same `writeSuiteFile(CHALLENGES_DIR, "financial", items)` path (appended to the existing `financial` suite). Each scenario's items share one authored world object, computed once, so the answers stay in sync — the `bailout_target`/`bailout_amount` pattern.
 
-**Scorers to build on the side track:** an **ordered-list / set scorer** for scenario 2's `default_order`. Until it lands, every battery ships fully using `exactItem` / `regexItem`+`decimalPattern` / `wordItem` with the single-name fallback noted for §2.
+**Scorers.** Scenario 2's `default_order` uses the `ordered_match` scorer via `orderedItem`; the remaining dimensions use `exactItem` / `regexItem`+`decimalPattern` / `wordItem`.

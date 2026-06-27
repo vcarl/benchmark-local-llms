@@ -25,17 +25,35 @@ import {
   type AuthoredItem,
   decimalPattern,
   exactItem,
+  orderedItem,
   regexItem,
   wordItem,
   writeSuiteFile,
 } from "./emit.js";
 import {
+  amortize,
+  bestBailout,
   breakeven,
+  classifyState,
+  type ContagionModel,
+  crossoverRate,
+  defaultCascade,
   describe as describeFinancial,
+  diffStream,
+  dscrSeries,
+  firstBreach,
   insolvency,
+  isAcyclic,
+  minBumpToHalt,
+  minGrowthToAvoidBreach,
   type Model,
   minInjectionToSolvency,
+  npv,
+  paybackPeriod,
+  signChanges,
   systemBreakeven,
+  type Tranche,
+  waterfall,
 } from "./financial.js";
 import {
   type Move,
@@ -436,6 +454,378 @@ const financialMoreItems: AuthoredItem[] = [
   }),
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FINANCIAL SCENARIO BATTERIES (waterfall · contagion · covenant · NPV · amort)
+// Five scenario worlds, each authored once and carrying 4–5 sibling dimensions
+// that share the scenario prose. Every battery includes a wide-numeric capstone;
+// narrow 1-of-k dimensions are kept to minority weight. Ground truth is the
+// design doc docs/superpowers/specs/2026-06-26-financial-challenges-design.md;
+// the console table below prints the computed answers + degeneracy status so a
+// reviewer can eyeball non-degeneracy (no throwing in author code).
+// ─────────────────────────────────────────────────────────────────────────────
+const round4 = (x: number): number => Math.round(x * 1e4) / 1e4;
+const round2v = (x: number): number => Math.round((x + Number.EPSILON) * 100) / 100;
+
+// ── Battery 1 — Payment waterfall ────────────────────────────────────────────
+const wfTranches: Tranche[] = [
+  { name: "Senior", claim: 520 },
+  { name: "Mezzanine", claim: 310 },
+  { name: "Junior", claim: 185 },
+];
+const wfPool = 640;
+const wf = waterfall(wfPool, wfTranches);
+const waterfallScene =
+  `A securitization distributes a $${wfPool} cash pool to its tranches in strict priority order. ` +
+  `Each tranche is paid in full before the next receives anything, and no tranche is ever paid more ` +
+  `than its claim. Claims, in priority order, are: Senior $520, Mezzanine $310, Junior $185. ` +
+  `Whatever cash remains after all three are paid goes to the Equity tranche.`;
+
+const waterfallItems: AuthoredItem[] = [
+  exactItem({
+    name: "financial_waterfall_senior_payout",
+    category: "financial",
+    tier: 2,
+    prompt: `${waterfallScene}\n\nHow many dollars does the Senior tranche receive? Reply with only that number and no other figures.`,
+    expected: String(wf.payouts.Senior),
+    extract: "(\\d+)",
+    why: `Senior is paid first and its $520 claim is fully covered by the $${wfPool} pool, so it receives $${wf.payouts.Senior}.`,
+    tags: ["TODO", "financial-model", "waterfall", "tranche-priority"],
+  }),
+  exactItem({
+    name: "financial_waterfall_mezz_payout",
+    category: "financial",
+    tier: 3,
+    prompt: `${waterfallScene}\n\nHow many dollars does the Mezzanine tranche receive? Reply with only that number and no other figures.`,
+    expected: String(wf.payouts.Mezzanine),
+    extract: "(\\d+)",
+    why: `After Senior takes $520, only $${wfPool - 520} of the pool remains, so Mezzanine is partially filled at $${wf.payouts.Mezzanine} against its $310 claim — the discriminating partial-fill figure.`,
+    tags: ["TODO", "financial-model", "waterfall", "tranche-priority"],
+  }),
+  exactItem({
+    name: "financial_waterfall_equity_residual",
+    category: "financial",
+    tier: 2,
+    prompt: `${waterfallScene}\n\nHow many dollars are left for the Equity tranche? Reply with only that number and no other figures.`,
+    expected: String(wf.payouts.Equity),
+    extract: "(\\d+)",
+    why: `The pool is exhausted partway through Mezzanine, so Junior and Equity both receive $0; Equity gets $${wf.payouts.Equity}.`,
+    tags: ["TODO", "financial-model", "waterfall", "residual"],
+  }),
+  wordItem({
+    name: "financial_waterfall_first_loss",
+    category: "financial",
+    tier: 3,
+    prompt: `${waterfallScene}\n\nName the most senior tranche that is NOT paid in full. Reply with just that tranche's name.`,
+    value: wf.firstLoss ?? "",
+    why: `Senior is paid in full; Mezzanine is the first tranche underpaid ($${wf.payouts.Mezzanine} of $310), so ${wf.firstLoss} is the first to take a loss.`,
+    tags: ["TODO", "financial-model", "waterfall", "first-loss"],
+  }),
+  exactItem({
+    name: "financial_waterfall_pool_equity_zero",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${waterfallScene}\n\nIgnore the specific $${wfPool} figure for this part. At or below what total cash ` +
+      `pool size (in dollars) do the Equity holders receive nothing? Reply with only that number and no other figures.`,
+    expected: String(wf.equityZeroThreshold),
+    extract: "(\\d+)",
+    why: `Equity gets a positive residual only once every senior claim is fully paid, i.e. above the sum of all non-equity claims 520+310+185 = $${wf.equityZeroThreshold}. At or below $${wf.equityZeroThreshold}, equity gets $0.`,
+    tags: ["TODO", "financial-model", "waterfall", "capstone", "breakpoint"],
+  }),
+];
+
+// ── Battery 2 — Counterparty contagion (acyclic threshold cascade) ───────────
+const contagion: ContagionModel = {
+  firms: ["A", "B", "C", "D", "E"],
+  buffers: { A: 50, B: 80, C: 60, D: 300, E: 45 },
+  liabilities: [
+    { from: "A", to: "B", amount: 100 },
+    { from: "B", to: "C", amount: 120 },
+    { from: "C", to: "E", amount: 70 },
+    { from: "D", to: "E", amount: 55 },
+    { from: "B", to: "D", amount: 40 },
+  ],
+  shock: { node: "A", loss: 120 },
+};
+const cascade = defaultCascade(contagion);
+const contagionAcyclic = isAcyclic(contagion.firms, contagion.liabilities);
+const bumpB = minBumpToHalt(contagion, "B");
+const bailout = bestBailout(contagion);
+const contagionScene =
+  `Five banks A, B, C, D and E are linked by interbank loans. Each holds a capital buffer that absorbs ` +
+  `losses: A=$50, B=$80, C=$60, D=$300, E=$45. A bank defaults when its total incoming losses exceed ` +
+  `its buffer; on default it passes the full face value of every loan it owes to its creditor ` +
+  `(loss given default = 100%). The loans (debtor → creditor: amount) are: A owes B $100; B owes C $120; ` +
+  `C owes E $70; D owes E $55; B owes D $40. An external shock hits bank A with a $120 loss. Resolve the ` +
+  `cascade until no further bank defaults; if two banks would default at the same time, the one earlier ` +
+  `in the order A, B, C, D, E is taken first.`;
+
+const contagionItems: AuthoredItem[] = [
+  wordItem({
+    name: "financial_contagion_firm_c_survives",
+    category: "financial",
+    tier: 3,
+    prompt: `${contagionScene}\n\nDoes bank C survive the shock? Answer yes or no.`,
+    value: cascade.survives("C") ? "yes" : "no",
+    why: `B defaults and passes $120 to C, exceeding C's $60 buffer, so C defaults — answer: ${cascade.survives("C") ? "yes" : "no"}.`,
+    tags: ["TODO", "financial-model", "contagion", "default-cascade"],
+  }),
+  orderedItem({
+    name: "financial_contagion_default_order",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${contagionScene}\n\nList every bank that defaults, in the order they fail, from first to last. ` +
+      `Give the bank letters in order.`,
+    vocabulary: contagion.firms,
+    expected: cascade.order,
+    why: `Strict chain: A (120>50) → B (100>80) → C (120>60) → E (70>45); D's incoming $40 < $300 survives. Order ${cascade.order.join(", ")}.`,
+    tags: ["TODO", "financial-model", "contagion", "ordered", "default-order"],
+  }),
+  exactItem({
+    name: "financial_contagion_total_failed",
+    category: "financial",
+    tier: 3,
+    prompt: `${contagionScene}\n\nHow many banks fail in total? Reply with only that number and no other figures.`,
+    expected: String(cascade.failedCount),
+    extract: "(\\d+)",
+    why: `A, B, C and E default; D survives — ${cascade.failedCount} failures.`,
+    tags: ["TODO", "financial-model", "contagion", "count"],
+  }),
+  exactItem({
+    name: "financial_contagion_buffer_bump_halts",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${contagionScene}\n\nWhat is the smallest whole-dollar increase to bank B's buffer alone that ` +
+      `reduces the total number of banks that fail? Reply with only that number and no other figures.`,
+    expected: String(bumpB ?? 0),
+    extract: "(\\d+)",
+    why: `B's incoming loss is exactly $100; raising its buffer from $80 to $100 (a +$${bumpB} bump) stops B defaulting, so the cascade halts after A — only 1 failure instead of 4.`,
+    tags: ["TODO", "financial-model", "contagion", "capstone", "buffer"],
+  }),
+  wordItem({
+    name: "financial_contagion_best_bailout",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${contagionScene}\n\nA one-time buffer top-up to which single bank prevents the most failures ` +
+      `overall? Reply with just that bank's letter.`,
+    value: bailout.firm,
+    why: `Shoring up bank ${bailout.firm} (the shock's entry point) absorbs the original loss and stops the cascade entirely (0 failures); any other single top-up leaves more banks failing.`,
+    tags: ["TODO", "financial-model", "contagion", "bailout"],
+  }),
+];
+
+// ── Battery 3 — Covenant breach timing (DSCR) ────────────────────────────────
+const covNoi0 = 130;
+const covGrowth = 0.02;
+const covHorizon = 12;
+const covThreshold = 1.25;
+const covDebtService = (m: number): number => (m <= 3 ? 80 : m <= 6 ? 110 : 140);
+const covSeries = dscrSeries(covNoi0, covGrowth, covDebtService, covHorizon);
+const covMonth1 = round4(covSeries[0] ?? 0); // 1.625 (exact; do not round to cents)
+const covBreachMonth = firstBreach(covSeries, covThreshold, "below");
+const covState = classifyState(covSeries, covThreshold);
+const covMinGrowthRaw = minGrowthToAvoidBreach(covNoi0, covDebtService, covHorizon, covThreshold);
+const covMinGrowth = round4(covMinGrowthRaw); // 0.0508
+const covenantScene =
+  `A property loan carries a covenant requiring its Debt Service Coverage Ratio (DSCR = net operating ` +
+  `income ÷ debt service) to stay at or above 1.25 every month; the covenant is breached only when the ` +
+  `DSCR falls strictly below 1.25 (a DSCR of exactly 1.25 passes). Net operating income (NOI) is $130 in ` +
+  `month 1 and grows 2% each month thereafter, so NOI in month t = 130 × 1.02^(t−1). Scheduled debt ` +
+  `service steps up over time: $80/month in months 1–3, $110/month in months 4–6, and $140/month in ` +
+  `months 7–12. Consider the 12-month horizon.`;
+
+const covenantItems: AuthoredItem[] = [
+  regexItem({
+    name: "financial_covenant_dscr_month_1",
+    category: "financial",
+    tier: 2,
+    prompt: `${covenantScene}\n\nWhat is the DSCR in month 1? Give your answer as a decimal.`,
+    pattern: decimalPattern(covMonth1),
+    label: `equals ${covMonth1}`,
+    why: `Month 1: NOI $130 ÷ debt service $80 = ${covMonth1}.`,
+    tags: ["TODO", "financial-model", "covenant", "dscr"],
+  }),
+  exactItem({
+    name: "financial_covenant_first_breach_month",
+    category: "financial",
+    tier: 4,
+    prompt: `${covenantScene}\n\nIn which month does the DSCR first fall below 1.25? Reply with only the month number.`,
+    expected: String(covBreachMonth),
+    extract: "(\\d+)",
+    why: `Months 1–6 clear their tiers (month 4: 130·1.02³/110 ≈ 1.25+); the month-7 step-up to $140 binds: NOI₇ = 130·1.02⁶ ≈ 146.4, /140 ≈ 1.046 < 1.25. First breach = month ${covBreachMonth}.`,
+    tags: ["TODO", "financial-model", "covenant", "capstone", "breach-timing"],
+  }),
+  wordItem({
+    name: "financial_covenant_state",
+    category: "financial",
+    tier: 3,
+    prompt:
+      `${covenantScene}\n\nBy the end of the 12 months, is the borrower insolvent (DSCR ever below 1.0) ` +
+      `or merely in breach of the covenant (DSCR below 1.25 but never below 1.0)? Answer "insolvent" or "in breach".`,
+    value: covState,
+    why: `The DSCR dips below 1.25 from month 7 but its minimum over the horizon stays above 1.0, so the borrower is ${covState}, not insolvent.`,
+    tags: ["TODO", "financial-model", "covenant", "classification"],
+  }),
+  regexItem({
+    name: "financial_covenant_min_growth_no_breach",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${covenantScene}\n\nHolding everything else fixed, what is the minimum constant monthly NOI growth ` +
+      `rate that would avoid any covenant breach across all 12 months? Give your answer as a decimal to 4 places.`,
+    pattern: decimalPattern(covMinGrowth),
+    label: `equals ${covMinGrowth}`,
+    why: `The month-7 step-up binds: 130·(1+g)⁶ ≥ 1.25·140 ⇒ g ≥ (175/130)^(1/6) − 1 ≈ ${covMinGrowth}.`,
+    tags: ["TODO", "financial-model", "covenant", "min-growth"],
+  }),
+];
+
+// ── Battery 4 — NPV / project choice ─────────────────────────────────────────
+const projA = [-1000, 600, 500, 200];
+const projB = [-1000, 200, 400, 800];
+const npvRate = 0.08;
+const npvA = round2v(npv(npvRate, projA)); // 142.99
+const npvB = round2v(npv(npvRate, projB)); // 163.19
+const whichProject = npvB > npvA ? "B" : "A";
+const crossover = round4(crossoverRate(projA, projB)); // 0.1061
+const npvDiff = diffStream(projA, projB);
+const npvSignChanges = signChanges(npvDiff);
+const totalA = projA.reduce((s, x) => s + x, 0);
+const totalB = projB.reduce((s, x) => s + x, 0);
+const paybackA = round4(paybackPeriod(projA, true)); // 1.8
+const npvScene =
+  `You must choose between two mutually exclusive three-year projects. All cash flows occur at year-end. ` +
+  `Project A: invest $1,000 now (year 0), then receive $600 in year 1, $500 in year 2, and $200 in year 3. ` +
+  `Project B: invest $1,000 now, then receive $200 in year 1, $400 in year 2, and $800 in year 3. Unless ` +
+  `a part states otherwise, discount at ${npvRate * 100}% per year.`;
+
+const npvItems: AuthoredItem[] = [
+  regexItem({
+    name: "financial_npv_project_a",
+    category: "financial",
+    tier: 3,
+    prompt: `${npvScene}\n\nWhat is the net present value of Project A at the ${npvRate * 100}% discount rate? Give your answer in dollars to the nearest cent.`,
+    pattern: decimalPattern(npvA),
+    label: `equals ${npvA}`,
+    why: `NPV(A) = −1000 + 600/1.08 + 500/1.08² + 200/1.08³ = ${npvA}.`,
+    tags: ["TODO", "financial-model", "npv", "discounting"],
+  }),
+  regexItem({
+    name: "financial_npv_project_b",
+    category: "financial",
+    tier: 3,
+    prompt: `${npvScene}\n\nWhat is the net present value of Project B at the ${npvRate * 100}% discount rate? Give your answer in dollars to the nearest cent.`,
+    pattern: decimalPattern(npvB),
+    label: `equals ${npvB}`,
+    why: `NPV(B) = −1000 + 200/1.08 + 400/1.08² + 800/1.08³ = ${npvB}.`,
+    tags: ["TODO", "financial-model", "npv", "discounting"],
+  }),
+  wordItem({
+    name: "financial_npv_which_project",
+    category: "financial",
+    tier: 2,
+    prompt: `${npvScene}\n\nAt the ${npvRate * 100}% discount rate, which project has the higher NPV — A or B? Reply with just the letter.`,
+    value: whichProject,
+    why: `At 8% (below the crossover rate), NPV(B) ${npvB} > NPV(A) ${npvA}, so pick ${whichProject}.`,
+    tags: ["TODO", "financial-model", "npv", "project-choice"],
+  }),
+  regexItem({
+    name: "financial_npv_crossover_rate",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${npvScene}\n\nAt what single discount rate do the two projects have equal NPV (the crossover rate)? ` +
+      `Give your answer as a decimal to 4 places.`,
+    pattern: decimalPattern(crossover),
+    label: `equals ${crossover}`,
+    why: `The difference stream A−B = [0, 400, 100, −600] has one sign change, so a unique crossover exists where NPV(A)=NPV(B): r ≈ ${crossover} (both ≈ $98.90).`,
+    tags: ["TODO", "financial-model", "npv", "capstone", "crossover"],
+  }),
+  regexItem({
+    name: "financial_npv_payback_a",
+    category: "financial",
+    tier: 3,
+    prompt:
+      `${npvScene}\n\nWhat is the payback period of Project A, in years, interpolating fractionally within ` +
+      `the year the outlay is recovered? Give your answer as a decimal.`,
+    pattern: decimalPattern(paybackA),
+    label: `equals ${paybackA}`,
+    why: `Project A recovers $600 by end of year 1, needing $400 more of year 2's $500 inflow: 1 + 400/500 = ${paybackA} years.`,
+    tags: ["TODO", "financial-model", "npv", "payback"],
+  }),
+];
+
+// ── Battery 5 — Loan amortization with extra principal ───────────────────────
+const amort = amortize(20000, 0.005, 60, 100);
+const amortPayment = amort.payment; // 386.66
+const amortBal12 = amort.schedule[11]?.balance ?? 0; // 15230.38
+const amortTotalInterest = amort.totalInterest; // 2444.38
+const amortPayoff = amort.payoffMonth; // 47
+const amortScene =
+  `A borrower takes a $20,000 loan at 6% annual interest compounded monthly (a 0.5% monthly rate) on a ` +
+  `60-month level-payment schedule. On top of the scheduled payment, the borrower pays an extra $100 of ` +
+  `principal every month starting in month 1. Each month interest accrues on the outstanding balance ` +
+  `first, then the scheduled payment and the extra $100 are applied to principal. Work to exact cents; ` +
+  `the final payment is whatever amount clears the remaining balance.`;
+
+const amortItems: AuthoredItem[] = [
+  regexItem({
+    name: "financial_amort_monthly_payment",
+    category: "financial",
+    tier: 3,
+    prompt: `${amortScene}\n\nWhat is the scheduled monthly payment (ignoring the extra principal)? Give your answer in dollars to the nearest cent.`,
+    pattern: decimalPattern(amortPayment),
+    label: `equals ${amortPayment}`,
+    why: `A = P·i / (1 − (1+i)^−N) = 20000·0.005 / (1 − 1.005^−60) = $${amortPayment}.`,
+    tags: ["TODO", "financial-model", "amortization", "payment"],
+  }),
+  regexItem({
+    name: "financial_amort_balance_after_12",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${amortScene}\n\nWhat is the outstanding balance immediately after the 12th monthly payment ` +
+      `(including the $100 extra each month)? Give your answer in dollars to the nearest cent.`,
+    pattern: decimalPattern(amortBal12),
+    label: `equals ${amortBal12}`,
+    why: `Simulating 12 months with the $100 extra principal each month leaves a balance of $${amortBal12} (vs $16,463.94 with no extra).`,
+    tags: ["TODO", "financial-model", "amortization", "balance"],
+  }),
+  regexItem({
+    name: "financial_amort_total_interest",
+    category: "financial",
+    tier: 4,
+    prompt: `${amortScene}\n\nWhat is the total interest paid over the life of the loan, given the $100 extra principal each month? Give your answer in dollars to the nearest cent.`,
+    pattern: decimalPattern(amortTotalInterest),
+    label: `equals ${amortTotalInterest}`,
+    why: `Summing the interest portion of every payment until the balance clears gives $${amortTotalInterest} (vs $3,199.36 on the scheduled 60-month plan).`,
+    tags: ["TODO", "financial-model", "amortization", "interest"],
+  }),
+  exactItem({
+    name: "financial_amort_payoff_month",
+    category: "financial",
+    tier: 4,
+    prompt:
+      `${amortScene}\n\nIn which month is the loan fully paid off, given the $100 extra principal each ` +
+      `month? Reply with only the month number.`,
+    expected: String(amortPayoff),
+    extract: "(\\d+)",
+    why: `The extra principal accelerates payoff: the balance reaches zero in month ${amortPayoff} (vs the scheduled 60).`,
+    tags: ["TODO", "financial-model", "amortization", "capstone", "payoff"],
+  }),
+];
+
+const financialBatteryItems: AuthoredItem[] = [
+  ...waterfallItems,
+  ...contagionItems,
+  ...covenantItems,
+  ...npvItems,
+  ...amortItems,
+];
+
 // ── Report ───────────────────────────────────────────────────────────────────
 console.log("=== TRUST & ALIGNMENT ===");
 console.log("reliability:", trustworthy.ranking.map((r) => `${r.name}=${r.score}`).join("  "));
@@ -489,11 +879,41 @@ console.log(
   bailoutAmount,
 );
 
+console.log("\n=== FINANCIAL BATTERIES (scenario worlds) ===");
+console.log(
+  "1 waterfall:",
+  `payouts Senior=${wf.payouts.Senior} Mezz=${wf.payouts.Mezzanine} Junior=${wf.payouts.Junior} Equity=${wf.payouts.Equity}`,
+  `| firstLoss=${wf.firstLoss} | equity-zero threshold=${wf.equityZeroThreshold}`,
+);
+console.log(
+  "2 contagion:",
+  `order=[${cascade.order.join(",")}] failed=${cascade.failedCount} C-survives=${cascade.survives("C")}`,
+  `| acyclic=${contagionAcyclic ? "yes ✓" : "NO ⚠️ cyclic — single-scan invalid"}`,
+  `| no same-round tie=${new Set(cascade.order).size === cascade.order.length ? "✓" : "⚠️"}`,
+  `| minBump(B)=${bumpB} | bestBailout=${bailout.firm}(→${bailout.failedCount} fail)`,
+);
+console.log(
+  "3 covenant:",
+  `DSCR₁=${covMonth1} firstBreach=month ${covBreachMonth} state=${covState} minGrowth=${covMinGrowth}`,
+  `| min DSCR over horizon=${round4(Math.min(...covSeries))} (>1.0 ⇒ in-breach not insolvent)`,
+);
+console.log(
+  "4 npv:",
+  `NPV(A)=${npvA} NPV(B)=${npvB} pick=${whichProject} crossover=${crossover} payback(A)=${paybackA}`,
+  `| diff sign-changes=${npvSignChanges}${npvSignChanges === 1 ? " ✓ (unique crossover)" : " ⚠️ multi-root"}`,
+  `| totals A=${totalA} B=${totalB}${totalA !== totalB ? " ✓ differ (r≠0)" : " ⚠️ equal — degenerate r=0"}`,
+);
+console.log(
+  "5 amortization:",
+  `payment=${amortPayment} bal@12=${amortBal12} totalInterest=${amortTotalInterest} payoff=month ${amortPayoff}`,
+  `| final balance=${amort.schedule[amort.schedule.length - 1]?.balance} (cleared to 0 ✓)`,
+);
+
 console.log("\n=== writing suites ===");
 for (const [id, items] of [
   ["trust", [...trustItems, ...repeatedItems]],
   ["economics", [...econItems, ...econMoreItems]],
-  ["financial", [...financialItems, ...financialMoreItems]],
+  ["financial", [...financialItems, ...financialMoreItems, ...financialBatteryItems]],
 ] as const) {
   console.log("wrote", writeSuiteFile(CHALLENGES_DIR, id, items));
 }
