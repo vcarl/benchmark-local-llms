@@ -6,10 +6,16 @@
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  decayedScore,
   describe as describeHistory,
+  flatScore,
   type History,
   mostAligned,
   mostTrustworthy,
+  mostTrustworthyDecayed,
+  posteriorMean,
+  type RepActor,
+  signalsToReach,
   trusted,
 } from "./alignment.js";
 import {
@@ -56,12 +62,22 @@ import {
   waterfall,
 } from "./financial.js";
 import {
+  folkThreshold,
+  minBonusIC,
   type Move,
   mostCooperative,
+  type PayoffMatrix,
+  perPeriodCoop,
   type PlayerRounds,
+  principalProfitAtIC,
   repeatedPayoff,
+  shirksUnderFlat,
+  sustainableAt,
+  temptationGain,
   titForTatNext,
+  worthIncentivizing,
 } from "./repeated.js";
+import { bestPathTrust, type Edge, pathsAbove, reachableAbove } from "./webOfTrust.js";
 
 const CHALLENGES_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -826,6 +842,402 @@ const financialBatteryItems: AuthoredItem[] = [
   ...amortItems,
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRUST BATTERIES — deeper-reasoning scenarios (Bayesian, folk theorem, moral
+// hazard, web-of-trust, decayed reputation). Each scenario world is authored once
+// and exposes 4 sibling dimensions; every battery carries a wide-numeric capstone.
+// Ground truth comes from the solvers (alignment.ts / repeated.ts / webOfTrust.ts);
+// see docs/superpowers/specs/2026-06-26-trust-challenges-design.md.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Battery 1 — Bayesian trust calibration ───────────────────────────────────
+const B1 = { pi: 0.4, s: 0.8, t: 0.7, g: 4, b: 2 } as const;
+const b1Scenario =
+  `An informant, Sable, is either Honest or Dishonest. Before any dealings you judge the prior ` +
+  `probability that Sable is Honest to be ${B1.pi}. Each report Sable files is independently rated ` +
+  `"corroborated" (a good signal) or "contradicted" (a bad signal). An Honest informant's report is ` +
+  `corroborated with probability ${B1.s}; a Dishonest informant's report is corroborated with ` +
+  `probability ${1 - B1.t} (so contradicted with probability ${B1.t}). Reports are conditionally ` +
+  `independent given Sable's type. So far Sable has filed ${B1.g} corroborated and ${B1.b} contradicted reports.`;
+const b1Posterior = posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b); // 0.733475
+const b1PostExtraBad = posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b + 1); // 0.440179
+const b1Crosses = b1PostExtraBad < 0.5; // yes
+const b1ToNinety = signalsToReach(B1.pi, B1.s, B1.t, B1.g, B1.b, 0.9); // 2
+
+const bayesItems: AuthoredItem[] = [
+  regexItem({
+    name: "trust_bayes_posterior",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b1Scenario}\n\n` +
+      `Using Bayes' rule, what is the probability that Sable is Honest given this history? ` +
+      `Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b1Posterior),
+    label: `equals ${b1Posterior}`,
+    why:
+      `Posterior odds = (0.4/0.6)·(0.8/0.3)^4·(0.2/0.7)^2 = 32768/11907 ≈ 2.751994; ` +
+      `P(H|data) = 32768/44675 ≈ ${b1Posterior}.`,
+    tags: ["TODO", "trust", "bayesian"],
+  }),
+  regexItem({
+    name: "trust_bayes_after_extra_bad",
+    category: "social",
+    tier: 2,
+    prompt:
+      `${b1Scenario}\n\n` +
+      `One further contradicted (bad) report now arrives. What is the new probability that Sable is ` +
+      `Honest? Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b1PostExtraBad),
+    label: `equals ${b1PostExtraBad}`,
+    why: `Multiply the odds by the bad-signal factor (1−s)/t = 2/7: P = 65536/148885 ≈ ${b1PostExtraBad}.`,
+    tags: ["TODO", "trust", "bayesian"],
+  }),
+  wordItem({
+    name: "trust_bayes_crosses_half",
+    category: "social",
+    tier: 1,
+    prompt:
+      `${b1Scenario}\n\n` +
+      `After that one extra contradicted report, has the probability that Sable is Honest fallen below ` +
+      `one-half? Answer yes or no.`,
+    value: b1Crosses ? "yes" : "no",
+    why: `${b1Posterior} falls to ${b1PostExtraBad} after the extra bad signal, crossing below 0.5 — yes.`,
+    tags: ["TODO", "trust", "bayesian"],
+  }),
+  exactItem({
+    name: "trust_bayes_signals_to_ninety",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b1Scenario}\n\n` +
+      `Starting from this same history, how many consecutive corroborated (good) reports are needed for ` +
+      `the probability that Sable is Honest to reach 90%? Reply with only that whole number.`,
+    expected: String(b1ToNinety),
+    extract: "(\\d+)",
+    why:
+      `Each good report multiplies the odds by s/(1−t) = 8/3. From 2.751994: ` +
+      `1 → 7.339 (P 0.880); 2 → 19.570 (P 0.951 ≥ 0.9). Answer ${b1ToNinety}.`,
+    tags: ["TODO", "trust", "bayesian"],
+  }),
+];
+
+// ── Battery 2 — Folk-theorem cooperation threshold (grim trigger) ────────────
+const cartel: PayoffMatrix = {
+  C: { C: [5, 5], D: [0, 9] },
+  D: { C: [9, 0], D: [2, 2] },
+};
+const b2DeltaAt = 0.6;
+const b2Scenario =
+  `Two rival shippers repeatedly decide each season whether to Honour a price agreement (cooperate) ` +
+  `or Undercut it (defect). In a single season the payoffs are: both Honour → 5 each; if you Undercut ` +
+  `while the rival Honours you earn 9 and the rival earns 0; if you Honour while the rival Undercuts ` +
+  `you earn 0 and the rival earns 9; both Undercut → 2 each. The game repeats indefinitely and each ` +
+  `shipper discounts the next season's payoff by a factor δ. Both follow a grim-trigger strategy: ` +
+  `Honour every season until the first Undercut, then Undercut forever.`;
+const b2 = folkThreshold(cartel); // deltaStar 0.571429
+const b2Temptation = temptationGain(cartel); // 4
+const b2Sustainable = sustainableAt(cartel, b2DeltaAt); // yes
+const b2Coop = perPeriodCoop(cartel); // 5
+
+const folkItems: AuthoredItem[] = [
+  exactItem({
+    name: "trust_folk_temptation_gain",
+    category: "social",
+    tier: 2,
+    prompt:
+      `${b2Scenario}\n\n` +
+      `In a single season, by how much does Undercutting beat Honouring when the rival Honours, before ` +
+      `any future punishment is considered? Reply with only that whole number.`,
+    expected: String(b2Temptation),
+    extract: "(\\d+)",
+    why: `Temptation minus reward, T − R = 9 − 5 = ${b2Temptation}.`,
+    tags: ["TODO", "trust", "folk-theorem"],
+  }),
+  regexItem({
+    name: "trust_folk_delta_star",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b2Scenario}\n\n` +
+      `What is the minimum discount factor δ at which Honouring forever is sustainable as a subgame-perfect ` +
+      `equilibrium under grim trigger? Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b2.deltaStar),
+    label: `equals ${b2.deltaStar}`,
+    why: `δ* = (T − R)/(T − P) = (9 − 5)/(9 − 2) = 4/7 ≈ ${b2.deltaStar}.`,
+    tags: ["TODO", "trust", "folk-theorem"],
+  }),
+  wordItem({
+    name: "trust_folk_sustainable_at_delta",
+    category: "social",
+    tier: 1,
+    prompt:
+      `${b2Scenario}\n\n` +
+      `If the discount factor is δ = ${b2DeltaAt}, is Honouring forever sustainable under grim trigger? ` +
+      `Answer yes or no.`,
+    value: b2Sustainable ? "yes" : "no",
+    why: `${b2DeltaAt} ≥ δ* = ${b2.deltaStar}, so cooperation is sustainable — yes.`,
+    tags: ["TODO", "trust", "folk-theorem"],
+  }),
+  exactItem({
+    name: "trust_folk_coop_payoff",
+    category: "social",
+    tier: 2,
+    prompt:
+      `${b2Scenario}\n\n` +
+      `If both shippers Honour every season, what does each earn per season? Reply with only that whole number.`,
+    expected: String(b2Coop),
+    extract: "(\\d+)",
+    why: `Mutual cooperation pays the reward R = ${b2Coop} each per season.`,
+    tags: ["TODO", "trust", "folk-theorem"],
+  }),
+];
+
+// ── Battery 3 — Moral hazard / incentive design ──────────────────────────────
+const B3 = { pH: 0.8, pL: 0.5, cH: 10, cL: 2, vGood: 100, vBad: 0 } as const;
+const b3Scenario =
+  `A workshop hires a risk-neutral artisan who privately chooses high or low effort. High effort costs ` +
+  `the artisan ${B3.cH} in disutility, low effort costs ${B3.cL}. The commission turns out good with ` +
+  `probability ${B3.pH} under high effort and ${B3.pL} under low effort; a good piece is worth ` +
+  `${B3.vGood} to the workshop and a bad piece ${B3.vBad}. The contract pays a base wage on a bad ` +
+  `outcome and the base wage plus a bonus Δ on a good outcome. The artisan maximises expected wage ` +
+  `minus effort cost, and the workshop sets the base so the artisan's participation constraint binds ` +
+  `at a reservation utility of 0.`;
+const b3Shirks = shirksUnderFlat(B3.cH, B3.cL); // yes
+const b3Bonus = minBonusIC(B3.pH, B3.pL, B3.cH, B3.cL); // 26.666667
+const b3Profit = principalProfitAtIC(B3.pH, B3.vGood, B3.vBad, B3.cH); // 70
+const b3Worth = worthIncentivizing(B3.pH, B3.pL, B3.vGood, B3.vBad, B3.cH, B3.cL); // yes
+
+const moralHazardItems: AuthoredItem[] = [
+  wordItem({
+    name: "trust_hazard_shirk_flat_wage",
+    category: "social",
+    tier: 1,
+    prompt:
+      `${b3Scenario}\n\n` +
+      `Under a flat wage that pays the same regardless of outcome (bonus Δ = 0), does the artisan choose ` +
+      `low effort (shirk)? Answer yes or no.`,
+    value: b3Shirks ? "yes" : "no",
+    why: `With Δ = 0, U(low) − U(high) = c_H − c_L = 10 − 2 = 8 > 0, so the artisan shirks — yes.`,
+    tags: ["TODO", "trust", "moral-hazard"],
+  }),
+  regexItem({
+    name: "trust_hazard_min_bonus",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b3Scenario}\n\n` +
+      `What is the smallest good-outcome bonus Δ that makes high effort incentive-compatible? ` +
+      `Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b3Bonus),
+    label: `equals ${b3Bonus}`,
+    why: `Δ* = (c_H − c_L)/(p_H − p_L) = (10 − 2)/(0.8 − 0.5) = 8/0.3 ≈ ${b3Bonus}.`,
+    tags: ["TODO", "trust", "moral-hazard"],
+  }),
+  exactItem({
+    name: "trust_hazard_principal_profit",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b3Scenario}\n\n` +
+      `Setting the bonus to that minimum Δ with the participation constraint binding, what is the ` +
+      `workshop's expected profit? Reply with only that whole number.`,
+    expected: String(b3Profit),
+    extract: "(-?\\d+)",
+    why:
+      `With participation binding the expected wage equals c_H = 10, so profit = ` +
+      `p_H·V_good + (1−p_H)·V_bad − c_H = 0.8·100 − 10 = ${b3Profit}.`,
+    tags: ["TODO", "trust", "moral-hazard"],
+  }),
+  wordItem({
+    name: "trust_hazard_worth_incentivizing",
+    category: "social",
+    tier: 2,
+    prompt:
+      `${b3Scenario}\n\n` +
+      `Compared with paying a flat wage and accepting low effort, is the workshop better off paying the ` +
+      `minimum bonus Δ for high effort? Answer yes or no.`,
+    value: b3Worth ? "yes" : "no",
+    why:
+      `Profit under high effort = 0.8·100 − 10 = 70; under low effort with a flat wage = 0.5·100 − 2 = 48. ` +
+      `70 > 48 — yes.`,
+    tags: ["TODO", "trust", "moral-hazard"],
+  }),
+];
+
+// ── Battery 4 — Web of trust / transitive trust ──────────────────────────────
+const trustEdges: Edge[] = [
+  { from: "S", to: "A", w: 0.9 },
+  { from: "S", to: "B", w: 0.5 },
+  { from: "A", to: "T", w: 0.7 },
+  { from: "A", to: "C", w: 0.8 },
+  { from: "C", to: "T", w: 0.9 },
+  { from: "B", to: "T", w: 0.95 },
+  { from: "B", to: "C", w: 0.6 },
+];
+const edgeLine = (e: Edge): string => `${e.from}→${e.to} ${e.w}`;
+const b4Scenario =
+  `In a trust network each directed link u→v carries a direct-trust weight between 0 and 1. Trust along ` +
+  `a chain is the PRODUCT of its link weights; where several chains connect two parties, their effective ` +
+  `trust is the strongest chain (the maximum product) — do not add chains together. The links are: ` +
+  `${trustEdges.map(edgeLine).join(", ")}.`;
+const b4Best = bestPathTrust(trustEdges, "S", "T"); // value 0.648, path S A C T, tie false
+const b4ReachAbove = reachableAbove(trustEdges, "S", "T", 0.6); // yes
+const b4PathsAbove = pathsAbove(trustEdges, "S", "T", 0.4); // 3
+
+const webOfTrustItems: AuthoredItem[] = [
+  regexItem({
+    name: "trust_web_best_path_value",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b4Scenario}\n\n` +
+      `What is the strongest-chain (maximum-product) trust from S to T? Answer as a decimal.`,
+    pattern: decimalPattern(b4Best.value),
+    label: `equals ${b4Best.value}`,
+    why:
+      `Chains S→T: S→A→T = 0.63, S→A→C→T = 0.648, S→B→T = 0.475, S→B→C→T = 0.27. ` +
+      `Strongest = ${b4Best.value} via S→A→C→T.`,
+    tags: ["TODO", "trust", "web-of-trust"],
+  }),
+  orderedItem({
+    name: "trust_web_best_path_sequence",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b4Scenario}\n\n` +
+      `List the nodes of that strongest chain, in order from S to T.`,
+    vocabulary: ["S", "A", "B", "C", "T"],
+    expected: b4Best.path,
+    why: `Strongest chain is S → A → C → T (product 0.648), strictly unique (no tie at the max).`,
+    tags: ["TODO", "trust", "web-of-trust"],
+  }),
+  wordItem({
+    name: "trust_web_reachable_above",
+    category: "social",
+    tier: 1,
+    prompt:
+      `${b4Scenario}\n\n` +
+      `Is T reachable from S with strongest-chain trust above 0.6? Answer yes or no.`,
+    value: b4ReachAbove ? "yes" : "no",
+    why: `Strongest-chain trust 0.648 > 0.6 — yes.`,
+    tags: ["TODO", "trust", "web-of-trust"],
+  }),
+  exactItem({
+    name: "trust_web_paths_above",
+    category: "social",
+    tier: 2,
+    prompt:
+      `${b4Scenario}\n\n` +
+      `How many distinct directed chains from S to T have a product strictly above 0.4? ` +
+      `Reply with only that whole number.`,
+    expected: String(b4PathsAbove),
+    extract: "(\\d+)",
+    why: `Products 0.648, 0.63, 0.475 exceed 0.4; 0.27 does not — ${b4PathsAbove} chains.`,
+    tags: ["TODO", "trust", "web-of-trust"],
+  }),
+];
+
+// ── Battery 5 — Decayed reputation with late reversal ────────────────────────
+const B5_LAMBDA = 0.6;
+const vale: RepActor = {
+  name: "Vale",
+  events: [
+    { age: 0, good: false },
+    { age: 1, good: false },
+    { age: 2, good: true },
+    { age: 3, good: true },
+    { age: 4, good: true },
+    { age: 5, good: true },
+  ],
+};
+const pell: RepActor = {
+  name: "Pell",
+  events: [
+    { age: 0, good: true },
+    { age: 1, good: true },
+    { age: 2, good: true },
+    { age: 3, good: false },
+    { age: 4, good: false },
+    { age: 5, good: false },
+  ],
+};
+const markLine = (a: RepActor): string =>
+  `${a.name}, newest to oldest: ${a.events.map((e) => (e.good ? "kept" : "broken")).join(", ")}`;
+const b5Scenario =
+  `Two brokers, Vale and Pell, each carry six chronological feedback marks, listed from most recent ` +
+  `(0 rounds ago) to oldest (5 rounds ago); each mark is either kept (good) or broken (bad). A ` +
+  `recency-weighted reputation discounts each mark by λ raised to its age in rounds, with λ = ${B5_LAMBDA}, ` +
+  `then applies Laplace smoothing: with decayed kept-mass P and broken-mass N, reputation = (P + 1)/(P + N + 2).\n` +
+  `${markLine(vale)}.\n${markLine(pell)}.`;
+const b5ValeFlat = flatScore(vale); // 0.666667
+const b5ValeDecayed = decayedScore(vale, B5_LAMBDA); // 0.406848
+const b5PellDecayed = decayedScore(pell, B5_LAMBDA); // 0.675281
+const b5Top = mostTrustworthyDecayed([vale, pell], B5_LAMBDA); // Pell, tie false
+const b5Gap = Math.round((b5ValeFlat - b5ValeDecayed) * 1e6) / 1e6; // 0.259819
+
+const decayedItems: AuthoredItem[] = [
+  regexItem({
+    name: "trust_decay_flat_vale",
+    category: "social",
+    tier: 1,
+    prompt:
+      `${b5Scenario}\n\n` +
+      `Ignoring timing entirely, what fraction of Vale's marks were kept? Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b5ValeFlat),
+    label: `equals ${b5ValeFlat}`,
+    why: `Vale kept 4 of 6 marks: 4/6 ≈ ${b5ValeFlat}.`,
+    tags: ["TODO", "trust", "decayed-reputation"],
+  }),
+  regexItem({
+    name: "trust_decay_vale_score",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b5Scenario}\n\n` +
+      `What is Vale's recency-weighted reputation? Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b5ValeDecayed),
+    label: `equals ${b5ValeDecayed}`,
+    why:
+      `P = λ²+λ³+λ⁴+λ⁵ = 0.78336, N = λ⁰+λ¹ = 1.6; reputation = 1.78336/4.38336 ≈ ${b5ValeDecayed}.`,
+    tags: ["TODO", "trust", "decayed-reputation"],
+  }),
+  wordItem({
+    name: "trust_decay_most_trustworthy",
+    category: "social",
+    tier: 3,
+    prompt:
+      `${b5Scenario}\n\n` +
+      `Under this recency-weighted scoring, which broker is more trustworthy? Reply with just the name.`,
+    value: b5Top.answer,
+    why:
+      `Decayed reputations: Vale ${b5ValeDecayed}, Pell ${b5PellDecayed}. Pell's recent record wins, ` +
+      `reversing the flat ranking (Vale leads on raw counts).`,
+    tags: ["TODO", "trust", "decayed-reputation"],
+  }),
+  regexItem({
+    name: "trust_decay_flat_vs_decay_gap",
+    category: "social",
+    tier: 2,
+    prompt:
+      `${b5Scenario}\n\n` +
+      `By how much does Vale's flat (untimed) kept-fraction exceed her recency-weighted reputation? ` +
+      `Answer as a decimal to 6 places.`,
+    pattern: decimalPattern(b5Gap),
+    label: `equals ${b5Gap}`,
+    why: `${b5ValeFlat} − ${b5ValeDecayed} = ${b5Gap}.`,
+    tags: ["TODO", "trust", "decayed-reputation"],
+  }),
+];
+
+const trustBatteryItems: AuthoredItem[] = [
+  ...bayesItems,
+  ...folkItems,
+  ...moralHazardItems,
+  ...webOfTrustItems,
+  ...decayedItems,
+];
+
 // ── Report ───────────────────────────────────────────────────────────────────
 console.log("=== TRUST & ALIGNMENT ===");
 console.log("reliability:", trustworthy.ranking.map((r) => `${r.name}=${r.score}`).join("  "));
@@ -909,9 +1321,18 @@ console.log(
   `| final balance=${amort.schedule[amort.schedule.length - 1]?.balance} (cleared to 0 ✓)`,
 );
 
+console.log("\n=== TRUST BATTERIES (deeper reasoning) ===");
+console.log("[1] Bayesian: P(H|hist) =", b1Posterior, "| +bad =", b1PostExtraBad, "| crosses<0.5 =", b1Crosses, "| to90% =", b1ToNinety);
+console.log("[2] Folk:     δ* =", b2.deltaStar, "| temptation =", b2Temptation, `| sustainable@${b2DeltaAt} =`, b2Sustainable, "| coop/period =", b2Coop);
+console.log("[3] Hazard:   Δ* =", b3Bonus, "| shirk(flat) =", b3Shirks, "| profit =", b3Profit, "| worth =", b3Worth);
+console.log("[4] Web:      best =", b4Best.value, "path", b4Best.path.join("→"), b4Best.tie ? "⚠️ TIE" : "(unique)", "| reach>0.6 =", b4ReachAbove, "| paths>0.4 =", b4PathsAbove);
+console.log("[5] Decay:    Vale flat =", b5ValeFlat, "decayed =", b5ValeDecayed, "| Pell decayed =", b5PellDecayed, "| top =", b5Top.answer, b5Top.tie ? "⚠️ TIE" : "(unique)", "| gap =", b5Gap);
+if (b4Best.tie) console.log("⚠️ web-of-trust strongest PATH is NOT unique — fix edge weights");
+if (b5Top.tie) console.log("⚠️ decayed argmax is NOT unique — widen the score gap");
+
 console.log("\n=== writing suites ===");
 for (const [id, items] of [
-  ["trust", [...trustItems, ...repeatedItems]],
+  ["trust", [...trustItems, ...repeatedItems, ...trustBatteryItems]],
   ["economics", [...econItems, ...econMoreItems]],
   ["financial", [...financialItems, ...financialMoreItems, ...financialBatteryItems]],
 ] as const) {

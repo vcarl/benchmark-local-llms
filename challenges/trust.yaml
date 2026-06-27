@@ -265,3 +265,519 @@ items:
       - TODO
       - repeated-game
       - exploitation
+  # Posterior odds = (0.4/0.6)·(0.8/0.3)^4·(0.2/0.7)^2 = 32768/11907 ≈ 2.751994; P(H|data) = 32768/44675 ≈ 0.733475.
+  - name: trust_bayes_posterior
+    category: social
+    tier: 3
+    prompt: >-
+      An informant, Sable, is either Honest or Dishonest. Before any dealings
+      you judge the prior probability that Sable is Honest to be 0.4. Each
+      report Sable files is independently rated "corroborated" (a good signal)
+      or "contradicted" (a bad signal). An Honest informant's report is
+      corroborated with probability 0.8; a Dishonest informant's report is
+      corroborated with probability 0.30000000000000004 (so contradicted with
+      probability 0.7). Reports are conditionally independent given Sable's
+      type. So far Sable has filed 4 corroborated and 2 contradicted reports.
+
+
+      Using Bayes' rule, what is the probability that Sable is Honest given this
+      history? Answer as a decimal to 6 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.733475
+        check: regex
+        pattern: (?<![\d.])0?\.7334750*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - bayesian
+  # Multiply the odds by the bad-signal factor (1−s)/t = 2/7: P = 65536/148885 ≈ 0.440179.
+  - name: trust_bayes_after_extra_bad
+    category: social
+    tier: 2
+    prompt: >-
+      An informant, Sable, is either Honest or Dishonest. Before any dealings
+      you judge the prior probability that Sable is Honest to be 0.4. Each
+      report Sable files is independently rated "corroborated" (a good signal)
+      or "contradicted" (a bad signal). An Honest informant's report is
+      corroborated with probability 0.8; a Dishonest informant's report is
+      corroborated with probability 0.30000000000000004 (so contradicted with
+      probability 0.7). Reports are conditionally independent given Sable's
+      type. So far Sable has filed 4 corroborated and 2 contradicted reports.
+
+
+      One further contradicted (bad) report now arrives. What is the new
+      probability that Sable is Honest? Answer as a decimal to 6 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.440179
+        check: regex
+        pattern: (?<![\d.])0?\.4401790*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - bayesian
+  # 0.733475 falls to 0.440179 after the extra bad signal, crossing below 0.5 — yes.
+  - name: trust_bayes_crosses_half
+    category: social
+    tier: 1
+    prompt: >-
+      An informant, Sable, is either Honest or Dishonest. Before any dealings
+      you judge the prior probability that Sable is Honest to be 0.4. Each
+      report Sable files is independently rated "corroborated" (a good signal)
+      or "contradicted" (a bad signal). An Honest informant's report is
+      corroborated with probability 0.8; a Dishonest informant's report is
+      corroborated with probability 0.30000000000000004 (so contradicted with
+      probability 0.7). Reports are conditionally independent given Sable's
+      type. So far Sable has filed 4 corroborated and 2 contradicted reports.
+
+
+      After that one extra contradicted report, has the probability that Sable
+      is Honest fallen below one-half? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches yes
+        check: regex
+        pattern: \b[Yy][Ee][Ss]\b
+    tags:
+      - TODO
+      - trust
+      - bayesian
+  # Each good report multiplies the odds by s/(1−t) = 8/3. From 2.751994: 1 → 7.339 (P 0.880); 2 → 19.570 (P 0.951 ≥ 0.9). Answer 2.
+  - name: trust_bayes_signals_to_ninety
+    category: social
+    tier: 3
+    prompt: >-
+      An informant, Sable, is either Honest or Dishonest. Before any dealings
+      you judge the prior probability that Sable is Honest to be 0.4. Each
+      report Sable files is independently rated "corroborated" (a good signal)
+      or "contradicted" (a bad signal). An Honest informant's report is
+      corroborated with probability 0.8; a Dishonest informant's report is
+      corroborated with probability 0.30000000000000004 (so contradicted with
+      probability 0.7). Reports are conditionally independent given Sable's
+      type. So far Sable has filed 4 corroborated and 2 contradicted reports.
+
+
+      Starting from this same history, how many consecutive corroborated (good)
+      reports are needed for the probability that Sable is Honest to reach 90%?
+      Reply with only that whole number.
+    scorer: exact_match
+    expected: "2"
+    extract: (\d+)
+    tags:
+      - TODO
+      - trust
+      - bayesian
+  # Temptation minus reward, T − R = 9 − 5 = 4.
+  - name: trust_folk_temptation_gain
+    category: social
+    tier: 2
+    prompt: >-
+      Two rival shippers repeatedly decide each season whether to Honour a price
+      agreement (cooperate) or Undercut it (defect). In a single season the
+      payoffs are: both Honour → 5 each; if you Undercut while the rival Honours
+      you earn 9 and the rival earns 0; if you Honour while the rival Undercuts
+      you earn 0 and the rival earns 9; both Undercut → 2 each. The game repeats
+      indefinitely and each shipper discounts the next season's payoff by a
+      factor δ. Both follow a grim-trigger strategy: Honour every season until
+      the first Undercut, then Undercut forever.
+
+
+      In a single season, by how much does Undercutting beat Honouring when the
+      rival Honours, before any future punishment is considered? Reply with only
+      that whole number.
+    scorer: exact_match
+    expected: "4"
+    extract: (\d+)
+    tags:
+      - TODO
+      - trust
+      - folk-theorem
+  # δ* = (T − R)/(T − P) = (9 − 5)/(9 − 2) = 4/7 ≈ 0.571429.
+  - name: trust_folk_delta_star
+    category: social
+    tier: 3
+    prompt: >-
+      Two rival shippers repeatedly decide each season whether to Honour a price
+      agreement (cooperate) or Undercut it (defect). In a single season the
+      payoffs are: both Honour → 5 each; if you Undercut while the rival Honours
+      you earn 9 and the rival earns 0; if you Honour while the rival Undercuts
+      you earn 0 and the rival earns 9; both Undercut → 2 each. The game repeats
+      indefinitely and each shipper discounts the next season's payoff by a
+      factor δ. Both follow a grim-trigger strategy: Honour every season until
+      the first Undercut, then Undercut forever.
+
+
+      What is the minimum discount factor δ at which Honouring forever is
+      sustainable as a subgame-perfect equilibrium under grim trigger? Answer as
+      a decimal to 6 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.571429
+        check: regex
+        pattern: (?<![\d.])0?\.5714290*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - folk-theorem
+  # 0.6 ≥ δ* = 0.571429, so cooperation is sustainable — yes.
+  - name: trust_folk_sustainable_at_delta
+    category: social
+    tier: 1
+    prompt: >-
+      Two rival shippers repeatedly decide each season whether to Honour a price
+      agreement (cooperate) or Undercut it (defect). In a single season the
+      payoffs are: both Honour → 5 each; if you Undercut while the rival Honours
+      you earn 9 and the rival earns 0; if you Honour while the rival Undercuts
+      you earn 0 and the rival earns 9; both Undercut → 2 each. The game repeats
+      indefinitely and each shipper discounts the next season's payoff by a
+      factor δ. Both follow a grim-trigger strategy: Honour every season until
+      the first Undercut, then Undercut forever.
+
+
+      If the discount factor is δ = 0.6, is Honouring forever sustainable under
+      grim trigger? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches yes
+        check: regex
+        pattern: \b[Yy][Ee][Ss]\b
+    tags:
+      - TODO
+      - trust
+      - folk-theorem
+  # Mutual cooperation pays the reward R = 5 each per season.
+  - name: trust_folk_coop_payoff
+    category: social
+    tier: 2
+    prompt: >-
+      Two rival shippers repeatedly decide each season whether to Honour a price
+      agreement (cooperate) or Undercut it (defect). In a single season the
+      payoffs are: both Honour → 5 each; if you Undercut while the rival Honours
+      you earn 9 and the rival earns 0; if you Honour while the rival Undercuts
+      you earn 0 and the rival earns 9; both Undercut → 2 each. The game repeats
+      indefinitely and each shipper discounts the next season's payoff by a
+      factor δ. Both follow a grim-trigger strategy: Honour every season until
+      the first Undercut, then Undercut forever.
+
+
+      If both shippers Honour every season, what does each earn per season?
+      Reply with only that whole number.
+    scorer: exact_match
+    expected: "5"
+    extract: (\d+)
+    tags:
+      - TODO
+      - trust
+      - folk-theorem
+  # With Δ = 0, U(low) − U(high) = c_H − c_L = 10 − 2 = 8 > 0, so the artisan shirks — yes.
+  - name: trust_hazard_shirk_flat_wage
+    category: social
+    tier: 1
+    prompt: >-
+      A workshop hires a risk-neutral artisan who privately chooses high or low
+      effort. High effort costs the artisan 10 in disutility, low effort costs
+      2. The commission turns out good with probability 0.8 under high effort
+      and 0.5 under low effort; a good piece is worth 100 to the workshop and a
+      bad piece 0. The contract pays a base wage on a bad outcome and the base
+      wage plus a bonus Δ on a good outcome. The artisan maximises expected wage
+      minus effort cost, and the workshop sets the base so the artisan's
+      participation constraint binds at a reservation utility of 0.
+
+
+      Under a flat wage that pays the same regardless of outcome (bonus Δ = 0),
+      does the artisan choose low effort (shirk)? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches yes
+        check: regex
+        pattern: \b[Yy][Ee][Ss]\b
+    tags:
+      - TODO
+      - trust
+      - moral-hazard
+  # Δ* = (c_H − c_L)/(p_H − p_L) = (10 − 2)/(0.8 − 0.5) = 8/0.3 ≈ 26.666667.
+  - name: trust_hazard_min_bonus
+    category: social
+    tier: 3
+    prompt: >-
+      A workshop hires a risk-neutral artisan who privately chooses high or low
+      effort. High effort costs the artisan 10 in disutility, low effort costs
+      2. The commission turns out good with probability 0.8 under high effort
+      and 0.5 under low effort; a good piece is worth 100 to the workshop and a
+      bad piece 0. The contract pays a base wage on a bad outcome and the base
+      wage plus a bonus Δ on a good outcome. The artisan maximises expected wage
+      minus effort cost, and the workshop sets the base so the artisan's
+      participation constraint binds at a reservation utility of 0.
+
+
+      What is the smallest good-outcome bonus Δ that makes high effort
+      incentive-compatible? Answer as a decimal to 6 places.
+    scorer: constraint
+    constraints:
+      - name: equals 26.666667
+        check: regex
+        pattern: (?<![\d.])26\.6666670*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - moral-hazard
+  # With participation binding the expected wage equals c_H = 10, so profit = p_H·V_good + (1−p_H)·V_bad − c_H = 0.8·100 − 10 = 70.
+  - name: trust_hazard_principal_profit
+    category: social
+    tier: 3
+    prompt: >-
+      A workshop hires a risk-neutral artisan who privately chooses high or low
+      effort. High effort costs the artisan 10 in disutility, low effort costs
+      2. The commission turns out good with probability 0.8 under high effort
+      and 0.5 under low effort; a good piece is worth 100 to the workshop and a
+      bad piece 0. The contract pays a base wage on a bad outcome and the base
+      wage plus a bonus Δ on a good outcome. The artisan maximises expected wage
+      minus effort cost, and the workshop sets the base so the artisan's
+      participation constraint binds at a reservation utility of 0.
+
+
+      Setting the bonus to that minimum Δ with the participation constraint
+      binding, what is the workshop's expected profit? Reply with only that
+      whole number.
+    scorer: exact_match
+    expected: "70"
+    extract: (-?\d+)
+    tags:
+      - TODO
+      - trust
+      - moral-hazard
+  # Profit under high effort = 0.8·100 − 10 = 70; under low effort with a flat wage = 0.5·100 − 2 = 48. 70 > 48 — yes.
+  - name: trust_hazard_worth_incentivizing
+    category: social
+    tier: 2
+    prompt: >-
+      A workshop hires a risk-neutral artisan who privately chooses high or low
+      effort. High effort costs the artisan 10 in disutility, low effort costs
+      2. The commission turns out good with probability 0.8 under high effort
+      and 0.5 under low effort; a good piece is worth 100 to the workshop and a
+      bad piece 0. The contract pays a base wage on a bad outcome and the base
+      wage plus a bonus Δ on a good outcome. The artisan maximises expected wage
+      minus effort cost, and the workshop sets the base so the artisan's
+      participation constraint binds at a reservation utility of 0.
+
+
+      Compared with paying a flat wage and accepting low effort, is the workshop
+      better off paying the minimum bonus Δ for high effort? Answer yes or no.
+    scorer: constraint
+    constraints:
+      - name: matches yes
+        check: regex
+        pattern: \b[Yy][Ee][Ss]\b
+    tags:
+      - TODO
+      - trust
+      - moral-hazard
+  # Chains S→T: S→A→T = 0.63, S→A→C→T = 0.648, S→B→T = 0.475, S→B→C→T = 0.27. Strongest = 0.648 via S→A→C→T.
+  - name: trust_web_best_path_value
+    category: social
+    tier: 3
+    prompt: >-
+      In a trust network each directed link u→v carries a direct-trust weight
+      between 0 and 1. Trust along a chain is the PRODUCT of its link weights;
+      where several chains connect two parties, their effective trust is the
+      strongest chain (the maximum product) — do not add chains together. The
+      links are: S→A 0.9, S→B 0.5, A→T 0.7, A→C 0.8, C→T 0.9, B→T 0.95, B→C 0.6.
+
+
+      What is the strongest-chain (maximum-product) trust from S to T? Answer as
+      a decimal.
+    scorer: constraint
+    constraints:
+      - name: equals 0.648
+        check: regex
+        pattern: (?<![\d.])0?\.6480*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - web-of-trust
+  # Strongest chain is S → A → C → T (product 0.648), strictly unique (no tie at the max).
+  - name: trust_web_best_path_sequence
+    category: social
+    tier: 3
+    prompt: >-
+      In a trust network each directed link u→v carries a direct-trust weight
+      between 0 and 1. Trust along a chain is the PRODUCT of its link weights;
+      where several chains connect two parties, their effective trust is the
+      strongest chain (the maximum product) — do not add chains together. The
+      links are: S→A 0.9, S→B 0.5, A→T 0.7, A→C 0.8, C→T 0.9, B→T 0.95, B→C 0.6.
+
+
+      List the nodes of that strongest chain, in order from S to T.
+    scorer: ordered_match
+    vocabulary:
+      - S
+      - A
+      - B
+      - C
+      - T
+    expected:
+      - S
+      - A
+      - C
+      - T
+    tags:
+      - TODO
+      - trust
+      - web-of-trust
+  # Strongest-chain trust 0.648 > 0.6 — yes.
+  - name: trust_web_reachable_above
+    category: social
+    tier: 1
+    prompt: >-
+      In a trust network each directed link u→v carries a direct-trust weight
+      between 0 and 1. Trust along a chain is the PRODUCT of its link weights;
+      where several chains connect two parties, their effective trust is the
+      strongest chain (the maximum product) — do not add chains together. The
+      links are: S→A 0.9, S→B 0.5, A→T 0.7, A→C 0.8, C→T 0.9, B→T 0.95, B→C 0.6.
+
+
+      Is T reachable from S with strongest-chain trust above 0.6? Answer yes or
+      no.
+    scorer: constraint
+    constraints:
+      - name: matches yes
+        check: regex
+        pattern: \b[Yy][Ee][Ss]\b
+    tags:
+      - TODO
+      - trust
+      - web-of-trust
+  # Products 0.648, 0.63, 0.475 exceed 0.4; 0.27 does not — 3 chains.
+  - name: trust_web_paths_above
+    category: social
+    tier: 2
+    prompt: >-
+      In a trust network each directed link u→v carries a direct-trust weight
+      between 0 and 1. Trust along a chain is the PRODUCT of its link weights;
+      where several chains connect two parties, their effective trust is the
+      strongest chain (the maximum product) — do not add chains together. The
+      links are: S→A 0.9, S→B 0.5, A→T 0.7, A→C 0.8, C→T 0.9, B→T 0.95, B→C 0.6.
+
+
+      How many distinct directed chains from S to T have a product strictly
+      above 0.4? Reply with only that whole number.
+    scorer: exact_match
+    expected: "3"
+    extract: (\d+)
+    tags:
+      - TODO
+      - trust
+      - web-of-trust
+  # Vale kept 4 of 6 marks: 4/6 ≈ 0.666667.
+  - name: trust_decay_flat_vale
+    category: social
+    tier: 1
+    prompt: >-
+      Two brokers, Vale and Pell, each carry six chronological feedback marks,
+      listed from most recent (0 rounds ago) to oldest (5 rounds ago); each mark
+      is either kept (good) or broken (bad). A recency-weighted reputation
+      discounts each mark by λ raised to its age in rounds, with λ = 0.6, then
+      applies Laplace smoothing: with decayed kept-mass P and broken-mass N,
+      reputation = (P + 1)/(P + N + 2).
+
+      Vale, newest to oldest: broken, broken, kept, kept, kept, kept.
+
+      Pell, newest to oldest: kept, kept, kept, broken, broken, broken.
+
+
+      Ignoring timing entirely, what fraction of Vale's marks were kept? Answer
+      as a decimal to 6 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.666667
+        check: regex
+        pattern: (?<![\d.])0?\.6666670*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - decayed-reputation
+  # P = λ²+λ³+λ⁴+λ⁵ = 0.78336, N = λ⁰+λ¹ = 1.6; reputation = 1.78336/4.38336 ≈ 0.406848.
+  - name: trust_decay_vale_score
+    category: social
+    tier: 3
+    prompt: >-
+      Two brokers, Vale and Pell, each carry six chronological feedback marks,
+      listed from most recent (0 rounds ago) to oldest (5 rounds ago); each mark
+      is either kept (good) or broken (bad). A recency-weighted reputation
+      discounts each mark by λ raised to its age in rounds, with λ = 0.6, then
+      applies Laplace smoothing: with decayed kept-mass P and broken-mass N,
+      reputation = (P + 1)/(P + N + 2).
+
+      Vale, newest to oldest: broken, broken, kept, kept, kept, kept.
+
+      Pell, newest to oldest: kept, kept, kept, broken, broken, broken.
+
+
+      What is Vale's recency-weighted reputation? Answer as a decimal to 6
+      places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.406848
+        check: regex
+        pattern: (?<![\d.])0?\.4068480*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - decayed-reputation
+  # Decayed reputations: Vale 0.406848, Pell 0.675281. Pell's recent record wins, reversing the flat ranking (Vale leads on raw counts).
+  - name: trust_decay_most_trustworthy
+    category: social
+    tier: 3
+    prompt: >-
+      Two brokers, Vale and Pell, each carry six chronological feedback marks,
+      listed from most recent (0 rounds ago) to oldest (5 rounds ago); each mark
+      is either kept (good) or broken (bad). A recency-weighted reputation
+      discounts each mark by λ raised to its age in rounds, with λ = 0.6, then
+      applies Laplace smoothing: with decayed kept-mass P and broken-mass N,
+      reputation = (P + 1)/(P + N + 2).
+
+      Vale, newest to oldest: broken, broken, kept, kept, kept, kept.
+
+      Pell, newest to oldest: kept, kept, kept, broken, broken, broken.
+
+
+      Under this recency-weighted scoring, which broker is more trustworthy?
+      Reply with just the name.
+    scorer: constraint
+    constraints:
+      - name: matches Pell
+        check: regex
+        pattern: \b[Pp][Ee][Ll][Ll]\b
+    tags:
+      - TODO
+      - trust
+      - decayed-reputation
+  # 0.666667 − 0.406848 = 0.259819.
+  - name: trust_decay_flat_vs_decay_gap
+    category: social
+    tier: 2
+    prompt: >-
+      Two brokers, Vale and Pell, each carry six chronological feedback marks,
+      listed from most recent (0 rounds ago) to oldest (5 rounds ago); each mark
+      is either kept (good) or broken (bad). A recency-weighted reputation
+      discounts each mark by λ raised to its age in rounds, with λ = 0.6, then
+      applies Laplace smoothing: with decayed kept-mass P and broken-mass N,
+      reputation = (P + 1)/(P + N + 2).
+
+      Vale, newest to oldest: broken, broken, kept, kept, kept, kept.
+
+      Pell, newest to oldest: kept, kept, kept, broken, broken, broken.
+
+
+      By how much does Vale's flat (untimed) kept-fraction exceed her
+      recency-weighted reputation? Answer as a decimal to 6 places.
+    scorer: constraint
+    constraints:
+      - name: equals 0.259819
+        check: regex
+        pattern: (?<![\d.])0?\.2598190*(?!\d)
+    tags:
+      - TODO
+      - trust
+      - decayed-reputation
