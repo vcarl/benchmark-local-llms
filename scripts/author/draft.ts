@@ -19,13 +19,20 @@ import {
   trusted,
 } from "./alignment.js";
 import {
+  backwardInduct,
+  cournot,
   describeGame,
   dominantStrategy,
   type Game,
+  type GameNode,
+  mixedNash2x2,
+  monopolyLinear,
   opportunityCost,
   priceElasticity,
   profitMaxQuantity,
   pureNash,
+  taxIncidence,
+  uniqueOptima,
 } from "./econ.js";
 import {
   type AuthoredItem,
@@ -418,6 +425,429 @@ const econMoreItems: AuthoredItem[] = [
     value: "overgrazing",
     why: "Each herder internalises the gain but externalises the cost of depletion, so collectively they over-exploit — the tragedy of the commons.",
     tags: ["TODO", "economics", "externalities"],
+  }),
+];
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║ ECONOMICS CHALLENGE BATTERIES (→ economics suite)                          ║
+// ║ Five scenario worlds, each authored once with 4–6 sibling items sharing    ║
+// ║ that scenario's prose; every battery centres a wide-numeric capstone and    ║
+// ║ carries ≤1 narrow (1-of-2/1-of-3) dimension. Ground truth comes from the    ║
+// ║ econ.ts solvers; degeneracy screening is asserted in econ.test.ts and       ║
+// ║ printed in the verification table below.                                    ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+// ── Battery 1: mixed-strategy game (no pure Nash) ────────────────────────────
+const tennis: Game = {
+  rowName: "Server",
+  colName: "Receiver",
+  rowStrategies: ["Aim Left", "Aim Right"],
+  colStrategies: ["Anticipate Left", "Anticipate Right"],
+  // payoffs[i][j] = [server points, receiver points] per 10 rallies.
+  payoffs: [
+    [
+      [10, 2],
+      [4, 8],
+    ],
+    [
+      [6, 6],
+      [10, 2],
+    ],
+  ],
+};
+const tennisMix = mixedNash2x2(tennis);
+const tennisPure = pureNash(tennis);
+// Screening (interior fully-mixed AND no pure NE) — see verification table.
+const tennisInterior = tennisMix !== null;
+const tennisNoPure = tennisPure.length === 0;
+const serverProbL = tennisMix?.p ?? 0; // 0.4
+const receiverProbL = tennisMix?.q ?? 0; // 0.6
+const serverValue = tennisMix?.value ?? 0; // 7.6
+const tennisScenario =
+  `Tennis serve, played as a one-shot simultaneous game. The Server chooses where to aim and the ` +
+  `Receiver chooses where to anticipate; both decide at the same instant. The table shows points won ` +
+  `per 10 rallies (Server points, Receiver points):\n${describeGame(tennis)}`;
+
+const mixedItems: AuthoredItem[] = [
+  wordItem({
+    name: "econ_mixed_has_pure_ne",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${tennisScenario}\n\n` +
+      `Does this game have any pure-strategy Nash equilibrium — a single (aim, anticipate) cell that ` +
+      `neither player would unilaterally deviate from? Answer yes or no.`,
+    value: tennisNoPure ? "no" : "yes",
+    why: "Every cell has a profitable unilateral deviation (it cycles like matching pennies), so there is no pure-strategy Nash equilibrium — both players must randomise.",
+    tags: ["TODO", "game-theory", "mixed-strategy"],
+  }),
+  regexItem({
+    name: "econ_mixed_server_prob_left",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${tennisScenario}\n\n` +
+      `In the mixed-strategy Nash equilibrium, with what probability does the SERVER aim Left? ` +
+      `Reply with just the probability as a decimal between 0 and 1 (e.g. 0.5).`,
+    pattern: decimalPattern(serverProbL),
+    label: `equals ${serverProbL}`,
+    why: "The Server mixes to make the Receiver indifferent, so it is pinned by the RECEIVER's payoffs: p = (c11−c10)/(c00−c10−c01+c11) = (2−6)/(2−6−8+2) = −4/−10 = 0.4.",
+    tags: ["TODO", "game-theory", "mixed-strategy"],
+  }),
+  regexItem({
+    name: "econ_mixed_receiver_prob_left",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${tennisScenario}\n\n` +
+      `In the mixed-strategy Nash equilibrium, with what probability does the RECEIVER anticipate Left? ` +
+      `Reply with just the probability as a decimal between 0 and 1 (e.g. 0.5).`,
+    pattern: decimalPattern(receiverProbL),
+    label: `equals ${receiverProbL}`,
+    why: "The Receiver mixes to make the Server indifferent, pinned by the SERVER's payoffs: q = (r11−r01)/(r00−r01−r10+r11) = (10−4)/(10−4−6+10) = 6/10 = 0.6.",
+    tags: ["TODO", "game-theory", "mixed-strategy"],
+  }),
+  regexItem({
+    name: "econ_mixed_server_value",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${tennisScenario}\n\n` +
+      `At the mixed-strategy equilibrium, how many points per 10 rallies does the Server expect to win? ` +
+      `Reply with just the number as a decimal (e.g. 7.5).`,
+    pattern: decimalPattern(serverValue),
+    label: `equals ${serverValue}`,
+    why: "Value to Server = q·r00 + (1−q)·r01 = 0.6·10 + 0.4·4 = 7.6 (cross-checks against the Aim-Right row: 0.6·6 + 0.4·10 = 7.6).",
+    tags: ["TODO", "game-theory", "mixed-strategy"],
+  }),
+];
+
+// ── Battery 2: sequential entry / backward induction (non-credible threat) ───
+const entryTree: GameNode = {
+  player: 0, // Entrant moves first
+  actions: ["Enter", "Stay Out"],
+  children: [
+    {
+      player: 1, // Incumbent responds only if entry happened
+      actions: ["Accommodate", "Fight"],
+      children: [{ payoffs: [40, 50] }, { payoffs: [-30, 25] }],
+    },
+    { payoffs: [0, 120] },
+  ],
+};
+const entrySpe = backwardInduct(entryTree);
+const entryUnique = uniqueOptima(entryTree); // strictly-unique optima → single SPE
+const entrantSpePayoff = entrySpe.payoffs[0]; // 40
+const incumbentSpePayoff = entrySpe.payoffs[1]; // 50
+const incumbentStayOutPayoff = 120; // off-path Stay-Out leaf, authored directly
+const threatGap = incumbentStayOutPayoff - incumbentSpePayoff; // 70
+const threatCredible = entrySpe.path.includes("Fight"); // false
+const entryScenario =
+  `An Entrant decides whether to Enter a market or Stay Out. If it enters, the Incumbent then chooses ` +
+  `to Accommodate (share the market) or Fight (a price war). Payoffs are annual profits in $ thousands, ` +
+  `written [Entrant, Incumbent]:\n` +
+  `- Entrant stays out → [0, 120]\n` +
+  `- Entrant enters, Incumbent accommodates → [40, 50]\n` +
+  `- Entrant enters, Incumbent fights → [-30, 25]\n\n` +
+  `Before play, the Incumbent announces it will Fight any entry. The Entrant moves first; the Incumbent ` +
+  `observes entry before responding.`;
+
+const entryItems: AuthoredItem[] = [
+  wordItem({
+    name: "econ_entry_threat_credible",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${entryScenario}\n\n` +
+      `Is the Incumbent's threat to Fight credible — would the Incumbent actually carry it out once the ` +
+      `Entrant has entered? Answer yes or no.`,
+    value: threatCredible ? "yes" : "no",
+    why: "Once entry has happened, Accommodate (50) beats Fight (25), so fighting is never the Incumbent's best response. The threat is off-equilibrium and not credible: no.",
+    tags: ["TODO", "game-theory", "backward-induction"],
+  }),
+  exactItem({
+    name: "econ_entry_entrant_payoff",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${entryScenario}\n\n` +
+      `Solving by backward induction, what profit (in $ thousands) does the ENTRANT earn at the ` +
+      `subgame-perfect equilibrium? Reply with only that number and no other figures.`,
+    expected: String(entrantSpePayoff),
+    extract: "(-?\\d+)",
+    why: "Anticipating Accommodate, the Entrant compares Enter (40) vs Stay Out (0) and enters. SPE = (Enter, Accommodate), so the Entrant earns 40.",
+    tags: ["TODO", "game-theory", "backward-induction"],
+  }),
+  exactItem({
+    name: "econ_entry_incumbent_payoff",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${entryScenario}\n\n` +
+      `At the subgame-perfect equilibrium, what profit (in $ thousands) does the INCUMBENT earn? ` +
+      `Reply with only that number and no other figures.`,
+    expected: String(incumbentSpePayoff),
+    extract: "(-?\\d+)",
+    why: "At the SPE (Enter, Accommodate) the Incumbent accommodates and earns 50 — not the 120 it would keep if its non-credible Fight threat actually deterred entry.",
+    tags: ["TODO", "game-theory", "backward-induction"],
+  }),
+  exactItem({
+    name: "econ_entry_threat_gap",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${entryScenario}\n\n` +
+      `By how much (in $ thousands) would the Incumbent's profit be HIGHER in the outcome its threat is ` +
+      `meant to produce (the Entrant stays out) than in the subgame-perfect equilibrium it actually gets? ` +
+      `Reply with only that number and no other figures.`,
+    expected: String(threatGap),
+    extract: "(\\d+)",
+    why: "Stay-Out leaves the Incumbent 120; the SPE leaves it 50. The commitment value of a CREDIBLE deterrent would be 120 − 50 = 70.",
+    tags: ["TODO", "game-theory", "backward-induction"],
+  }),
+];
+
+// ── Battery 3: Cournot duopoly with asymmetric marginal costs ────────────────
+const cournotParams = { a: 120, b: 1, costs: [20, 40] };
+const duopoly = cournot(cournotParams);
+const cournotAllPositive = duopoly.quantities.every((q) => q > 0); // corner-solution screen
+const cq1 = duopoly.quantities[0]; // 40
+const cq2 = duopoly.quantities[1]; // 20
+const cPrice = duopoly.price; // 60
+const cProfit1 = duopoly.profits[0]; // 1600
+const moreFirm = cq1 > cq2 ? "firm 1" : "firm 2";
+const cournotScenario =
+  `Two firms compete by simultaneously choosing how much to produce (Cournot competition). Market ` +
+  `inverse demand is P = 120 − Q, where Q = q1 + q2 is total output. Firm 1's constant marginal cost ` +
+  `is $20 per unit; firm 2's is $40 per unit. There are no fixed costs.`;
+
+const cournotItems: AuthoredItem[] = [
+  exactItem({
+    name: "econ_cournot_q1",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${cournotScenario}\n\n` +
+      `In the Cournot–Nash equilibrium, how many units does FIRM 1 produce? ` +
+      `Reply with only that number and no other figures.`,
+    expected: String(cq1),
+    extract: "(\\d+)",
+    why: "q1 = (a − 2c1 + c2)/(3b) = (120 − 40 + 40)/3 = 40 (reaction functions q1=(100−q2)/2, q2=(80−q1)/2 give q1=40, q2=20).",
+    tags: ["TODO", "economics", "cournot", "oligopoly"],
+  }),
+  exactItem({
+    name: "econ_cournot_q2",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${cournotScenario}\n\n` +
+      `In the Cournot–Nash equilibrium, how many units does FIRM 2 produce? ` +
+      `Reply with only that number and no other figures.`,
+    expected: String(cq2),
+    extract: "(\\d+)",
+    why: "q2 = (a − 2c2 + c1)/(3b) = (120 − 80 + 20)/3 = 20 — the higher-cost firm produces less.",
+    tags: ["TODO", "economics", "cournot", "oligopoly"],
+  }),
+  exactItem({
+    name: "econ_cournot_price",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${cournotScenario}\n\n` +
+      `What is the equilibrium market price? Reply with only that number and no other figures.`,
+    expected: String(cPrice),
+    extract: "(\\d+)",
+    why: "Q = q1 + q2 = 40 + 20 = 60, so P = 120 − 60 = 60.",
+    tags: ["TODO", "economics", "cournot", "oligopoly"],
+  }),
+  exactItem({
+    name: "econ_cournot_profit1",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${cournotScenario}\n\n` +
+      `What is FIRM 1's equilibrium profit? Reply with only that number and no other figures.`,
+    expected: String(cProfit1),
+    extract: "(\\d+)",
+    why: "Profit1 = (P − c1)·q1 = (60 − 20)·40 = 1600.",
+    tags: ["TODO", "economics", "cournot", "oligopoly"],
+  }),
+  wordItem({
+    name: "econ_cournot_which_firm",
+    category: "economics",
+    tier: 1,
+    prompt:
+      `${cournotScenario}\n\n` +
+      `Which firm produces more in equilibrium, firm 1 or firm 2? Reply with just "firm 1" or "firm 2".`,
+    value: moreFirm,
+    why: "The lower-cost firm (firm 1, c=$20) produces more: 40 vs 20.",
+    tags: ["TODO", "economics", "cournot", "oligopoly"],
+  }),
+];
+
+// ── Battery 4: tax incidence & deadweight loss ───────────────────────────────
+const taxParams = { alpha: 100, beta: 1, gamma: 20, delta: 3, t: 8 };
+const tax = taxIncidence(taxParams);
+const taxQt = tax.Qtax; // 74
+const taxPb = tax.Pb; // 26
+const taxPs = tax.Ps; // 18
+const taxBuyerShare = tax.buyerShare; // 0.75
+const taxDwl = tax.dwl; // 24
+const taxRevenue = tax.revenue; // 592
+const taxScenario =
+  `A competitive market has demand Qd = 100 − P and supply Qs = 20 + 3P (P in dollars). The government ` +
+  `imposes a per-unit tax of $8.`;
+
+const taxItems: AuthoredItem[] = [
+  exactItem({
+    name: "econ_tax_quantity",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${taxScenario}\n\n` +
+      `What is the quantity traded after the tax is imposed? Reply with only that number and no other figures.`,
+    expected: String(taxQt),
+    extract: "(\\d+)",
+    why: "Pre-tax P*=(100−20)/4=20, Q*=80. The tax cuts quantity by ΔQ=βδt/(β+δ)=3·8/4=6, so Q_t=74 (Qd(26)=Qs(18)=74).",
+    tags: ["TODO", "economics", "tax-incidence"],
+  }),
+  exactItem({
+    name: "econ_tax_buyer_price",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${taxScenario}\n\n` +
+      `What price do buyers pay after the tax? Reply with only that number and no other figures.`,
+    expected: String(taxPb),
+    extract: "(\\d+)",
+    why: "Pb = P* + t·δ/(β+δ) = 20 + 8·0.75 = 26.",
+    tags: ["TODO", "economics", "tax-incidence"],
+  }),
+  exactItem({
+    name: "econ_tax_seller_price",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${taxScenario}\n\n` +
+      `What price do sellers receive (net of the tax)? Reply with only that number and no other figures.`,
+    expected: String(taxPs),
+    extract: "(\\d+)",
+    why: "Ps = P* − t·β/(β+δ) = 20 − 8·0.25 = 18 (check Pb − Ps = 26 − 18 = 8 = t).",
+    tags: ["TODO", "economics", "tax-incidence"],
+  }),
+  regexItem({
+    name: "econ_tax_buyer_share",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${taxScenario}\n\n` +
+      `What fraction of the per-unit tax is borne by buyers? Reply with just the share as a decimal ` +
+      `between 0 and 1 (e.g. 0.5).`,
+    pattern: decimalPattern(taxBuyerShare),
+    label: `equals ${taxBuyerShare}`,
+    why: "Buyers' share = δ/(β+δ) = 3/(1+3) = 0.75. Demand is the more inelastic side (slope 1 vs 3), so buyers bear more.",
+    tags: ["TODO", "economics", "tax-incidence"],
+  }),
+  exactItem({
+    name: "econ_tax_dwl",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${taxScenario}\n\n` +
+      `What is the deadweight loss caused by the tax, in dollars? Reply with only that number and no other figures.`,
+    expected: String(taxDwl),
+    extract: "(\\d+)",
+    why: "DWL = ½·t²·βδ/(β+δ) = ½·64·(3/4) = 24 (the Harberger triangle ½·t·ΔQ = ½·8·6).",
+    tags: ["TODO", "economics", "tax-incidence", "deadweight-loss"],
+  }),
+  exactItem({
+    name: "econ_tax_revenue",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${taxScenario}\n\n` +
+      `How much tax revenue does the government collect, in dollars? Reply with only that number and no other figures.`,
+    expected: String(taxRevenue),
+    extract: "(\\d+)",
+    why: "Revenue = t·Q_t = 8·74 = 592.",
+    tags: ["TODO", "economics", "tax-incidence"],
+  }),
+];
+
+// ── Battery 5: monopoly with rising marginal cost ────────────────────────────
+const monopolyParams = { a: 100, b: 1, mc: { e: 10, f: 1 } };
+const monopoly = monopolyLinear(monopolyParams);
+const mQ = monopoly.Q; // 30
+const mP = monopoly.P; // 70
+const mProfit = monopoly.profit; // 1350
+const mQc = monopoly.Qc; // 45
+const mDwl = monopoly.dwl; // 225
+const monopolyScenario =
+  `A monopolist faces inverse demand P = 100 − Q. Its marginal cost RISES with output: MC = 10 + Q. ` +
+  `There are no fixed costs. (Recall that with demand P = a − bQ, marginal revenue is MR = a − 2bQ.)`;
+
+const monopolyItems: AuthoredItem[] = [
+  exactItem({
+    name: "econ_monopoly_quantity",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${monopolyScenario}\n\n` +
+      `What output maximises the monopolist's profit? Reply with only that number and no other figures.`,
+    expected: String(mQ),
+    extract: "(\\d+)",
+    why: "Set MR = MC: 100 − 2Q = 10 + Q ⇒ Q* = (a−e)/(2b+f) = 90/3 = 30. (Setting P=MC instead gives the wrong 45.)",
+    tags: ["TODO", "economics", "monopoly"],
+  }),
+  exactItem({
+    name: "econ_monopoly_price",
+    category: "economics",
+    tier: 2,
+    prompt:
+      `${monopolyScenario}\n\n` +
+      `What price does the monopolist charge? Reply with only that number and no other figures.`,
+    expected: String(mP),
+    extract: "(\\d+)",
+    why: "P* = 100 − Q* = 100 − 30 = 70 (read off the demand curve, not MR).",
+    tags: ["TODO", "economics", "monopoly"],
+  }),
+  exactItem({
+    name: "econ_monopoly_profit",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${monopolyScenario}\n\n` +
+      `What is the monopolist's profit? Reply with only that number and no other figures.`,
+    expected: String(mProfit),
+    extract: "(\\d+)",
+    why: "Profit = P·Q − (eQ + ½fQ²) = 70·30 − (10·30 + ½·900) = 2100 − 750 = 1350.",
+    tags: ["TODO", "economics", "monopoly"],
+  }),
+  exactItem({
+    name: "econ_monopoly_competitive_quantity",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${monopolyScenario}\n\n` +
+      `If this market were perfectly competitive instead (price equal to marginal cost), what quantity ` +
+      `would be produced? Reply with only that number and no other figures.`,
+    expected: String(mQc),
+    extract: "(\\d+)",
+    why: "P = MC: 100 − Q = 10 + Q ⇒ Qc = (a−e)/(b+f) = 90/2 = 45 (more than the monopoly's 30).",
+    tags: ["TODO", "economics", "monopoly", "welfare"],
+  }),
+  exactItem({
+    name: "econ_monopoly_dwl",
+    category: "economics",
+    tier: 3,
+    prompt:
+      `${monopolyScenario}\n\n` +
+      `What is the deadweight loss of the monopoly relative to perfect competition, in dollars? ` +
+      `Reply with only that number and no other figures.`,
+    expected: String(mDwl),
+    extract: "(\\d+)",
+    why: "Triangle between demand and MC over [30, 45]: ½·(45−30)·(P(30)−MC(30)) = ½·15·(70−40) = 225.",
+    tags: ["TODO", "economics", "monopoly", "deadweight-loss"],
   }),
 ];
 
@@ -1330,10 +1760,91 @@ console.log("[5] Decay:    Vale flat =", b5ValeFlat, "decayed =", b5ValeDecayed,
 if (b4Best.tie) console.log("⚠️ web-of-trust strongest PATH is NOT unique — fix edge weights");
 if (b5Top.tie) console.log("⚠️ decayed argmax is NOT unique — widen the score gap");
 
+console.log("\n=== ECONOMICS BATTERIES (answers + screening) ===");
+console.log(
+  "1 mixed Nash | serverProbL:",
+  serverProbL,
+  "receiverProbL:",
+  receiverProbL,
+  "serverValue:",
+  serverValue,
+  `| interior? ${tennisInterior}  noPureNE? ${tennisNoPure}`,
+  tennisInterior && tennisNoPure ? "✅" : "⚠️ DEGENERATE",
+);
+console.log(
+  "2 backward induction | SPE path:",
+  entrySpe.path.join(" → "),
+  "payoffs",
+  `[${entrySpe.payoffs.join(",")}]`,
+  "| entrant:",
+  entrantSpePayoff,
+  "incumbent:",
+  incumbentSpePayoff,
+  "threatGap:",
+  threatGap,
+  "credible?",
+  threatCredible,
+  `| uniqueSPE? ${entryUnique}`,
+  entryUnique ? "✅" : "⚠️ TIE → MULTIPLE SPE",
+);
+console.log(
+  "3 Cournot | q1:",
+  cq1,
+  "q2:",
+  cq2,
+  "P:",
+  cPrice,
+  "profit1:",
+  cProfit1,
+  "more:",
+  moreFirm,
+  `| allPositive? ${cournotAllPositive}`,
+  cournotAllPositive ? "✅" : "⚠️ CORNER SOLUTION",
+);
+console.log(
+  "4 tax incidence | Qt:",
+  taxQt,
+  "Pb:",
+  taxPb,
+  "Ps:",
+  taxPs,
+  "buyerShare:",
+  taxBuyerShare,
+  "DWL:",
+  taxDwl,
+  "revenue:",
+  taxRevenue,
+  `| wedge=t? ${taxPb - taxPs === taxParams.t}`,
+);
+console.log(
+  "5 monopoly (rising MC) | Q:",
+  mQ,
+  "P:",
+  mP,
+  "profit:",
+  mProfit,
+  "Qc:",
+  mQc,
+  "DWL:",
+  mDwl,
+  `| Q<Qc? ${mQ < mQc}`,
+);
+
 console.log("\n=== writing suites ===");
 for (const [id, items] of [
   ["trust", [...trustItems, ...repeatedItems, ...trustBatteryItems]],
-  ["economics", [...econItems, ...econMoreItems]],
+  [
+    "economics",
+    [
+      ...econItems,
+      ...econMoreItems,
+      ...mixedItems,
+      ...entryItems,
+      ...cournotItems,
+      ...taxItems,
+      ...monopolyItems,
+    ],
+  ],
   ["financial", [...financialItems, ...financialMoreItems, ...financialBatteryItems]],
 ] as const) {
   console.log("wrote", writeSuiteFile(CHALLENGES_DIR, id, items));
