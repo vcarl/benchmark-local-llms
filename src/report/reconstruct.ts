@@ -9,6 +9,7 @@ import { readBlob } from "../archive/content-store.js";
 import type { AttemptManifest, ItemResult } from "../schema/attempt.js";
 import { ScorerConfig } from "../schema/scorer.js";
 import { loadAttemptArchive } from "./load-attempts.js";
+import { parseScorerContentTolerant } from "./parse-scorer-content.js";
 
 export class NotReconstructible extends Data.TaggedError("NotReconstructible")<{
   readonly path: string;
@@ -65,7 +66,7 @@ export const loadAttemptReconstruction = (
           Effect.mapError((e) => new NotReconstructible({ path: file, reason: String(e) })),
         );
         const parsed = yield* Effect.try({
-          try: () => JSON.parse(scorerJson) as unknown,
+          try: () => parseScorerContentTolerant(scorerJson),
           catch: (e) => new NotReconstructible({ path: file, reason: `scorer JSON: ${String(e)}` }),
         });
         const scorer = yield* decodeScorer(parsed).pipe(
