@@ -13,9 +13,9 @@ each a scored dimension. Partial credit emerges from the siblings (4 of 5 passed
 not need per-item weights to get graded difficulty — but every scenario is built so that **narrow
 (1-of-2 yes/no, 1-of-3) dimensions are a minority of the item count** and the wide, computed
 dimensions dominate. Every scenario carries exactly one **wide-numeric capstone** (an open decimal
-or count that is effectively non-guessable). One dimension (scenario 4's strongest *path*) needs the
-new ordered/set scorer being built on a separate track — it is marked **⊕** with a single-name
-fallback so the battery can ship before that scorer lands.
+or count that is effectively non-guessable). One dimension (scenario 4's strongest *path*) uses the
+ordered/set scorer, which is now implemented and committed (`scorer: ordered_match`) — it ships as
+the ordered node sequence; the single-name fallback is no longer needed.
 
 The intent in one line: **no more counting.** The same visible counts must yield different answers
 depending on priors, discount factors, incentive gaps, edge weights, and decay — forcing the model
@@ -363,11 +363,11 @@ Pell  (newest→oldest): good, good, good, bad, bad, bad     → flat = 3/6 = 0.
 flat winner = Vale
 
 Vale decayed:  P = λ²+λ³+λ⁴+λ⁵ = 0.78336 ;  N = λ⁰+λ¹ = 1.6
-   reputation = (0.78336+1)/(0.78336+1.6+2) = 1.78336/4.38336 ≈ 0.406846   ← CAPSTONE
+   reputation = (0.78336+1)/(0.78336+1.6+2) = 1.78336/4.38336 ≈ 0.406848   ← CAPSTONE
 Pell decayed:  P = λ⁰+λ¹+λ² = 1.96 ;         N = λ³+λ⁴+λ⁵ = 0.42336
    reputation = (1.96+1)/(1.96+0.42336+2) = 2.96/4.38336 ≈ 0.675281
 decay winner = Pell   (≠ flat winner Vale)
-flat-vs-decay gap for Vale = 0.666667 − 0.406846 = 0.259821
+flat-vs-decay gap for Vale = 0.666667 − 0.406848 = 0.259819
 ```
 (Both share denominator 4.38336 because the total decayed mass `Σλ^a` over the six ages is identical
 — only the good/bad split differs.)
@@ -375,9 +375,9 @@ flat-vs-decay gap for Vale = 0.666667 − 0.406846 = 0.259821
 | # | Dimension | Framing | Answer / scorer | Rough weight |
 |---|---|---|---|---|
 | 5a | Flat (undecayed) reliability of Vale | "Ignoring timing, what fraction of Vale's commitments were kept? (6 dp)" | `decimalPattern(0.666667)` | 0.15 |
-| 5b | **Recency-weighted score of Vale (λ=0.6)** | "Weighting recent events by λ=0.6 per round of age and Laplace-smoothing, what is Vale's reputation? (6 dp)" | `decimalPattern(0.406846)` | **0.35 (capstone)** |
+| 5b | **Recency-weighted score of Vale (λ=0.6)** | "Weighting recent events by λ=0.6 per round of age and Laplace-smoothing, what is Vale's reputation? (6 dp)" | `decimalPattern(0.406848)` | **0.35 (capstone)** |
 | 5c | Most trustworthy under decay | "Under the same decayed scoring, which actor is most trustworthy?" name | `wordItem("Pell")` | 0.25 |
-| 5d | Flat-vs-decay gap for Vale | "By how much does Vale's flat score exceed her decayed score? (6 dp)" | `decimalPattern(0.259821)` | 0.25 |
+| 5d | Flat-vs-decay gap for Vale | "By how much does Vale's flat score exceed her decayed score? (6 dp)" | `decimalPattern(0.259819)` | 0.25 |
 
 5c is the payoff dimension: the decay winner (Pell) differs from the flat winner (Vale), so a model
 that counts loses it.
@@ -423,5 +423,5 @@ at authoring time. Otherwise none.
   4b and 5c, assert no tie at authoring time.
 - Tag items `["TODO", "trust", <topic>]` until reviewed; emit decimals with `decimalPattern`,
   counts/integers with `exactItem`, names/yes-no with `wordItem`.
-- Scenario 4b ships with the `wordItem` fallback; track the ⊕ ordered/set scorer and swap 4b to the
-  sequence form when it lands.
+- Scenario 4b ships as the ordered node sequence via `scorer: ordered_match` (now live); no fallback
+  needed. Author `vocabulary: [S, A, B, C, T]`, `expected: [S, A, C, T]`.
