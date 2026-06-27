@@ -29,6 +29,35 @@ export type DetailState =
   | { status: "not-found" }
   | { status: "error"; message: string };
 
+type FetchResult =
+  | { kind: "loaded"; detail: AttemptDetail }
+  | { kind: "not-found" }
+  | { kind: "error"; message: string };
+
+/**
+ * Classify a `details/<id>.json` response. A missing detail (404, or — under
+ * GitHub Pages' SPA fallback — a 200 serving index.html) and any body that
+ * isn't valid JSON degrade to "not-found" rather than throwing: drilldown is
+ * legitimately unavailable for v1 / non-reconstructible attempts. Only genuine
+ * non-404 HTTP failures surface as "error".
+ */
+export const classifyDetailResponse = async (res: Response): Promise<FetchResult> => {
+  if (res.status === 404) return { kind: "not-found" };
+  if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    // SPA-fallback HTML or any non-JSON payload — treat as unavailable.
+    return { kind: "not-found" };
+  }
+  try {
+    const detail = (await res.json()) as AttemptDetail;
+    return { kind: "loaded", detail };
+  } catch {
+    // Body claimed JSON but didn't parse — corrupt/missing detail.
+    return { kind: "not-found" };
+  }
+};
+
 // In-memory cache so re-expanding an attempt doesn't re-fetch.
 const cache = new Map<string, AttemptDetail>();
 
@@ -47,21 +76,13 @@ export const useAttemptDetail = (attemptId: string | undefined): DetailState => 
     }
     let cancelled = false;
     setState({ status: "loading" });
-    type FetchResult =
-      | { kind: "loaded"; detail: AttemptDetail }
-      | { kind: "not-found" }
-      | { kind: "error"; message: string };
 
     // Document-relative (not root-absolute) so it honors the deploy base path —
     // e.g. /benchmark-local-llms/details/... on GitHub Pages — matching how
     // index.html loads ./data.js. A root-absolute /details/ would resolve to
     // the domain root and 404 under GitHub Pages' project subpath.
     fetch(`./details/${attemptId}.json`)
-      .then((res): Promise<FetchResult> => {
-        if (res.status === 404) return Promise.resolve({ kind: "not-found" });
-        if (!res.ok) return Promise.resolve({ kind: "error", message: `HTTP ${res.status}` });
-        return res.json().then((detail: AttemptDetail) => ({ kind: "loaded" as const, detail }));
-      })
+      .then(classifyDetailResponse)
       .then((r) => {
         if (cancelled) return;
         if (r.kind === "loaded") {
