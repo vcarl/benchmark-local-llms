@@ -127,6 +127,56 @@ export function wordItem(f: BaseFields & { value: string }): AuthoredItem {
   };
 }
 
+/**
+ * A set_match item — best for unordered multi-entity answers (which actors are
+ * colluding, the members of an arbitrage cycle). `vocabulary` is the closed set
+ * of candidate entity names; `expected` is the gold set (order ignored, every
+ * element must be in `vocabulary`). Scored by F1 partial credit.
+ */
+export function setItem(
+  f: BaseFields & { vocabulary: string[]; expected: string[]; caseSensitive?: boolean },
+): AuthoredItem {
+  return {
+    why: f.why,
+    item: {
+      name: f.name,
+      category: f.category,
+      tier: f.tier,
+      prompt: f.prompt,
+      scorer: "set_match",
+      vocabulary: f.vocabulary,
+      expected: f.expected,
+      ...(f.caseSensitive === undefined ? {} : { caseSensitive: f.caseSensitive }),
+      tags: f.tags ?? ["TODO"],
+    },
+  };
+}
+
+/**
+ * An ordered_match item — best for ordered-sequence answers (the order firms
+ * default in a cascade, the strongest trust path). Same `vocabulary`/`expected`
+ * contract as {@link setItem}, except `expected` is an ordered sequence. Scored
+ * by longest-common-subsequence ratio partial credit.
+ */
+export function orderedItem(
+  f: BaseFields & { vocabulary: string[]; expected: string[]; caseSensitive?: boolean },
+): AuthoredItem {
+  return {
+    why: f.why,
+    item: {
+      name: f.name,
+      category: f.category,
+      tier: f.tier,
+      prompt: f.prompt,
+      scorer: "ordered_match",
+      vocabulary: f.vocabulary,
+      expected: f.expected,
+      ...(f.caseSensitive === undefined ? {} : { caseSensitive: f.caseSensitive }),
+      tags: f.tags ?? ["TODO"],
+    },
+  };
+}
+
 /** A constraint item scored by a single caller-supplied regex pattern. */
 export function regexItem(f: BaseFields & { pattern: string; label: string }): AuthoredItem {
   return {

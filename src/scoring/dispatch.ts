@@ -11,7 +11,9 @@ import { scoreCodeExec } from "./code-exec.js";
 import { scoreConstraints } from "./constraint.js";
 import { scoreCustom } from "./custom.js";
 import { scoreExactMatch } from "./exact-match.js";
+import { scoreOrderedMatch } from "./ordered-match.js";
 import type { PromptScore } from "./score-result.js";
+import { scoreSetMatch } from "./set-match.js";
 
 /** Dispatch a prompt-style scorer config to its scorer. Game scorers are handled separately. */
 export const scoreByConfig = (
@@ -30,6 +32,10 @@ export const scoreByConfig = (
       return scoreConstraints(output, cfg);
     case "code_exec":
       return scoreCodeExec(output, cfg.testCode);
+    case "set_match":
+      return scoreSetMatch(output, cfg);
+    case "ordered_match":
+      return scoreOrderedMatch(output, cfg);
     case "custom":
       return scoreCustom(output, cfg.script, meta);
     case "game":

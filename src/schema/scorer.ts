@@ -49,6 +49,45 @@ export const GameScorerConfig = Schema.Struct({
 });
 export type GameScorerConfig = typeof GameScorerConfig.Type;
 
+/**
+ * Set-membership scorer. Grades an answer that is an unordered SET of known
+ * entities (e.g. which actors are colluding, a currency-arbitrage cycle).
+ *
+ * `vocabulary` is the closed set of candidate entity names; extraction only
+ * ever recognises tokens from this list, which makes parsing the model's prose
+ * robust. `expected` is the gold set (order ignored); every element must appear
+ * in `vocabulary` (enforced at load time). Partial credit is the F1 score of
+ * the predicted set against `expected`; full credit on "all and only".
+ */
+export const SetMatchConfig = Schema.Struct({
+  type: Schema.Literal("set_match"),
+  vocabulary: Schema.Array(Schema.String),
+  expected: Schema.Array(Schema.String),
+  /** Case-sensitive entity matching. Defaults to false (case-insensitive). */
+  caseSensitive: Schema.optional(Schema.Boolean),
+});
+export type SetMatchConfig = typeof SetMatchConfig.Type;
+
+/**
+ * Ordered-sequence scorer. Grades an answer that is an ORDERED sequence of
+ * known entities (e.g. the order firms default in a contagion cascade, the
+ * strongest trust path through a graph).
+ *
+ * Same `vocabulary` / `expected` / `caseSensitive` contract as
+ * {@link SetMatchConfig}, except `expected` is an ordered sequence. Partial
+ * credit is the longest-common-subsequence ratio
+ * `|LCS(predicted, expected)| / max(|predicted|, |expected|)`; full credit on
+ * "all and only, in order".
+ */
+export const OrderedMatchConfig = Schema.Struct({
+  type: Schema.Literal("ordered_match"),
+  vocabulary: Schema.Array(Schema.String),
+  expected: Schema.Array(Schema.String),
+  /** Case-sensitive entity matching. Defaults to false (case-insensitive). */
+  caseSensitive: Schema.optional(Schema.Boolean),
+});
+export type OrderedMatchConfig = typeof OrderedMatchConfig.Type;
+
 /** Challenge-supplied scorer. `script` is a path to an executable scored via subprocess (§ Scoring). */
 export const CustomConfig = Schema.Struct({
   type: Schema.Literal("custom"),
@@ -61,6 +100,8 @@ export const ScorerConfig = Schema.Union(
   ConstraintConfig,
   CodeExecConfig,
   GameScorerConfig,
+  SetMatchConfig,
+  OrderedMatchConfig,
   CustomConfig,
 );
 export type ScorerConfig = typeof ScorerConfig.Type;

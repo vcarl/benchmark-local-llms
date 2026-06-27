@@ -60,7 +60,38 @@ const GameItem = Schema.Struct({
   tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
-export const ChallengeItem = Schema.Union(ExactMatchItem, ConstraintItem, CodeExecItem, GameItem);
+const SetMatchItem = Schema.Struct({
+  name: Schema.String,
+  category: Schema.String,
+  tier: Schema.Number,
+  prompt: Schema.String,
+  scorer: Schema.Literal("set_match"),
+  vocabulary: Schema.Array(Schema.String),
+  expected: Schema.Array(Schema.String),
+  caseSensitive: Schema.optional(Schema.Boolean),
+  tags: Schema.optional(Schema.Array(Schema.String)),
+});
+
+const OrderedMatchItem = Schema.Struct({
+  name: Schema.String,
+  category: Schema.String,
+  tier: Schema.Number,
+  prompt: Schema.String,
+  scorer: Schema.Literal("ordered_match"),
+  vocabulary: Schema.Array(Schema.String),
+  expected: Schema.Array(Schema.String),
+  caseSensitive: Schema.optional(Schema.Boolean),
+  tags: Schema.optional(Schema.Array(Schema.String)),
+});
+
+export const ChallengeItem = Schema.Union(
+  ExactMatchItem,
+  ConstraintItem,
+  CodeExecItem,
+  GameItem,
+  SetMatchItem,
+  OrderedMatchItem,
+);
 export type ChallengeItem = typeof ChallengeItem.Type;
 
 /**

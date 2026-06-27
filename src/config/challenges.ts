@@ -66,6 +66,31 @@ const detectUnknownConstraintCheck = (rawItem: unknown): string | null => {
 };
 
 /**
+ * Validate a `set_match` / `ordered_match` config. Returns a problem message,
+ * or `null` if the config is well-formed. The subset rule is load-bearing: an
+ * `expected` token outside `vocabulary` can never be matched in a response, so
+ * it would silently cap recall below 1 and make the item unwinnable.
+ */
+const validateEntityScorer = (
+  vocabulary: ReadonlyArray<string>,
+  expected: ReadonlyArray<string>,
+): string | null => {
+  if (vocabulary.length === 0) return "vocabulary must be non-empty";
+  if (expected.length === 0) return "expected must be non-empty";
+  const seen = new Set<string>();
+  for (const e of expected) {
+    if (seen.has(e)) return `expected contains duplicate '${e}'`;
+    seen.add(e);
+  }
+  const vocab = new Set(vocabulary);
+  const missing = expected.filter((e) => !vocab.has(e));
+  if (missing.length > 0) {
+    return `expected tokens not in vocabulary: [${missing.join(", ")}]`;
+  }
+  return null;
+};
+
+/**
  * Bridge a decoded inline {@link ChallengeItem} (flat YAML shape) into a nested
  * {@link ScorerConfig}. For `code_exec` the companion test file is read here,
  * resolved relative to {@link challengeDir}.
@@ -89,6 +114,24 @@ const resolveScorer = (
         gameScorer: item.gameScorer,
         scorerParams: item.scorerParams,
       });
+    case "set_match":
+    case "ordered_match": {
+      const problem = validateEntityScorer(item.vocabulary, item.expected);
+      if (problem !== null) {
+        return Effect.fail(
+          new ConfigError({
+            path: item.name,
+            message: `Item '${item.name}' (${item.scorer}): ${problem}`,
+          }),
+        );
+      }
+      return Effect.succeed({
+        type: item.scorer,
+        vocabulary: item.vocabulary,
+        expected: item.expected,
+        caseSensitive: item.caseSensitive,
+      });
+    }
     case "code_exec": {
       const resolved = path.resolve(challengeDir, item.testFile);
       return Effect.gen(function* () {

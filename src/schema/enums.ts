@@ -10,7 +10,14 @@ export type Runtime = typeof Runtime.Type;
  * High-level scorer category. The {@link ScorerConfig} discriminated union in
  * `./scorer.ts` uses these same literals as its `type` tag.
  */
-export const ScorerType = Schema.Literal("exact_match", "constraint", "code_exec", "game");
+export const ScorerType = Schema.Literal(
+  "exact_match",
+  "constraint",
+  "code_exec",
+  "game",
+  "set_match",
+  "ordered_match",
+);
 export type ScorerType = typeof ScorerType.Type;
 
 /**

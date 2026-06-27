@@ -68,6 +68,81 @@ describe("resolveChallenge", () => {
   });
 });
 
+describe("resolveChallenge entity scorers (set_match / ordered_match)", () => {
+  const entityItem = (scorer: "set_match" | "ordered_match", expected: string[]) => ({
+    name: "e",
+    category: "x",
+    tier: 1,
+    prompt: "who colluded?",
+    scorer,
+    vocabulary: ["Alice", "Bob", "Carol"],
+    expected,
+  });
+
+  it("resolves a well-formed set_match item, copying vocabulary/expected through", async () => {
+    const challenge: Challenge = {
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [entityItem("set_match", ["Alice", "Bob"])],
+    };
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Success");
+    if (exit._tag !== "Success") return;
+    const scorer = exit.value.items.at(0)?.scorer;
+    expect(scorer?.type).toBe("set_match");
+    if (scorer?.type !== "set_match") return;
+    expect(scorer.vocabulary).toEqual(["Alice", "Bob", "Carol"]);
+    expect(scorer.expected).toEqual(["Alice", "Bob"]);
+  });
+
+  it("resolves a well-formed ordered_match item", async () => {
+    const challenge: Challenge = {
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [entityItem("ordered_match", ["Carol", "Alice"])],
+    };
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Success");
+    if (exit._tag !== "Success") return;
+    expect(exit.value.items.at(0)?.scorer.type).toBe("ordered_match");
+  });
+
+  it("fails when an expected token is not in the vocabulary (unwinnable item)", async () => {
+    const challenge: Challenge = {
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [entityItem("set_match", ["Alice", "Zara"])],
+    };
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("fails when expected is empty", async () => {
+    const challenge: Challenge = {
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [entityItem("ordered_match", [])],
+    };
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("fails when expected contains a duplicate", async () => {
+    const challenge: Challenge = {
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [entityItem("set_match", ["Alice", "Alice"])],
+    };
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Failure");
+  });
+});
+
 describe("resolveChallenge hashing", () => {
   it("challengeHash is deterministic for fixed inline items", async () => {
     const challenge: Challenge = {
