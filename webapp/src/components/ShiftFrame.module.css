@@ -65,6 +65,14 @@
       "scatter"
       "ranking";
     --shift-x: 0px;
+    /* The canvas never translates in narrow mode (the details pane slides via its
+       own transform). Drop the transform/will-change here so the canvas does NOT
+       form a stacking context — otherwise the fixed `.regionDetails` (z-index 51)
+       is trapped inside it and paints *below* its sibling `.sheetBackdrop`
+       (z-index 50), hiding the details pane behind the scrim and routing every
+       click to the backdrop's close handler. */
+    transform: none;
+    will-change: auto;
   }
   /* The base `.shiftCanvas[data-shifted="true"]` shift rule is 0-2-0; reset it at
      matching specificity so an open drilldown doesn't translate the stacked canvas
