@@ -2,6 +2,7 @@ import type { BenchmarkResult } from "./data";
 import { modelFamily, modelSizeB } from "./data";
 import { EFFICIENCY_SCALE } from "./constants";
 import type { Filters } from "./filter-state";
+import { computeCoverage, type ChallengeUniverse } from "./coverage";
 
 // ─── Filtering ───────────────────────────────────────────────────────────────
 
@@ -27,16 +28,36 @@ export const applyFilters = (records: BenchmarkResult[], f: Filters): BenchmarkR
     return true;
   });
 
+// Apply ONLY the challenge dimension of the filter set — used to scope the
+// coverage universe. The universe must respect the active challenge filter
+// (filtering to "economics" shrinks the denominator to economics challenges)
+// while staying independent of config-level filters (hiding a model must never
+// change the denominator), so this deliberately ignores family/runtime/quant/
+// temperature.
+export const applyChallengeFilter = (records: BenchmarkResult[], f: Filters): BenchmarkResult[] =>
+  records.filter((r) =>
+    passesDim(f.challenge, baseChallengeId(`${r.challenge_id}@${r.challenge_version}`)),
+  );
+
 // ─── Config scores (shared utility) ──────────────────────────────────────────
 
+// The headline `passRate` is coverage-adjusted: its denominator is the FIXED
+// universe item count (the canonical challenge set), so a config that never ran
+// (or ran a stale hash of) a challenge is penalized by that challenge's item
+// share as zeros. The raw subset rate (`Σ passed / Σ item_count` over the
+// config's own attempts) is kept internally for the efficiency metric, which is
+// a measure of completed work and stays unchanged.
 export const computeConfigScores = (
   attempts: BenchmarkResult[],
+  universe: ChallengeUniverse,
 ): { passRate: number; efficiency: number | null } => {
   const completed = attempts.length;
   if (completed === 0) return { passRate: 0, efficiency: null };
   const totalItems = attempts.reduce((s, a) => s + a.item_count, 0);
   const passedItems = attempts.reduce((s, a) => s + a.passed_items, 0);
-  const passRate = totalItems === 0 ? 0 : passedItems / totalItems;
+  const rawPassRate = totalItems === 0 ? 0 : passedItems / totalItems;
+  const { numeratorPassedItems } = computeCoverage(attempts, universe);
+  const passRate = universe.totalItems === 0 ? 0 : numeratorPassedItems / universe.totalItems;
   const uniqueChallenges = new Set(
     attempts.map((a) => `${a.challenge_id}@${a.challenge_version}`),
   ).size;
@@ -44,7 +65,7 @@ export const computeConfigScores = (
   const timeSpent = attempts.reduce((s, a) => s + a.wall_time_sec, 0);
   const denom = Math.log(overallTokens) * (timeSpent / 60);
   if (!Number.isFinite(denom) || denom <= 0) return { passRate, efficiency: null };
-  const efficiency = ((passRate * uniqueChallenges * completed) / denom) * EFFICIENCY_SCALE;
+  const efficiency = ((rawPassRate * uniqueChallenges * completed) / denom) * EFFICIENCY_SCALE;
   return { passRate, efficiency };
 };
 
@@ -75,6 +96,11 @@ export interface RunRow {
   uniqueChallenges: number;
   itemCount: number;
   attemptsCompleted: number;
+  // Coverage context (not a second score): how many of the universe's canonical
+  // challenges these attempts cover, and the universe size. Drives the
+  // `covered / total challenges` indicator.
+  coveredChallenges: number;
+  totalChallenges: number;
   // The config's attempts split into distinct benchmarking invocations
   // (newest → oldest). Always non-empty; `invocations[0]` is the most recent
   // and supplies this row's headline metric fields (see `rowForConfig`).
@@ -107,10 +133,12 @@ const meanOrZero = (values: number[]): number => {
 // `splitInvocations` and `rowForConfig`). Returns null on empty input.
 const metricsForAttempts = (
   attempts: BenchmarkResult[],
+  universe: ChallengeUniverse,
 ): Omit<RunRow, "invocations"> | null => {
   const head = attempts[0];
   if (head === undefined) return null;
-  const { passRate, efficiency } = computeConfigScores(attempts);
+  const { passRate, efficiency } = computeConfigScores(attempts, universe);
+  const coverage = computeCoverage(attempts, universe);
   return {
     config_hash: head.config_hash,
     artifact: head.artifact,
@@ -127,6 +155,8 @@ const metricsForAttempts = (
     uniqueChallenges: new Set(attempts.map((a) => `${a.challenge_id}@${a.challenge_version}`)).size,
     itemCount: attempts.reduce((s, a) => s + a.item_count, 0),
     attemptsCompleted: attempts.length,
+    coveredChallenges: coverage.covered,
+    totalChallenges: coverage.total,
   };
 };
 
@@ -152,7 +182,10 @@ const sortedByFinishedDesc = (attempts: BenchmarkResult[]): BenchmarkResult[] =>
  * just that invocation's attempts, the invocation's max finished_at, and its
  * underlying records. `invocations` is always [] on these rows (no recursion).
  */
-export const splitInvocations = (attempts: BenchmarkResult[]): InvocationRow[] => {
+export const splitInvocations = (
+  attempts: BenchmarkResult[],
+  universe: ChallengeUniverse,
+): InvocationRow[] => {
   const sorted = sortedByFinishedDesc(attempts);
   const batches: BenchmarkResult[][] = [];
   let current: BenchmarkResult[] = [];
@@ -170,7 +203,7 @@ export const splitInvocations = (attempts: BenchmarkResult[]): InvocationRow[] =
 
   const rows: InvocationRow[] = [];
   for (const batch of batches) {
-    const metrics = metricsForAttempts(batch);
+    const metrics = metricsForAttempts(batch, universe);
     if (metrics === null) continue;
     const finishedAt = batch.reduce(
       (m, a) => (a.finished_at > m ? a.finished_at : m),
@@ -181,8 +214,11 @@ export const splitInvocations = (attempts: BenchmarkResult[]): InvocationRow[] =
   return rows;
 };
 
-const rowForConfig = (attempts: BenchmarkResult[]): RunRow | null => {
-  const invocations = splitInvocations(attempts);
+const rowForConfig = (
+  attempts: BenchmarkResult[],
+  universe: ChallengeUniverse,
+): RunRow | null => {
+  const invocations = splitInvocations(attempts, universe);
   const headline = invocations[0];
   if (headline === undefined) return null;
   // The headline IS the most-recent invocation (no metric drift), plus the full
@@ -201,6 +237,7 @@ const compareRuns = (key: RunSortKey, dir: SortDir) => (a: RunRow, b: RunRow): n
 
 export const aggregateRuns = (
   records: BenchmarkResult[],
+  universe: ChallengeUniverse,
   primary: RunSortKey,
   secondary: RunSortKey,
   primaryDir: SortDir = defaultSortDir(primary),
@@ -214,7 +251,7 @@ export const aggregateRuns = (
   }
   const rows: RunRow[] = [];
   for (const attempts of byConfig.values()) {
-    const row = rowForConfig(attempts);
+    const row = rowForConfig(attempts, universe);
     if (row !== null) rows.push(row);
   }
 
@@ -358,7 +395,10 @@ export const challengeBreakdown = (
   return rows;
 };
 
-export const computeScatterPoints = (records: BenchmarkResult[]): ScatterPoint[] => {
+export const computeScatterPoints = (
+  records: BenchmarkResult[],
+  universe: ChallengeUniverse,
+): ScatterPoint[] => {
   const byConfig = new Map<string, BenchmarkResult[]>();
   for (const r of records) {
     const list = byConfig.get(r.config_hash) ?? [];
@@ -370,10 +410,10 @@ export const computeScatterPoints = (records: BenchmarkResult[]): ScatterPoint[]
     // One point per config_hash, computed from the LATEST invocation only (so it
     // matches the headline RunRow and links 1:1 to the ranking row), not all
     // pooled attempts.
-    const latest = splitInvocations(attempts)[0]?.records;
+    const latest = splitInvocations(attempts, universe)[0]?.records;
     const head = latest?.[0];
     if (latest === undefined || head === undefined) continue;
-    const { passRate, efficiency } = computeConfigScores(latest);
+    const { passRate, efficiency } = computeConfigScores(latest, universe);
     points.push({
       config_hash: head.config_hash,
       artifact: head.artifact,

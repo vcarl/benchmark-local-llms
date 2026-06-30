@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, defaultSortDir, type RunRow, type RunSortKey, type SortDir } from "../lib/pipeline";
+import { aggregateRuns, applyChallengeFilter, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, defaultSortDir, type RunRow, type RunSortKey, type SortDir } from "../lib/pipeline";
+import { buildChallengeUniverse } from "../lib/coverage";
 import { Scatter } from "../components/Scatter";
 import { ScatterLegend } from "../components/ScatterLegend";
 import { FilterPanel } from "../components/FilterPanel";
@@ -64,11 +65,21 @@ function RootComponent() {
   const filters = useMemo(() => parseFilters(search), [search]);
   const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
 
-  const groups = useMemo(
-    () => aggregateRuns(filtered, primary, secondary, primaryDir, secondaryDir),
-    [filtered, primary, secondary, primaryDir, secondaryDir],
+  // The coverage universe (shared denominator for the adjusted pass rate). Built
+  // ONCE from the full DATA scoped by ONLY the active challenge filter, so it
+  // shrinks when the user filters challenges but never moves when configs are
+  // hidden by family/runtime/quant/temperature. Threaded into every aggregation
+  // so the adjusted score flows to the scatter, ranking, and config summary.
+  const universe = useMemo(
+    () => buildChallengeUniverse(applyChallengeFilter(DATA, filters)),
+    [filters],
   );
-  const points = useMemo(() => computeScatterPoints(filtered), [filtered]);
+
+  const groups = useMemo(
+    () => aggregateRuns(filtered, universe, primary, secondary, primaryDir, secondaryDir),
+    [filtered, universe, primary, secondary, primaryDir, secondaryDir],
+  );
+  const points = useMemo(() => computeScatterPoints(filtered, universe), [filtered, universe]);
 
   const legendFamilies = useMemo(() => {
     const seen = new Set<string>();
@@ -161,6 +172,7 @@ function RootComponent() {
         records={filtered}
         configHash={search.config}
         runRow={selectedRow}
+        universe={universe}
         attemptId={search.attempt}
         onSelectAttempt={onSelectAttempt}
       />

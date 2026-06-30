@@ -8,6 +8,7 @@ import {
   formatWallTime,
 } from "../lib/debug-metrics";
 import { formatEfficiency, scoreBand } from "../lib/constants";
+import { isIncompleteCoverage, coverageFlagTitle } from "../lib/coverage";
 
 interface Props {
   // The per-config aggregate threaded from the ranking table's aggregateRuns
@@ -28,12 +29,12 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BandStat({ label, value, rate }: { label: string; value: string; rate: number }) {
+function BandStat({ label, value, rate, flag }: { label: string; value: string; rate: number; flag?: React.ReactNode }) {
   return (
     <div className={styles.debugStat}>
       <span className={styles.debugStatLabel}>{label}</span>
       <span className={styles.debugStatValue} style={{ color: "var(--band)" }} data-band={scoreBand(rate)}>
-        {value}
+        {flag}{value}
       </span>
     </div>
   );
@@ -76,6 +77,17 @@ export function ConfigSummaryPanel({ row, records, breakdown }: Props) {
         <BandStat
           label="Pass rate"
           rate={row.passRate}
+          flag={
+            isIncompleteCoverage(row) ? (
+              <span
+                className={styles.coverageFlag}
+                title={coverageFlagTitle(row.coveredChallenges, row.totalChallenges)}
+                aria-hidden="true"
+              >
+                ⓘ
+              </span>
+            ) : null
+          }
           value={`${(row.passRate * 100).toFixed(1)}% (${passedItems}/${row.itemCount} items)`}
         />
         <Stat
@@ -89,7 +101,10 @@ export function ConfigSummaryPanel({ row, records, breakdown }: Props) {
 
       {/* Coverage */}
       <div className={styles.debugGroup}>
-        <Stat label="Distinct challenges" value={String(row.uniqueChallenges)} />
+        <Stat
+          label="Coverage"
+          value={`${row.coveredChallenges} / ${row.totalChallenges} challenges`}
+        />
         <Stat label="Attempts completed" value={String(row.attemptsCompleted)} />
         <Stat
           label="First finished"

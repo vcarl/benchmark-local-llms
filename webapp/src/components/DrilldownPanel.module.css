@@ -22,6 +22,11 @@
 .challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; }
 .challengeScore { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
 .challengeCoverage { color: var(--text-muted); font-size: var(--fz-11); }
+/* Universe challenges this config doesn't cover (never-run or stale). Listed as
+   0% so the source of the adjusted-score penalty is visible; not clickable. */
+.challengeRowMissing { cursor: default; opacity: 0.6; }
+.challengeRowMissing:hover { background: transparent; }
+.challengeRowMissing .challengeCoverage { font-style: italic; }
 .item { border-top: 1px solid var(--border-subtle); padding: var(--space-4) 0; }
 .itemLabel { color: var(--text-faint); font-size: var(--fz-10); text-transform: uppercase; letter-spacing: 0.05em; margin-top: var(--space-3); }
 .itemText { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, monospace; font-size: var(--fz-11); color: var(--text-secondary); margin: var(--space-2) 0; }
@@ -65,6 +70,8 @@
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
+/* Subtle muted incomplete-coverage flag, sits immediately left of the score. */
+.coverageFlag { color: var(--text-muted); margin-right: var(--space-2); cursor: help; }
 .debugTally {
   display: flex;
   gap: var(--space-3);

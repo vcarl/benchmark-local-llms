@@ -93,6 +93,8 @@
 .resultModelFamily { font-size: var(--fz-11); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .resultScoreCell { text-align: right; }
 .resultScore { font-size: var(--fz-15); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; color: var(--band, var(--text-primary)); }
+/* Subtle muted incomplete-coverage flag, sits immediately left of the score. */
+.coverageFlag { color: var(--text-muted); font-weight: 400; font-size: var(--fz-11); margin-right: var(--space-2); cursor: help; }
 .resultEfficiency { font-size: var(--fz-11); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
 /* Descriptor glyph — the model's exact scatterplot star marker, drawn at its
    true scatter size by <ScatterGlyph>. Absolutely positioned in the leading-edge

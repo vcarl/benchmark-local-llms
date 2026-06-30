@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateRuns,
+  applyChallengeFilter,
   applyFilters,
   challengeBreakdown,
   computeConfigScores,
@@ -10,6 +11,7 @@ import {
   computeTpsDomain,
   opacityForTps,
 } from "./pipeline";
+import { buildChallengeUniverse } from "./coverage";
 import type { RunRow, RunGroup, ScatterPoint, TpsDomain, InvocationRow } from "./pipeline";
 import type { BenchmarkResult } from "./data";
 
@@ -22,14 +24,20 @@ const rec = (o: Partial<BenchmarkResult>): BenchmarkResult => ({
   ...o,
 });
 
+// Build the universe straight from the records under test so coverage is full
+// (every challenge at its canonical hash): the adjusted pass rate then reduces
+// to the raw subset rate, preserving these legacy assertions.
+const uni = (recs: BenchmarkResult[]) => buildChallengeUniverse(recs);
+
 describe("computeConfigScores (pooled over items)", () => {
   it("passRate = Σ passed_items / Σ item_count across attempts", () => {
     // attempt A: 3 of 4 items passed; attempt B: 1 of 4 items passed
     // pooled passRate = (3+1)/(4+4) = 0.5
-    const s = computeConfigScores([
+    const a = [
       rec({ item_count: 4, passed_items: 3, generation_tokens: 100, wall_time_sec: 2, challenge_id: "code" }),
       rec({ item_count: 4, passed_items: 1, generation_tokens: 200, wall_time_sec: 4, challenge_id: "math" }),
-    ]);
+    ];
+    const s = computeConfigScores(a, uni(a));
     // unique=2, completed=2, overallTokens=300, timeSpent=6
     // denom = Math.log(300) * (6/60) ≈ 5.7038 * 0.1 = 0.57038
     // efficiency = (0.5 * 2 * 2) / 0.57038 * 100 ≈ 350.645
@@ -38,18 +46,20 @@ describe("computeConfigScores (pooled over items)", () => {
   });
 
   it("passRate falls back to 0 when Σ item_count == 0", () => {
-    const s = computeConfigScores([rec({ item_count: 0, passed_items: 0 })]);
+    const a = [rec({ item_count: 0, passed_items: 0 })];
+    const s = computeConfigScores(a, uni(a));
     expect(s.passRate).toBe(0);
   });
 
   it("efficiency is null on zero token/time denom", () => {
-    const s = computeConfigScores([rec({ item_count: 1, passed_items: 1, generation_tokens: 0, wall_time_sec: 5 })]);
+    const a = [rec({ item_count: 1, passed_items: 1, generation_tokens: 0, wall_time_sec: 5 })];
+    const s = computeConfigScores(a, uni(a));
     expect(s.efficiency).toBeNull();
     expect(s.passRate).toBe(1);
   });
 
   it("passRate 0 / efficiency null for empty attempts", () => {
-    const s = computeConfigScores([]);
+    const s = computeConfigScores([], uni([]));
     expect(s.passRate).toBe(0);
     expect(s.efficiency).toBeNull();
   });
@@ -57,15 +67,12 @@ describe("computeConfigScores (pooled over items)", () => {
 
 describe("aggregateRuns", () => {
   it("one row per config_hash, grouped by artifact, with stats-block aggregates", () => {
-    const groups = aggregateRuns(
-      [
-        rec({ config_hash: "c1", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5 }),
-        rec({ config_hash: "c1", challenge_id: "math", challenge_version: 1, item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0 }),
-        rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 1, generation_tokens: 50, wall_time_sec: 1, generation_tps: 5, peak_memory_gb: 8.0 }),
-      ],
-      "score",
-      "score",
-    );
+    const recs = [
+      rec({ config_hash: "c1", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5 }),
+      rec({ config_hash: "c1", challenge_id: "math", challenge_version: 1, item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0 }),
+      rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", challenge_version: 1, item_count: 4, passed_items: 1, generation_tokens: 50, wall_time_sec: 1, generation_tps: 5, peak_memory_gb: 8.0 }),
+    ];
+    const groups = aggregateRuns(recs, uni(recs), "score", "score");
     expect(groups.map((g) => g.artifact)).toEqual(["qwen", "llama"]); // qwen 0.75 > llama 0.25
     const qwen = groups.find((g) => g.artifact === "qwen");
     const row = qwen?.rows[0];
@@ -86,16 +93,13 @@ describe("aggregateRuns", () => {
     // c1 ran "code" twice and "math" twice across two invocations.
     // Newer invocation (finished 11:xx): code passes 4/4, math passes 4/4 → 1.0
     // Older invocation (finished 09:xx): code 1/4, math 0/4 → 0.125
-    const groups = aggregateRuns(
-      [
-        rec({ config_hash: "c1", challenge_id: "code", item_count: 4, passed_items: 1, finished_at: "2026-06-20T09:00:00", attempt_id: "o-code" }),
-        rec({ config_hash: "c1", challenge_id: "math", item_count: 4, passed_items: 0, finished_at: "2026-06-20T09:00:01", attempt_id: "o-math" }),
-        rec({ config_hash: "c1", challenge_id: "code", item_count: 4, passed_items: 4, finished_at: "2026-06-20T11:00:00", attempt_id: "n-code" }),
-        rec({ config_hash: "c1", challenge_id: "math", item_count: 4, passed_items: 4, finished_at: "2026-06-20T11:00:01", attempt_id: "n-math" }),
-      ],
-      "score",
-      "score",
-    );
+    const recs = [
+      rec({ config_hash: "c1", challenge_id: "code", item_count: 4, passed_items: 1, finished_at: "2026-06-20T09:00:00", attempt_id: "o-code" }),
+      rec({ config_hash: "c1", challenge_id: "math", item_count: 4, passed_items: 0, finished_at: "2026-06-20T09:00:01", attempt_id: "o-math" }),
+      rec({ config_hash: "c1", challenge_id: "code", item_count: 4, passed_items: 4, finished_at: "2026-06-20T11:00:00", attempt_id: "n-code" }),
+      rec({ config_hash: "c1", challenge_id: "math", item_count: 4, passed_items: 4, finished_at: "2026-06-20T11:00:01", attempt_id: "n-math" }),
+    ];
+    const groups = aggregateRuns(recs, uni(recs), "score", "score");
     const row = groups[0]!.rows[0]!;
     expect(row.invocations).toHaveLength(2);
     // Headline mirrors the newest invocation, not the pooled set.
@@ -109,21 +113,18 @@ describe("aggregateRuns", () => {
   it("sorting is unchanged: ranks by headline passRate (newest invocation)", () => {
     // c1 newest run scores low; c2 (single run) scores high → c2 ranks first
     // even though c1's OLDER run scored 1.0. Sorting must read headline fields.
-    const groups = aggregateRuns(
-      [
-        rec({ config_hash: "c1", artifact: "qwen", challenge_id: "code", item_count: 4, passed_items: 4, finished_at: "2026-06-20T09:00:00", attempt_id: "c1-old" }),
-        rec({ config_hash: "c1", artifact: "qwen", challenge_id: "code", item_count: 4, passed_items: 0, finished_at: "2026-06-20T11:00:00", attempt_id: "c1-new" }),
-        rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", item_count: 4, passed_items: 3, finished_at: "2026-06-20T10:00:00", attempt_id: "c2" }),
-      ],
-      "score",
-      "score",
-    );
+    const recs = [
+      rec({ config_hash: "c1", artifact: "qwen", challenge_id: "code", item_count: 4, passed_items: 4, finished_at: "2026-06-20T09:00:00", attempt_id: "c1-old" }),
+      rec({ config_hash: "c1", artifact: "qwen", challenge_id: "code", item_count: 4, passed_items: 0, finished_at: "2026-06-20T11:00:00", attempt_id: "c1-new" }),
+      rec({ config_hash: "c2", artifact: "llama", challenge_id: "code", item_count: 4, passed_items: 3, finished_at: "2026-06-20T10:00:00", attempt_id: "c2" }),
+    ];
+    const groups = aggregateRuns(recs, uni(recs), "score", "score");
     // llama headline 0.75 > qwen headline 0.0 (qwen's old 1.0 run is ignored)
     expect(groups.map((g) => g.artifact)).toEqual(["llama", "qwen"]);
   });
 
   it("returns [] for empty input", () => {
-    expect(aggregateRuns([], "score", "score")).toEqual([]);
+    expect(aggregateRuns([], uni([]), "score", "score")).toEqual([]);
   });
 });
 
@@ -206,7 +207,7 @@ describe("splitInvocations", () => {
   const V2 = ["c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9"]; // 10
 
   it("a single run of one set is exactly one invocation", () => {
-    const invs = splitInvocations(suite(V2, "2026-06-20T10:00"));
+    const invs = splitInvocations(suite(V2, "2026-06-20T10:00"), uni(suite(V2, "2026-06-20T10:00")));
     expect(invs).toHaveLength(1);
     expect(invs[0]!.uniqueChallenges).toBe(10);
     expect(invs[0]!.itemCount).toBe(10);
@@ -221,7 +222,7 @@ describe("splitInvocations", () => {
       ...suite(V2, "2026-06-20T10:00"), // 10
       ...suite(V2, "2026-06-20T11:00"), // newest 10
     ];
-    const invs = splitInvocations(attempts);
+    const invs = splitInvocations(attempts, uni(attempts));
     expect(invs).toHaveLength(4);
     // newest first
     expect(invs.map((i) => i.uniqueChallenges)).toEqual([10, 10, 6, 6]);
@@ -237,7 +238,7 @@ describe("splitInvocations", () => {
       ...suite(V1, "2026-06-20T09:00"), // older 6 (c0..c5)
       ...suite(V2, "2026-06-20T10:00"), // newer 10 (c0..c9)
     ];
-    const invs = splitInvocations(attempts);
+    const invs = splitInvocations(attempts, uni(attempts));
     expect(invs).toHaveLength(2);
     expect(invs[0]!.uniqueChallenges).toBe(10); // newest
     expect(invs[1]!.uniqueChallenges).toBe(6);
@@ -251,7 +252,7 @@ describe("splitInvocations", () => {
       rec({ challenge_id: "c0", finished_at: "2026-06-20T10:00:01", attempt_id: "a2" }),
       rec({ challenge_id: "c2", finished_at: "2026-06-20T10:00:00", attempt_id: "a1" }),
     ];
-    const invs = splitInvocations(attempts);
+    const invs = splitInvocations(attempts, uni(attempts));
     // DESC: [c0@03, c1@02, c0@01, c2@00] → c0 repeats at index 2 → split there.
     expect(invs).toHaveLength(2);
     expect(invs[0]!.records.map((r) => r.attempt_id)).toEqual(["a4", "a3"]);
@@ -259,7 +260,8 @@ describe("splitInvocations", () => {
   });
 
   it("a singleton is one invocation of size 1", () => {
-    const invs = splitInvocations([rec({ challenge_id: "c0", finished_at: "2026-06-20T10:00:00" })]);
+    const sgl = [rec({ challenge_id: "c0", finished_at: "2026-06-20T10:00:00" })];
+    const invs = splitInvocations(sgl, uni(sgl));
     expect(invs).toHaveLength(1);
     expect(invs[0]!.uniqueChallenges).toBe(1);
     expect(invs[0]!.itemCount).toBe(1);
@@ -272,7 +274,7 @@ describe("splitInvocations", () => {
       rec({ challenge_id: "c0", finished_at: "", attempt_id: "a" }),
       rec({ challenge_id: "c2", finished_at: "", attempt_id: "c" }),
     ];
-    const invs = splitInvocations(attempts);
+    const invs = splitInvocations(attempts, uni(attempts));
     expect(invs).toHaveLength(1);
     // attempt_id DESC tie-break → c, b, a
     expect(invs[0]!.records.map((r) => r.attempt_id)).toEqual(["c", "b", "a"]);
@@ -283,7 +285,7 @@ describe("splitInvocations", () => {
       ...suite(V1, "2026-06-20T09:00"),
       ...suite(V2, "2026-06-20T10:00", { generation_tokens: 50 }),
     ];
-    const invs = splitInvocations(attempts);
+    const invs = splitInvocations(attempts, uni(attempts));
     const newest: InvocationRow = invs[0]!;
     expect(newest.uniqueChallenges).toBe(10);
     // tokens are the sum over the newest invocation's 10 records only
@@ -293,10 +295,11 @@ describe("splitInvocations", () => {
 
 describe("computeScatterPoints", () => {
   it("one point per config_hash with cost-x / quality-y / size / mem / tps", () => {
-    const pts = computeScatterPoints([
+    const recs = [
       rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5 }),
       rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "math", item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0 }),
-    ]);
+    ];
+    const pts = computeScatterPoints(recs, uni(recs));
     expect(pts).toHaveLength(1);
     const p = pts[0]!;
     expect(p.config_hash).toBe("c1");
@@ -309,10 +312,11 @@ describe("computeScatterPoints", () => {
   });
 
   it("wall_time_sec is the sum of all attempts wall_time_sec", () => {
-    const pts = computeScatterPoints([
+    const recs = [
       rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", wall_time_sec: 10 }),
       rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "math", wall_time_sec: 25 }),
-    ]);
+    ];
+    const pts = computeScatterPoints(recs, uni(recs));
     expect(pts).toHaveLength(1);
     expect(pts[0]!.wall_time_sec).toBe(35); // 10 + 25
   });
@@ -326,7 +330,7 @@ describe("computeScatterPoints", () => {
       rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", item_count: 4, passed_items: 4, generation_tokens: 100, wall_time_sec: 2, generation_tps: 10, peak_memory_gb: 1.5, finished_at: "2026-06-20T11:00:00", attempt_id: "n-code" }),
       rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "math", item_count: 4, passed_items: 2, generation_tokens: 200, wall_time_sec: 4, generation_tps: 30, peak_memory_gb: 3.0, finished_at: "2026-06-20T11:00:01", attempt_id: "n-math" }),
     ];
-    const pts = computeScatterPoints(records);
+    const pts = computeScatterPoints(records, uni(records));
     expect(pts).toHaveLength(1);
     const p = pts[0]!;
     // matches the newest invocation only
@@ -336,7 +340,7 @@ describe("computeScatterPoints", () => {
     expect(p.generation_tps).toBe(20);
     expect(p.wall_time_sec).toBe(6);
     // and equals the headline RunRow built from the same records
-    const groups = aggregateRuns(records, "score", "score");
+    const groups = aggregateRuns(records, uni(records), "score", "score");
     const headline = groups[0]!.rows[0]!;
     expect(p.x).toBe(headline.tokens);
     expect(p.y).toBe(headline.passRate);
@@ -346,7 +350,7 @@ describe("computeScatterPoints", () => {
   });
 
   it("returns [] for empty input", () => {
-    expect(computeScatterPoints([])).toEqual([]);
+    expect(computeScatterPoints([], uni([]))).toEqual([]);
   });
 });
 
@@ -408,6 +412,120 @@ describe("computeTpsDomain", () => {
     const d = computeTpsDomain([]);
     expect(d.min).toBe(1);
     expect(d.max).toBe(1);
+  });
+});
+
+describe("coverage-adjusted computeConfigScores", () => {
+  // Build a universe of `n` uniform challenges (item_count each), ids ch000..,
+  // at canonical hash `h{i}` via a conforming attempt id.
+  const universeOf = (n: number, itemCount: number) =>
+    buildChallengeUniverse(
+      Array.from({ length: n }, (_, i) =>
+        rec({ challenge_id: `ch${i}`, attempt_id: `att-cfg-h${i}-1`, item_count: itemCount, passed_items: 0 }),
+      ),
+    );
+
+  it("full coverage at canonical hash ⇒ adjusted rate equals the raw pass rate", () => {
+    const universe = universeOf(2, 4);
+    const s = computeConfigScores(
+      [
+        rec({ challenge_id: "ch0", attempt_id: "att-cfg-h0-9", item_count: 4, passed_items: 3 }),
+        rec({ challenge_id: "ch1", attempt_id: "att-cfg-h1-9", item_count: 4, passed_items: 1 }),
+      ],
+      universe,
+    );
+    expect(s.passRate).toBeCloseTo(0.5, 10); // (3+1)/(4+4), denominator unchanged
+  });
+
+  it("a never-run challenge penalizes the score by its item share", () => {
+    const universe = universeOf(2, 4); // total 8 items
+    // config ran only ch0 (4/4); ch1 never run ⇒ counts as 0 over its 4 items.
+    const s = computeConfigScores(
+      [rec({ challenge_id: "ch0", attempt_id: "att-cfg-h0-9", item_count: 4, passed_items: 4 })],
+      universe,
+    );
+    expect(s.passRate).toBeCloseTo(4 / 8, 10); // 0.5, not 1.0
+  });
+
+  it("a stale attempt is excluded from the numerator (counts as 0)", () => {
+    const universe = universeOf(2, 4); // total 8 items
+    const s = computeConfigScores(
+      [
+        rec({ challenge_id: "ch0", attempt_id: "att-cfg-h0-9", item_count: 4, passed_items: 4 }),
+        // ch1 ran at a STALE hash → excluded; ch1 contributes 0 over its 4 items.
+        rec({ challenge_id: "ch1", attempt_id: "att-cfg-STALE-9", item_count: 4, passed_items: 4 }),
+      ],
+      universe,
+    );
+    expect(s.passRate).toBeCloseTo(4 / 8, 10); // 0.5 — stale ch1 earns nothing
+  });
+
+  it("non-uniform item counts weight larger challenges more", () => {
+    // ch0 has 2 items, ch1 has 8 items (total 10). Passing all of small ch0
+    // but none of large ch1 should score 2/10, not 1/2.
+    const universe = buildChallengeUniverse([
+      rec({ challenge_id: "ch0", attempt_id: "att-cfg-h0-1", item_count: 2, passed_items: 0 }),
+      rec({ challenge_id: "ch1", attempt_id: "att-cfg-h1-1", item_count: 8, passed_items: 0 }),
+    ]);
+    const s = computeConfigScores(
+      [
+        rec({ challenge_id: "ch0", attempt_id: "att-cfg-h0-9", item_count: 2, passed_items: 2 }),
+        rec({ challenge_id: "ch1", attempt_id: "att-cfg-h1-9", item_count: 8, passed_items: 0 }),
+      ],
+      universe,
+    );
+    expect(s.passRate).toBeCloseTo(2 / 10, 10);
+  });
+
+  it("uniform 82% on 104 of 171 challenges ⇒ ~0.499", () => {
+    const universe = universeOf(171, 50);
+    // ran 104 challenges, 41/50 items each (82%)
+    const attempts = Array.from({ length: 104 }, (_, i) =>
+      rec({ challenge_id: `ch${i}`, attempt_id: `att-cfg-h${i}-9`, item_count: 50, passed_items: 41 }),
+    );
+    const s = computeConfigScores(attempts, universe);
+    expect(s.passRate).toBeCloseTo((0.82 * 104) / 171, 4); // ≈ 0.4987
+  });
+
+  it("efficiency is unchanged: it uses the raw (subset) pass rate, not the adjusted one", () => {
+    // Same inputs as the legacy 'pooled over items' test, but with a universe
+    // where ch1 is never run (adjusted rate is penalized). Efficiency must still
+    // be computed from the raw 0.5 subset rate.
+    const universe = universeOf(3, 4); // ch0, ch1, ch2; config runs only ch0 + ch1
+    const attempts = [
+      rec({ challenge_id: "ch0", attempt_id: "att-cfg-h0-9", item_count: 4, passed_items: 3, generation_tokens: 100, wall_time_sec: 2 }),
+      rec({ challenge_id: "ch1", attempt_id: "att-cfg-h1-9", item_count: 4, passed_items: 1, generation_tokens: 200, wall_time_sec: 4 }),
+    ];
+    const s = computeConfigScores(attempts, universe);
+    // raw subset rate = (3+1)/(4+4) = 0.5; efficiency = (0.5 * 2 * 2) / denom * 100
+    // denom = log(300) * (6/60); matches the legacy efficiency value exactly.
+    expect(s.efficiency).toBeCloseTo(350.64450807629214, 3);
+    // adjusted rate is penalized by the never-run ch2 (4/12).
+    expect(s.passRate).toBeCloseTo(4 / 12, 10);
+  });
+});
+
+describe("applyChallengeFilter (universe scoping)", () => {
+  const data = [
+    rec({ config_hash: "c1", artifact: "Qwen2.5-7B", challenge_id: "code", challenge_version: 1, attempt_id: "att-c1-hc-1", item_count: 4 }),
+    rec({ config_hash: "c2", artifact: "Llama-3-8B", challenge_id: "math", challenge_version: 1, attempt_id: "att-c2-hm-1", item_count: 6 }),
+  ];
+
+  it("the challenge filter shrinks the universe to the filtered challenges", () => {
+    const full = buildChallengeUniverse(applyChallengeFilter(data, {}));
+    expect(full.challenges.size).toBe(2);
+    expect(full.totalItems).toBe(10);
+
+    const codeOnly = buildChallengeUniverse(applyChallengeFilter(data, { challenge: ["code"] }));
+    expect([...codeOnly.challenges.keys()]).toEqual(["code"]);
+    expect(codeOnly.totalItems).toBe(4);
+  });
+
+  it("config-level filters (family) do NOT change the universe", () => {
+    // applyChallengeFilter ignores family/runtime/etc — only the challenge dim.
+    const familyFiltered = buildChallengeUniverse(applyChallengeFilter(data, { family: ["Qwen"] }));
+    expect(familyFiltered.challenges.size).toBe(2);
+    expect(familyFiltered.totalItems).toBe(10);
   });
 });
 

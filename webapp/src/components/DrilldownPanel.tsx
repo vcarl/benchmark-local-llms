@@ -1,6 +1,7 @@
 import styles from "./DrilldownPanel.module.css";
 import type { BenchmarkResult } from "../lib/data";
 import { challengeBreakdown, type RunRow } from "../lib/pipeline";
+import { computeCoverage, type ChallengeUniverse } from "../lib/coverage";
 import { useAttemptDetail } from "../lib/use-attempt-detail";
 import { scoreBand } from "../lib/constants";
 import { DebugPanel } from "./DebugPanel";
@@ -12,11 +13,14 @@ interface Props {
   // The per-config aggregate for this config, threaded from the same
   // aggregateRuns output that feeds the ranking table (null if not found).
   runRow: RunRow | null;
+  // The coverage universe (same one feeding the headline scores). Used to list
+  // the challenges this config does NOT cover so the score penalty is visible.
+  universe: ChallengeUniverse;
   attemptId: string | undefined;
   onSelectAttempt: (id: string | undefined) => void;
 }
 
-export function DrilldownPanel({ records, configHash, runRow, attemptId, onSelectAttempt }: Props) {
+export function DrilldownPanel({ records, configHash, runRow, universe, attemptId, onSelectAttempt }: Props) {
   const rows = challengeBreakdown(records, configHash);
   const detail = useAttemptDetail(attemptId);
 
@@ -25,6 +29,15 @@ export function DrilldownPanel({ records, configHash, runRow, attemptId, onSelec
   }
 
   const configRecords = records.filter((r) => r.config_hash === configHash);
+
+  // Universe challenges this config does not cover at the canonical hash. Each
+  // counts as 0 toward the adjusted score; a challenge the config ran at an
+  // older/changed hash is "stale", one it never ran is "not run".
+  const ranChallengeIds = new Set(configRecords.map((r) => r.challenge_id));
+  const missingRows = computeCoverage(configRecords, universe).missing.map((challengeId) => ({
+    challengeId,
+    stale: ranChallengeIds.has(challengeId),
+  }));
 
   return (
     <div className={styles.panel}>
@@ -92,6 +105,15 @@ export function DrilldownPanel({ records, configHash, runRow, attemptId, onSelec
           </div>
         );
       })}
+      {missingRows.map((m) => (
+        <div key={`missing-${m.challengeId}`} className={`${styles.challengeRow} ${styles.challengeRowMissing}`}>
+          <span className={styles.challengeKey}>{m.challengeId}</span>
+          <span className={styles.challengeCoverage}>
+            {m.stale ? "stale — counts as 0" : "not run"}
+          </span>
+          <span className={styles.challengeScore} data-band={scoreBand(0)}>0%</span>
+        </div>
+      ))}
     </div>
   );
 }

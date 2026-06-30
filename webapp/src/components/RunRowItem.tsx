@@ -4,7 +4,19 @@ import { scoreBand, formatEfficiency } from "../lib/constants";
 import { formatWallTime } from "../lib/format";
 import { formatFinishedAt } from "../lib/debug-metrics";
 import { splitArtifact } from "../lib/data";
+import { isIncompleteCoverage, coverageFlagTitle } from "../lib/coverage";
 import { ScatterGlyph } from "./ScatterGlyph";
+
+// A subtle muted ⓘ rendered immediately left of a headline score when the
+// config didn't run the full current challenge set. Full coverage → null.
+function CoverageFlag({ covered, total }: { covered: number; total: number }) {
+  if (!isIncompleteCoverage({ coveredChallenges: covered, totalChallenges: total })) return null;
+  return (
+    <span className={styles.coverageFlag} title={coverageFlagTitle(covered, total)} aria-hidden="true">
+      ⓘ
+    </span>
+  );
+}
 
 interface Props {
   row: RunRow;
@@ -103,12 +115,13 @@ export function RunRowItem({ row, rank, compact, groupSize, expanded, onToggle, 
               <div className={styles.resultModelFamily}>{variantTag(row, splitArtifact(row.artifact).prefix)}</div>
             </>
           )}
-          <div className={styles.resultCoverage}>
-            {row.uniqueChallenges} challenges · {row.itemCount} items
+          <div className={styles.resultCoverage} title={`${row.coveredChallenges} of ${row.totalChallenges} current challenges covered · ${row.itemCount} scored items`}>
+            {row.coveredChallenges} / {row.totalChallenges} challenges · {row.itemCount} items
           </div>
         </div>
         <div className={styles.resultScoreCell}>
           <div className={styles.resultScore} data-band={scoreBand(row.passRate)}>
+            <CoverageFlag covered={row.coveredChallenges} total={row.totalChallenges} />
             {scorePct.toFixed(0)}%
           </div>
           {!compact && <div className={styles.resultEfficiency}>{formatEfficiency(row.efficiency)}</div>}
@@ -223,11 +236,12 @@ function InvocationRowItem({ inv, configHash, onClick, tpsDomain, highlighted, o
               {formatFinishedAt(inv.finishedAt)}
             </div>
             <div className={styles.resultCoverage}>
-              {inv.uniqueChallenges} challenges · {inv.itemCount} items
+              {inv.coveredChallenges} / {inv.totalChallenges} challenges · {inv.itemCount} items
             </div>
           </div>
           <div className={styles.resultScoreCell}>
             <div className={styles.resultScore} data-band={scoreBand(inv.passRate)}>
+              <CoverageFlag covered={inv.coveredChallenges} total={inv.totalChallenges} />
               {scorePct.toFixed(0)}%
             </div>
           </div>
