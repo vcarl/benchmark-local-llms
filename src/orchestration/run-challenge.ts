@@ -27,6 +27,7 @@ import type { AttemptAggregate, AttemptManifest, ItemResult } from "../schema/at
 import type { ModelConfig } from "../schema/model.js";
 import type { RunEnv } from "../schema/run-manifest.js";
 import { scoreByConfig } from "../scoring/dispatch.js";
+import type { PromptScore } from "../scoring/score-result.js";
 import type { RunModelDeps } from "./run-model.js";
 import { runPrompt } from "./run-prompt.js";
 
@@ -166,7 +167,7 @@ export const executeOrCacheItem = (
       promptName: item.itemId,
     }).pipe(
       Effect.catchAll(() =>
-        Effect.succeed({ kind: "prompt" as const, score: 0, details: "scorer error" }),
+        Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
       ),
     );
 
@@ -188,6 +189,12 @@ export const executeOrCacheItem = (
       rawOutput: exec.rawOutput,
       error: exec.error,
       score: exec.error === null ? scoreResult.score : 0,
+      // An errored execution scored 0 and must not carry a (stale) breakdown.
+      // Only the constraint scorer sets `breakdown`; others leave it undefined,
+      // and the conditional spread omits the key entirely in that case.
+      ...(exec.error === null && scoreResult.breakdown !== undefined
+        ? { breakdown: scoreResult.breakdown }
+        : {}),
     } satisfies ItemResult;
   });
 

@@ -116,6 +116,62 @@ describe("rescoreItems", () => {
     expect(res.drift).toBe(0);
   });
 
+  it("captures the constraint breakdown (passed/failed names) on the re-scored item", async () => {
+    const constraintScorer: ScorerConfig = {
+      type: "constraint",
+      constraints: [
+        { check: "contains", name: "has_foo", value: "foo" },
+        { check: "contains", name: "has_bar", value: "bar" },
+        { check: "contains", name: "has_zzz", value: "zzz" },
+      ],
+    };
+    const items = [item({ promptHash: "ph1", output: "foo only", score: 0 })];
+    const res = await run(
+      rescoreItems(items, resolved([resolvedItem("p1", "ph1", constraintScorer)])),
+    );
+    expect(res.updated[0]?.breakdown?.passed).toEqual(["has_foo"]);
+    expect(res.updated[0]?.breakdown?.failed).toEqual(["has_bar", "has_zzz"]);
+    expect(res.updated[0]?.breakdown?.errored).toEqual([]);
+  });
+
+  it("carries no breakdown for an item that recorded an execution error", async () => {
+    const constraintScorer: ScorerConfig = {
+      type: "constraint",
+      constraints: [{ check: "contains", name: "has_foo", value: "foo" }],
+    };
+    // Even though the stored item carries a stale breakdown, an execution-error
+    // re-score forces score 0 and clears it.
+    const items = [
+      item({
+        promptHash: "ph1",
+        error: "boom",
+        score: 1,
+        breakdown: { passed: ["has_foo"], failed: [], errored: [] },
+      }),
+    ];
+    const res = await run(
+      rescoreItems(items, resolved([resolvedItem("p1", "ph1", constraintScorer)])),
+    );
+    expect(res.updated[0]?.score).toBe(0);
+    expect(res.updated[0]?.breakdown).toBeUndefined();
+  });
+
+  it("clears a stale breakdown when the re-score scorer no longer produces one", async () => {
+    // Stored item has a constraint breakdown; re-scoring with a non-constraint
+    // (exact_match) scorer must drop it.
+    const items = [
+      item({
+        promptHash: "ph1",
+        output: "the answer is 42",
+        score: 1,
+        breakdown: { passed: ["x"], failed: [], errored: [] },
+      }),
+    ];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", exactMatch)])));
+    expect(res.updated[0]?.score).toBe(1);
+    expect(res.updated[0]?.breakdown).toBeUndefined();
+  });
+
   it("folds a scorer error to score 0 (and still counts as rescored)", async () => {
     // A game scorer in scoreByConfig fails → caught → score 0.
     const gameScorer = { type: "game", gameScorer: "nope", scorerParams: {} } as ScorerConfig;

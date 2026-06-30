@@ -58,6 +58,9 @@ export const writeDetails = (
           score: item.score,
           error: item.error,
           scorer,
+          // Per-check constraint breakdown when present (undefined → JSON.stringify
+          // drops the key, so pre-breakdown archives emit no field at all).
+          breakdown: item.breakdown,
         })),
       };
       const outPath = pathSvc.join(detailsDir, `${attemptId}.json`);

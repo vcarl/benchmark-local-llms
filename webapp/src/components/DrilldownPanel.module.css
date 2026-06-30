@@ -30,6 +30,16 @@
 .item { border-top: 1px solid var(--border-subtle); padding: var(--space-4) 0; }
 .itemLabel { color: var(--text-faint); font-size: var(--fz-10); text-transform: uppercase; letter-spacing: 0.05em; margin-top: var(--space-3); }
 .itemText { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, monospace; font-size: var(--fz-11); color: var(--text-secondary); margin: var(--space-2) 0; }
+/* Cap tall output/thinking blocks so several attempts stay visible at once;
+   overflow scrolls within the block. */
+.scrollText {
+  max-height: 30vh;
+  overflow: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: var(--space-3);
+}
 .itemScore { font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
 .loading, .error { color: var(--text-muted); padding: var(--space-6); }
 

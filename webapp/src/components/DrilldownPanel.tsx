@@ -4,6 +4,7 @@ import { challengeBreakdown, type RunRow } from "../lib/pipeline";
 import { computeCoverage, type ChallengeUniverse } from "../lib/coverage";
 import { useAttemptDetail } from "../lib/use-attempt-detail";
 import { scoreBand } from "../lib/constants";
+import { describeScorer } from "../lib/describe-scorer";
 import { DebugPanel } from "./DebugPanel";
 import { ConfigSummaryPanel } from "./ConfigSummaryPanel";
 
@@ -79,11 +80,11 @@ export function DrilldownPanel({ records, configHash, runRow, universe, attemptI
                         <div className={styles.itemLabel}>Prompt</div>
                         <div className={styles.itemText}>{it.prompt_text}</div>
                         <div className={styles.itemLabel}>Output</div>
-                        <div className={styles.itemText}>{it.output}</div>
+                        <div className={`${styles.itemText} ${styles.scrollText}`}>{it.output}</div>
                         <details className={styles.thinking}>
                           <summary className={styles.thinkingSummary}>Thinking</summary>
                           {it.reasoning !== null && it.reasoning !== "" ? (
-                            <div className={styles.itemText}>{it.reasoning}</div>
+                            <div className={`${styles.itemText} ${styles.scrollText}`}>{it.reasoning}</div>
                           ) : (
                             <div className={styles.thinkingEmpty}>No thinking captured</div>
                           )}
@@ -95,7 +96,7 @@ export function DrilldownPanel({ records, configHash, runRow, universe, attemptI
                           </>
                         )}
                         <div className={styles.itemLabel}>Scorer</div>
-                        <div className={styles.itemText}>{JSON.stringify(it.scorer, null, 2)}</div>
+                        {describeScorer(it.scorer, it.breakdown)}
                       </div>
                     ))}
                   </>

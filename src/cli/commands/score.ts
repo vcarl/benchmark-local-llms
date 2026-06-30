@@ -27,6 +27,7 @@ import { loadAttemptReconstruction } from "../../report/reconstruct.js";
 import type { AttemptAggregate, AttemptManifest, ItemResult } from "../../schema/attempt.js";
 import type { ScorerConfig } from "../../schema/scorer.js";
 import { scoreByConfig } from "../../scoring/dispatch.js";
+import type { PromptScore } from "../../scoring/score-result.js";
 import { makeLoggerLayer } from "../logger.js";
 
 const printLine = (line: string): Effect.Effect<void> =>
@@ -69,6 +70,21 @@ const corpusOpt = Options.boolean("corpus").pipe(
     "Apply the CURRENT corpus scorers (edit-iterate loop) instead of the archive's stored scorers",
   ),
 );
+
+/**
+ * Rebuild an archived item with a fresh score and breakdown. The stale
+ * `breakdown` from the archive is always dropped first; the new one is attached
+ * only when present (constraint scorers), so a re-score that no longer yields a
+ * breakdown (non-constraint scorer, or execution error) clears the old value.
+ */
+const withBreakdown = (
+  archived: ItemResult,
+  score: number,
+  breakdown: PromptScore["breakdown"],
+): ItemResult => {
+  const { breakdown: _stale, ...rest } = archived;
+  return { ...rest, score, ...(breakdown !== undefined ? { breakdown } : {}) };
+};
 
 // ── Per-item re-score ladder ─────────────────────────────────────────────────
 
@@ -136,14 +152,14 @@ export const rescoreItems = (
       if (archived.error !== null) {
         rescored += 1;
         notes.push(`  ${archived.promptName}: execution error → score 0 (was ${archived.score})`);
-        updated.push({ ...archived, score: 0 });
+        updated.push(withBreakdown(archived, 0, undefined));
         continue;
       }
       const scoreResult = yield* scoreByConfig(archived.output, resolvedItem.scorer, {
         promptName: archived.promptName,
       }).pipe(
         Effect.catchAll(() =>
-          Effect.succeed({ kind: "prompt" as const, score: 0, details: "scorer error" }),
+          Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
         ),
       );
       rescored += 1;
@@ -152,7 +168,7 @@ export const rescoreItems = (
           `  ${archived.promptName}: ${archived.score} → ${scoreResult.score} (${scoreResult.details})`,
         );
       }
-      updated.push({ ...archived, score: scoreResult.score });
+      updated.push(withBreakdown(archived, scoreResult.score, scoreResult.breakdown));
     }
 
     return { updated, rescored, drift, notes, warnings };
@@ -182,21 +198,21 @@ export const rescoreItemsFromStore = (
       }
       if (archived.error !== null) {
         rescored += 1;
-        updated.push({ ...archived, score: 0 });
+        updated.push(withBreakdown(archived, 0, undefined));
         continue;
       }
       const r = yield* scoreByConfig(archived.output, scorer, {
         promptName: archived.promptName,
       }).pipe(
         Effect.catchAll(() =>
-          Effect.succeed({ kind: "prompt" as const, score: 0, details: "scorer error" }),
+          Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
         ),
       );
       rescored += 1;
       if (r.score !== archived.score) {
         notes.push(`  ${archived.promptName}: ${archived.score} → ${r.score} (${r.details})`);
       }
-      updated.push({ ...archived, score: r.score });
+      updated.push(withBreakdown(archived, r.score, r.breakdown));
     }
     return { updated, rescored, drift: 0, notes, warnings: [] };
   });

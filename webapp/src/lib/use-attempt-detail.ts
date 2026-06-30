@@ -9,6 +9,9 @@ export interface AttemptDetailItem {
   score: number;
   error: string | null;
   scorer: unknown;
+  // Per-check constraint breakdown (constraint scorer only). Absent on archives
+  // written before breakdown existed → drilldown renders no ✓/✗ marks.
+  breakdown?: { passed: string[]; failed: string[]; errored: string[] } | null;
 }
 
 export interface AttemptDetail {

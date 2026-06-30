@@ -21,6 +21,19 @@ export const ItemResult = Schema.Struct({
   rawOutput: Schema.String,
   error: Schema.NullOr(Schema.String),
   score: Schema.Number,
+  /**
+   * Per-check breakdown for the constraint scorer (passed/failed/errored
+   * constraint `name`s). Optional and constraint-shaped: only the constraint
+   * scorer populates it; archives written before this field existed omit it
+   * entirely and degrade to "no breakdown".
+   */
+  breakdown: Schema.optional(
+    Schema.Struct({
+      passed: Schema.Array(Schema.String),
+      failed: Schema.Array(Schema.String),
+      errored: Schema.Array(Schema.String),
+    }),
+  ),
 });
 export type ItemResult = typeof ItemResult.Type;
 

@@ -1,0 +1,28 @@
+.desc {
+  font-size: var(--fz-11);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: var(--space-2) 0;
+}
+.desc p { margin: var(--space-1) 0; }
+.desc strong { color: var(--text-primary); font-weight: 600; }
+.desc code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: var(--surface-raised);
+  border-radius: 3px;
+  padding: 0 var(--space-1);
+}
+.list { margin: var(--space-1) 0 0; padding-left: var(--space-6); }
+.list li { margin: 1px 0; }
+.muted { color: var(--text-faint); }
+/* Per-check constraint outcome marks (constraint scorer drilldown). */
+.pass { color: var(--band-green); font-weight: 600; }
+.fail { color: var(--band-red); font-weight: 600; }
+/* Unrecognized scorer shape — fall back to raw JSON so nothing is hidden. */
+.fallback {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: var(--fz-11);
+  color: var(--text-secondary);
+  margin: var(--space-2) 0;
+}
