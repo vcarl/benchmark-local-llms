@@ -143,6 +143,58 @@ describe("resolveChallenge entity scorers (set_match / ordered_match)", () => {
   });
 });
 
+describe("resolveChallenge regex pattern validation", () => {
+  const constraintChallenge = (constraints: readonly unknown[]): Challenge =>
+    ({
+      id: "regex-val",
+      version: 1,
+      passThreshold: 0.5,
+      items: [
+        {
+          name: "item_under_test",
+          category: "x",
+          tier: 1,
+          prompt: "p",
+          scorer: "constraint",
+          constraints,
+        },
+      ],
+    }) as unknown as Challenge;
+
+  it("fails fast on a regex pattern that cannot compile even after flag translation", async () => {
+    const challenge = constraintChallenge([
+      { check: "regex", name: "midpattern_group", pattern: "foo(?i)bar" },
+    ]);
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag !== "Failure") return;
+    const rendered = String(exit.cause);
+    expect(rendered).toContain("regex-val");
+    expect(rendered).toContain("midpattern_group");
+    expect(rendered).toContain("foo(?i)bar");
+  });
+
+  it("accepts leading Python inline flags (translated before compiling)", async () => {
+    const challenge = constraintChallenge([
+      { check: "regex", name: "ok_i", pattern: String.raw`(?i)Data\.TaggedError` },
+      { check: "regex", name: "ok_m", pattern: String.raw`(?m)^yield\*` },
+      { check: "regex_count_min", name: "ok_count", pattern: "(?i)effect", min: 2 },
+    ]);
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Success");
+  });
+
+  it("validates regex_count_min patterns too", async () => {
+    const challenge = constraintChallenge([
+      { check: "regex_count_min", name: "broken_count", pattern: "[unclosed", min: 1 },
+    ]);
+    const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag !== "Failure") return;
+    expect(String(exit.cause)).toContain("broken_count");
+  });
+});
+
 describe("resolveChallenge hashing", () => {
   it("challengeHash is deterministic for fixed inline items", async () => {
     const challenge: Challenge = {

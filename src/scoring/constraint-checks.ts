@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { ConstraintEvalError } from "../errors/scorer.js";
 import type { ConstraintDef } from "../schema/constraints.js";
+import { translateInlineFlags } from "./regex-flags.js";
 
 /**
  * Pure per-constraint evaluators, ported byte-for-byte from
@@ -19,37 +20,98 @@ import type { ConstraintDef } from "../schema/constraints.js";
 
 const escapeRegExp = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
 
+/** `JSON.parse` that expresses failure as `null` instead of a rejection. */
+const parseOrNull = (text: string): unknown | null =>
+  Effect.runSync(
+    Effect.try({
+      try: () => JSON.parse(text) as unknown,
+      catch: () => null,
+    }).pipe(Effect.orElseSucceed(() => null)),
+  );
+
 /**
- * Mirrors `common.py:_try_parse_json`:
- *   1. Try `json.loads(text.strip())`.
- *   2. On failure, search for the first `{[^{}]*}` block with `re.DOTALL`
- *      and try to parse that.
- *   3. Otherwise return `None`/`null`.
+ * First markdown code fence (any language tag), analogous to
+ * `extract-code.ts:FENCE_RE` but language-agnostic — model output wraps JSON
+ * in ```json / ``` fences, not ```python ones.
+ */
+const JSON_FENCE_RE = /```[a-zA-Z0-9_-]*[ \t]*\r?\n([\s\S]*?)```/;
+
+/**
+ * Find the index of the delimiter that closes the `{` or `[` at `start`,
+ * respecting JSON string literals and backslash escapes. Returns -1 when the
+ * block never closes (i.e. the scan reached end-of-text). Depth-only
+ * tracking is sufficient: a mismatched pair (`{...]`) yields a candidate
+ * that `JSON.parse` rejects anyway.
+ */
+const findBalancedEnd = (text: string, start: number): number => {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text.charAt(i);
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth += 1;
+    else if (c === "}" || c === "]") {
+      depth -= 1;
+      if (depth <= 0) return depth === 0 ? i : -1;
+    }
+  }
+  return -1;
+};
+
+/**
+ * Scan for the first balanced top-level `{...}` or `[...]` block that parses
+ * as JSON. Extracts a full nested object out of prose like
+ * `Here is the JSON: {"a":{"b":1}} hope that helps`, and top-level arrays.
  *
- * We return `Effect<unknown | null>` so callers can compose; failure is
- * expressed as a `null` value (matching the Python prototype), not a
- * rejection. This is correct per §4.3: JSON parse failure is the check
- * failing, not the scorer erroring.
+ * Linear-time constraint: an unclosed candidate means `findBalancedEnd`
+ * already scanned to end-of-text, so the whole search terminates there —
+ * pathological inputs like `"{".repeat(50000)` cost one aggregate scan, not
+ * one scan per opener. (Consequence: an unmatched opener hides any block
+ * after it.) A candidate that closes but fails to parse only retries from
+ * the character after its opener, so each rescan is bounded by that closed
+ * block's length: O(N·k) overall for k closed blocks.
+ */
+const extractBalancedJson = (text: string): unknown | null => {
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charAt(i);
+    if (c !== "{" && c !== "[") continue;
+    const end = findBalancedEnd(text, i);
+    if (end === -1) return null;
+    const parsed = parseOrNull(text.slice(i, end + 1));
+    if (parsed !== null) return parsed;
+  }
+  return null;
+};
+
+/**
+ * Robust JSON extraction from model output:
+ *   1. Try `JSON.parse(text.trim())` directly.
+ *   2. If the output is fence-wrapped, try the first fenced block verbatim.
+ *   3. Fall back to a balanced-delimiter scan over the whole text (which
+ *      also covers fence interiors) for the first parseable `{...}`/`[...]`.
+ *
+ * Failure is expressed as a `null` value (matching the Python prototype's
+ * `_try_parse_json` contract), not a rejection. This is correct per §4.3:
+ * JSON parse failure is the check failing, not the scorer erroring.
  */
 const tryParseJson = (text: string): unknown | null => {
-  const parsed = Effect.runSync(
-    Effect.try({
-      try: () => JSON.parse(text.trim()) as unknown,
-      catch: () => null,
-    }).pipe(Effect.orElseSucceed(() => null)),
-  );
-  if (parsed !== null) return parsed;
+  const strict = parseOrNull(text.trim());
+  if (strict !== null) return strict;
 
-  // Fallback: extract the first {...} block (DOTALL). Python regex: `\{[^{}]*\}`.
-  const m = /\{[^{}]*\}/s.exec(text);
-  if (m === null) return null;
+  const fence = JSON_FENCE_RE.exec(text);
+  if (fence?.[1] !== undefined) {
+    const fenced = parseOrNull(fence[1].trim());
+    if (fenced !== null) return fenced;
+  }
 
-  return Effect.runSync(
-    Effect.try({
-      try: () => JSON.parse(m[0]) as unknown,
-      catch: () => null,
-    }).pipe(Effect.orElseSucceed(() => null)),
-  );
+  return extractBalancedJson(text);
 };
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
@@ -109,14 +171,16 @@ export const evaluateConstraint = (
           return output.trim().length > def.length;
 
         case "regex": {
-          const flags = def.dotall === true ? "s" : "";
-          return new RegExp(def.pattern, flags).test(output);
+          const base = def.dotall === true ? "s" : "";
+          const t = translateInlineFlags(def.pattern, base);
+          return new RegExp(t.pattern, t.flags).test(output);
         }
 
         case "regex_count_min": {
           // Python `re.findall` without global is equivalent to JS global
           // `matchAll` for counting non-overlapping matches.
-          const re = new RegExp(def.pattern, "g");
+          const t = translateInlineFlags(def.pattern, "g");
+          const re = new RegExp(t.pattern, t.flags);
           const n = Array.from(output.matchAll(re)).length;
           return n >= def.min;
         }

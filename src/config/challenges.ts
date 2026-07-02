@@ -12,6 +12,7 @@ import { Challenge, type ChallengeItem } from "../schema/challenge.js";
 import { ConstraintCheck } from "../schema/enums.js";
 import type { PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
 import type { ScorerConfig } from "../schema/scorer.js";
+import { translateInlineFlags } from "../scoring/regex-flags.js";
 import { computePromptHash, shortSha256, stableStringify } from "./hashing.js";
 import { parseYaml } from "./yaml.js";
 
@@ -86,6 +87,46 @@ const validateEntityScorer = (
   const missing = expected.filter((e) => !vocab.has(e));
   if (missing.length > 0) {
     return `expected tokens not in vocabulary: [${missing.join(", ")}]`;
+  }
+  return null;
+};
+
+/** Compile a pattern as a JS RegExp; returns the error message, or `null` if it compiles. */
+const regexCompileProblem = (pattern: string, flags: string): string | null =>
+  Effect.runSync(
+    Effect.try({
+      try: () => new RegExp(pattern, flags),
+      catch: (e) => (e instanceof Error ? e.message : String(e)),
+    }).pipe(Effect.match({ onFailure: (msg) => msg, onSuccess: () => null })),
+  );
+
+/**
+ * Fail fast at load time on any regex-family constraint whose pattern does
+ * not compile as a JS RegExp (after leading Python inline-flag translation,
+ * mirroring exactly what `constraint-checks.ts` does at scoring time). An
+ * uncompilable pattern can never pass — at runtime it lands in the scorer's
+ * `errored` bucket and silently counts as 0 — so authoring mistakes must be
+ * loud here rather than quietly capping every attempt's score.
+ */
+const validateConstraintPatterns = (
+  challengeId: string,
+  item: ChallengeItem,
+): ConfigError | null => {
+  if (item.scorer !== "constraint") return null;
+  for (const c of item.constraints) {
+    if (c.check !== "regex" && c.check !== "regex_count_min") continue;
+    const base = c.check === "regex" ? (c.dotall === true ? "s" : "") : "g";
+    const t = translateInlineFlags(c.pattern, base);
+    const problem = regexCompileProblem(t.pattern, t.flags);
+    if (problem !== null) {
+      return new ConfigError({
+        path: challengeId,
+        message:
+          `Challenge '${challengeId}' item '${item.name}' constraint '${c.name}' (${c.check}): ` +
+          `pattern does not compile as a JS RegExp after inline-flag translation: ` +
+          `${c.pattern} — ${problem}`,
+      });
+    }
   }
   return null;
 };
@@ -188,6 +229,10 @@ export const resolveChallenge = (
           );
         }
         seen.set(item.name, index);
+        const patternProblem = validateConstraintPatterns(challenge.id, item);
+        if (patternProblem !== null) {
+          return yield* Effect.fail(patternProblem);
+        }
         const prompt = yield* buildPromptEntry(item, challengeDir);
         const itemHash = shortSha256(`${prompt.promptHash}|${scorerKey(prompt.scorer)}`);
         return {
