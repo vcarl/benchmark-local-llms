@@ -58,12 +58,16 @@ world — there are not six fixtures per scenario.** Each scenario carries, at o
 - standing state (fuel, hull, cargo, credits, contacts, comms);
 - a prior-shift claim that current facts contradict — feeds C2 and C5;
 - one incoming event — feeds C1, C4, C6;
-- a completed work step: its goal plus the mechanical action log — feeds C3;
+- a completed work step: its retrospective goal plus the mechanical action log — feeds C3;
+- a prospective objective the planner is currently working toward — feeds C5;
 - a learned advisory that was true when written — feeds C5.
 
+The retrospective step goal and the prospective objective are two distinct payloads and
+every scenario carries both.
+
 The three treatments render only the `{{ENVIRONMENT_CONTEXT}}` portion. The payloads
-(`{{EVENT}}`, `{{ACTION_LOG}}`, `{{ADVISORY}}`, `{{GOAL}}`) are treatment-invariant by
-construction. This is what makes C a **within-scenario** factor: all 18 cells of a
+(`{{EVENT}}`, `{{ACTION_LOG}}`, `{{ADVISORY}}`, `{{STEP_GOAL}}`, `{{OBJECTIVE}}`) are
+treatment-invariant by construction. This is what makes C a **within-scenario** factor: all 18 cells of a
 scenario rest on identical information, so any difference between cells is attributable to
 structure and to nothing else.
 
@@ -105,7 +109,7 @@ evidence-over-inference can produce a false negative rather than a false positiv
 Turn 2 is a score-reproduction task, not a mood check. The model is told exactly what the
 mechanical checks look for and asked to report the score it expects to receive.
 **Calibration is the agreement between the model's self-reported score and the mechanical
-score**, reported two ways: exact-match rate, and mean absolute error.
+score.**
 
 The reason for the split: asking for a self-check is itself a reflection prompt that would
 improve turn-1 performance and blunt the traps in C4 and C6. Keeping it in a second turn
@@ -113,6 +117,39 @@ preserves the traps and buys a calibration measurement.
 
 There is no LLM-judge. Both the turn-1 answer and the turn-2 self-reported score are
 mechanically scorable, so judge validity never becomes a dependency of the results.
+
+#### Calibration is scored, not merely observed
+
+**The self-reported score is a first-class eval output.** It is surfaced per item in the
+webapp drilldown, and a deviation from the mechanical score fails the item.
+
+The `constraint` scorer computes `score = passed/total` over an item's checks.
+**Calibration is one more check in that list** — a check kind alongside the twenty in
+`src/schema/constraints.ts`, evaluated by `src/scoring/constraint-checks.ts`. Two
+consequences follow directly:
+
+- A miscalibrated item never reaches a score of 1.0.
+- `aggregate` in `src/orchestration/run-challenge.ts` counts only items with `score === 1`
+  as passing, so a deviation fails at the attempt level as well.
+
+**The calibration result is a check rather than a gate, and that is what preserves the
+reward for honest failure.** A model that fails mechanically and correctly reports that it
+failed loses the mechanical checks but earns the calibration check, scoring above a model
+that fails and reports success. Gating the item on both mechanical correctness and
+calibration collapses those two cases to zero and destroys exactly the signal the second
+turn exists to capture.
+
+**Matching is exact.** The check passes on exact agreement between the model's
+self-reported score and the item's mechanical fraction. The model is told the judging
+criteria, so it can count checks as accurately as the scorer does; near-misses earn no
+partial credit. Mean absolute error remains a reported analysis statistic in P3 and does
+not affect the item score.
+
+The calibration check is unlike the other twenty in one respect: it reads the **turn-2
+output** and the **results of the other checks in the same item**. `followUp` text is
+therefore routed into `scoreByConfig`, and the check evaluates last within its item.
+Everything else about it is additive — it is a new kind in an existing scorer, not a new
+scorer.
 
 ### Controls
 
@@ -209,7 +246,11 @@ functions.
 - Six challenge templates: context + payloads -> prompt.
 - Derivation of mechanical checks from the manifest.
 - The exact wording of the turn-2 score-reproduction prompt. The design is fixed above;
-  P2 authors the text.
+  P2 authors the text. **The prompt states the judging criteria in enough detail that
+  reproducing the score is actually possible** — which checks run, and what each one
+  looks for. This is a design constraint on the prompt, not an open question: if the model
+  cannot tell what is being checked, the trial measures guesswork rather than calibration,
+  and the calibration check then fails items for the wrong reason.
 - C6's check set, including which of C1's domain rules it inherits.
 
 ### Does not own
@@ -217,7 +258,8 @@ functions.
 - System prompts. A config concern; stays in `system-prompts.yaml`, never inlined into
   challenges.
 - Model selection and decoding params.
-- Check execution — `src/scoring/` runs the emitted declarations, unchanged.
+- Check execution. `src/scoring/` runs the emitted declarations; P2 emits a calibration
+  check in each item's list but does not implement the kind, which is P1's.
 - Archive, report and webapp shape.
 - Any analysis, or any notion of which treatment "won".
 
@@ -367,8 +409,9 @@ disturbing S2's C1 answer being NOTE. P2 decides whether to use it.
 ## The six challenge prompts
 
 Conventions: `{{ENVIRONMENT_CONTEXT}}` is filled by one treatment. `{{EVENT}}`,
-`{{ACTION_LOG}}`, `{{ADVISORY}}` and `{{GOAL}}` are per-scenario payloads, identical
-across treatments.
+`{{ACTION_LOG}}`, `{{ADVISORY}}`, `{{STEP_GOAL}}` (C3's retrospective step goal) and
+`{{OBJECTIVE}}` (C5's prospective objective) are per-scenario payloads, identical across
+treatments.
 
 **Logical rules are never stated to the model.** A prompt carries its task and its output
 contract and nothing else; the rules that determine a correct answer live in the derived
@@ -442,7 +485,7 @@ action taken. The log is authoritative; the agent's intentions are not.
 {{ENVIRONMENT_CONTEXT}}
 
 ## Step goal
-{{GOAL}}
+{{STEP_GOAL}}
 
 ## Action log (complete, in order)
 {{ACTION_LOG}}
@@ -492,7 +535,7 @@ written. It may not be true now.
 {{ADVISORY}}
 
 ## Current objective
-{{GOAL}}
+{{OBJECTIVE}}
 
 Recommend the single next action. Format:
 
@@ -603,11 +646,11 @@ of scan range and hasn't done anything worth mentioning.
 
 ## P1: harness seams
 
-P1 is one change: multi-turn support. Nothing else in the harness moves. The experimental
-axes ride in item names, per-item detail already exists in
-`webapp/public/details/<attemptId>.json`, and analysis reads the archive directly — so no
-schema field, no report-contract grain change and no webapp work is required to run this
-set.
+P1 is three changes: **multi-turn support, the calibration check kind, and the
+detail-reporting path that surfaces the self-reported score per item.** Nothing else in
+the harness moves. The experimental axes ride in item names and analysis reads the archive
+directly, so no report-contract grain change and no aggregation work is required to run
+this set.
 
 ### Multi-turn
 
@@ -664,8 +707,8 @@ set.
   `webapp/src/lib/pipeline.ts:398-434`, which uses summed `generation_tokens` as the
   scatter-plot X axis, and `:64-68`, which computes
   `efficiency = (rawPassRate * uniqueChallenges * completed) / (log(overallTokens) * (timeSpent/60)) * SCALE`.
-  A second turn roughly doubles wall time and adds tokens for zero additional pass credit,
-  so if `followUp` counters folded into `generation_tokens` / `wall_time_sec` at
+  A second turn roughly doubles wall time and adds tokens while contributing a single
+  check to an item that already had several, so if `followUp` counters folded into `generation_tokens` / `wall_time_sec` at
   `src/report/webapp-contract.ts:37-40`, every multi-turn config's efficiency would drop
   and its scatter X shift right while historical turn-1-only configs stayed put — across
   1,419 attempts spanning both regimes, with nothing in the plot to distinguish them.
@@ -678,9 +721,41 @@ set.
   run-challenge, run-matrix and phases tests. This is the highest-probability silent
   failure in the change.
 
-**The three risks in P1**, in order: the cache turn-mode discriminator, the
-`fixtures.ts` mock key, and turn-2 counters leaking into the per-attempt aggregates. All
-three fail silently rather than loudly, and all three are inside this one change.
+### The calibration check kind
+
+A new check kind in `src/schema/constraints.ts`, evaluated in
+`src/scoring/constraint-checks.ts` alongside the existing twenty. It compares the score
+the model reports in turn 2 against the fraction of the item's other checks that passed,
+and passes on exact agreement. No new scorer type: the `constraint` scorer already divides
+passed by total, and this check simply joins the list it divides over.
+
+Two things make it unlike its twenty siblings, and both are the plumbing this change adds:
+
+- **It reads turn-2 text.** `followUp` output is routed into `scoreByConfig` so the check
+  has the model's self-reported score to parse.
+- **It reads the other checks' results, so it evaluates last within its item.** The other
+  twenty are independent of one another; this one consumes their outcome.
+
+### Reporting the self-score
+
+The self-reported score is surfaced per item in the webapp drilldown, which shows prompt,
+output/thinking and scorer. It follows the exact path `breakdown` took in commit
+`11721f1`: computed during scoring, threaded onto `ItemResult`, emitted into the per-item
+payload in `src/report/write-details.ts`, consumed by `AttemptDetailItem` in
+`webapp/src/lib/use-attempt-detail.ts`, and rendered per item in the drilldown UI.
+
+**This is the only webapp surface touched.** The `data.js` contract, `WebappRecord`,
+`webapp/src/lib/pipeline.ts` and `webapp/src/lib/coverage.ts` are untouched: the
+per-attempt grain does not change and no new global is emitted. The detail JSON already
+carries optional per-item fields that older archives omit, so archives without a
+self-score render exactly as they do today.
+
+**The four risks in P1**, in order: the cache turn-mode discriminator, the `fixtures.ts`
+mock key, turn-2 counters leaking into the per-attempt aggregates, and the ordering
+dependency of the calibration check — it must evaluate after the other checks in its item,
+and a scorer that evaluates checks independently or in parallel would silently produce a
+wrong calibration result. All four fail silently rather than loudly, and all four are
+inside this one project.
 
 ### Lint and typing constraints
 
@@ -699,18 +774,20 @@ assigned undefined explicitly — use the conditional-spread idiom already at
 
 **P3 is a script that reads `benchmark-archive/*.jsonl` directly.** It follows the
 precedent set by `./bench score`, which re-scores attempt archives in place from the same
-files. There is no webapp work, no report-contract change, and no new data file: the
-archive already carries every item's name, score, output and `followUp`, and the drilldown
-JSON at `webapp/public/details/<attemptId>.json` already carries per-item `item_id`,
-`prompt_name`, `prompt_text`, `output`, `reasoning`, `score`, `error`, `scorer` and
-`breakdown` for anything that needs to be read by eye.
+files. There is no report-contract change and no new data file: the archive carries every
+item's name, score, output and `followUp`, and the drilldown JSON at
+`webapp/public/details/<attemptId>.json` carries per-item `item_id`, `prompt_name`,
+`prompt_text`, `output`, `reasoning`, `score`, `error`, `scorer`, `breakdown` and the
+self-reported score for anything that needs to be read by eye.
 
 The script parses the experimental axes out of item names (`agentic_c1_t1_s1`) and
 produces:
 
 - the cell table — mean score per (challenge x treatment), split by model;
-- calibration — exact-match rate and mean absolute error between the turn-2
-  self-reported score and the mechanical score;
+- calibration statistics — exact-match rate and mean absolute error between the turn-2
+  self-reported score and the mechanical score, cut by challenge, treatment and model.
+  Exact match is already scored per item by the calibration check; P3 aggregates it and
+  adds mean absolute error, which is descriptive only and moves no score;
 - the "present but unusable" query — items where a canary fact appears in the input and
   is absent from the answer;
 - the R5 validity checks: discrimination, and reproduction of the five archetypes.
@@ -723,11 +800,15 @@ Explicit boundaries for this project:
 - Repeats, repeat seeds and variance recording. (The per-scenario seed owned by P2 is a
   fixture-authoring device that makes surface details unmemorizable; it is not a repeat
   mechanism and never enters a cache key.)
-- New scorer types. Everything is scored by the existing `constraint` scorer.
+- New scorer types. Everything is scored by the existing `constraint` scorer; the
+  calibration check is a new check kind within it, not a new scorer.
 - An LLM-judge scorer.
 - Tier wiring. It is a dead axis; leave it dead.
 - Removal of vestigial `src/game/**` and `RunManifest`.
-- The webapp and the report contract. Neither is touched; results are read from the
+- The report contract and the aggregation machinery. `data.js`, `WebappRecord`,
+  `webapp/src/lib/pipeline.ts` and `webapp/src/lib/coverage.ts` are untouched, and the
+  per-attempt grain does not change. The one webapp surface in scope is the per-item
+  drilldown, which renders the self-reported score; analysis results are read from the
   archive.
 
 ## Review gates
@@ -767,10 +848,6 @@ content-addressed item cache, which scans the archive per item.
 
 ## Open questions
 
-- **`{{GOAL}}` carries two different things.** C3's goal is the completed step's goal
-  (retrospective); C5's is the current objective (prospective). A scenario must therefore
-  carry two distinct goal payloads, and the placeholder naming in the challenge prompts
-  does not currently distinguish them.
 - **How information equivalence is asserted for T3.** T1 and T2 are structured, so a fact
   can be checked by construction. T3 is prose. Either every manifest fact carries a
   per-treatment surface form that the renderer must consume (making the assertion a
