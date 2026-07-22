@@ -98,16 +98,21 @@ evidence-over-inference can produce a false negative rather than a false positiv
 **Every trial is two conversational turns.**
 
 - **Turn 1** is the challenge exactly as designed, uncontaminated.
-- **Turn 2** shows the model its own turn-1 output as an assistant message and asks for a
-  generic self-assessment verdict.
+- **Turn 2** shows the model its own turn-1 output as an assistant message, **states the
+  judging criteria explicitly, and asks the model to produce the same score the automated
+  check will produce.**
 
-Turn 2 is scored against turn-1 mechanical ground truth as a separate **calibration**
-signal. The reason for the split: asking for a self-check is itself a reflection prompt
-that would improve turn-1 performance and blunt the traps in C4 and C6. Keeping it in a
-second turn preserves the traps and buys a calibration measurement.
+Turn 2 is a score-reproduction task, not a mood check. The model is told exactly what the
+mechanical checks look for and asked to report the score it expects to receive.
+**Calibration is the agreement between the model's self-reported score and the mechanical
+score**, reported two ways: exact-match rate, and mean absolute error.
 
-There is no LLM-judge. Self-assessment is itself mechanically scorable, so judge validity
-never becomes a dependency of the results.
+The reason for the split: asking for a self-check is itself a reflection prompt that would
+improve turn-1 performance and blunt the traps in C4 and C6. Keeping it in a second turn
+preserves the traps and buys a calibration measurement.
+
+There is no LLM-judge. Both the turn-1 answer and the turn-2 self-reported score are
+mechanically scorable, so judge validity never becomes a dependency of the results.
 
 ### Controls
 
@@ -121,6 +126,13 @@ never becomes a dependency of the results.
   control and the primary reason the rendering layer exists at all. The mechanism by
   which a *prose* rendering (T3) is checked against the manifest is not settled — see
   Open questions.
+- **Time is a rendering detail, not an equivalence obligation.** The source game runs a
+  real 10-second tick; the scenarios imitate it for eval purposes. Exact time arithmetic
+  does not need to reconcile across treatments — T1 may carry ticks where T2 and T3 carry
+  minutes. The requirement is that time is rendered consistently across the three
+  treatments, and that is sufficient. Equivalence applies to the facts a challenge can be
+  scored on: a cargo capacity that T1 and T2 state and T3 omits is a real violation and
+  the fact is cut or the prose is fixed.
 - **Fixed decoding params** per model, from the existing config.
 - **Fixed output contract** per challenge.
 - **Seeded surface details.** Scenario names and numbers are randomized per fixture so
@@ -174,8 +186,11 @@ The renderer is **pure and total**: `Scenario -> RenderedVariant[]`, where
 RenderedVariant = { challengeKey, treatmentKey, prompt, followUp, checks }
 ```
 
-`treatmentKey` is this layer's name for the value the harness carries as `treatment`
-(P1 change 3a); they are the same string, and the emitted YAML uses the harness spelling.
+`challengeKey`, `treatmentKey` and the scenario key are the renderer's own struct fields;
+they leave the layer as one string. **The experimental axes encode in item names.** An
+emitted item is named `agentic_c1_t1_s1` — challenge, treatment, scenario — exactly as
+every existing suite identifies its items. There is no declared axis field anywhere in the
+schema: P2 emits names in this form and P3 parses them back out.
 
 No I/O, no ambient randomness — the seed is passed in. It lives in
 `scripts/author/agentic/`, matching the existing precedent that `economics.yaml`,
@@ -193,7 +208,9 @@ functions.
 - Three treatment renderers: manifest -> context block.
 - Six challenge templates: context + payloads -> prompt.
 - Derivation of mechanical checks from the manifest.
-- The turn-2 prompt and its scoring rule.
+- The exact wording of the turn-2 score-reproduction prompt. The design is fixed above;
+  P2 authors the text.
+- C6's check set, including which of C1's domain rules it inherits.
 
 ### Does not own
 
@@ -209,6 +226,25 @@ functions.
 Checks are derived from the manifest, never authored per variant. If a scenario's fuel
 figure changes, all 18 variants of that scenario (6 C x 3 T) have their checks change with
 it — otherwise the set scores against stale truth.
+
+### Prose adjudication: `contains` and `regex` over synonym sets
+
+Scoring uses **the existing `constraint` scorer**, with `contains` and `regex` checks.
+There is no new scorer type anywhere in this project. Free-text answers (C1's `REASON`,
+C2's corrections, C3's citations, C5's justification) are adjudicated by matching against
+**synonym sets sized to minimize false negatives** — every plausible phrasing of a correct
+answer is enumerated as an alternate rather than pinned to one wording.
+
+The bias is deliberate and one-directional. **A check that misses a correct answer corrupts
+the measurement worse than one that is slightly generous**, because the quantity of
+interest is the difference between cells, not an absolute pass rate. A generous check
+inflates every cell of a row roughly equally and leaves the comparison intact; a brittle
+check fires unevenly on wording that varies by model and by treatment, which is precisely
+the axis under study. Where the two error types trade off, take the false positive.
+
+Case-insensitivity uses the leading `(?i)` inline-flag form, which
+`translateInlineFlags` in `src/scoring/regex-flags.ts` translates for the JS engine — not
+the `[Cc]` case-expansion used by the older helpers in `scripts/author/emit.ts`.
 
 ## Source material: the Roci logs
 
@@ -334,8 +370,24 @@ Conventions: `{{ENVIRONMENT_CONTEXT}}` is filled by one treatment. `{{EVENT}}`,
 `{{ACTION_LOG}}`, `{{ADVISORY}}` and `{{GOAL}}` are per-scenario payloads, identical
 across treatments.
 
-Constraints are stated explicitly to the model. We test constraint-following, not
-constraint-guessing.
+**Logical rules are never stated to the model.** A prompt carries its task and its output
+contract and nothing else; the rules that determine a correct answer live in the derived
+checks, where the model cannot read them. C6 keeps its JSON schema block and C2, C3 and C5
+keep their `Format:` blocks — the output contract is itself under test in C6 and is the
+only way to make the others machine-scorable.
+
+This is more faithful to the failures under study. The live appraiser had no rule telling
+it that a system jump matters, and it scored one zero (archetype 1). The live system never
+warned that a transport-level success can carry an error in its body, and 34% of actions
+failed that way undetected (archetype 3). A prompt that states the rule measures
+instruction-following and conceals the failure being hunted.
+
+The rules therefore land as checks: for C1 and C6, that a location or system change and a
+message addressed to this ship are never `IGNORE`, and for C6 additionally that
+`interrupt` is true only under `act_now`, that significance 0 requires `ignore` and 4–5
+require `act_now`, and that `reason` agrees with the structured fields; for C3, that an
+attempted action is not an achieved one and that an error in an output body defeats a
+transport-level success; for C2 and C5, that current facts win over prior materials.
 
 ### C1 — Significance appraisal
 
@@ -357,12 +409,6 @@ Respond with exactly three lines:
 DISPOSITION: one of IGNORE | NOTE | ACT_NOW
 SIGNIFICANCE: an integer 0-5
 REASON: one sentence naming the specific fact in the input that drove your decision
-
-Constraints:
-- Your REASON must cite a fact that appears in the input above. Do not invent facts.
-- A change in the ship's location or system is never IGNORE.
-- A message addressed to this ship from another pilot is never IGNORE.
-- An event you have seen before, unchanged, at the same location, is noise.
 ```
 
 ### C2 — Situation report under narrative pressure
@@ -382,12 +428,6 @@ SITUATION: (2-3 sentences, present tense, current facts only)
 OPEN PROBLEMS: (bulleted; each names the blocking fact)
 CORRECTIONS: (bulleted; each claim from prior materials that current facts
 contradict, stated as "prior said X; currently Y" — write "none" if none)
-
-Constraints:
-- Every claim must be traceable to the current-state facts provided.
-- Where prior materials conflict with current facts, current facts win.
-- Do not carry forward any prior assessment you cannot re-verify from the
-  current facts.
 ```
 
 ### C3 — Outcome adjudication from the mechanical record
@@ -409,13 +449,6 @@ action taken. The log is authoritative; the agent's intentions are not.
 
 For each intended outcome in the goal, state ACHIEVED or NOT_ACHIEVED, citing
 the log line(s) that prove it. Then give a one-line verdict for the step.
-
-Constraints:
-- An action that was attempted is not an action that succeeded. Only the log's
-  recorded results count.
-- Some actions report success at the transport level but contain an error in
-  their output body. Read the output, not just the status.
-- If the log does not contain evidence for an outcome, it is NOT_ACHIEVED.
 ```
 
 ### C4 — Appraisal with exemplar bait
@@ -442,10 +475,6 @@ Here is how to think about significance:
 
 Respond with exactly three lines: DISPOSITION / SIGNIFICANCE / REASON, as in
 the examples' format.
-
-Constraints:
-- Your REASON must be composed from the facts of THIS event, in your own words.
-- Do not reuse the wording of any example above; they describe different events.
 ```
 
 ### C5 — Plan revision against a stale advisory
@@ -471,11 +500,6 @@ NEXT_ACTION: (one concrete action)
 BECAUSE: (2-3 sentences of justification from current facts)
 ADVICE_STATUS: STILL_VALID | STALE — and if STALE, one sentence naming which
 current fact contradicts it
-
-Constraints:
-- Where the advice conflicts with current observed facts, the facts win.
-- Do not recommend retrying an action the current facts show to be impossible.
-- Prefer the smallest action that makes real progress toward the objective.
 ```
 
 ### C6 — Schema discipline under load
@@ -499,12 +523,6 @@ no reasoning outside the JSON:
  "significance": <integer 0-5>,
  "interrupt": <boolean>,
  "reason": "<one sentence citing a fact from the input>"}
-
-Constraints:
-- "interrupt" may be true only if disposition is "act_now".
-- "significance" 0 requires disposition "ignore"; 4-5 require "act_now".
-- The "reason" must agree with the structured fields (a reason describing
-  routine noise cannot accompany "act_now").
 ```
 
 C6 pairs with the largest scenario payloads — the failure it hunts appears under input
@@ -585,51 +603,13 @@ of scan range and hasn't done anything worth mentioning.
 
 ## P1: harness seams
 
-Land in this order: **3a -> 1 -> 2 -> 3b.**
+P1 is one change: multi-turn support. Nothing else in the harness moves. The experimental
+axes ride in item names, per-item detail already exists in
+`webapp/public/details/<attemptId>.json`, and analysis reads the archive directly — so no
+schema field, no report-contract grain change and no webapp work is required to run this
+set.
 
-3a, 1 and 2 are specified below. **3b is named by the landing order but is not specified
-in this document** — it is the step that makes `challengeKey` / `treatment` actually
-visible downstream, which is why it lands after 2 (the per-item array is its carrier).
-Its exact contents are an open question; do not start it from an inferred definition.
-
-### Change 3a: declared `challengeKey` + `treatment` on ChallengeItem
-
-- Add as **optional** fields to all 6 union members in `src/schema/challenge.ts:20-85`.
-  The 6 structs duplicate common fields deliberately (doc comment at `:11-14` — better
-  error pointers); do not refactor to a shared base as part of this change. 12 new lines.
-- Hoist onto `ResolvedItem` (`src/config/challenges.ts:19-25`) rather than routing via
-  `PromptCorpusEntry` — see the tier precedent below.
-- **Excluded from every hash.** `computePromptHash` (`src/config/hashing.ts:16-17`) is
-  `shortSha256(promptText|systemText)`; `itemHash` (`challenges.ts:237`) is
-  `shortSha256(promptHash|scorerKey)`; `challengeHash` (`:247-249`) joins those. None
-  read `name` / `category` / `tier` / `tags`, so new optional fields are excluded by
-  default. Document this in JSDoc next to the existing `tags` field.
-
-  **Failure mode if included:** every `itemHash` changes -> full cache miss on all 19,522
-  items; every `challengeHash` changes -> `attemptId` changes ->
-  `webapp/src/lib/coverage.ts:16` recovers a new hash while all 1,419 existing records
-  carry the old one -> every historical attempt reads as stale -> every coverage-adjusted
-  passRate drops to ~0 and the ranking table zeroes out. Silent and
-  catastrophic-looking.
-- Reaches `ItemResult` at `src/orchestration/run-challenge.ts:174-198` as
-  `Schema.optional(Schema.String)`, following the `scorerHash` precedent. Note `:149-152`:
-  cache hits bypass this construction and return rows verbatim, so cached items carry
-  undefined until re-run.
-
-#### The tier precedent — do not repeat it
-
-`tier` is required on all 6 item structs and on `PromptCorpusEntry:28`, copied at
-`challenges.ts:205`, and stops dead at the `ItemResult` literal in
-`run-challenge.ts:174-198`, which never mentions it. Zero non-test hits across
-`webapp/src/lib`, `webapp/src/components`, `webapp/src/routes`, `src/schema/attempt.ts`,
-`src/report`. Its only consumer is `src/cli/commands/list.ts:58-63`. It is a required
-field every author fills in that has never influenced a chart, a filter, or a score.
-
-Therefore: **the acceptance criterion for 3a is "visible in the webapp", not "present in
-ChallengeItem", and a test must assert the archive -> report half, not the schema ->
-config half.**
-
-### Change 1: multi-turn
+### Multi-turn
 
 - **Additive** optional field on `CompletionParams`
   (`src/llm/chat-completion.ts:48-61`):
@@ -677,21 +657,20 @@ config half.**
   missing turn onto a hit: the doc comment at `:109-123` calls the `scorerHash` stamp a
   "narrow exception", and a second exception would rewrite measured-cost fields.
 - **Metrics: turn-1 stays definitionally turn-1.** Keep `ItemResult.generationTokens` /
-  `wallTimeSec` / `generationTps` as turn-1 only; turn-2 counters live inside `followUp`.
-  Add explicit `followup_generation_tokens` / `followup_wall_time_sec` to `WebappRecord`,
-  summed over the attempt's items exactly as `generation_tokens` / `wall_time_sec` already
-  are (`src/report/webapp-contract.ts:37-40`) and emitted as `0` — not omitted, not null —
-  for any attempt whose items carry no `followUp`. The webapp then opts in by reading
-  them; nothing existing changes meaning.
+  `wallTimeSec` / `generationTps` as turn-1 only; turn-2 counters live inside `followUp`
+  and never join the per-attempt aggregates.
 
-  **Summing would silently corrupt two things.** `webapp/src/lib/pipeline.ts:398-434` uses
-  summed `generation_tokens` as the scatter-plot X axis, and `:64-68` computes
+  **Leaking them would silently corrupt two things.** The existing per-attempt sums feed
+  `webapp/src/lib/pipeline.ts:398-434`, which uses summed `generation_tokens` as the
+  scatter-plot X axis, and `:64-68`, which computes
   `efficiency = (rawPassRate * uniqueChallenges * completed) / (log(overallTokens) * (timeSpent/60)) * SCALE`.
   A second turn roughly doubles wall time and adds tokens for zero additional pass credit,
-  so every multi-turn config's efficiency drops and its scatter X shifts right while
-  historical turn-1-only configs stay put — with 1,419 attempts spanning both regimes and
-  no discriminator field in `data.js`. `generationTps` must never be summed; it is a rate,
-  already averaged at `src/report/webapp-contract.ts:65-66`.
+  so if `followUp` counters folded into `generation_tokens` / `wall_time_sec` at
+  `src/report/webapp-contract.ts:37-40`, every multi-turn config's efficiency would drop
+  and its scatter X shift right while historical turn-1-only configs stayed put — across
+  1,419 attempts spanning both regimes, with nothing in the plot to distinguish them.
+  `generationTps` must never be summed under any circumstance; it is a rate, already
+  averaged at `src/report/webapp-contract.ts:65-66`.
 - **Test trap.** The shared mock in `src/orchestration/__tests__/fixtures.ts:161-196` keys
   stubbed responses on `` `${p.promptName}:${p.temperature}` `` (`:176`), which does not
   distinguish turn 1 from turn 2. Every multi-turn orchestration test gets the same stub
@@ -699,47 +678,9 @@ config half.**
   run-challenge, run-matrix and phases tests. This is the highest-probability silent
   failure in the change.
 
-### Change 2: per-item report grain
-
-- **A second, lean parallel array in `data.js`**, `globalThis.__BENCHMARK_ITEMS`, one row
-  per item, carrying exactly these six fields and no others:
-  `{attempt_id, item_id, score, challenge_key, treatment, error_kind}` — snake_case, to
-  match the existing `WebappRecord` convention. `challenge_key` / `treatment` are the
-  optional strings from change 3a and are omitted when absent. `error_kind`'s derivation
-  from `ItemResult.error` (a nullable free-text string today, with no existing
-  classification anywhere in `src/` or `webapp/src/`) is an open question; do not invent a
-  taxonomy while implementing.
-  At ~90–170 B/row x 19,522 items that is ≈ 1.8–3.3 MB. Blast radius on
-  `webapp/src/lib/pipeline.ts` and `webapp/src/lib/coverage.ts` is **zero** — every
-  existing function keeps taking `BenchmarkResult[]`.
-- Full text stays in the existing lazy `webapp/public/details/<attemptId>.json` (77 MB
-  across 1,413 files), which already carries per-item `item_id` / `prompt_text` /
-  `output` / `reasoning` / `score` / `error` / `scorer` / `breakdown`, and is already
-  fetched and cached by `webapp/src/lib/use-attempt-detail.ts`.
-- Requires: `formatDataJs` (`src/report/write-data-js.ts:34-37`) to emit two assignments —
-  it hardcodes a single one, and `src/report/write-data-js.test.ts` parses the JSON back
-  out of the string, so that test breaks; `aggregateAttempts` (`src/report/aggregate.ts:17-40`)
-  to return a second array; `ReportSummary` (`src/report/index.ts:35-47`) to carry it;
-  a `normalizeItemRecord` and a second `declare global` in `webapp/src/lib/data.ts`.
-- **Rows must carry `attempt_id` verbatim, never a synthesized id.**
-  `webapp/src/lib/coverage.ts:16-17` recovers the canonical challenge hash via
-  `attemptId.split("-")[2]`; a synthesized id yields `""` and collapses every challenge
-  into one universe entry.
-- **Rejected: changing the existing array's grain.** `pipeline.ts` treats every element as
-  an attempt in at least 8 places. `splitInvocations` (`:185-215`) detects invocation
-  boundaries by a repeated bare `challenge_id` — at 13.8 items/attempt every item would
-  open a new invocation. `coverage.ts:58` sums `item_count` per canonical challenge,
-  inflating the universe denominator 13.8x silently. That is a re-architecture of
-  `pipeline.ts` + `coverage.ts` + ~561 lines of `pipeline.test.ts` + 119 of
-  `coverage.test.ts`, not a grain change.
-- Record-array consumers to keep in mind: `webapp/src/routes/__root.tsx:66,74,98-102` (the
-  only `DATA` importer), `DrilldownPanel.tsx:12`, `ConfigSummaryPanel.tsx:18`,
-  `DebugPanel.tsx:10`, and indirectly `RunGroupTable.tsx` / `RunRowItem.tsx` /
-  `Scatter.tsx`.
-- `WebappRecord` (`src/report/webapp-contract.ts:13-35`) is hand-mirrored field-for-field
-  in `webapp/src/lib/data.ts:1-23` with **no compile-time link** (separate tsconfig and
-  package.json). `src/report/webapp-contract.test.ts` asserts on `toWebappRecord` output
-  but not against the webapp interface. Both files change together or drift silently.
+**The three risks in P1**, in order: the cache turn-mode discriminator, the
+`fixtures.ts` mock key, and turn-2 counters leaking into the per-attempt aggregates. All
+three fail silently rather than loudly, and all three are inside this one change.
 
 ### Lint and typing constraints
 
@@ -754,6 +695,26 @@ must avoid the banned tokens even inside comments.
 assigned undefined explicitly — use the conditional-spread idiom already at
 `src/orchestration/run-challenge.ts:74-83`.
 
+## P3: analysis
+
+**P3 is a script that reads `benchmark-archive/*.jsonl` directly.** It follows the
+precedent set by `./bench score`, which re-scores attempt archives in place from the same
+files. There is no webapp work, no report-contract change, and no new data file: the
+archive already carries every item's name, score, output and `followUp`, and the drilldown
+JSON at `webapp/public/details/<attemptId>.json` already carries per-item `item_id`,
+`prompt_name`, `prompt_text`, `output`, `reasoning`, `score`, `error`, `scorer` and
+`breakdown` for anything that needs to be read by eye.
+
+The script parses the experimental axes out of item names (`agentic_c1_t1_s1`) and
+produces:
+
+- the cell table — mean score per (challenge x treatment), split by model;
+- calibration — exact-match rate and mean absolute error between the turn-2
+  self-reported score and the mechanical score;
+- the "present but unusable" query — items where a canary fact appears in the input and
+  is absent from the answer;
+- the R5 validity checks: discrimination, and reproduction of the five archetypes.
+
 ## Out of scope
 
 Explicit boundaries for this project:
@@ -762,18 +723,19 @@ Explicit boundaries for this project:
 - Repeats, repeat seeds and variance recording. (The per-scenario seed owned by P2 is a
   fixture-authoring device that makes surface details unmemorizable; it is not a repeat
   mechanism and never enters a cache key.)
+- New scorer types. Everything is scored by the existing `constraint` scorer.
 - An LLM-judge scorer.
 - Tier wiring. It is a dead axis; leave it dead.
 - Removal of vestigial `src/game/**` and `RunManifest`.
-- Webapp UI work beyond the contract change.
-- P3 analysis tooling.
+- The webapp and the report contract. Neither is touched; results are read from the
+  archive.
 
 ## Review gates
 
 - **R1** — Spec approved by the user, before any code.
-- **R2** — P1 merged. 1,704 archive files still load (1,448 `att-*`; 1,441 at v2, 7 at v1;
-  256 legacy `RunManifest` archives already collected as `issues` rather than aborting,
-  per `src/report/load-attempts.ts:73-108`).
+- **R2** — P1 merged, and all 1,704 existing archive files still load after the multi-turn
+  change (1,448 `att-*`; 1,441 at v2, 7 at v1; 256 legacy `RunManifest` archives already
+  collected as `issues` rather than aborting, per `src/report/load-attempts.ts:73-108`).
 - **R3** — One scenario rendered all 18 ways, read by the user. The treatments *are* the
   experiment; if T3 leaks a fact that T1 buries, H2 measures our prose.
 - **R4** — Mechanical checks validated against outputs the user hand-labels. Skip this and
@@ -795,8 +757,8 @@ sequential — the roster would not typically all be run.
 
 Note the deliberate asymmetry with the reported metrics: those calls are the true cost,
 but `generation_tokens` / `wall_time_sec` / `efficiency` in the report cover turn 1 only
-by construction (see "Metrics" above). Turn-2 cost is visible solely through the
-`followup_*` fields. Reported efficiency is therefore a turn-1 efficiency and must not be
+by construction (see "Metrics" above). Turn-2 cost lives in `followUp` in the archive and
+is read from there. Reported efficiency is therefore a turn-1 efficiency and must not be
 quoted as the cost of running the set.
 
 Execution is strictly sequential — one local model in memory, fixed ports 18080/18081, no
@@ -809,33 +771,12 @@ content-addressed item cache, which scans the archive per item.
   (retrospective); C5's is the current objective (prospective). A scenario must therefore
   carry two distinct goal payloads, and the placeholder naming in the challenge prompts
   does not currently distinguish them.
-- The exact payload ceiling, pending the minimum `ctxSize` across the roster actually
-  selected for the sweep.
-- **The turn-2 prompt text and its calibration scoring rule.** P2 is named as the owner,
-  but "a generic self-assessment verdict scored against turn-1 mechanical ground truth"
-  is not a specification: neither the wording nor what a calibration score *is* (a
-  per-item agree/disagree with the turn-1 check outcome? a signed over/under-confidence
-  measure?) exists yet. Nothing in P1 depends on the answer; R4 does.
 - **How information equivalence is asserted for T3.** T1 and T2 are structured, so a fact
   can be checked by construction. T3 is prose. Either every manifest fact carries a
   per-treatment surface form that the renderer must consume (making the assertion a
   coverage check over fact ids), or the prose check is something else. Until this is
   decided the control described as "the single most important validity control" has no
   implementation.
-- **T1's tick-to-wall-clock rate.** The worked example encodes "jumped ~2 min ago" as
-  `completed_ticks_ago: 12` in T1 and as plain minutes in T2 and T3. Nothing in T1 states
-  the seconds-per-tick rate, so the manifest fact is not recoverable from T1 — an
-  equivalence violation in the spec's own example. Either T1 carries the rate, or the
-  manifest fact is expressed in ticks everywhere. Not decided here.
-- **Whether C6 inherits C1's domain constraints** (location change is never IGNORE, a
-  message addressed to this ship is never IGNORE). C6 is described as "C1's judgment"
-  but its constraint block states only the schema-consistency rules. This determines C6's
-  derived ground truth for exactly the events C1 traps on, so it cannot be left to the
-  implementer.
-- **The contents of P1 change 3b.** The landing order names it; no section defines it.
-- **`error_kind`'s value domain** in the per-item `data.js` array. `ItemResult.error` is
-  a nullable free-text string with no existing classification in the codebase, and no
-  taxonomy is specified here.
 - **What size of cell-to-cell difference counts as a signal.** N=1 rules out a
   significance test, and no descriptive threshold is defined, so "labeled digest beats
   raw telemetry" currently has no decision rule. R5's discrimination check ("no cell
