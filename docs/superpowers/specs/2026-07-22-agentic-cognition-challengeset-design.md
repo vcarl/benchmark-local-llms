@@ -2,9 +2,7 @@
 
 ## Purpose
 
-This challengeset exists to inform agent-harness design. The goal is not "answer the
-questions." The goal is to learn what works best when prompting models for an
-autonomous-agent-loop workload, and which models suit that workload.
+This challengeset exists to inform agent-harness design. The goal is to learn what works best when prompting models for an autonomous-agent-loop workload, and which models suit that workload.
 
 The capability under test: **can a model turn provided information into constrained
 judgments without being captured by noise, narrative, examples, or stale priors?**
@@ -28,8 +26,8 @@ partition of the set — every challenge exercises several at once.
 
 ## Experimental design
 
-The unit is a trial: **(challenge prompt C, context treatment T, model M)** on a fixed
-scenario.
+The unit is a trial: **(challenge prompt C, context treatment T, model M)** on one
+scenario from a fixed set of three.
 
 - **C** — 6 challenge prompts, verbatim across all treatments and all models.
 - **T** — 3 context treatments (T1 raw telemetry / T2 labeled digest / T3 narrative
@@ -51,6 +49,49 @@ within-cell variance to estimate, so no confidence interval, significance test o
 the hypotheses and the R5 discrimination check. Where a result matters enough to need
 confidence, the response is a follow-up experiment with a repeat mechanism, which is
 explicitly out of scope here.
+
+### The scenario
+
+**A scenario is one coherent world-moment. All six challenges draw from that single
+world — there are not six fixtures per scenario.** Each scenario carries, at once:
+
+- standing state (fuel, hull, cargo, credits, contacts, comms);
+- a prior-shift claim that current facts contradict — feeds C2 and C5;
+- one incoming event — feeds C1, C4, C6;
+- a completed work step: its goal plus the mechanical action log — feeds C3;
+- a learned advisory that was true when written — feeds C5.
+
+The three treatments render only the `{{ENVIRONMENT_CONTEXT}}` portion. The payloads
+(`{{EVENT}}`, `{{ACTION_LOG}}`, `{{ADVISORY}}`, `{{GOAL}}`) are treatment-invariant by
+construction. This is what makes C a **within-scenario** factor: all 18 cells of a
+scenario rest on identical information, so any difference between cells is attributable to
+structure and to nothing else.
+
+The fact manifest spans the whole world-moment, not just the environment block, since the
+equivalence assertion must cover every fact any of the six challenges can reach.
+
+### The scenario set
+
+**Scenarios are the replication factor.** With N=1 and no repeat mechanism, running K
+scenarios is what gives each (C, T, M) cell more than one observation — K samples across
+differing content rather than K resamples of identical content. Consequence: scenario
+count is the compute multiplier.
+
+The set is fixed at **three scenarios**, constructed so that correct answers genuinely
+differ across them. Without this a constant-answer strategy scores well and the set fails
+to discriminate: if every scenario's correct C1 disposition is ACT_NOW, a model with a
+stuck ACT_NOW key aces C1; if every action log contains a failure, "NOT_ACHIEVED" is a
+winning constant.
+
+| Scenario | Incoming event | Correct C1 disposition | C3 step outcome |
+|---|---|---|---|
+| S1 | routine repetition, unchanged, same location | IGNORE | genuinely succeeded |
+| S2 | incoming private message from another pilot | NOTE | mixed — body contains both a success and an `Error [...]` |
+| S3 | system jump plus a threat indicator | ACT_NOW | failed while logged `status:"completed"` |
+
+S1's "genuinely succeeded" case is load-bearing in both directions: it is the control that
+catches a model biased toward NOT_ACHIEVED, and it is the one place where
+evidence-over-inference can produce a false negative rather than a false positive.
 
 ### Turn structure
 
@@ -267,6 +308,25 @@ Confirmed. A learned skill accepted on a single datapoint ("local crafting beats
 purchasing when you are isolated") was applied where live observation contradicted it,
 producing `Error [no_facility]` and three consecutive retries of the same failing craft
 eight days after ground truth had said no.
+
+### Archetype coverage under the three-scenario set
+
+Most archetypes map to challenges rather than to scenarios, so coverage is better than
+scenario count suggests.
+
+| Archetype | Exercised by | Coverage |
+|---|---|---|
+| 2 — narrative adoption | C2 under T3; every scenario carries a contradicted prior | all 3 |
+| 4 — exemplar echo | C4 | all 3 |
+| 5 — stale-skill over-trust | C5; every scenario carries an advisory | all 3 |
+| 3 — attempted not achieved | C3 on S2 (mixed body) and S3 (failed-but-completed) | 2 of 3 |
+| 1 — weight-0 on a location change | C1 and C6; requires a location change | S3 only |
+
+**Archetype 1 is the single thin spot.** Design note for P2, not a decision made here: the
+environment context can carry a recent jump independent of the `{{EVENT}}` — the worked
+example does exactly this, with the ship having jumped Harrow to Ledge two minutes before
+an unrelated event. That would let S2 exercise archetype 1 through C2's grounding without
+disturbing S2's C1 answer being NOTE. P2 decides whether to use it.
 
 ## The six challenge prompts
 
@@ -726,15 +786,14 @@ R3 and R4 are the gates that make this an experiment rather than a vibe.
 
 ## Cost
 
-**Per scenario:** 18 items (6 C x 3 T) = **36 calls per model** (x 2 turns) ≈ 0.21x the
-existing 171-item row, which is 171 calls per model. On that basis the full active roster
-is roughly 19 hours per pass.
+**Per scenario:** 18 items (6 C x 3 T) x 2 turns = **36 calls per model**.
 
-Both figures are *per scenario* and multiply by the scenario count, which is not settled
-(see Open questions). Two scenarios is 72 calls per model and ≈ 38 hours; the sweep is
-sized when that number is chosen, not here.
+**Per pass, per model:** 3 scenarios x 6 challenges x 3 treatments x 2 turns =
+**108 calls**. That is roughly 0.63x the existing 171-item challenge row, which is 171
+calls per model. Across the full 60-config active roster, approximately **57 hours**,
+sequential — the roster would not typically all be run.
 
-Note the deliberate asymmetry with the reported metrics: those 36 calls are the true cost,
+Note the deliberate asymmetry with the reported metrics: those calls are the true cost,
 but `generation_tokens` / `wall_time_sec` / `efficiency` in the report cover turn 1 only
 by construction (see "Metrics" above). Turn-2 cost is visible solely through the
 `followup_*` fields. Reported efficiency is therefore a turn-1 efficiency and must not be
@@ -746,10 +805,10 @@ content-addressed item cache, which scans the archive per item.
 
 ## Open questions
 
-- Scenario count, and how payloads map across the six challenges (C3 needs an action log,
-  C5 needs an advisory). This is P2's first task and is not settled here. Every per-pass
-  cost figure in this document is per scenario and cannot be totalled until this is
-  answered.
+- **`{{GOAL}}` carries two different things.** C3's goal is the completed step's goal
+  (retrospective); C5's is the current objective (prospective). A scenario must therefore
+  carry two distinct goal payloads, and the placeholder naming in the challenge prompts
+  does not currently distinguish them.
 - The exact payload ceiling, pending the minimum `ctxSize` across the roster actually
   selected for the sweep.
 - **The turn-2 prompt text and its calibration scoring rule.** P2 is named as the owner,
