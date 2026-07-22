@@ -19,7 +19,8 @@
 - Turn-2 counters never join the turn-1 counters on `ItemResult`. `generationTps` is a rate and is never summed anywhere.
 - Effect style only: no `try`/`catch`, no raised errors, typed error channels, `Effect.gen`.
 - Tests are vitest; `vitest.config.ts` includes `src/**/*.test.ts` and `webapp/src/**/*.test.ts`. `.test.tsx` files are **not** run — no plan step relies on one.
-- Files this plan may modify: `src/schema/challenge.ts`, `src/config/challenges.ts`, `src/config/hashing.ts`, `src/llm/chat-completion.ts`, `src/orchestration/run-prompt.ts`, `src/orchestration/run-challenge.ts`, `src/schema/attempt.ts`, `src/schema/constraints.ts`, `src/schema/enums.ts`, `src/scoring/constraint.ts`, `src/scoring/constraint-checks.ts`, `src/report/write-details.ts`, `webapp/src/lib/use-attempt-detail.ts`, `webapp/src/components/DrilldownPanel.tsx`, `src/orchestration/__tests__/fixtures.ts`, and the tests of all of the above. Nothing else. `challenges/*.yaml` and `scripts/author/**` belong to P2.
+- Every user-authored regex in this feature — including the calibration check's `extract` — is compiled through `translateInlineFlags` (`src/scoring/regex-flags.ts`) at both load time and scoring time. A bare `new RegExp` cannot compile the mandated leading `(?i)` form, and the resulting uniform check failure would read as a finding rather than a bug.
+- Files this plan may modify: `src/schema/challenge.ts`, `src/config/challenges.ts`, `src/config/hashing.ts`, `src/llm/chat-completion.ts`, `src/orchestration/run-prompt.ts`, `src/orchestration/run-challenge.ts`, `src/schema/attempt.ts`, `src/schema/constraints.ts`, `src/schema/enums.ts`, `src/scoring/constraint.ts`, `src/scoring/constraint-checks.ts`, `src/scoring/dispatch.ts` (lead-approved), `src/cli/commands/score.ts` (lead-approved, mandatory), `src/report/write-details.ts`, `webapp/src/lib/use-attempt-detail.ts`, `webapp/src/components/DrilldownPanel.tsx`, `src/orchestration/__tests__/fixtures.ts`, and the tests of all of the above. Nothing else. `challenges/*.yaml` and `scripts/author/**` belong to P2.
 
 ---
 
@@ -233,6 +234,8 @@ Expected: FAIL — `accepts followUpPrompt on the ... variant` fails because the
 - [ ] **Step 3: Write minimal implementation**
 
 In `src/schema/challenge.ts`, add the same optional field to each of the six structs. Add it as the line immediately after `prompt: Schema.String,` in `ExactMatchItem` (`:24`), `ConstraintItem` (`:35`), `CodeExecItem` (`:45`), `GameItem` (`:56`), `SetMatchItem` (`:67`) and `OrderedMatchItem` (`:79`). The line is identical in all six:
+
+**`ConstraintItem` is the one that cannot be missed.** Every one of P2's 54 generated items uses `scorer: constraint`, so an omission there makes the entire generated YAML fail to decode. The `it.each(variants)` test in Step 1 covers all six precisely so this cannot be half-done.
 
 ```ts
   followUpPrompt: Schema.optional(Schema.String),
@@ -1221,6 +1224,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Consumes: nothing.
 - Produces: `SelfScoreMatchesConstraint` = `{ check: "self_score_matches"; name: string; extract: string }`, a member of `ConstraintDef`; `"self_score_matches"` in `ConstraintCheck.literals`; an uncompilable `extract` fails at challenge load. Tasks 10-11 consume the type.
 
+**Mandatory:** the load-time check compiles `extract` through `translateInlineFlags` before `regexCompileProblem`, matching the existing precedent for `regex` / `regex_count_min` at `src/config/challenges.ts:119-120`. This is what makes a `(?i)`-prefixed pattern *pass* validation (it is legal after translation) while a genuinely malformed pattern fails the load rather than silently zeroing a check at scoring time. Validating a `(?i)` pattern with a bare `new RegExp` would reject every well-formed P2 item at load; skipping validation entirely would let a malformed one through to the `errored` bucket.
+
 - [ ] **Step 1: Write the failing test**
 
 Append to `src/schema/constraints.test.ts`:
@@ -1274,8 +1279,15 @@ describe("resolveChallenge self_score_matches validation", () => {
     ],
   });
 
-  it("accepts a compiling extract pattern", async () => {
+  it("accepts a (?i)-prefixed extract pattern — the form P2 emits", async () => {
+    // A bare `new RegExp("(?i)…")` is a SyntaxError; this passing proves the
+    // load-time check translates inline flags before compiling.
     const exit = await run(provide(resolveChallenge(withExtract("(?i)score:\\s*([0-9.]+)"), challengesDir)));
+    expect(exit._tag).toBe("Success");
+  });
+
+  it("accepts a plain extract pattern with no inline flags", async () => {
+    const exit = await run(provide(resolveChallenge(withExtract("SELF_SCORE:\\s*([0-9.]+)"), challengesDir)));
     expect(exit._tag).toBe("Success");
   });
 
@@ -1380,6 +1392,8 @@ git add src/schema/constraints.ts src/schema/constraints.test.ts src/schema/enum
   - `export interface OtherCheckTally { readonly passed: number; readonly total: number }`
   - `export const evaluateSelfScoreMatch(followUpOutput: string | undefined, def: SelfScoreMatchesConstraint, tally: OtherCheckTally): Effect.Effect<boolean, ConstraintEvalError>`
 
+**Mandatory:** `def.extract` is compiled through `translateInlineFlags` from `./regex-flags.js`, exactly as the `regex` and `regex_count_min` checks compile theirs (`src/scoring/constraint-checks.ts:175`, `:182`) — never through a bare `new RegExp`. P2 emits every extract pattern with a leading `(?i)` group; `new RegExp("(?i)…")` is a `SyntaxError`, which the evaluator's error channel would route into the scorer's `errored` bucket, scoring 0 on all 54 calibration checks for every model in the roster. That failure presents as a uniform substantive finding rather than as a bug, which is the worst outcome available here.
+
 - [ ] **Step 1: Write the failing test**
 
 Append to `src/scoring/constraint-checks.test.ts`:
@@ -1443,8 +1457,32 @@ describe("evaluateSelfScoreMatch", () => {
     expect(check("SELF_SCORE: 1", { passed: 0, total: 0 })).toBe(false);
   });
 
-  it("honors the (?i) inline flag", () => {
+  // ── Inline-flag translation ──────────────────────────────────────────────
+  // P2 emits every extract pattern with a leading `(?i)` group, which is the
+  // form the spec mandates for case-insensitivity. A bare `new RegExp` cannot
+  // compile it: all 54 calibration checks would land in `errored` and score 0,
+  // and uniform calibration failure across the roster reads as a finding rather
+  // than as a bug. These three cases pin the translation.
+
+  it("compiles a (?i)-prefixed extract instead of erroring on it", () => {
+    // `new RegExp("(?i)...")` is a SyntaxError in JS; reaching a boolean at all
+    // proves the pattern went through translateInlineFlags.
+    expect(check("SELF_SCORE: 0.5", { passed: 1, total: 2 })).toBe(true);
+  });
+
+  it("matches case-insensitively under (?i)", () => {
     expect(check("self_score: 0.5", { passed: 1, total: 2 })).toBe(true);
+    expect(check("Self_Score: 0.5", { passed: 1, total: 2 })).toBe(true);
+  });
+
+  it("is case-SENSITIVE without (?i) — proving the flag does the work", () => {
+    const bare = { ...def, extract: "SELF_SCORE:\\s*([0-9.]+)" };
+    expect(Effect.runSync(evaluateSelfScoreMatch("self_score: 0.5", bare, { passed: 1, total: 2 }))).toBe(
+      false,
+    );
+    expect(Effect.runSync(evaluateSelfScoreMatch("SELF_SCORE: 0.5", bare, { passed: 1, total: 2 }))).toBe(
+      true,
+    );
   });
 });
 ```
@@ -1500,6 +1538,13 @@ export interface OtherCheckTally {
  * Calibration check. Extracts the model's self-reported score from the item's
  * second-turn output via `def.extract` (capture group 1) and compares it with
  * `tally.passed / tally.total`, both rounded to 3 decimals.
+ *
+ * `extract` is compiled through `translateInlineFlags`, exactly as the `regex`
+ * and `regex_count_min` checks compile their patterns — NOT through a bare
+ * `new RegExp`. Authored patterns carry a leading `(?i)` inline-flag group,
+ * which the JS engine rejects outright; compiling it directly would route every
+ * calibration check into the `errored` bucket and score them all 0, which reads
+ * as a uniform result rather than as a defect.
  *
  * Fails — never errors — when the second turn is absent, when the pattern does
  * not match, when the captured text is not a finite number, or when the item has
@@ -1755,17 +1800,62 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 12: Route the turn-2 output into scoring
+### Task 12: Route the turn-2 output into scoring through `scoreByConfig`'s `meta`
 
 **Files:**
-- Modify: `src/orchestration/run-challenge.ts:15-32` (imports), `:166-172` (scoring call)
-- Test: `src/orchestration/__tests__/run-challenge.test.ts`
+- Create: `src/scoring/dispatch.test.ts`
+- Modify: `src/scoring/dispatch.ts:18-44`
+- Modify: `src/orchestration/run-challenge.ts:166-172` (scoring call)
+- Test: `src/scoring/dispatch.test.ts`, `src/orchestration/__tests__/run-challenge.test.ts`
 
 **Interfaces:**
 - Consumes: `scoreConstraints(output, config, followUpOutput?)` (Task 11), `FollowUpResult` (Task 7).
-- Produces: for a two-turn item with a `constraint` scorer, the calibration check sees `followUp.output`. All other items go through `scoreByConfig` exactly as before.
+- Produces: `scoreByConfig(output, cfg, meta)` forwards a string-valued `meta.followUpOutput` to `scoreConstraints`. Task 15 uses the same key from the re-score path.
+
+`src/scoring/dispatch.ts` is outside this plan's original file list; the lead has **approved** this passthrough as the wiring for contract 7, in preference to a scorer-selection branch inside the orchestrator. `meta` is an existing parameter already threaded to `scoreCustom` (`:40`) — only the `constraint` branch currently drops it.
 
 - [ ] **Step 1: Write the failing test**
+
+Create `src/scoring/dispatch.test.ts`:
+
+```ts
+import { NodeContext } from "@effect/platform-node";
+import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
+import type { ScorerConfig } from "../schema/scorer.js";
+import { scoreByConfig } from "./dispatch.js";
+
+const cfg: ScorerConfig = {
+  type: "constraint",
+  constraints: [
+    { check: "contains", name: "hit", value: "foo" },
+    { check: "contains", name: "miss", value: "xyz" },
+    { check: "self_score_matches", name: "calibration", extract: "(?i)self_score:\\s*([0-9.]+)" },
+  ],
+};
+
+const run = (meta: Record<string, unknown>) =>
+  Effect.runPromise(
+    scoreByConfig("foo bar", cfg, meta).pipe(Effect.provide(NodeContext.layer)),
+  );
+
+describe("scoreByConfig constraint + followUpOutput", () => {
+  it("forwards a string followUpOutput to the constraint scorer", async () => {
+    const r = await run({ promptName: "i", followUpOutput: "SELF_SCORE: 0.5" });
+    expect(r.breakdown?.passed).toContain("calibration");
+  });
+
+  it("fails calibration when no followUpOutput is supplied", async () => {
+    const r = await run({ promptName: "i" });
+    expect(r.breakdown?.failed).toContain("calibration");
+  });
+
+  it("ignores a non-string followUpOutput rather than coercing it", async () => {
+    const r = await run({ promptName: "i", followUpOutput: 0.5 });
+    expect(r.breakdown?.failed).toContain("calibration");
+  });
+});
+```
 
 Append inside the `describe("executeOrCacheItem two-turn items", ...)` block added in Task 7:
 
@@ -1860,50 +1950,42 @@ Append inside the `describe("executeOrCacheItem two-turn items", ...)` block add
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/orchestration/__tests__/run-challenge.test.ts -t "calibration check"`
-Expected: FAIL — the scorer is reached via `scoreByConfig`, which never receives the turn-2 text, so `calibration` lands in `failed` and the score is 1/3 in the first case.
+Run: `npx vitest run src/scoring/dispatch.test.ts src/orchestration/__tests__/run-challenge.test.ts -t "calibration"`
+Expected: FAIL — `forwards a string followUpOutput to the constraint scorer` fails because the `constraint` branch of `scoreByConfig` drops `meta`, so `calibration` lands in `failed`; the orchestration case fails the same way with a score of 1/3 instead of 2/3.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `src/orchestration/run-challenge.ts`, add to the imports:
+In `src/scoring/dispatch.ts`, replace the `constraint` branch (`:31-32`) with:
 
 ```ts
-import type {
-  CodeExecFailed,
-  CodeExecTimeout,
-  FileIOError,
-  JsonlCorruptLine,
-  ScorerNotFound,
-  ScorerSpawnFailed,
-} from "../errors/index.js";
-import { scoreConstraints } from "../scoring/constraint.js";
+    case "constraint": {
+      // The item's second-turn text, present only for two-turn items. The
+      // `self_score_matches` check needs it; the other twenty ignore it. Read
+      // narrowly rather than cast — `meta` is an untyped bag, and a non-string
+      // value must degrade to "no second turn" rather than be coerced.
+      const followUpOutput = meta["followUpOutput"];
+      return typeof followUpOutput === "string"
+        ? scoreConstraints(output, cfg, followUpOutput)
+        : scoreConstraints(output, cfg);
+    }
 ```
 
-(replacing the existing `import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";` on `:23`, and keeping the existing `scoreByConfig` import on `:29`).
-
-Replace the scoring call (`:166-172`) with:
+In `src/orchestration/run-challenge.ts`, replace the scoring call (`:166-172`) with:
 
 ```ts
-    // A two-turn constraint item is scored through `scoreConstraints` directly
-    // so the calibration check can read the second turn's text. Everything else
-    // keeps going through `scoreByConfig` unchanged.
-    const scoring: Effect.Effect<
-      PromptScore,
-      ScorerNotFound | CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed,
-      CommandExecutor.CommandExecutor
-    > =
-      item.scorer.type === "constraint" && followUp !== undefined
-        ? scoreConstraints(exec.output, item.scorer, followUp.output)
-        : scoreByConfig(exec.output, item.scorer, { promptName: item.itemId });
-
-    const scoreResult = yield* scoring.pipe(
+    const scoreResult = yield* scoreByConfig(exec.output, item.scorer, {
+      promptName: item.itemId,
+      // Conditional spread: `exactOptionalPropertyTypes` is on, and a one-turn
+      // item must send exactly the meta bag it always has.
+      ...(followUp !== undefined ? { followUpOutput: followUp.output } : {}),
+    }).pipe(
       Effect.catchAll(() =>
         Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
       ),
     );
 ```
 
-`PromptScore` is already imported as a type at `:30`; `CommandExecutor` is already imported at `:15`.
+No import changes in either file.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1913,8 +1995,8 @@ Expected: PASS across the whole `src/` suite, no type errors, lint clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/orchestration/run-challenge.ts src/orchestration/__tests__/run-challenge.test.ts
-git commit -m "feat(orchestration): route turn-2 output into the constraint scorer
+git add src/scoring/dispatch.ts src/scoring/dispatch.test.ts src/orchestration/run-challenge.ts src/orchestration/__tests__/run-challenge.test.ts
+git commit -m "feat(scoring): forward followUpOutput through scoreByConfig to the constraint scorer
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -2240,6 +2322,192 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
+### Task 15: Feed the archived second turn to both `./bench score` re-score paths
+
+**Files:**
+- Modify: `src/cli/commands/score.ts:158-160` (corpus path), `:204-206` (store-primary path)
+- Test: `src/cli/commands/__tests__/score.test.ts`
+
+**Interfaces:**
+- Consumes: `scoreByConfig(output, cfg, meta)`'s `followUpOutput` key (Task 12), `ItemResult.followUp` (Task 6).
+- Produces: `rescoreItems` and `rescoreItemsFromStore` reproduce the same calibration result a fresh run produces.
+
+`src/cli/commands/score.ts` is outside this plan's original file list; the lead has **approved this and promoted it to mandatory within P1**. Without it, `./bench score` re-scores a two-turn archive with no follow-up text, failing every calibration check and silently lowering those items' scores — so a re-scored two-turn attempt disagrees with a freshly-run one, while the turn-2 text needed to score it correctly is sitting in the same archive row. Silent divergence on the re-score path is not shippable.
+
+`withBreakdown` (`:80-87`) rebuilds the row with `{ breakdown: _stale, ...rest }`, so `followUp` is already preserved verbatim across a re-score; only the scorer call needs the text.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `src/cli/commands/__tests__/score.test.ts`, using the file's existing helpers for building `ItemResult` rows and a `ResolvedChallenge` (mirror whichever fixture shape the neighbouring `rescoreItems` tests already use):
+
+```ts
+describe("rescore with an archived second turn", () => {
+  const constraintScorer = {
+    type: "constraint" as const,
+    constraints: [
+      { check: "contains" as const, name: "hit", value: "4" },
+      { check: "contains" as const, name: "miss", value: "zzz" },
+      {
+        check: "self_score_matches" as const,
+        name: "calibration",
+        extract: "(?i)self_score:\\s*([0-9.]+)",
+      },
+    ],
+  };
+
+  const archivedItem: ItemResult = {
+    itemId: "i",
+    promptName: "i",
+    promptHash: "ph",
+    itemHash: "ih",
+    scorerHash: "sh",
+    executedAt: "t",
+    promptTokens: 1,
+    generationTokens: 1,
+    promptTps: 0,
+    generationTps: 0,
+    peakMemoryGb: 0,
+    wallTimeSec: 0,
+    output: "4",
+    reasoning: null,
+    rawOutput: "4",
+    error: null,
+    score: 0,
+    followUp: {
+      output: "SELF_SCORE: 0.5",
+      reasoning: null,
+      rawOutput: "SELF_SCORE: 0.5",
+      error: null,
+      promptTokens: 40,
+      generationTokens: 12,
+      generationTps: 22.5,
+      wallTimeSec: 1.5,
+    },
+  };
+
+  it("store-primary path: reproduces the calibration pass from the archived followUp", async () => {
+    const r = await Effect.runPromise(
+      rescoreItemsFromStore([archivedItem], [{ item: archivedItem, scorer: constraintScorer }]).pipe(
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    expect(r.updated[0]?.breakdown?.passed).toEqual(["hit", "calibration"]);
+    expect(r.updated[0]?.score).toBeCloseTo(2 / 3);
+  });
+
+  it("store-primary path: preserves the followUp field across a re-score", async () => {
+    const r = await Effect.runPromise(
+      rescoreItemsFromStore([archivedItem], [{ item: archivedItem, scorer: constraintScorer }]).pipe(
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    expect(r.updated[0]?.followUp?.output).toBe("SELF_SCORE: 0.5");
+    expect(r.updated[0]?.followUp?.generationTokens).toBe(12);
+  });
+
+  it("corpus path: reproduces the calibration pass from the archived followUp", async () => {
+    const challenge: ResolvedChallenge = {
+      id: "ch",
+      version: 1,
+      passThreshold: 0.5,
+      challengeHash: "chh",
+      items: [
+        {
+          itemId: "i",
+          promptHash: "ph",
+          itemHash: "ih",
+          scorer: constraintScorer,
+          prompt: {
+            name: "i",
+            category: "x",
+            tier: 1,
+            system: { key: "none", text: "" },
+            promptText: "2+2?",
+            scorer: constraintScorer,
+            promptHash: "ph",
+          },
+          followUpPrompt: "What score do you expect?",
+        },
+      ],
+    };
+    const r = await Effect.runPromise(
+      rescoreItems([archivedItem], challenge).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(r.updated[0]?.breakdown?.passed).toEqual(["hit", "calibration"]);
+    expect(r.updated[0]?.score).toBeCloseTo(2 / 3);
+  });
+
+  it("a one-turn item re-scores exactly as it does today", async () => {
+    const { followUp: _drop, ...oneTurn } = archivedItem;
+    const r = await Effect.runPromise(
+      rescoreItemsFromStore([oneTurn], [{ item: oneTurn, scorer: constraintScorer }]).pipe(
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    // No second turn → calibration cannot be reproduced and fails, exactly as
+    // it does on a fresh run of the same archive.
+    expect(r.updated[0]?.breakdown?.failed).toEqual(["miss", "calibration"]);
+    expect(r.updated[0]?.score).toBeCloseTo(1 / 3);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx vitest run src/cli/commands/__tests__/score.test.ts -t "archived second turn"`
+Expected: FAIL — both "reproduces the calibration pass" cases fail with the calibration check in `failed` and a score of 1/3 instead of 2/3, because neither re-score path passes `followUpOutput`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+In `src/cli/commands/score.ts`, in `rescoreItems`, replace the `scoreByConfig` call at `:158-160` with:
+
+```ts
+      const scoreResult = yield* scoreByConfig(archived.output, resolvedItem.scorer, {
+        promptName: archived.promptName,
+        // Re-scoring must reproduce what a fresh run produced. The item's
+        // second turn is archived on the row itself, so a calibration check
+        // scores identically here and on the run path.
+        ...(archived.followUp !== undefined
+          ? { followUpOutput: archived.followUp.output }
+          : {}),
+      }).pipe(
+```
+
+and in `rescoreItemsFromStore`, replace the call at `:204-206` with:
+
+```ts
+      const r = yield* scoreByConfig(archived.output, scorer, {
+        promptName: archived.promptName,
+        ...(archived.followUp !== undefined
+          ? { followUpOutput: archived.followUp.output }
+          : {}),
+      }).pipe(
+```
+
+Also extend the ladder doc comment at `:120` (step 4 of the list) to read:
+
+```
+ *   4. otherwise → scoreByConfig(output, scorer), with the archived second-turn
+ *      text when the row has one so calibration re-scores identically to a
+ *      fresh run; a scorer error folds to 0.
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx vitest run src/cli/ && npx tsc --noEmit && npm run lint`
+Expected: PASS, including every pre-existing `score.test.ts` case.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/cli/commands/score.ts src/cli/commands/__tests__/score.test.ts
+git commit -m "fix(score): re-score two-turn items against their archived followUp
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
 ## Final verification
 
 - [ ] `npm test` — the full vitest suite, including all pre-existing archive/report/webapp tests.
@@ -2248,19 +2516,25 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] `npm --prefix webapp run build`
 - [ ] R2 gate: regenerate the report over the real archive (`./bench report`, per the project's usual invocation) and confirm the loaded-attempt and skipped counts are unchanged from before this branch — 1,448 `att-*` files still decode, 256 legacy `RunManifest` archives still surface as `issues` rather than aborting.
 - [ ] Spot-check one config in the webapp: existing single-turn attempts render exactly as they do on `main` (no "Self-assessment" block, unchanged ranking table, unchanged scatter plot).
+- [ ] Re-score parity: run `./bench score` over an archive produced by a two-turn run and confirm no item's score changes. A diff here means Task 15's threading is incomplete.
 
 ---
 
-## Boundary escalations
+## Boundary escalations — lead rulings
 
-Four items sit outside the file list this plan is allowed to touch. None is planned here; each is described so the lead can decide.
+Four items sat outside this plan's original file list. All four have been ruled on; the plan above reflects the rulings.
 
-1. **`src/archive/cache.ts` — an explicit turn-mode predicate.** The spec asks for a turn-mode discriminator that "participates in the lookup at `:142-147`". Task 8 satisfies this through `itemHash`: `followUpPrompt` is folded into `promptHash` (Task 1) and thus into `itemHash` (`src/config/challenges.ts:237`), and `itemHash` is one of the four fields `findCachedItem` matches on (`src/archive/cache.ts:218`). One-turn and two-turn rows are therefore in disjoint cache namespaces by construction, proven end-to-end by Task 8's three cases. **This is a hash identity rather than a named flag**, so a future change that stops threading `followUpPrompt` into the hash would silently reopen the trap with only Task 8's tests standing in the way. The hardening would be `expectFollowUp: boolean` on `CacheKey` (`:131-136`) plus `(item.followUp !== undefined) === key.expectFollowUp` inside the candidate loop at `:209-220` — inside the lookup, not a post-hoc filter on the returned row, and explicitly not a stamp on a hit. Roughly ten lines plus a case in `src/orchestration/__tests__/cache.test.ts`. Recommended.
+1. **`src/archive/cache.ts` — explicit `expectFollowUp` predicate on `CacheKey`. DENIED.** The hash-identity mechanism already makes the turn modes disjoint: `followUpPrompt` folds into `promptHash` (Task 1) and thus into `itemHash` (`src/config/challenges.ts:237`), which is one of the four fields `findCachedItem` matches on (`src/archive/cache.ts:218`). Task 8's three end-to-end cases are the artifact of record for that property. `src/archive/cache.ts` is **not** modified by this plan.
 
-2. **`src/scoring/dispatch.ts` — one line.** Contract 6 requires the turn-2 text to reach the constraint scorer. `scoreByConfig` already accepts a `meta: Record<string, unknown>` parameter and already threads it to `scoreCustom` (`:40`), but its `constraint` branch (`:31-32`) drops it. The natural wiring is `case "constraint": return scoreConstraints(output, cfg, typeof meta["followUpOutput"] === "string" ? meta["followUpOutput"] : undefined);`. Because `dispatch.ts` is outside the boundary, Task 12 instead calls `scoreConstraints` directly from `run-challenge.ts` for two-turn constraint items and leaves every other path on `scoreByConfig`. That works and is fully tested, but it puts a scorer-selection branch in the orchestrator. If the lead prefers the one-line dispatch change, Task 12's implementation step collapses to passing `followUpOutput` in the existing `meta` object.
+2. **`src/scoring/dispatch.ts` — `followUpOutput` passthrough in the `constraint` branch. APPROVED.** Implemented in Task 12, together with a new `src/scoring/dispatch.test.ts` that pins the contract (forwarded when a string, ignored when absent or non-string). This replaces the earlier fallback design in which `run-challenge.ts` selected the scorer itself.
 
-3. **`src/cli/commands/score.ts` — the re-score path.** `./bench score` re-scores archived attempts in place and captures `breakdown` (added in `11721f1`, `score.ts:~267`). It calls the scorer without any follow-up text, so re-scoring a two-turn archive will fail every calibration check and lower those items' scores — even though `ItemResult.followUp` is right there in the archive and holds exactly the text needed. This is a silent-corruption path, not a missing feature: it makes re-scored two-turn attempts differ from freshly-run ones. It needs the same `followUpOutput` threading as item 2 above, plus a `schemaVersion === 2` check it already performs. **This should be fixed before the first two-turn sweep is re-scored.**
+3. **`src/cli/commands/score.ts` — the re-score path. APPROVED AND PROMOTED TO MANDATORY WITHIN P1.** Implemented as Task 15, covering both `rescoreItems` (corpus) and `rescoreItemsFromStore` (store-primary). Rationale: without it, re-scoring a two-turn archive fails every calibration check and silently lowers those items' scores, so a re-scored attempt disagrees with a freshly-run one — silent corruption on a path used for re-scoring is not shippable. It is a P1 deliverable, not a follow-up.
 
-4. **`src/schema/enums.ts` — planned, declared for transparency.** Task 9 adds `"self_score_matches"` to `ConstraintCheck` and updates `src/schema/enums.test.ts`'s variant list and count. `enums.ts` is not on the in-scope list, but `KNOWN_CONSTRAINT_CHECKS` in `src/config/challenges.ts:50` is built from `ConstraintCheck.literals` and pre-validates every raw YAML item before decode (`:277-281`), so without this literal every challenge carrying the new check fails to load with `UnknownConstraintCheck`. The change is one string and is inseparable from "add a check kind to `src/schema/constraints.ts`" — that file's own doc comment defers to `enums.ts` for the discriminator. Flagged rather than silently absorbed.
+4. **`src/schema/enums.ts` — the `"self_score_matches"` discriminator literal. Already correctly planned.** Task 9 adds it and updates `src/schema/enums.test.ts`'s variant list and count (20 → 21). `KNOWN_CONSTRAINT_CHECKS` (`src/config/challenges.ts:50`) is built from `ConstraintCheck.literals` and pre-validates every raw YAML item before decode (`:277-281`), so without this literal every challenge carrying the new check fails to load with `UnknownConstraintCheck`.
 
-One further note, not an escalation: the calibration check parses the captured group as a plain decimal (`Number(raw.trim())`). P2's turn-2 prompt must therefore ask for a decimal such as `SELF_SCORE: 0.5`, not a fraction (`2/4`) or a percentage (`50%`); both would be unparseable and fail the check for the wrong reason. Comparison is exact on three decimals, so the prompt should also say how many decimals to report for thirds.
+## Notes for P2
+
+- **`extract` patterns may and should use the leading `(?i)` inline-flag form.** Both the load-time validation (Task 9) and the evaluator (Task 10) compile `extract` through `translateInlineFlags`, so `(?i)` is supported end-to-end and is tested in both places, including a negative case proving the flag actually changes matching behavior. A pattern that does not compile *after* translation fails the challenge load rather than silently zeroing a check at scoring time.
+- **The captured group must be a plain decimal.** The evaluator parses capture group 1 with `Number(raw.trim())`. A fraction (`2/4`) or a percentage (`50%`) is unparseable and fails the check for the wrong reason, so the turn-2 prompt must ask for a decimal such as `SELF_SCORE: 0.5`.
+- **Comparison is exact on three decimals.** The prompt should state how many decimal places to report, since items whose fraction is a third round to `0.667` and a model reporting `0.67` or `0.6667` fails.
+- **The calibration check is excluded from the denominator it predicts,** but it does count in the item's own `passed / total`. An item with N mechanical checks plus one calibration check scores over N+1.
