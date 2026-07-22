@@ -24,31 +24,31 @@ partition of the set — every challenge exercises several at once.
 5. **Format discipline** — output honors the requested structure exactly; structured
    fields agree with the free-text rationale.
 
-## Experimental design
+## The challengeset
 
-The unit is a trial: **(challenge prompt C, context treatment T, model M)** on one
-scenario from a fixed set of three.
+This is **one challenge suite**, `challenges/agentic-cognition.yaml`, carrying **54
+items**: 3 scenarios x 6 challenges x 3 context treatments. It is loaded, run, scored,
+archived and reported exactly like the existing suites — `economics`, `financial`,
+`trust` — via `./bench run`. There is no special execution path and no special reporting
+path.
 
-- **C** — 6 challenge prompts, verbatim across all treatments and all models.
-- **T** — 3 context treatments (T1 raw telemetry / T2 labeled digest / T3 narrative
-  brief). Same facts, different structure. This is the factor most suspected to drive
-  outcomes and the least understood, so it is the axis the set is built around.
-- **M** — the existing model roster. **The lineup is a given, not a design variable.**
-  Models are selected by the existing `--configs` globs against `configs.yaml`. Nothing
-  in this project is built for the model axis. **Model scale is analyzed, never
-  manipulated:** every model that runs is a model that already exists in `configs.yaml`,
-  so a scale-related reading (H1, H4) is a post-hoc split of an observational roster, not
-  a controlled comparison. No hypothesis licenses adding, removing or re-quantizing a
-  model to test it.
+- **Six challenge prompts**, verbatim across every treatment and every scenario.
+- **Three context treatments** — T1 raw telemetry, T2 labeled digest, T3 narrative brief.
+  Same facts, three renderings. **These are variations within the challengeset**, and
+  their purpose is to reveal whether a model does well across all three or only on one
+  kind of context.
+- **Three scenarios**, each one coherent world-moment.
 
-**N=1 per cell.** No repeat mechanism, no seeds in the cache key, no variance recording.
-Consequence, stated once and applied everywhere below: **every result is a directional
-reading, never a statistically tested effect.** With one observation per cell there is no
-within-cell variance to estimate, so no confidence interval, significance test or
-"the gap is real" claim may be attached to any comparison in this document — including
-the hypotheses and the R5 discrimination check. Where a result matters enough to need
-confidence, the response is a follow-up experiment with a repeat mechanism, which is
-explicitly out of scope here.
+The model lineup is a given. Models are selected by the existing `--configs` globs against
+`configs.yaml`, and nothing in this project is built around model selection. **Model scale
+is read, never manipulated:** every model that runs already exists in `configs.yaml`, so
+any scale-related reading is a post-hoc split of whatever roster happens to be installed.
+Nothing here licenses adding, removing or re-quantizing a model.
+
+**Each item runs once.** No repeat mechanism, no seeds in the cache key, no variance
+recording. Every result is a directional reading — the operator reads scores in the
+webapp, revises, and re-runs. Nothing in this document attaches confidence to a
+difference, and nothing needs to.
 
 ### The scenario
 
@@ -67,19 +67,19 @@ every scenario carries both.
 
 The three treatments render only the `{{ENVIRONMENT_CONTEXT}}` portion. The payloads
 (`{{EVENT}}`, `{{ACTION_LOG}}`, `{{ADVISORY}}`, `{{STEP_GOAL}}`, `{{OBJECTIVE}}`) are
-treatment-invariant by construction. This is what makes C a **within-scenario** factor: all 18 cells of a
-scenario rest on identical information, so any difference between cells is attributable to
-structure and to nothing else.
+treatment-invariant by construction. All 18 items of a scenario therefore rest on
+identical information, so any difference among them is attributable to structure and to
+nothing else.
 
 The fact manifest spans the whole world-moment, not just the environment block, since the
 equivalence assertion must cover every fact any of the six challenges can reach.
 
 ### The scenario set
 
-**Scenarios are the replication factor.** With N=1 and no repeat mechanism, running K
-scenarios is what gives each (C, T, M) cell more than one observation — K samples across
-differing content rather than K resamples of identical content. Consequence: scenario
-count is the compute multiplier.
+Running more than one scenario is what keeps a reading from being about a single
+world-moment: three scenarios give each challenge-and-treatment pairing three readings
+across differing content rather than three resamples of identical content. Scenario count
+is the compute multiplier.
 
 The set is fixed at **three scenarios**, constructed so that correct answers genuinely
 differ across them. Without this a constant-answer strategy scores well and the set fails
@@ -99,7 +99,7 @@ evidence-over-inference can produce a false negative rather than a false positiv
 
 ### Turn structure
 
-**Every trial is two conversational turns.**
+**Every item is two conversational turns.**
 
 - **Turn 1** is the challenge exactly as designed, uncontaminated.
 - **Turn 2** shows the model its own turn-1 output as an assistant message, **states the
@@ -142,8 +142,7 @@ turn exists to capture.
 **Matching is exact.** The check passes on exact agreement between the model's
 self-reported score and the item's mechanical fraction. The model is told the judging
 criteria, so it can count checks as accurately as the scorer does; near-misses earn no
-partial credit. Mean absolute error remains a reported analysis statistic in P3 and does
-not affect the item score.
+partial credit. The check's pass or fail is the whole of what is reported.
 
 The calibration check is unlike the other twenty in one respect: it reads the **turn-2
 output** and the **results of the other checks in the same item**. `followUp` text is
@@ -160,9 +159,20 @@ scorer.
   check that runs with the renderer's own test suite and fails the build when any manifest
   fact is unencoded by any of the three treatments. A reviewer's eyeball at R3 is a
   second line of defense, not the assertion. It is the single most important validity
-  control and the primary reason the rendering layer exists at all. The mechanism by
-  which a *prose* rendering (T3) is checked against the manifest is not settled — see
-  Open questions.
+  control and the primary reason the rendering layer exists at all.
+
+  **Every manifest fact carries a probe:** a `contains` or `regex` check over a synonym
+  set, written with the same check machinery the scorer uses. The assertion is that every
+  probe matches against all three rendered treatments; a fact whose probe fails under any
+  treatment fails the build. This mechanism is chosen for three reasons. It does not force
+  T3 into template assembly, so the prose keeps the narrative pressure it exists to carry.
+  It reuses one mechanism rather than adding a bespoke prose validator. And it catches the
+  class of bug present in the worked example below, where T3's prose omits the hold's
+  capacity that T1 and T2 both state as `13/50`.
+
+  The false-negative bias is acceptable here. A generous probe risks passing a weak
+  encoding, which R3 catches by eye; a strict probe blocks legitimate prose and pushes the
+  treatments toward stilted renderings, which is the more damaging error.
 - **Time is a rendering detail, not an equivalence obligation.** The source game runs a
   real 10-second tick; the scenarios imitate it for eval purposes. Exact time arithmetic
   does not need to reconcile across treatments — T1 may carry ticks where T2 and T3 carry
@@ -173,16 +183,17 @@ scorer.
 - **Fixed decoding params** per model, from the existing config.
 - **Fixed output contract** per challenge.
 - **Seeded surface details.** Scenario names and numbers are randomized per fixture so
-  memorized answers cannot transfer. **The seed is a property of the scenario, not of the
-  cell:** one seed produces one set of surface details, and all three treatments and all
-  models see those same details. A difference between two cells is therefore never a
-  fixture difference.
-- **Axis independence.** Challenges never reference the treatment; treatments never
-  reference the challenge.
+  memorized answers cannot transfer. **The seed is a property of the scenario:** one seed
+  produces one set of surface details, and all three treatments and all models see those
+  same details. A difference between two items is therefore never a fixture difference.
+- **Independence.** Challenges never reference the treatment; treatments never reference
+  the challenge.
 
-### Hypotheses
+### What we expect to see
 
-All four are seeded by live observation. None has been tested as a controlled comparison.
+Four expectations, all seeded by live observation. They motivate the design and give the
+operator something to look for when reading results. They are not claims the challengeset
+settles.
 
 - **H1** — Labeled-digest context beats raw telemetry, and the gap widens as model size
   shrinks.
@@ -200,18 +211,16 @@ Stated plainly, and published alongside any result: the roster tops out at rough
 `src/llm/chat-completion.ts` hardcodes `http://127.0.0.1:{18080,18081}` with no base URL
 and no auth, so no hosted frontier model is reachable.
 
-H2, H3 and H4 therefore carry an explicit ceiling caveat: each asserts that structure
-matters more than capacity, and above the ceiling we cannot distinguish "structure beats
-scale" from "we never tested enough scale." H1 is exempt only in the shrinking direction —
-the roster's small end is well populated, so a widening gap toward small models is
-observable even though the large end is not.
+H2, H3 and H4 therefore carry an explicit ceiling caveat: each expects structure to matter
+more than capacity, and above the ceiling we cannot distinguish "structure beats scale"
+from "we never tested enough scale." H1 is exempt only in the shrinking direction — the
+roster's small end is well populated, so a widening gap toward small models is observable
+even though the large end is not.
 
 ## Project decomposition
 
 - **P1 — Harness seams.** No content dependency; independently testable.
 - **P2 — Rendering layer + challengeset.** A pure function library; YAML is one sink.
-- **P3 — Analysis.** Cell comparison, the "present but unusable" query, validity checks
-  on the set.
 
 P1 and P2 run in parallel under separate leads.
 
@@ -224,10 +233,10 @@ RenderedVariant = { challengeKey, treatmentKey, prompt, followUp, checks }
 ```
 
 `challengeKey`, `treatmentKey` and the scenario key are the renderer's own struct fields;
-they leave the layer as one string. **The experimental axes encode in item names.** An
-emitted item is named `agentic_c1_t1_s1` — challenge, treatment, scenario — exactly as
-every existing suite identifies its items. There is no declared axis field anywhere in the
-schema: P2 emits names in this form and P3 parses them back out.
+they leave the layer as one string. **Item names encode scenario, challenge and
+treatment.** An emitted item is named `agentic_s1_c1_t1`, exactly as every existing suite
+identifies its items. Nothing in the schema declares these as structure; they are names,
+and the operator reads them as names in the webapp.
 
 No I/O, no ambient randomness — the seed is passed in. It lives in
 `scripts/author/agentic/`, matching the existing precedent that `economics.yaml`,
@@ -248,9 +257,9 @@ functions.
 - The exact wording of the turn-2 score-reproduction prompt. The design is fixed above;
   P2 authors the text. **The prompt states the judging criteria in enough detail that
   reproducing the score is actually possible** — which checks run, and what each one
-  looks for. This is a design constraint on the prompt, not an open question: if the model
-  cannot tell what is being checked, the trial measures guesswork rather than calibration,
-  and the calibration check then fails items for the wrong reason.
+  looks for. This is a design constraint on the prompt: if the model cannot tell what is
+  being checked, the item measures guesswork rather than calibration, and the calibration
+  check then fails items for the wrong reason.
 - C6's check set, including which of C1's domain rules it inherits.
 
 ### Does not own
@@ -261,7 +270,7 @@ functions.
 - Check execution. `src/scoring/` runs the emitted declarations; P2 emits a calibration
   check in each item's list but does not implement the kind, which is P1's.
 - Archive, report and webapp shape.
-- Any analysis, or any notion of which treatment "won".
+- Any notion of which treatment "won". Reading results is the operator's job.
 
 ### Checks are derived, never hand-written
 
@@ -278,11 +287,12 @@ C2's corrections, C3's citations, C5's justification) are adjudicated by matchin
 answer is enumerated as an alternate rather than pinned to one wording.
 
 The bias is deliberate and one-directional. **A check that misses a correct answer corrupts
-the measurement worse than one that is slightly generous**, because the quantity of
-interest is the difference between cells, not an absolute pass rate. A generous check
-inflates every cell of a row roughly equally and leaves the comparison intact; a brittle
-check fires unevenly on wording that varies by model and by treatment, which is precisely
-the axis under study. Where the two error types trade off, take the false positive.
+the measurement worse than one that is slightly generous**, because what is being read is
+the difference between the treatments, not an absolute pass rate. A generous check inflates
+all three treatments roughly equally and leaves the comparison intact; a brittle check
+fires unevenly on wording that varies by model and by treatment, which is precisely what
+the variations exist to surface. Where the two error types trade off, take the false
+positive.
 
 Case-insensitivity uses the leading `(?i)` inline-flag form, which
 `translateInlineFlags` in `src/scoring/regex-flags.ts` translates for the JS engine — not
@@ -334,7 +344,7 @@ Taken from the logs for nativeness: resources `fuel n/100`, `hull n/100`, `shiel
 
 ## The five failure archetypes
 
-Each must reproduce somewhere in the matrix, or the set is measuring something else.
+Each must reproduce somewhere in the suite, or the set is measuring something else.
 This is the R5 checkable list.
 
 ### 1. Weight-0 on a system jump
@@ -647,10 +657,9 @@ of scan range and hasn't done anything worth mentioning.
 ## P1: harness seams
 
 P1 is three changes: **multi-turn support, the calibration check kind, and the
-detail-reporting path that surfaces the self-reported score per item.** Nothing else in
-the harness moves. The experimental axes ride in item names and analysis reads the archive
-directly, so no report-contract grain change and no aggregation work is required to run
-this set.
+self-reported score in the existing per-item drilldown.** Nothing else in the harness
+moves. Scenario, challenge and treatment ride in item names, so no report-contract grain
+change and no aggregation work is required to run this set.
 
 ### Multi-turn
 
@@ -770,28 +779,6 @@ must avoid the banned tokens even inside comments.
 assigned undefined explicitly — use the conditional-spread idiom already at
 `src/orchestration/run-challenge.ts:74-83`.
 
-## P3: analysis
-
-**P3 is a script that reads `benchmark-archive/*.jsonl` directly.** It follows the
-precedent set by `./bench score`, which re-scores attempt archives in place from the same
-files. There is no report-contract change and no new data file: the archive carries every
-item's name, score, output and `followUp`, and the drilldown JSON at
-`webapp/public/details/<attemptId>.json` carries per-item `item_id`, `prompt_name`,
-`prompt_text`, `output`, `reasoning`, `score`, `error`, `scorer`, `breakdown` and the
-self-reported score for anything that needs to be read by eye.
-
-The script parses the experimental axes out of item names (`agentic_c1_t1_s1`) and
-produces:
-
-- the cell table — mean score per (challenge x treatment), split by model;
-- calibration statistics — exact-match rate and mean absolute error between the turn-2
-  self-reported score and the mechanical score, cut by challenge, treatment and model.
-  Exact match is already scored per item by the calibration check; P3 aggregates it and
-  adds mean absolute error, which is descriptive only and moves no score;
-- the "present but unusable" query — items where a canary fact appears in the input and
-  is absent from the answer;
-- the R5 validity checks: discrimination, and reproduction of the five archetypes.
-
 ## Out of scope
 
 Explicit boundaries for this project:
@@ -803,13 +790,15 @@ Explicit boundaries for this project:
 - New scorer types. Everything is scored by the existing `constraint` scorer; the
   calibration check is a new check kind within it, not a new scorer.
 - An LLM-judge scorer.
-- Tier wiring. It is a dead axis; leave it dead.
+- Tier wiring. It is dead; leave it dead.
 - Removal of vestigial `src/game/**` and `RunManifest`.
+- **Analysis tooling of any kind.** No script that reads the archive to compute
+  aggregates, no comparison or grid UI, no new reporting surfaces. The operator is the
+  analysis layer: they read results in the existing webapp, revise, and re-run.
 - The report contract and the aggregation machinery. `data.js`, `WebappRecord`,
   `webapp/src/lib/pipeline.ts` and `webapp/src/lib/coverage.ts` are untouched, and the
   per-attempt grain does not change. The one webapp surface in scope is the per-item
-  drilldown, which renders the self-reported score; analysis results are read from the
-  archive.
+  drilldown, which renders the self-reported score.
 
 ## Review gates
 
@@ -817,24 +806,26 @@ Explicit boundaries for this project:
 - **R2** — P1 merged, and all 1,704 existing archive files still load after the multi-turn
   change (1,448 `att-*`; 1,441 at v2, 7 at v1; 256 legacy `RunManifest` archives already
   collected as `issues` rather than aborting, per `src/report/load-attempts.ts:73-108`).
-- **R3** — One scenario rendered all 18 ways, read by the user. The treatments *are* the
-  experiment; if T3 leaks a fact that T1 buries, H2 measures our prose.
+- **R3** — One scenario rendered all 18 ways, read by the user. The treatments carry the
+  whole point of the set; if T3 leaks a fact that T1 buries, H2 is about our prose.
 - **R4** — Mechanical checks validated against outputs the user hand-labels. Skip this and
   the set measures its own regexes.
-- **R5** — Pilot sweep, then validity checks: discrimination (no challenge x treatment
-  cell where every model aces or fails) and reproduction of all five archetypes above.
-- **R6** — Full sweep and analysis.
+- **R5** — Pilot sweep, then validity checks read by the operator: discrimination (no
+  challenge-and-treatment pairing where every model aces or fails) and reproduction of all
+  five archetypes above.
+- **R6** — Full sweep, read in the webapp.
 
-R3 and R4 are the gates that make this an experiment rather than a vibe.
+R3 and R4 are the gates that make this a measurement rather than a vibe.
 
 ## Cost
 
-**Per scenario:** 18 items (6 C x 3 T) x 2 turns = **36 calls per model**.
+**Per scenario:** 18 items (6 challenges x 3 treatments) x 2 turns = **36 calls per
+model**.
 
-**Per pass, per model:** 3 scenarios x 6 challenges x 3 treatments x 2 turns =
+**Per pass, per model:** 3 scenarios x 6 challenges x 3 treatments = 54 items, x 2 turns =
 **108 calls**. That is roughly 0.63x the existing 171-item challenge row, which is 171
 calls per model. Across the full 60-config active roster, approximately **57 hours**,
-sequential — the roster would not typically all be run.
+sequential and resumable — the roster would not typically all be run.
 
 Note the deliberate asymmetry with the reported metrics: those calls are the true cost,
 but `generation_tokens` / `wall_time_sec` / `efficiency` in the report cover turn 1 only
@@ -845,16 +836,3 @@ quoted as the cost of running the set.
 Execution is strictly sequential — one local model in memory, fixed ports 18080/18081, no
 concurrency (`src/orchestration/run-matrix.ts`). Resume is effectively free via the
 content-addressed item cache, which scans the archive per item.
-
-## Open questions
-
-- **How information equivalence is asserted for T3.** T1 and T2 are structured, so a fact
-  can be checked by construction. T3 is prose. Either every manifest fact carries a
-  per-treatment surface form that the renderer must consume (making the assertion a
-  coverage check over fact ids), or the prose check is something else. Until this is
-  decided the control described as "the single most important validity control" has no
-  implementation.
-- **What size of cell-to-cell difference counts as a signal.** N=1 rules out a
-  significance test, and no descriptive threshold is defined, so "labeled digest beats
-  raw telemetry" currently has no decision rule. R5's discrimination check ("no cell
-  where every model aces or fails") is a coarse floor, not that rule.
