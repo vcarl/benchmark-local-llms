@@ -34,19 +34,19 @@ line, the wire payload, and — where the deduplicator has seen it before — a 
 
 ## Ground truth is the eval
 
-**The ground-truth table below is the artifact the operator signs off on first (gate R2).**
+**The ground-truth table below is the artifact the operator signs off on (gate R2, approved).**
 Everything downstream — the five mechanical checks, the self-score comparison, the whole
-comparison across prompts and renderings — is a mechanical consequence of those eight rows.
+comparison across prompts and renderings — is a mechanical consequence of those eleven rows.
 A wrong row is not a scoring nuisance; it silently redefines what the eval rewards.
 
-Two rows are deliberately banded rather than pinned, because the source material genuinely
-supports two adjacent values and pinning one would punish a defensible answer. Bands are
-named explicitly per row and are part of what R2 approves.
+Several rows are deliberately banded rather than pinned, because the source material
+genuinely supports two adjacent values and pinning one would punish a defensible answer.
+Bands are named explicitly per row and are part of what R2 settled.
 
 ## The challengeset
 
-One suite, `challenges/event-classification.yaml`, carrying **120 items = 5 prompts × 3
-renderings × 8 events**. It loads, runs, scores, archives and reports exactly like
+One suite, `challenges/event-classification.yaml`, carrying **165 items = 5 prompts × 3
+renderings × 11 events**. It loads, runs, scores, archives and reports exactly like
 `economics`, `financial` and `trust`, via `./bench run`. No special execution path, no
 special reporting path.
 
@@ -55,17 +55,17 @@ Item names encode the three axes: `evc_<prompt>_<rendering>_<event>` — e.g.
 declares the axes as structure; they are names, read as names in the webapp.
 
 `category` is `event-classification` on every item. `tier` is 2 for the four replayed
-events and 3 for the four constructed ones — the constructed ones require deriving a
-judgment from numbers rather than recognising a familiar frame.
+events and 3 for the seven constructed ones — the constructed ones require deriving a
+judgment from numbers or from prose rather than recognising a familiar frame.
 
 The suite is generated, matching the precedent that `economics.yaml`, `financial.yaml` and
 `trust.yaml` are emitted by solvers under `scripts/author/` rather than hand-written. The
 generator lives in `scripts/author/eventclass/` and is a pure function
-`(prompt, rendering, event) -> item`; the eight event definitions and their ground truth
+`(prompt, rendering, event) -> item`; the eleven event definitions and their ground truth
 are one table in that directory, and the checks are derived from it. A ground-truth edit
 changes all 15 items of that event at once, so the set can never score against stale truth.
 
-**Cost:** 120 items × 2 turns = **240 calls per config**, roughly 1.4× the existing
+**Cost:** 165 items × 2 turns = **330 calls per config**, roughly 1.9× the existing
 171-item challenge row. Execution is sequential and resumable through the content-addressed
 item cache.
 
@@ -213,23 +213,23 @@ vocabulary.
 5. `chat_message` on the public `system` channel, not addressed to you → `accumulate` / w2 / `null`
 6. `full_state` whose own position is a system not previously visited → `accumulate` / w2 / `null`
 
-**No example in the pool depicts any of the eight scored events**, so example-echo cannot
-manufacture a correct answer under `v1_style` or `mid_placeholder`. **The pool deliberately
-contains no escalation.** `v5_verbatim` alone carries verbatim examples whose events and
-answers are E5 and E8 — see the interpretation caveat below.
+**No example in the pool reproduces any of the eleven scored events**, so example-echo
+cannot manufacture a correct answer under `v1_style` or `mid_placeholder`. **The pool
+deliberately contains no escalation** — the escalate branch is carried by the rules, never
+by an example, in every prompt except `v5_verbatim`, whose examples are as deployed.
 
 ## Event rendering (3)
 
-The rendering axis crosses cleanly: the same eight events, three ways.
+The rendering axis crosses cleanly: the same eleven events, three ways.
 
 - **`raw`** — the wire JSON payload verbatim under its `type:` line, plus the
   ` (seen Nx recently)` suffix where the event carries one. Corpus event blocks run 226 to
-  13,794 chars; the eight here run 246 to 5,660.
+  13,794 chars; the eleven here run roughly 230 to 5,584.
 - **`status`** — V5's deployed form: a pre-computed `STATUS:` line between the `type:` line
   and the payload, in the grammar of the 16 STATUS lines observed in the corpus. Two
   deliberate deviations from the deployed renderer, both named here so they are not read as
   bugs: (a) the deployed renderer emits no STATUS line for `chat_message`, and none existed
-  for `combat` or `api_error`, so those three are authored; (b) the deployed renderer emits
+  for `combat` or `api_error`, so those six are authored; (b) the deployed renderer emits
   no `no alerts` / `ALERT:` clause on `observation_update` STATUS lines, and that
   inconsistency is reproduced faithfully, because V5's rules key on that clause.
 - **`narrative`** — the same event as prose, no JSON, no STATUS line, no `type:` line. One
@@ -240,12 +240,12 @@ The rendering axis crosses cleanly: the same eight events, three ways.
 `no alerts` or omit the clause entirely; V5's entire alert-override apparatus is untested by
 the corpus. E5, E6 and E7 fire it.
 
-## The eight events
+## The eleven events
 
 Four are replayed verbatim from `events.jsonl`, identified by the timestamp of the
-`kind:"exchange"` / `step:"observe"` record they were the input to. Four are constructed,
-because **the corpus has zero coverage of threat, damage, resource-crisis and error
-events** — and those are precisely the highest-stakes branches. V5's rule table legislates
+`kind:"exchange"` / `step:"observe"` record they were the input to. Seven are constructed,
+because **the corpus has zero coverage of threat, damage, resource-crisis, error or hostile
+contact events** — and those are precisely the highest-stakes branches. V5's rule table legislates
 for `combat`, `chat`, `market` and `api_error`; none of those are real wire names and none
 has ever executed. The real wire vocabulary is `full_state`, `observation_update`,
 `logged_in`, `ok`, `welcome`, `chat_message`, `crafting_update`.
@@ -255,20 +255,43 @@ adopt the names V5's rule table uses, so that V5 is evaluated on the branch it l
 for. They reuse real player and station identifiers from the corpus so the payloads are
 native in every other respect.
 
-### E1 — `e1_repeat` · replayed · `full_state`, sixth repeat, nothing wrong
+**Three of the eleven are chat.** One chat event exists per corpus decade of luck: the whole
+log contains three `chat_message` events, and the non-LLM "inert event" fast-path killed two
+of them before the classifier ever saw them — while every prompt version insists
+`A chat is ALWAYS kept.` Chat is simultaneously the weakest-tested and the most
+consequential input channel, so it gets a low, a mid and a high case (E9, E11/E3, E10). No
+constant answer wins the chat family.
 
-Record `2026-07-13T05:29:41.421Z`. Event block 5,660 chars, `"hull":100,"max_hull":100`,
-`"fuel":84,"max_fuel":100`, `"cargo_used":30,"cargo_capacity":50`, tail:
+### The no-reproduction rule
+
+**No test event may reproduce a worked example from any of the five prompts** — not its
+payload, not its numbers, not its STATUS line. The examples lever exists to test whether
+examples *generalize* or merely *leak*; an event that is also an example measures recall and
+reports it as judgment. Every event below was checked against all five example pools, and
+two were re-based to satisfy the rule: E1 (V5's first example is a `full_state` repeat at
+`fuel 84%` / `(seen 6x recently)`) and E6 (V5's fifth example is
+`STATUS: fuel 6% (LOW), hull 100%` over `"fuel":6,"max_fuel":100`). E5 and E8 are authored
+away from V5's `combat`/`weapons_fire`/`damage:32`/`in_combat:true` and `api_error`/`429`
+examples in both shape and numbers.
+
+Type-level coincidence is expected and is not a violation: V5's rule table has a row for
+every event type in the set, and testing whether a model applies a stated rule is the point.
+What the rule forbids is a match at the level of the payload the model actually reads.
+
+### E1 — `e1_repeat` · replayed · `full_state`, ninth repeat, nothing wrong
+
+Record `2026-07-13T05:41:01.320Z`. Event block 5,584 chars, `"hull":100,"max_hull":100`,
+`"fuel":79,"max_fuel":100`, `"cargo_used":44,"cargo_capacity":50`, not docked, tail:
 
 ```
-…"trading":{"name":"Trading","category":"Commerce","level":2,"max_level":100,"xp":7,"next_level_xp":340}},"message":"Current game state"}} (seen 6x recently)
+…evel_xp":60},"trading":{"name":"Trading","category":"Commerce","level":2,"max_level":100,"xp":20,"next_level_xp":340}},"message":"Current game state"}} (seen 9x recently)
 ```
 
-`status` line: `STATUS: fuel 84%, hull 100%, docked at first_step_memorial_station (First Step Memorial Station); no alerts`
+`status` line: `STATUS: fuel 79%, hull 100%, in space; no alerts`
 
-`narrative`: *"Another routine snapshot of your own ship comes in — the sixth like it in
-short order. Hull is untouched at 100 of 100, fuel reads 84 of 100, the hold is 30 of 50
-full, and you are docked where you already were."*
+`narrative`: *"Another routine snapshot of your own ship comes in — the ninth like it in
+short order. Hull is untouched at 100 of 100, fuel reads 79 of 100, the hold is 44 of 50
+full, and you are where you already were."*
 
 **Ground truth: `discard` · weight 0 · `interrupt` false · `drive` null.**
 
@@ -338,40 +361,42 @@ Record `2026-07-06T05:07:35.855Z`. Event block 8,578 chars, `"hull":100,"max_hul
 Banded, and the one row whose boundary is genuinely soft. A reconnection is a lifecycle
 fact rather than nothing, and this frame carries five unread private messages, so
 `accumulate` rather than `discard@0`; but nothing in it is pressing, so weight sits at the
-bottom. R2 is where this row is settled. Under `accumulate`, weight 0 would be
-self-contradictory and correctly fails.
+bottom. Under `accumulate`, weight 0 would be self-contradictory and correctly fails.
 
-### E5 — `e5_combat` · constructed · weapons fire, damage to you, hull dropping
+### E5 — `e5_combat` · constructed · a hull breach inflicted on you, engagement ongoing
 
 ```
 type: combat
-{"type":"combat","payload":{"poi_id":"first_step_memorial_station","system_id":"first_step","tick":1274601,"event":"weapons_fire","attacker":{"player_id":"fef62273a3340157b78793257dd44003","username":"HexBot6","clan_tag":"HEXC","ship_class":"dust_devil","in_combat":true},"target":{"player_id":"fd3d78baf8f13fa771335270e3ea0a82","username":"vcarl"},"damage":32,"hull":68,"max_hull":100,"in_combat":true}}
+{"type":"combat","payload":{"poi_id":"first_step_memorial_station","system_id":"first_step","tick":1274601,"kind":"hull_breach","source":{"player_id":"fef62273a3340157b78793257dd44003","username":"HexBot6","clan_tag":"HEXC","ship_class":"dust_devil","ship_name":"Hex Taxi B003"},"victim_id":"fd3d78baf8f13fa771335270e3ea0a82","shield":0,"max_shield":50,"hull_before":100,"hull_after":83,"max_hull":100,"engagement":"ongoing"}}
 ```
 
-`status` line: `STATUS: fuel 49%, hull 68% (LOW), in space; 1 pilot nearby (HexBot6); ALERT: hull low`
+`status` line (authored): `STATUS: fuel 79%, hull 83%, shield 0% (CRITICAL), in space; 1 pilot nearby (HexBot6); ALERT: taking damage`
 
-`narrative`: *"HexBot6, flying a Dust Devil under the HEXC clan tag, has opened fire on
-you. The hit took 32 points off your hull, leaving it at 68 of 100. The exchange is
-ongoing."*
+`narrative`: *"HexBot6, flying the Hex Taxi B003 under the HEXC clan tag, has opened fire
+on you. Your shield is stripped to nothing and the hull has gone from 100 to 83 out of 100.
+The exchange is still going."*
 
 **Ground truth: `escalate` · weight 4–5 (band) · `interrupt` TRUE · `drive` safety.**
 
-Banded on weight, departing from the brief's exact `5`: V5's own danger check specifies
-"weight 4 or 5", and 32 damage against a hull still at 68% supports either. `interrupt` and
-`drive` are not banded and are the load-bearing assertions of this row. **This is the row
-the deployed system can never pass — zero interrupts in 422 calls.**
+The payload deliberately shares no field names or numbers with V5's combat example — no
+`weapons_fire`, no `"target":"you"`, no `damage:32`, no `in_combat:true`. What remains is
+what the danger check is supposed to catch on its own: an attacker, a victim who is you, and
+a hull number that has gone down. Banded on weight, because V5's own danger check specifies
+"weight 4 or 5" and a 17-point hit through a stripped shield supports either. `interrupt`
+and `drive` are not banded and are the load-bearing assertions of this row. **This is the
+row the deployed system can never pass — zero interrupts in 422 calls.**
 
 ### E6 — `e6_fuel_crisis` · constructed · `full_state`, fuel critically low, on a repeat
 
-E1's 5,660-char frame with one number changed: `"fuel":6` against `"max_fuel":100`. Hull
-stays 100/100. **The ` (seen 6x recently)` suffix is retained**, deliberately: this is the
+E1's 5,584-char frame with one number changed: `"fuel":11` against `"max_fuel":100`. Hull
+stays 100/100. **The ` (seen 9x recently)` suffix is retained**, deliberately: this is the
 exact collision V5's rules legislate for — an `ALERT:` band overriding a repeat marker —
 and it has never once fired in production.
 
-`status` line: `STATUS: fuel 6% (LOW), hull 100%, docked at first_step_memorial_station (First Step Memorial Station); ALERT: fuel low`
+`status` line: `STATUS: fuel 11% (LOW), hull 100%, in space; ALERT: fuel low`
 
 `narrative`: *"Another snapshot of your own ship, much like the last several. Hull is
-untouched at 100 of 100. Fuel reads 6 of 100. You are docked where you were."*
+untouched at 100 of 100. Fuel reads 11 of 100. You are where you were."*
 
 **Ground truth: `accumulate` · weight 3–4 (band) · `interrupt` false · `drive` sustenance.**
 
@@ -383,13 +408,13 @@ characters in 10,000.
 
 ### E7 — `e7_hull_damage` · constructed · `full_state`, hull below max, no attacker present
 
-E1's frame with `"hull":58` against `"max_hull":100`. Fuel stays 84/100. **The
+E1's frame with `"hull":58` against `"max_hull":100`. Fuel stays 79/100. **The
 ` (seen Nx recently)` suffix is removed** — this frame differs from its predecessors.
 
-`status` line: `STATUS: fuel 84%, hull 58% (LOW), docked at first_step_memorial_station (First Step Memorial Station); ALERT: hull low`
+`status` line: `STATUS: fuel 79%, hull 58% (LOW), in space; ALERT: hull low`
 
-`narrative`: *"A snapshot of your own ship. Hull reads 58 of 100. Fuel is 84 of 100, the
-hold is 30 of 50 full, and you are docked. Nothing is firing on you."*
+`narrative`: *"A snapshot of your own ship. Hull reads 58 of 100. Fuel is 79 of 100, the
+hold is 44 of 50 full. Nothing is firing on you."*
 
 **Ground truth: `accumulate` · weight 2–3 (band) · `interrupt` false · `drive` safety.**
 
@@ -397,19 +422,24 @@ The pair E5/E7 is the discrimination that matters most in the set: damage *being
 versus damage *already sustained*. Same drive, opposite `interrupt`, opposite disposition.
 A model with a stuck `interrupt` key in either direction fails one of them.
 
-### E8 — `e8_rate_limit` · constructed · `api_error`, blocked from acting
+### E8 — `e8_budget_exhausted` · constructed · `api_error`, action budget spent, commands rejected
 
 ```
 type: api_error
-{"type":"api_error","payload":{"status":429,"message":"rate limit exceeded","endpoint":"spacemolt.travel","retry_after_s":900,"tick":1408991}}
+{"type":"api_error","payload":{"code":"budget_exhausted","http_status":402,"message":"daily action budget spent; commands rejected until reset","scope":"account","remaining":0,"reset_in_s":5400,"tick":1408991}}
 ```
 
-`status` line (authored): `STATUS: fuel 49%, hull 100%, docked at first_step_memorial_station (First Step Memorial Station); no alerts`
+`status` line (authored): `STATUS: fuel 79%, hull 100%, in space; no alerts`
 
-`narrative`: *"Your last command came back rejected: the travel endpoint is rate-limited,
-status 429, and will not accept another call for 900 seconds."*
+`narrative`: *"Your last command came back rejected. The account's daily action budget is
+spent — nothing you send will be accepted for another 5,400 seconds."*
 
 **Ground truth: `escalate` · weight 4 · `interrupt` false · `drive` sustenance.**
+
+Not a bare 429: V5's seventh worked example is `type: api_error\n{"status":429,...retry...}`
+paired with the exact answer this row wants, so the row is authored to a different code,
+a different HTTP status, a different field set and a different failure. The branch it
+exercises is the same.
 
 `drive` is `sustenance` because every version of the drive list places "quota, or API rate
 budget" there explicitly, over the competing reading of `agency` ("being blocked"). This
@@ -418,25 +448,114 @@ required to carry the drive enumeration.
 
 The `status` rendering of E8 carries a deliberate trap: the STATUS line reads `no alerts`
 while the event is a real block. V5 instructs the model to trust that clause. **"No alerts"
-is not the same as "nothing happened"**, and this is the one item that makes the difference
+is not the same as "nothing happened"**, and this is the item that makes the difference
 observable.
+
+### E9 — `e9_broadcast_chat` · constructed · `chat_message`, open channel, not addressed to you
+
+```
+type: chat_message
+{"type":"chat_message","payload":{"id":"e224ff463e168e4267b697e8c80f23de","channel":"local","sender_id":"391b5cffa95ff0503aa9647566d84579","sender":"Arbogast","clan_tag":"NOIR","content":"selling platinum ore, 40 units, 210cr each, first come first served","timestamp":"2026-07-13T04:12:44.118203991Z"}}
+```
+
+No `target_id`, no `target_name` — the structural mark of a broadcast rather than a message
+to you.
+
+`status` line (authored): `STATUS: fuel 79%, hull 100%, in space; 1 pilot nearby (Arbogast); no alerts`
+
+`narrative`: *"Chatter on the local channel: a pilot called Arbogast announces to whoever
+is listening that he is selling forty units of platinum ore at 210 credits each, first come
+first served."*
+
+**Ground truth: `discard` · weight 0–1 (band) · `interrupt` false · `drive` null.**
+
+**This is the only event in the set that punishes over-reaction, and that is its whole
+point.** V5's rule table states a flat `chat` → `accumulate · weight 2–3 · never discard`,
+and V2 and V3 state `A message is how the world talks to you: ALWAYS keep it, never drop a
+chat.` A model faithfully obeying the deployed rule scores this row wrong. Nothing here is
+addressed to you, nothing is time-bound, and the goods are not something you are trading;
+it is channel noise. Banded 0–1 because "worth remembering as background" is defensible;
+`accumulate@2` is not.
+
+### E10 — `e10_threat_chat` · constructed · `chat_message`, private, a direct threat
+
+```
+type: chat_message
+{"type":"chat_message","payload":{"id":"c9a1f70b5d3e48a2b6f0e1447c25d310","channel":"private","sender_id":"fef62273a3340157b78793257dd44003","sender":"HexBot6","clan_tag":"HEXC","content":"i can see you sitting at the memorial station, prospector. jettison the platinum in the next two minutes or we take it off your wreck.","timestamp":"2026-07-13T04:15:02.551620773Z","target_id":"fef62273a3340157b78793257dd44003:fd3d78baf8f13fa771335270e3ea0a82","target_name":"vcarl"}}
+```
+
+`status` line (authored): `STATUS: fuel 79%, hull 100%, docked at first_step_memorial_station (First Step Memorial Station); 1 pilot nearby (HexBot6); no alerts`
+
+`narrative`: *"A private message arrives, addressed to you. HexBot6 of the HEXC clan says
+he can see you at the memorial station, and gives you two minutes to jettison your platinum
+or he will take it off your wreck."*
+
+**Ground truth: `accumulate` or `escalate` (band) · weight 3–4 (band) · `interrupt` false ·
+`drive` safety.**
+
+**The most valuable row in the set.** The drive definition is unambiguous — safety covers
+"someone targeting you personally: being attacked, damaged, threatened, or harassed" — but
+nothing in the payload carries a structural marker of danger. V5's danger check keys
+entirely on `type: combat`, `weapons_fire`, `attacker`, `damage` above 0, `in_combat:true`
+or a falling hull. **A threat delivered in prose trips none of them**, and the corpus
+contains zero hostile contact of any kind, so the branch has never been exercised even by
+accident.
+
+It also collides head-on with V5's reason rules, which forbid the words *attack, threat,
+hostile, danger, damage, weapons* in a reason unless the event "genuinely IS combat", and
+which mandate that chat reasons name who said what. **The deployed prompt may be
+structurally incapable of scoring this row correctly** — it can reach `drive: safety` only
+by way of a rule that also tells it not to say why. That is a finding, not a flaw in the
+row.
+
+`interrupt` is false: a two-minute ultimatum is not irreversible loss inside one 30-second
+tick. Disposition is the set's only banded disposition, because a warning that has not yet
+been acted on sits genuinely on the accumulate/escalate line.
+
+### E11 — `e11_distress_chat` · constructed · `chat_message`, another pilot asks for help
+
+```
+type: chat_message
+{"type":"chat_message","payload":{"id":"7b4d2c8e11f0492ab3d5c6e879143a02","channel":"system","sender_id":"96775a71dd575a05767f02329504cc54","sender":"Shackleton","content":"anyone near theta minor? i'm out of fuel two jumps short of the gate and drifting. paying 500cr for 10 units, i'm not going anywhere.","timestamp":"2026-07-21T22:41:19.884012553Z"}}
+```
+
+`status` line (authored): `STATUS: fuel 61%, hull 100%, docked at frontier_station (Mobile Capital); 1 pilot nearby (Shackleton); no alerts`
+
+`narrative`: *"On the system channel, a pilot called Shackleton says he is out of fuel two
+jumps short of the gate near Theta Minor and drifting. He is offering 500 credits for ten
+units of fuel and says he is not going anywhere."*
+
+**Ground truth: `accumulate` · weight 2 · `interrupt` false · `drive` null.**
+
+Tests whether a model manufactures urgency from emotional language — the inverse of the
+log's hallucination failures, which invented crises out of neutral frames. This is real
+content and a real opportunity: another pilot, a stated price, a stated location. It is also
+somebody else's emergency. **`drive` is `null` and `weight` is 2**: your own fuel is 61%,
+nothing bears on any of your drives, and the sender explicitly says he is not going
+anywhere. A model that answers `sustenance` has attached your drive to his tank; a model
+that answers 4 or 5 has adopted his urgency as its own.
 
 ### Ground-truth summary
 
 | # | key | source | event | disposition | weight | interrupt | drive |
 |---|---|---|---|---|---|---|---|
-| E1 | `e1_repeat` | log | `full_state`, 6th repeat, hull 100 fuel 84 | discard | 0 | false | null |
+| E1 | `e1_repeat` | log | `full_state`, 9th repeat, hull 100 fuel 79 | discard | 0 | false | null |
 | E2 | `e2_arrival` | log | `observation_update`, pilot Ornithopter5 arrives | accumulate | 1–2 | false | null |
 | E3 | `e3_private_chat` | log | `chat_message`, private, by name, trade offer | accumulate | 3 | false | null |
 | E4 | `e4_logged_in` | log | `logged_in`, reconnect, 5 unread private | accumulate | 1–2 | false | null |
-| E5 | `e5_combat` | constructed | `combat`, weapons_fire, 32 damage, hull 68 | **escalate** | 4–5 | **true** | **safety** |
-| E6 | `e6_fuel_crisis` | constructed | `full_state`, fuel 6/100, on a `(seen 6x)` repeat | accumulate | 3–4 | false | **sustenance** |
+| E5 | `e5_combat` | constructed | `combat`, hull breach 100→83, engagement ongoing | **escalate** | 4–5 | **true** | **safety** |
+| E6 | `e6_fuel_crisis` | constructed | `full_state`, fuel 11/100, on a `(seen 9x)` repeat | accumulate | 3–4 | false | **sustenance** |
 | E7 | `e7_hull_damage` | constructed | `full_state`, hull 58/100, no attacker | accumulate | 2–3 | false | **safety** |
-| E8 | `e8_rate_limit` | constructed | `api_error` 429, travel blocked 900s | **escalate** | 4 | false | **sustenance** |
+| E8 | `e8_budget_exhausted` | constructed | `api_error` 402 `budget_exhausted`, blocked 5,400s | **escalate** | 4 | false | **sustenance** |
+| E9 | `e9_broadcast_chat` | constructed | `chat_message`, local broadcast, not to you | **discard** | 0–1 | false | null |
+| E10 | `e10_threat_chat` | constructed | `chat_message`, private, ultimatum naming your position | accumulate–**escalate** | 3–4 | false | **safety** |
+| E11 | `e11_distress_chat` | constructed | `chat_message`, another pilot out of fuel, paying | accumulate | 2 | false | null |
 
 Constant-answer strategies are dead by construction: three dispositions all occur, weights
 span 0 to 5, `interrupt` is true exactly once, and every drive value except `agency`
-appears. `agency` is absent on purpose — no event in the set is an agency case, so a model
+appears. Within the chat family alone the answers run discard@0–1, accumulate@2,
+accumulate@3 and accumulate-or-escalate@3–4 with `drive: safety`, so no per-type constant
+wins either. `agency` is absent on purpose — no event in the set is an agency case, so a model
 that reaches for it is wrong every time.
 
 ## Scoring
@@ -465,6 +584,9 @@ Checks 1–4 are `regex` checks over the turn-1 output with a shared shape:
 (?i)"interrupt"\s*:\s*"?true"?
 (?i)"drive"\s*:\s*"?safety"?
 ```
+
+E10's banded disposition is one pattern in the same shape:
+`(?i)"disposition"\s*:\s*"(accumulate|escalate)"`.
 
 `regex` rather than `json_field_equals` for three reasons: it expresses a band in one
 pattern; it tolerates a value emitted as a string (`"weight":"4"`, `"drive":"null"` — V5's
@@ -496,7 +618,12 @@ set, case-insensitive and dotall via the leading inline flag group that
 
 The set is derived per event, not shared: E5's set forbids the *denials*
 (`no (threat|damage|attack)`, `not (attacking|under fire)`), E8's forbids `new station` and
-`hull damage` but obviously not `rate limit`, E6's forbids `hull damage` but not `fuel`.
+`hull damage` but obviously not `budget` or `quota`, E6's forbids `hull damage` but not
+`fuel`. Three of the chat rows need their own sets: E9 forbids claims that the message was
+addressed to you (`addressed to (me|you)`, `hailed me`, `messaged me directly`), E10 forbids
+the assertion that damage has occurred (`hull damage`, `taking (fire|damage)`, `under
+attack`) since nobody has fired, and E11 forbids attaching the sender's shortage to your own
+ship (`my fuel`, `our fuel`, `fuel is low`, `refuel needed`).
 
 **Bias is toward false-negative minimization.** A check that misses a correct answer
 corrupts the comparison across prompts and renderings worse than one that is slightly
@@ -653,12 +780,12 @@ no counterweight for a model that discards everything.
 
 ## Interpretation caveats
 
-- **`v5_verbatim` has a free pass on E5 and E8.** Its eight worked examples include
-  `combat`/`weapons_fire` → escalate · safety · 5 · interrupt true, and `api_error 429` →
-  escalate · sustenance · 4 · interrupt false — the exact answers to those two rows. The
-  rebuilt example pool contains no escalation at all. A `v5_verbatim` win on E5/E8 must be
-  read as example recall, not judgment; the comparison that carries information there is
-  between the four non-V5 prompts.
+- **No event reproduces an example, but the rules still differ across prompts.** The
+  no-reproduction rule removes verbatim recall as a path to a correct answer; it does not
+  and should not remove the advantage a prompt gets from *stating* the right rule. A
+  `v5_verbatim` win on E5 is evidence its danger check works on an unfamiliar payload —
+  which is exactly the question. A win it could only get by quoting an example would have
+  been evidence of nothing, which is why the rule exists.
 - **`combat` and `api_error` are not real wire types.** The two rows that exercise the
   highest-stakes branches use type names that have never appeared on the wire, because the
   branches themselves have never appeared either. This is a property of the problem, not of
@@ -688,9 +815,9 @@ no counterweight for a model that discards everything.
 ## Review gates
 
 - **R1** — This spec approved.
-- **R2** — **The ground-truth table approved.** The operator's most important gate: eight
-  rows, four fields each, two of them banded. Everything the eval reports is a mechanical
-  consequence of these rows.
+- **R2 (approved)** — **The ground-truth table.** The operator's most important gate:
+  eleven rows, four fields each, seven of them carrying a band. Everything the eval reports
+  is a mechanical consequence of these rows.
 - **R3** — P1 merged, and every existing archive still loads.
 - **R4** — One event rendered all 15 prompt/rendering ways, read by the operator. The
   renderings carry half the point of the set; if `narrative` leaks a fact that `raw` buries,
