@@ -7,11 +7,10 @@
  * matching" fallback printouts (lines 132-134, 158-161) that enumerate
  * available values, but exposed as first-class subcommands.
  */
-import path from "node:path";
 import { Command, Options } from "@effect/cli";
-import { FileSystem } from "@effect/platform";
+import type { FileSystem } from "@effect/platform";
 import { Effect, Layer } from "effect";
-import { loadChallenge } from "../../config/challenges.js";
+import { loadSelectedChallenges } from "../../config/challenges.js";
 import { loadConfigurations, type ResolvedConfiguration } from "../../config/configurations.js";
 import { loadScenarioCorpus } from "../../config/scenario-corpus.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
@@ -94,14 +93,8 @@ const loadAllChallengeItems = (
   challengesDir: string,
 ): Effect.Effect<ReadonlyArray<PromptCorpusEntry>, unknown, FileSystem.FileSystem> =>
   Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const entries = yield* fs.readDirectory(challengesDir);
-    const yamlFiles = entries
-      .filter((f) => f.endsWith(".yaml"))
-      .map((f) => path.join(challengesDir, f))
-      .sort();
-    const challenges = yield* Effect.forEach(yamlFiles, (file) => loadChallenge(file));
-    return challenges.flatMap((c) => c.items.map((i) => i.prompt));
+    const selected = yield* loadSelectedChallenges(challengesDir);
+    return selected.challenges.flatMap((c) => c.resolved.items.map((i) => i.prompt));
   });
 
 const printLine = (line: string): Effect.Effect<void> =>

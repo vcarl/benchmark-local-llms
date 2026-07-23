@@ -12,9 +12,9 @@ import path from "node:path";
 import { Command, Options } from "@effect/cli";
 import { FetchHttpClient } from "@effect/platform";
 import { Effect, Layer, Option } from "effect";
-import { listChallengeFiles, loadChallenge } from "../../config/challenges.js";
+import { loadSelectedChallenges } from "../../config/challenges.js";
 import { loadConfigurations } from "../../config/configurations.js";
-import { selectChallengeStems, selectConfigs } from "../../config/select.js";
+import { selectConfigs } from "../../config/select.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { defaultRunEnv } from "../../orchestration/run-loop.js";
@@ -62,11 +62,8 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
       );
     }
 
-    const files = yield* listChallengeFiles(args.challengesDir);
-    const stems = selectChallengeStems(
-      files.map((f) => f.stem),
-      args.challengesPattern,
-    );
+    const selected = yield* loadSelectedChallenges(args.challengesDir, args.challengesPattern);
+    const stems = selected.stems;
     if (stems.length === 0) {
       return yield* Effect.dieMessage(
         args.challengesPattern === undefined
@@ -74,10 +71,7 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
           : `no challenges matched '${args.challengesPattern}'`,
       );
     }
-    const chosen = files.filter((f) => stems.includes(f.stem));
-    const challenges: MatrixChallenge[] = yield* Effect.forEach(chosen, (f) =>
-      loadChallenge(f.path).pipe(Effect.map((resolved) => ({ stem: f.stem, resolved }))),
-    );
+    const challenges: MatrixChallenge[] = [...selected.challenges];
 
     const env = defaultRunEnv();
     const cells = yield* runMatrix({

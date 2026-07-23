@@ -14,6 +14,7 @@ import type { PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
 import type { ScorerConfig } from "../schema/scorer.js";
 import { translateInlineFlags } from "../scoring/regex-flags.js";
 import { computePromptHash, shortSha256, stableStringify } from "./hashing.js";
+import { selectChallengeStems } from "./select.js";
 import { parseYaml } from "./yaml.js";
 
 export interface ResolvedItem {
@@ -312,4 +313,54 @@ export const listChallengeFiles = (
       .filter((f) => f.endsWith(".yaml"))
       .map((f) => ({ stem: f.replace(/\.yaml$/, ""), path: path.join(dir, f) }))
       .sort((a, b) => a.stem.localeCompare(b.stem));
+  });
+
+/** One selected suite: its file stem plus the fully resolved challenge. */
+export interface SelectedChallenge {
+  readonly stem: string;
+  readonly resolved: ResolvedChallenge;
+}
+
+/**
+ * The outcome of one selection pass. {@link stems} is the selected stem list in
+ * the same order as {@link challenges} — callers that need a stem axis (the
+ * matrix grid's columns) read it directly instead of re-deriving it.
+ */
+export interface SelectedChallenges {
+  readonly stems: ReadonlyArray<string>;
+  readonly challenges: ReadonlyArray<SelectedChallenge>;
+}
+
+/**
+ * The single challenge-selection path: list `dir`, keep the stems matching
+ * `pattern` (no pattern → every suite), and load each match, sorted by stem.
+ *
+ * An empty selection is returned as empty rather than failed — "nothing
+ * matched" means different things to different callers (a fatal
+ * misconfiguration for `run`, an ordinary empty report elsewhere), so the
+ * policy stays with the caller.
+ */
+export const loadSelectedChallenges = (
+  dir: string,
+  pattern?: string,
+): Effect.Effect<
+  SelectedChallenges,
+  | YamlParseError
+  | SchemaDecodeError
+  | UnknownConstraintCheck
+  | ConfigError
+  | import("@effect/platform/Error").PlatformError,
+  FileSystem.FileSystem
+> =>
+  Effect.gen(function* () {
+    const files = yield* listChallengeFiles(dir);
+    const stems = selectChallengeStems(
+      files.map((f) => f.stem),
+      pattern,
+    );
+    const chosen = files.filter((f) => stems.includes(f.stem));
+    const challenges = yield* Effect.forEach(chosen, (f) =>
+      loadChallenge(f.path).pipe(Effect.map((resolved) => ({ stem: f.stem, resolved }))),
+    );
+    return { stems: chosen.map((f) => f.stem), challenges };
   });

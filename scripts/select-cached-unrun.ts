@@ -18,9 +18,9 @@ import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { listChallengeFiles, loadChallenge } from "../src/config/challenges.js";
+import { loadSelectedChallenges } from "../src/config/challenges.js";
 import { loadConfigurations } from "../src/config/configurations.js";
-import { selectChallengeStems, selectConfigs } from "../src/config/select.js";
+import { selectConfigs } from "../src/config/select.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../src/config/system-prompts.js";
 import { DEFAULT_SYSTEM_PROMPTS_PATH } from "../src/cli/paths.js";
 import { resolveLlamacppGguf } from "../src/llm/servers/resolve-gguf.js";
@@ -69,17 +69,11 @@ const program = Effect.gen(function* () {
   const configs = selectConfigs(allConfigs);
   const inactive = allConfigs.filter((c) => !configs.includes(c)).map((c) => c.id);
 
-  const files = yield* listChallengeFiles(challengesDir);
-  const stems = selectChallengeStems(
-    files.map((f) => f.stem),
-    challengesGlob,
-  );
-  const chosen = files.filter((f) => stems.includes(f.stem));
-  const challenges = yield* Effect.forEach(chosen, (f) =>
-    loadChallenge(f.path).pipe(
-      Effect.map((r) => ({ stem: f.stem, challengeHash: r.challengeHash })),
-    ),
-  );
+  const selected = yield* loadSelectedChallenges(challengesDir, challengesGlob);
+  const challenges = selected.challenges.map((c) => ({
+    stem: c.stem,
+    challengeHash: c.resolved.challengeHash,
+  }));
 
   const done = finalizedPairs();
   const rows = yield* Effect.forEach(configs, (cfg) =>
