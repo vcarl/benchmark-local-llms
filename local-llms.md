@@ -21,6 +21,32 @@ mlx_lm.generate --model mlx-community/Qwen2.5-72B-Instruct-4bit --prompt "Hello"
 - **Thinking toggle:** `mlx_lm.server --chat-template-args '{"enable_thinking":false}'` disables reasoning traces for models that support it
 - **Known limitation:** `mlx_lm.server` has no `--kv-bits` flag — the KV cache is always 16-bit. On large models with long contexts this can cause the process to swap; upstream tracking issue [#1308](https://github.com/ml-explore/mlx-lm/issues/1308)
 
+### oMLX (MLX serving with a paged SSD KV cache)
+
+An Apple-Silicon MLX inference server with continuous batching and a paged KV cache that spills to SSD. It eats the same `mlx-community` safetensors artifacts as `mlx_lm.server`, so switching runtimes needs no re-download; the win is much faster prefill on long contexts, where `mlx_lm.server`'s always-16-bit in-memory KV cache starts swapping.
+
+```bash
+brew tap jundot/omlx https://github.com/jundot/omlx
+brew install jundot/omlx/omlx
+```
+
+Or from a source checkout:
+
+```bash
+pip install -e .
+```
+
+Serving:
+
+```bash
+omlx serve --model-dir ~/models --host 127.0.0.1 --port 8000
+```
+
+- Multi-model server: `--model-dir` is a *directory of* model directories, and each first-level subdirectory holding a `config.json` is registered under its **leaf directory name** — `~/models/Qwen3-32B-4bit` is served as `Qwen3-32B-4bit`, never `mlx-community/Qwen3-32B-4bit`. Pick the model per request with the OpenAI `model` field.
+- OpenAI-compatible: `GET /v1/models`, `POST /v1/chat/completions`.
+- Weights load lazily on the first inference request, not at startup — `/v1/models` answers while the model is still cold.
+- `omlx serve` writes every explicitly-passed CLI flag to `~/.omlx/settings.json` and reuses it as the default on the next boot. Pass the flags you care about explicitly on every invocation rather than relying on that file.
+
 ### llama.cpp (Recommended for flexibility)
 
 The reference GGUF engine. ~150 tok/s on M4 Max. Supports partial GPU offloading — layers can be split between GPU and CPU when a model barely fits.

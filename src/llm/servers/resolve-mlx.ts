@@ -52,13 +52,27 @@ export const findMlxSnapshot = (cacheRoot: string, artifact: string): string | u
   return undefined;
 };
 
-export const resolveMlxModel = (artifact: string): Effect.Effect<string, ServerSpawnError> =>
-  Effect.sync(() => findMlxSnapshot(DEFAULT_CACHE_ROOT, artifact)).pipe(
+export interface ResolveMlxOptions {
+  /**
+   * Runtime tag stamped onto the `ServerSpawnError` when nothing is cached.
+   * `omlx` consumes the same MLX safetensors artifacts as `mlx`, so it reuses
+   * this resolver and passes its own tag to keep the error accurate.
+   */
+  readonly runtime?: "mlx" | "omlx";
+  /** HF hub cache root. Defaults to `~/.cache/huggingface/hub`. */
+  readonly cacheRoot?: string;
+}
+
+export const resolveMlxModel = (
+  artifact: string,
+  options: ResolveMlxOptions = {},
+): Effect.Effect<string, ServerSpawnError> =>
+  Effect.sync(() => findMlxSnapshot(options.cacheRoot ?? DEFAULT_CACHE_ROOT, artifact)).pipe(
     Effect.flatMap((found) =>
       found === undefined
         ? Effect.fail(
             new ServerSpawnError({
-              runtime: "mlx",
+              runtime: options.runtime ?? "mlx",
               reason: `No cached MLX model for ${artifact}. Run \`hf download ${artifact}\` or adjust configs.yaml.`,
             }),
           )

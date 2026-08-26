@@ -159,6 +159,7 @@ const decodeChatResponse = Schema.decodeUnknown(ChatResponseSchema);
 const PORTS: Record<Runtime, number> = {
   llamacpp: 18080,
   mlx: 18081,
+  omlx: 18082,
 };
 
 const endpointUrl = (runtime: Runtime): string =>

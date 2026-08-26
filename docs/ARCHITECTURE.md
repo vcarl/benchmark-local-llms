@@ -31,7 +31,7 @@ src/orchestration/
 src/llm/
   chat-completion.ts     OpenAI-compatible HTTP client for both runtimes (port per runtime)
   servers/supervisor.ts  generic server supervisor: health gate, SIGTERM→SIGKILL finalizer, peak-RSS sampling
-  servers/*              runtime-specific spawners (llamacpp, mlx), artifact + runtime-version resolution
+  servers/*              runtime-specific spawners (llamacpp, mlx, omlx), artifact + runtime-version resolution
 
 src/scoring/
   dispatch.ts            scoreByConfig: dispatch a scorer config to its scorer by type

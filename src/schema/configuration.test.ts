@@ -111,6 +111,36 @@ describe("Configuration", () => {
     });
   });
 
+  it("rejects chatTemplate on a runtime: omlx entry (fail-fast)", () => {
+    const v = {
+      id: "some-omlx-model",
+      artifact: "mlx-community/Some-Model-4bit",
+      runtime: "omlx",
+      quant: "4bit",
+      temperature: 0.7,
+      systemPrompt: "default",
+      maxTokens: 4096,
+      chatTemplate: "mistral-v7-tekken",
+    };
+    expect(() => Schema.decodeUnknownSync(Configuration)(v)).toThrow(
+      /chatTemplate is not supported for runtime 'omlx'/,
+    );
+  });
+
+  it("accepts a runtime: omlx entry without chatTemplate and without quant", () => {
+    const v = {
+      id: "some-omlx-model",
+      artifact: "mlx-community/Some-Model-4bit",
+      runtime: "omlx",
+      temperature: 0.7,
+      systemPrompt: "default",
+      maxTokens: 4096,
+    };
+    expect(Schema.decodeUnknownSync(Configuration)(v)).toMatchObject({
+      runtime: "omlx",
+    });
+  });
+
   it("accepts a runtime: mlx entry without chatTemplate", () => {
     const v = {
       id: "some-mlx-model",

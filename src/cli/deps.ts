@@ -25,6 +25,7 @@ import { makeGameAdminClient } from "../game/server/admin-client.js";
 import { gameServer } from "../game/server/game-server.js";
 import { llamacppServer } from "../llm/servers/llamacpp.js";
 import { mlxServer } from "../llm/servers/mlx.js";
+import { omlxServer } from "../llm/servers/omlx.js";
 import { resolveChatTemplate } from "../llm/servers/resolve-chat-template.js";
 import { resolveLlamacppGguf } from "../llm/servers/resolve-gguf.js";
 import { resolveMlxModel } from "../llm/servers/resolve-mlx.js";
@@ -35,6 +36,7 @@ import type {
   LlmServerFactory,
   RunModelDeps,
 } from "../orchestration/run-model.js";
+import type { Runtime } from "../schema/enums.js";
 import type { ModelConfig } from "../schema/model.js";
 
 export interface MakeRunDepsInput {
@@ -44,6 +46,8 @@ export interface MakeRunDepsInput {
   readonly gameServerBinary?: string | undefined;
   /** llama-server binary path; defaults to `llama-server` on PATH. */
   readonly llamaServerBinary?: string | undefined;
+  /** omlx binary path; defaults to `omlx` on PATH. */
+  readonly omlxBinary?: string | undefined;
   /**
    * Optional base URL override for the LLM endpoint Admiral talks to. The
    * Python prototype exposed this via `TESTBENCH_SCENARIO_BASE_URL`; we keep
@@ -78,9 +82,9 @@ const resolveMlxPython = (): string => {
 };
 
 /**
- * Dispatch llmServer factory on `model.runtime`.
+ * Dispatch llmServer factory on `model.runtime`, exhaustively over `Runtime`.
  *
- * Both runtimes pre-check the HuggingFace cache and fail with a
+ * Every runtime pre-checks the HuggingFace cache and fails with a
  * ServerSpawnError if the model isn't already downloaded — `./bench run` is
  * a pure-execution phase, so downloading happens via an explicit out-of-tool
  * step.
@@ -93,38 +97,50 @@ const resolveMlxPython = (): string => {
  * path skips the implicit `snapshot_download()` roundtrip mlx_lm otherwise
  * makes. The Python interpreter is resolved via {@link resolveMlxPython} so
  * an activated or conventionally-located venv is picked up automatically.
+ *
+ * omlx: same MLX artifacts as `mlx`, but the server takes a directory of
+ * models rather than one model, so `omlxServer` does its own resolution and
+ * staging from the raw artifact id.
  */
 export const makeLlmServerFactory =
-  (llamaServerBinary?: string): LlmServerFactory =>
+  (llamaServerBinary?: string, omlxBinary?: string): LlmServerFactory =>
   (model: ModelConfig) => {
-    if (model.runtime === "llamacpp") {
-      return Effect.gen(function* () {
-        if (model.quant === undefined) {
-          return yield* Effect.die(
-            new Error(`llamacpp model ${model.artifact} is missing required 'quant' field`),
-          );
-        }
-        const artifactPath = yield* resolveLlamacppGguf(model.artifact, model.quant);
-        const chatTemplatePath =
-          model.chatTemplate !== undefined
-            ? yield* resolveChatTemplate(model.chatTemplate)
-            : undefined;
-        return yield* llamacppServer({
-          artifactPath,
-          ...(llamaServerBinary !== undefined ? { binPath: llamaServerBinary } : {}),
-          ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
-          ...(chatTemplatePath !== undefined ? { chatTemplatePath } : {}),
+    switch (model.runtime) {
+      case "llamacpp":
+        return Effect.gen(function* () {
+          if (model.quant === undefined) {
+            return yield* Effect.die(
+              new Error(`llamacpp model ${model.artifact} is missing required 'quant' field`),
+            );
+          }
+          const artifactPath = yield* resolveLlamacppGguf(model.artifact, model.quant);
+          const chatTemplatePath =
+            model.chatTemplate !== undefined
+              ? yield* resolveChatTemplate(model.chatTemplate)
+              : undefined;
+          return yield* llamacppServer({
+            artifactPath,
+            ...(llamaServerBinary !== undefined ? { binPath: llamaServerBinary } : {}),
+            ...(model.ctxSize !== undefined ? { ctxSize: model.ctxSize } : {}),
+            ...(chatTemplatePath !== undefined ? { chatTemplatePath } : {}),
+          });
         });
-      });
+      case "mlx":
+        return Effect.gen(function* () {
+          const artifactPath = yield* resolveMlxModel(model.artifact);
+          return yield* mlxServer({
+            artifactPath,
+            pythonBin: resolveMlxPython(),
+            ...(model.extraArgs !== undefined ? { extraArgs: model.extraArgs } : {}),
+          });
+        });
+      case "omlx":
+        return omlxServer({
+          artifact: model.artifact,
+          ...(omlxBinary !== undefined ? { binPath: omlxBinary } : {}),
+          ...(model.extraArgs !== undefined ? { extraArgs: model.extraArgs } : {}),
+        });
     }
-    return Effect.gen(function* () {
-      const artifactPath = yield* resolveMlxModel(model.artifact);
-      return yield* mlxServer({
-        artifactPath,
-        pythonBin: resolveMlxPython(),
-        ...(model.extraArgs !== undefined ? { extraArgs: model.extraArgs } : {}),
-      });
-    });
   };
 
 const newAdminToken = (): string => randomBytes(16).toString("hex");
@@ -171,14 +187,17 @@ export const makeGameSessionFactory =
 
 export const makeRunDeps = (input: MakeRunDepsInput): RunModelDeps => {
   const llamaServerBin = input.llamaServerBinary ?? "llama-server";
+  const omlxBin = input.omlxBinary ?? "omlx";
   const mlxPythonBin = resolveMlxPython();
+  const versionBin: Record<Runtime, string> = {
+    llamacpp: llamaServerBin,
+    mlx: mlxPythonBin,
+    omlx: omlxBin,
+  };
   return {
-    llmServer: makeLlmServerFactory(input.llamaServerBinary),
+    llmServer: makeLlmServerFactory(input.llamaServerBinary, input.omlxBinary),
     admiral: makeAdmiralFactory(input.admiralDir),
     gameSession: makeGameSessionFactory(input.gameServerBinary),
-    runtimeVersion: (runtime) =>
-      runtime === "llamacpp"
-        ? probeRuntimeVersion("llamacpp", llamaServerBin)
-        : probeRuntimeVersion("mlx", mlxPythonBin),
+    runtimeVersion: (runtime) => probeRuntimeVersion(runtime, versionBin[runtime]),
   };
 };

@@ -290,3 +290,61 @@ describe("verifyTemplate — mlx", () => {
     expect(sink.some((l) => l.toLowerCase().includes("skip"))).toBe(true);
   });
 });
+
+describe("verifyTemplate (omlx, offline)", () => {
+  const tmpDirs: string[] = [];
+
+  const makeModelDir = (): string => {
+    const dir = mkdtempSync(path.join(tmpdir(), "omlx-verify-"));
+    tmpDirs.push(dir);
+    return dir;
+  };
+
+  afterEach(() => {
+    while (tmpDirs.length > 0) {
+      const d = tmpDirs.pop();
+      if (d) rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("passes when tokenizer_config.json has a non-empty chat_template", async () => {
+    const dir = makeModelDir();
+    writeFileSync(
+      path.join(dir, "tokenizer_config.json"),
+      JSON.stringify({ chat_template: "{% for m in messages %}...{% endfor %}" }),
+    );
+
+    const exit = await runVerify(
+      verifyTemplate({ runtime: "omlx", modelDir: dir }) as Effect.Effect<void, unknown, never>,
+    );
+    expect(exit._tag).toBe("Success");
+  });
+
+  it("fails with a TemplateVerificationError tagged omlx when no template is present", async () => {
+    const dir = makeModelDir();
+    writeFileSync(
+      path.join(dir, "tokenizer_config.json"),
+      JSON.stringify({ model_max_length: 4096 }),
+    );
+
+    const exit = await runVerify(
+      verifyTemplate({ runtime: "omlx", modelDir: dir }) as Effect.Effect<void, unknown, never>,
+    );
+    expect(exit._tag).toBe("Failure");
+    const dump = JSON.stringify(exit);
+    expect(dump).toContain("TemplateVerificationError");
+    expect(dump).toContain("omlx");
+  });
+
+  it("warns and skips when the model directory does not exist on disk", async () => {
+    const sink: string[] = [];
+    const exit = await Effect.runPromiseExit(
+      verifyTemplate({ runtime: "omlx", modelDir: "/nonexistent/path/xyz" }).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.provide(captureLogs(sink, LogLevel.Warning)),
+      ),
+    );
+    expect(exit._tag).toBe("Success");
+    expect(sink.some((l) => l.toLowerCase().includes("skip"))).toBe(true);
+  });
+});

@@ -41,10 +41,10 @@ export type VerifyTemplateArgs =
       readonly port: number;
     }
   | {
-      readonly runtime: "mlx";
+      readonly runtime: "mlx" | "omlx";
       /**
        * Resolved local model directory (the mlx artifact path / HF cache
-       * snapshot dir). When undefined or unresolvable on disk, mlx
+       * snapshot dir). When undefined or unresolvable on disk, offline
        * verification warns-and-skips. See the module asymmetry note.
        */
       readonly modelDir?: string;
@@ -58,7 +58,7 @@ export type VerifyTemplateArgs =
 export const verifyTemplate = (
   args: VerifyTemplateArgs,
 ): Effect.Effect<void, TemplateVerificationError, HttpClient.HttpClient> =>
-  args.runtime === "llamacpp" ? verifyLlamacpp(args.port) : verifyMlx(args.modelDir);
+  args.runtime === "llamacpp" ? verifyLlamacpp(args.port) : verifyMlx(args.modelDir, args.runtime);
 
 // ── llamacpp ──────────────────────────────────────────────────────────────
 
@@ -172,12 +172,19 @@ const warnOnDoubleBos = (
     }
   }).pipe(Effect.ignore);
 
-// ── mlx (offline) ──────────────────────────────────────────────────────────
+// ── mlx / omlx (offline) ──────────────────────────────────────────────────────────
 
-const skip = (reason: string): Effect.Effect<void> =>
-  Effect.logWarning(`mlx template verification skipped: ${reason}`).pipe(
+const skip = (runtime: OfflineRuntime, reason: string): Effect.Effect<void> =>
+  Effect.logWarning(`${runtime} template verification skipped: ${reason}`).pipe(
     Effect.annotateLogs("scope", "template"),
   );
+
+/**
+ * Runtimes verified offline against a model directory. `omlx` serves the same
+ * MLX safetensors artifacts as `mlx` and exposes no template-inspection
+ * endpoint either, so both share one code path; only the error tag differs.
+ */
+type OfflineRuntime = "mlx" | "omlx";
 
 /**
  * Offline mlx check. mlx_lm.server has no template-inspection endpoint and a
@@ -187,13 +194,14 @@ const skip = (reason: string): Effect.Effect<void> =>
  */
 const verifyMlx = (
   modelDir: string | undefined,
+  runtime: OfflineRuntime,
 ): Effect.Effect<void, TemplateVerificationError, HttpClient.HttpClient> =>
   Effect.gen(function* () {
     if (modelDir === undefined) {
-      return yield* skip("model directory path was not available in scope");
+      return yield* skip(runtime, "model directory path was not available in scope");
     }
     if (!existsSync(modelDir)) {
-      return yield* skip(`model directory does not exist on disk (${modelDir})`);
+      return yield* skip(runtime, `model directory does not exist on disk (${modelDir})`);
     }
 
     // A sibling externalized template counts as a valid, non-empty template.
@@ -213,6 +221,7 @@ const verifyMlx = (
     const tokenizerConfig = path.join(modelDir, "tokenizer_config.json");
     if (!existsSync(tokenizerConfig)) {
       return yield* skip(
+        runtime,
         `tokenizer_config.json not found and no non-empty chat_template.jinja (${modelDir})`,
       );
     }
@@ -221,7 +230,7 @@ const verifyMlx = (
       Effect.mapError(
         (e) =>
           new TemplateVerificationError({
-            runtime: "mlx",
+            runtime,
             reason: `could not read tokenizer_config.json: ${describeError(e)}`,
           }),
       ),
@@ -231,7 +240,7 @@ const verifyMlx = (
       Effect.mapError(
         () =>
           new TemplateVerificationError({
-            runtime: "mlx",
+            runtime,
             reason: "tokenizer_config.json is not valid JSON",
           }),
       ),
@@ -241,9 +250,9 @@ const verifyMlx = (
     if (typeof chatTemplate !== "string" || chatTemplate.trim().length === 0) {
       return yield* Effect.fail(
         new TemplateVerificationError({
-          runtime: "mlx",
+          runtime,
           reason:
-            "tokenizer_config.json has no non-empty `chat_template` and there is no sibling chat_template.jinja — mlx_lm.server would fall back to silent role-concatenation.",
+            "tokenizer_config.json has no non-empty `chat_template` and there is no sibling chat_template.jinja — the server would fall back to silent role-concatenation.",
         }),
       );
     }

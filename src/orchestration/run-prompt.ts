@@ -224,9 +224,24 @@ export const makeErrorResult = (
   blobPool: null,
 });
 
+/**
+ * The id to put in the OpenAI `model` field for this model.
+ *
+ * llamacpp and mlx_lm.server serve a single model and echo back whatever id
+ * they are handed, so the full artifact goes over the wire. oMLX is a
+ * multi-model server that registers each discovered model under its *leaf*
+ * directory name (never `org/repo`), so an omlx request must name the leaf or
+ * the server cannot route it.
+ *
+ * This affects the request only — `displayName`/`quantLabel` and every
+ * archived/report field keep the full artifact.
+ */
+export const apiModelId = (model: Pick<ModelConfig, "artifact" | "runtime">): string =>
+  model.runtime === "omlx" ? (model.artifact.split("/").at(-1) ?? model.artifact) : model.artifact;
+
 const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   runtime: input.model.runtime,
-  model: input.model.artifact,
+  model: apiModelId(input.model),
   promptName: input.prompt.name,
   systemPrompt: input.systemPrompt,
   userPrompt: input.prompt.promptText,

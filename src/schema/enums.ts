@@ -3,7 +3,7 @@ import { Schema } from "effect";
 /**
  * Runtime used to serve a model. Metadata on results; not a structural grouping axis.
  */
-export const Runtime = Schema.Literal("llamacpp", "mlx");
+export const Runtime = Schema.Literal("llamacpp", "mlx", "omlx");
 export type Runtime = typeof Runtime.Type;
 
 /**

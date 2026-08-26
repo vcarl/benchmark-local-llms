@@ -40,7 +40,7 @@ A YAML array of configuration entries. Each entry is the full set of knobs a use
 |---|---|---|---|
 | `id` | `string` | yes | Stable identifier; recorded as `configId` on every attempt. |
 | `artifact` | `string` | yes | Model artifact — Hugging Face repo or local path. |
-| `runtime` | `"llamacpp" \| "mlx"` | yes | Server runtime that loads and serves the model. |
+| `runtime` | `"llamacpp" \| "mlx" \| "omlx"` | yes | Server runtime that loads and serves the model. |
 | `quant` | `string` | no | Quantization tag (e.g. `Q4_K_M`, `4bit`). |
 | `temperature` | `number` | yes | Sampling temperature. |
 | `systemPrompt` | `string` | yes | A key into `system-prompts.yaml`. |

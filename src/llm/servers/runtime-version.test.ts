@@ -1,7 +1,12 @@
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { parseLlamacppVersion, parseMlxVersion, probeRuntimeVersion } from "./runtime-version.js";
+import {
+  parseLlamacppVersion,
+  parseMlxVersion,
+  parseOmlxVersion,
+  probeRuntimeVersion,
+} from "./runtime-version.js";
 
 describe("parseLlamacppVersion", () => {
   it("extracts build + sha from the version line", () => {
@@ -37,6 +42,20 @@ describe("parseMlxVersion", () => {
   });
 });
 
+describe("parseOmlxVersion", () => {
+  it("extracts a bare semver", () => {
+    expect(parseOmlxVersion("0.4.1")).toBe("omlx 0.4.1");
+  });
+
+  it("extracts a semver amid surrounding argparse text", () => {
+    expect(parseOmlxVersion("omlx 0.4.2\n")).toBe("omlx 0.4.2");
+  });
+
+  it("returns 'unknown' when no semver is present", () => {
+    expect(parseOmlxVersion("no version here")).toBe("unknown");
+  });
+});
+
 describe("probeRuntimeVersion", () => {
   it("degrades to 'unknown' when the binary does not exist (llamacpp)", async () => {
     const result = await Effect.runPromise(
@@ -50,6 +69,13 @@ describe("probeRuntimeVersion", () => {
   it("degrades to 'unknown' when the binary does not exist (mlx)", async () => {
     const result = await Effect.runPromise(
       probeRuntimeVersion("mlx", "/nonexistent/python3").pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(result).toBe("unknown");
+  });
+
+  it("degrades to 'unknown' when the binary does not exist (omlx)", async () => {
+    const result = await Effect.runPromise(
+      probeRuntimeVersion("omlx", "/nonexistent/omlx").pipe(Effect.provide(NodeContext.layer)),
     );
     expect(result).toBe("unknown");
   });

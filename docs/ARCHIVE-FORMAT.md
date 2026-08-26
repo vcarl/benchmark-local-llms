@@ -33,7 +33,7 @@ The header carries the attempt's full identity and provenance. Configuration and
 | `configId` | `string` | Configuration id from `configs.yaml`. |
 | `configHash` | `string` | 12-hex identity of the configuration (see [Hashing](#hashing)). |
 | `artifact` | `string` | Model artifact (HF repo / path). |
-| `runtime` | `"llamacpp" \| "mlx"` | Server runtime that produced the results. |
+| `runtime` | `"llamacpp" \| "mlx" \| "omlx"` | Server runtime that produced the results. |
 | `quant` | `string?` | Quantization tag (e.g. `Q4_K_M`, `4bit`); absent when the configuration omits it. |
 | `temperature` | `number` | Sampling temperature. |
 | `systemPrompt` | `string` | System-prompt key from the configuration. |

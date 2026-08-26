@@ -16,7 +16,7 @@ const roundTrip = <A, I>(schema: Schema.Schema<A, I>, value: A): A => {
 };
 
 describe("Runtime", () => {
-  it.each(["llamacpp", "mlx"] as const)("round-trips %s", (value) => {
+  it.each(["llamacpp", "mlx", "omlx"] as const)("round-trips %s", (value) => {
     expect(roundTrip(Runtime, value)).toBe(value);
   });
 
