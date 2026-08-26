@@ -29,7 +29,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Small models (<=10B) — reasoning (need headroom so <think> doesn't truncate the answer) ──
 - id: deepseek-r1-qwen3-8b-mlx
@@ -54,7 +54,7 @@
   quant: Q8_0
   temperature: 0.6
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 8192
 
 # ── Qwen 3 32B (dense) — quant comparison across runtimes ────────────────────
@@ -64,7 +64,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3-32b-mlx-4bit
   artifact: mlx-community/Qwen3-32B-4bit
@@ -72,7 +72,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3-32b-mlx-8bit
   artifact: mlx-community/Qwen3-32B-8bit
@@ -80,7 +80,7 @@
   quant: 8bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Qwen 3.5 dense ladder ────────────────────────────────────────────────────
 - id: qwen3.5-0.8b-llamacpp
@@ -122,7 +122,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Qwen 3.5 35B-A3B (MoE) ───────────────────────────────────────────────────
 - id: qwen3.5-35b-a3b-llamacpp
@@ -131,7 +131,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.5-35b-a3b-mlx
   artifact: mlx-community/Qwen3.5-35B-A3B-4bit
@@ -139,7 +139,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Qwen 3.6 27B (dense) ─────────────────────────────────────────────────────
 - id: qwen3.6-27b-llamacpp
@@ -148,7 +148,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.6-27b-mlx
   artifact: mlx-community/Qwen3.6-27B-4bit
@@ -156,7 +156,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.6-27b-llamacpp-q8
   artifact: unsloth/Qwen3.6-27B-GGUF
@@ -164,7 +164,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.6-27b-mlx-8bit
   artifact: mlx-community/Qwen3.6-27B-8bit
@@ -172,7 +172,7 @@
   quant: 8bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Qwen 3.6 35B-A3B (MoE) ───────────────────────────────────────────────────
 - id: qwen3.6-35b-a3b-llamacpp
@@ -181,7 +181,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.6-35b-a3b-mlx
   artifact: mlx-community/Qwen3.6-35B-A3B-4bit
@@ -189,7 +189,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Qwen 3.8 27B (dense) — mlx vs oMLX across three quants ───────────────────
 # Qwen3.8-27B ships as a vision-language checkpoint (`model_type: qwen3_5`,
@@ -203,7 +203,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.8-27b-omlx
   artifact: mlx-community/Qwen3.8-27B-4bit
@@ -211,7 +211,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.8-27b-mlx-5bit
   artifact: lmstudio-community/Qwen3.8-27B-MLX-5bit
@@ -219,7 +219,7 @@
   quant: 5bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.8-27b-omlx-5bit
   artifact: lmstudio-community/Qwen3.8-27B-MLX-5bit
@@ -227,7 +227,7 @@
   quant: 5bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.8-27b-mlx-6bit
   artifact: lmstudio-community/Qwen3.8-27B-MLX-6bit
@@ -235,7 +235,7 @@
   quant: 6bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.8-27b-omlx-6bit
   artifact: lmstudio-community/Qwen3.8-27B-MLX-6bit
@@ -243,7 +243,7 @@
   quant: 6bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # Locally assembled: Qwen3.8-27B-4bit with the MTP (multi-token prediction)
 # heads merged in. Not on the hub, so the artifact names the directory itself,
@@ -263,7 +263,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # The llama.cpp leg of the Qwen 3.8 27B comparison. No Qwen3.8 GGUF is cached,
 # and `./bench run` never downloads, so these stay disabled until the weights
@@ -276,7 +276,7 @@
   quant: UD-Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen3.8-27b-llamacpp-q8
@@ -285,7 +285,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 # ── Runtime twins of rostered <=10B models (the other runtime was already cached) ──
@@ -312,7 +312,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.5-27b-llamacpp
   artifact: unsloth/Qwen3.5-27B-GGUF
@@ -320,7 +320,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3.5-27b-mlx
   artifact: mlx-community/Qwen3.5-27B-4bit
@@ -328,7 +328,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Qwen 3 Coder ─────────────────────────────────────────────────────────────
 - id: qwen3-coder-30b-a3b-llamacpp
@@ -337,7 +337,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3-coder-30b-a3b-mlx
   artifact: mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit
@@ -345,7 +345,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3-coder-next-llamacpp
   artifact: Qwen/Qwen3-Coder-Next-GGUF
@@ -353,7 +353,7 @@
   quant: Q5_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: qwen3-coder-next-mlx
   artifact: mlx-community/Qwen3-Coder-Next-4bit
@@ -361,7 +361,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── QwQ 32B (reasoning) ──────────────────────────────────────────────────────
 - id: qwq-32b-llamacpp
@@ -419,7 +419,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: gemma-4-26b-a4b-mlx
   artifact: mlx-community/gemma-4-26b-a4b-it-4bit
@@ -427,7 +427,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: gemma-4-31b-llamacpp
   artifact: unsloth/gemma-4-31B-it-GGUF
@@ -435,7 +435,7 @@
   quant: Q4_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: gemma-4-31b-mlx
   artifact: mlx-community/gemma-4-31b-it-4bit
@@ -443,7 +443,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: gemma-4-31b-llamacpp-q8
   artifact: unsloth/gemma-4-31B-it-GGUF
@@ -451,7 +451,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: gemma-4-31b-mlx-8bit
   artifact: mlx-community/gemma-4-31b-it-8bit
@@ -459,7 +459,7 @@
   quant: 8bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Phi-4 (instruction-tuned, ~14B) ──────────────────────────────────────────
 - id: phi-4-llamacpp
@@ -468,7 +468,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: phi-4-mlx
   artifact: mlx-community/phi-4-4bit
@@ -476,7 +476,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # phi-4-llamacpp is already Q8_0; only the MLX 8-bit partner is added here.
 - id: phi-4-mlx-8bit
@@ -485,7 +485,7 @@
   quant: 8bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── GPT-OSS 20B (reasoning) ──────────────────────────────────────────────────
 - id: gpt-oss-20b-llamacpp
@@ -528,7 +528,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: mistral-small-3.2-24b-mlx
   artifact: mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit
@@ -536,7 +536,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: magistral-small-2509-llamacpp
   artifact: mistralai/Magistral-Small-2509-GGUF
@@ -563,7 +563,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: deepseek-coder-v2-lite-llamacpp
   artifact: bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF
@@ -571,7 +571,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 # ── Newer families (MLX-only) ────────────────────────────────────────────────
 - id: hunyuan-a13b-mlx
@@ -580,7 +580,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   extraArgs: ["--trust-remote-code"]
 
 - id: seed-oss-36b-mlx
@@ -589,7 +589,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
 
 - id: kimi-linear-48b-a3b-mlx
   artifact: mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit
@@ -597,7 +597,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   extraArgs: ["--trust-remote-code"]
 
 # ── Large (>100B) — cached but OFF by default; opt in with explicit --configs ──
@@ -607,7 +607,7 @@
   quant: Q5_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen3.5-122b-a10b-mlx
@@ -616,7 +616,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: mistral-small-4-119b-llamacpp
@@ -625,7 +625,7 @@
   quant: UD-Q5_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 # ── Catalog-only entries (inactive) ──────────────────────────────────────────
@@ -639,7 +639,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen2.5-32b-llamacpp
@@ -648,7 +648,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen2.5-72b-llamacpp
@@ -657,7 +657,7 @@
   quant: Q5_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen2.5-72b-mlx
@@ -666,7 +666,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen2.5-coder-32b-llamacpp
@@ -675,7 +675,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: qwen2.5-coder-32b-mlx
@@ -684,7 +684,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: devstral-2-123b-llamacpp
@@ -693,7 +693,7 @@
   quant: Q4_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -703,7 +703,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -713,7 +713,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-qwen-7b-llamacpp
@@ -722,7 +722,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-qwen-14b-llamacpp
@@ -731,7 +731,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-qwen-14b-mlx
@@ -740,7 +740,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-qwen-32b-llamacpp
@@ -749,7 +749,7 @@
   quant: Q6_K
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-qwen-32b-mlx
@@ -758,7 +758,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-coder-v2-lite-mlx
@@ -767,7 +767,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-llama-70b-llamacpp
@@ -776,7 +776,7 @@
   quant: Q5_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: deepseek-r1-distill-llama-70b-mlx
@@ -785,7 +785,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: gpt-oss-120b-llamacpp
@@ -794,7 +794,7 @@
   quant: Q4_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -804,7 +804,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -814,7 +814,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   active: false
 
 - id: llama4-scout-17b-16e-llamacpp
@@ -823,7 +823,7 @@
   quant: Q8_0
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -833,7 +833,7 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -843,7 +843,7 @@
   quant: Q4_K_M
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
 
@@ -853,6 +853,6 @@
   quant: 4bit
   temperature: 0.7
   systemPrompt: default
-  maxTokens: 4096
+  maxTokens: 8192
   ctxSize: 2048
   active: false
