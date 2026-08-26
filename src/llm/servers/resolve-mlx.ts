@@ -13,8 +13,16 @@
  * contains both a resolvable `config.json` and at least one resolvable
  * `.safetensors` file. (Files in HF cache are symlinks into `blobs/`; a
  * broken symlink — e.g. from an interrupted download — fails `existsSync`.)
+ *
+ * An artifact may instead be a path — absolute, `~`-relative, or `./`-relative
+ * — naming a model directory directly. That covers weights that never came
+ * from the hub: locally converted, re-quantized, or hand-assembled checkpoints
+ * (e.g. a base model with merged MTP heads). The same two files are required,
+ * checked in the directory itself rather than in a snapshot. Such a config is
+ * machine-specific by construction: the path is what lands in the archive's
+ * `artifact` field, and it will not resolve on another machine.
  */
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { Effect } from "effect";
@@ -24,6 +32,38 @@ const DEFAULT_CACHE_ROOT = path.join(homedir(), ".cache", "huggingface", "hub");
 
 const cacheDirFor = (cacheRoot: string, artifact: string): string =>
   path.join(cacheRoot, `models--${artifact.replace(/\//g, "--")}`);
+
+/**
+ * True when `artifact` names a filesystem path rather than a HuggingFace repo
+ * id. Repo ids are `org/name` with no leading `/`, `~/`, or `./`, so the three
+ * prefixes are unambiguous.
+ */
+export const isPathArtifact = (artifact: string): boolean =>
+  artifact.startsWith("/") || artifact.startsWith("~/") || artifact.startsWith("./");
+
+/** Expand a leading `~/` against the current user's home directory. */
+const expandHome = (p: string): string =>
+  p.startsWith("~/") ? path.join(homedir(), p.slice(2)) : p;
+
+/**
+ * Validate a directly-named model directory. Returns its absolute path, or
+ * undefined when it is missing or lacks the files a loader needs.
+ */
+export const findModelDir = (artifact: string): string | undefined => {
+  const dir = path.resolve(expandHome(artifact));
+  // `throwIfNoEntry: false` reports a missing path as `undefined`, keeping
+  // this a pure predicate rather than a raising call.
+  const stat = statSync(dir, { throwIfNoEntry: false });
+  if (stat === undefined || !stat.isDirectory()) return undefined;
+  const entries = readdirSync(dir);
+  if (!entries.includes("config.json") || !existsSync(path.join(dir, "config.json"))) {
+    return undefined;
+  }
+  const hasWeight = entries.some(
+    (e) => e.endsWith(".safetensors") && existsSync(path.join(dir, e)),
+  );
+  return hasWeight ? dir : undefined;
+};
 
 /**
  * Pure, testable snapshot finder. Returns the absolute path of a snapshot
@@ -67,13 +107,19 @@ export const resolveMlxModel = (
   artifact: string,
   options: ResolveMlxOptions = {},
 ): Effect.Effect<string, ServerSpawnError> =>
-  Effect.sync(() => findMlxSnapshot(options.cacheRoot ?? DEFAULT_CACHE_ROOT, artifact)).pipe(
+  Effect.sync(() =>
+    isPathArtifact(artifact)
+      ? findModelDir(artifact)
+      : findMlxSnapshot(options.cacheRoot ?? DEFAULT_CACHE_ROOT, artifact),
+  ).pipe(
     Effect.flatMap((found) =>
       found === undefined
         ? Effect.fail(
             new ServerSpawnError({
               runtime: options.runtime ?? "mlx",
-              reason: `No cached MLX model for ${artifact}. Run \`hf download ${artifact}\` or adjust configs.yaml.`,
+              reason: isPathArtifact(artifact)
+                ? `No usable MLX model directory at ${artifact}. It must exist and hold a config.json plus at least one .safetensors file.`
+                : `No cached MLX model for ${artifact}. Run \`hf download ${artifact}\` or adjust configs.yaml.`,
             }),
           )
         : Effect.succeed(found),

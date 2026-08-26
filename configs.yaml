@@ -245,6 +245,26 @@
   systemPrompt: default
   maxTokens: 4096
 
+# Locally assembled: Qwen3.8-27B-4bit with the MTP (multi-token prediction)
+# heads merged in. Not on the hub, so the artifact names the directory itself,
+# which makes this entry specific to this machine. oMLX only — mlx_lm strips
+# every `mtp.*` tensor on load, so an mlx leg would just re-measure
+# qwen3.8-27b-mlx.
+#
+# Known caveat as of oMLX 0.6.3rc3: attaching a *quantized* MTP head fails
+# ("Received 16 parameters not in model": the scales/biases pairs), so the VLM
+# engine load is abandoned and it falls back to the plain batched engine —
+# ~19-20 tok/s against ~29-31 for qwen3.8-27b-omlx. This entry therefore
+# measures the fallback, not speculative decoding. Keep it as the baseline to
+# re-run once oMLX handles quantized MTP heads.
+- id: qwen3.8-27b-omlx-mtp
+  artifact: ~/.omlx/models/Qwen3.8-27B-4bit-MTP
+  runtime: omlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
 # The llama.cpp leg of the Qwen 3.8 27B comparison. No Qwen3.8 GGUF is cached,
 # and `./bench run` never downloads, so these stay disabled until the weights
 # are fetched: `hf download unsloth/Qwen3.8-27B-GGUF --include "*UD-Q6_K.gguf"`

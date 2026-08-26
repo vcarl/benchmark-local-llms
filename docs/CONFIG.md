@@ -39,7 +39,7 @@ A YAML array of configuration entries. Each entry is the full set of knobs a use
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `id` | `string` | yes | Stable identifier; recorded as `configId` on every attempt. |
-| `artifact` | `string` | yes | Model artifact — Hugging Face repo or local path. |
+| `artifact` | `string` | yes | Model artifact: a Hugging Face repo id (`org/name`, resolved in the local hub cache), or — for `mlx`/`omlx` — a path to a model directory, written absolute, `~/`-relative, or `./`-relative. A path artifact ties the entry to one machine, and is what lands in the archive's `artifact` field. |
 | `runtime` | `"llamacpp" \| "mlx" \| "omlx"` | yes | Server runtime that loads and serves the model. |
 | `quant` | `string` | no | Quantization tag (e.g. `Q4_K_M`, `4bit`). |
 | `temperature` | `number` | yes | Sampling temperature. |

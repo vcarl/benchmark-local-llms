@@ -25,4 +25,23 @@ describe("apiModelId", () => {
   it("passes an already-leaf artifact through unchanged for omlx", () => {
     expect(apiModelId({ artifact: "Qwen3-32B-4bit", runtime: "omlx" })).toBe("Qwen3-32B-4bit");
   });
+
+  it("sends the directory name for a path artifact on omlx", () => {
+    // A locally-assembled checkpoint names its directory directly. oMLX stages
+    // and registers it under the same leaf, so the request must match.
+    expect(
+      apiModelId({ artifact: "/Users/x/.omlx/models/Qwen3.8-27B-4bit-MTP", runtime: "omlx" }),
+    ).toBe("Qwen3.8-27B-4bit-MTP");
+    expect(apiModelId({ artifact: "~/.omlx/models/Qwen3.8-27B-4bit-MTP/", runtime: "omlx" })).toBe(
+      "Qwen3.8-27B-4bit-MTP",
+    );
+  });
+
+  it("keeps the whole path for a path artifact on mlx", () => {
+    // mlx_lm.server takes the path as --model and echoes back whatever it is
+    // handed, so there is nothing to shorten.
+    expect(apiModelId({ artifact: "/Users/x/models/Local-4bit", runtime: "mlx" })).toBe(
+      "/Users/x/models/Local-4bit",
+    );
+  });
 });

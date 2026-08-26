@@ -20,6 +20,7 @@ import {
   type CompletionParams,
   type CompletionResult,
 } from "../llm/chat-completion.js";
+import { leafModelId } from "../llm/servers/omlx.js";
 import type { ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
@@ -231,13 +232,15 @@ export const makeErrorResult = (
  * they are handed, so the full artifact goes over the wire. oMLX is a
  * multi-model server that registers each discovered model under its *leaf*
  * directory name (never `org/repo`), so an omlx request must name the leaf or
- * the server cannot route it.
+ * the server cannot route it. The leaf is derived by the omlx supervisor, which
+ * is what names the staged directory — importing it keeps request and staging
+ * from drifting apart.
  *
  * This affects the request only — `displayName`/`quantLabel` and every
  * archived/report field keep the full artifact.
  */
 export const apiModelId = (model: Pick<ModelConfig, "artifact" | "runtime">): string =>
-  model.runtime === "omlx" ? (model.artifact.split("/").at(-1) ?? model.artifact) : model.artifact;
+  model.runtime === "omlx" ? leafModelId(model.artifact) : model.artifact;
 
 const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   runtime: input.model.runtime,

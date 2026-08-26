@@ -84,8 +84,17 @@ export const stagingDirFor = (port: number): string => path.join(serverDirFor(po
 /** `HOME` for the child, so it never reads or writes the operator's `~/.omlx`. */
 export const homeDirFor = (port: number): string => path.join(serverDirFor(port), "home");
 
-/** The model id oMLX registers for `artifact` — its leaf directory name. */
-export const leafModelId = (artifact: string): string => artifact.split("/").at(-1) ?? artifact;
+/**
+ * The model id oMLX registers for `artifact` — its leaf directory name. Works
+ * for both forms an artifact takes: a HuggingFace repo id (`org/name` → `name`)
+ * and a directly-named model directory (`/path/to/name` → `name`), including a
+ * trailing slash.
+ */
+export const leafModelId = (artifact: string): string => {
+  const trimmed = artifact.replace(/\/+$/, "");
+  const leaf = trimmed.split("/").at(-1);
+  return leaf === undefined || leaf === "" ? artifact : leaf;
+};
 
 /**
  * Build the per-port scratch root: remove whatever sits at the exact path,
