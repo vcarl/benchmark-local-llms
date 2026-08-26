@@ -72,6 +72,14 @@ export interface ServerHandle {
    * successful sample — treat 0 as "unknown" rather than "zero bytes".
    */
   readonly peakRssKb: Effect.Effect<number>;
+  /**
+   * Fold one immediate RSS reading into the same peak. The supervisor already
+   * fires this once when the server reports healthy, which is the moment the
+   * weights are resident for llamacpp and mlx. A runtime that loads lazily
+   * (omlx) must call it again once the model is actually in memory, or a run
+   * shorter than the 30s poll interval records only the pre-load footprint.
+   */
+  readonly sampleNow: Effect.Effect<void, never, CommandExecutor.CommandExecutor>;
 }
 
 export interface SuperviseParams {
@@ -290,5 +298,6 @@ export const superviseServer = (
       pid: proc.pid as unknown as number,
       monitor,
       peakRssKb,
+      sampleNow,
     };
   });

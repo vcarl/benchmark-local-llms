@@ -238,5 +238,10 @@ export const omlxServer = (
     // first inference request. Pay that cost here, not inside a measured prompt.
     yield* warmup(cfg.artifact, port, healthTimeoutSec);
 
+    // The supervisor's own RSS sample fired at health, when this process was
+    // still ~0.5GB of Python. Re-sample now that the weights are resident, or
+    // a sweep shorter than the 30s poll interval reports the empty footprint.
+    yield* handle.sampleNow;
+
     return handle;
   });

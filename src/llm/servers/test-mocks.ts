@@ -149,6 +149,13 @@ const extractCommandPieces = (
 export interface MockExecutorHandle {
   readonly layer: Layer.Layer<CommandExecutor.CommandExecutor>;
   readonly runs: Array<MockRun>;
+  /**
+   * Args of every `ps` spawn, in order. These are RSS samples: the supervisor
+   * fires one when the server reports healthy, and a lazily-loading runtime
+   * fires another once its weights are resident. Kept out of `runs` so the
+   * server-spawn assertions stay uncluttered.
+   */
+  readonly psRuns: Array<ReadonlyArray<string>>;
 }
 
 /**
@@ -162,10 +169,12 @@ export interface MockExecutorHandle {
  */
 export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
   const runs: Array<MockRun> = [];
+  const psRuns: Array<ReadonlyArray<string>> = [];
   const executor = CommandExecutor.makeExecutor((cmd) =>
     Effect.gen(function* () {
       const { bin, args, env } = extractCommandPieces(cmd);
       if (bin === "ps") {
+        psRuns.push(args);
         // RSS poller: return a minimal process with empty stdout so
         // sampleRssKb gets a null sample (skip this tick). Not tracked in runs.
         const exited = yield* Deferred.make<number, never>();
@@ -194,6 +203,7 @@ export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
   return {
     layer: Layer.succeed(CommandExecutor.CommandExecutor, executor),
     runs,
+    psRuns,
   };
 };
 
@@ -210,11 +220,13 @@ export const makeMockExecutorWithRss = (
   rssKb: number,
 ): MockExecutorHandle => {
   const runs: Array<MockRun> = [];
+  const psRuns: Array<ReadonlyArray<string>> = [];
   const encoder = new TextEncoder();
   const executor = CommandExecutor.makeExecutor((cmd) =>
     Effect.gen(function* () {
       const { bin, args, env } = extractCommandPieces(cmd);
       if (bin === "ps") {
+        psRuns.push(args);
         // Return a minimal process whose stdout yields the RSS value.
         const rssBytes = encoder.encode(`${rssKb}\n`);
         const exited = yield* Deferred.make<number, never>();
@@ -243,6 +255,7 @@ export const makeMockExecutorWithRss = (
   return {
     layer: Layer.succeed(CommandExecutor.CommandExecutor, executor),
     runs,
+    psRuns,
   };
 };
 

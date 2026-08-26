@@ -245,6 +245,29 @@ describe("omlxServer", () => {
     expect(warmIdx).toBeGreaterThan(healthIdx);
   });
 
+  it("re-samples peak RSS after the warmup, once the weights are resident", async () => {
+    // oMLX answers /v1/models while still cold (~0.5GB of Python), then loads
+    // ~16GB on the first inference request. The supervisor samples at health,
+    // so without a second sample after the warmup a sub-30s sweep would report
+    // the pre-load footprint as peak memory.
+    ts = await startOmlxServer();
+    const cacheRoot = await withCache();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+    cleanups.push(() => fsp.rm(serverDirFor(ts?.port ?? 0), { recursive: true, force: true }));
+
+    await Effect.runPromise(
+      Effect.scoped(
+        omlxServer({ artifact: ARTIFACT, port: ts.port, healthTimeoutSec: 2, cacheRoot }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    // Two RSS samples: the supervisor's at health, and this runtime's after
+    // the warmup. The 30s periodic poller cannot have ticked in this window.
+    expect(mock.psRuns.length).toBe(2);
+    // And the warmup did happen, so the second sample saw a loaded model.
+    expect(ts.warmups().length).toBe(1);
+  });
+
   it("fails acquisition with ServerSpawnError when the warmup request fails", async () => {
     ts = await startOmlxServer();
     ts.failWarmup(true);
