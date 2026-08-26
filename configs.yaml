@@ -74,16 +74,6 @@
   systemPrompt: default
   maxTokens: 4096
 
-# Same artifact and knobs as qwen3-32b-mlx-4bit, served by oMLX instead of
-# mlx_lm.server — the pair isolates the serving runtime as the only variable.
-- id: qwen3-32b-mlx-4bit-omlx
-  artifact: mlx-community/Qwen3-32B-4bit
-  runtime: omlx
-  quant: 4bit
-  temperature: 0.7
-  systemPrompt: default
-  maxTokens: 4096
-
 - id: qwen3-32b-mlx-8bit
   artifact: mlx-community/Qwen3-32B-8bit
   runtime: mlx
@@ -200,6 +190,83 @@
   temperature: 0.7
   systemPrompt: default
   maxTokens: 4096
+
+# ── Qwen 3.8 27B (dense) — mlx vs oMLX across three quants ───────────────────
+# Qwen3.8-27B ships as a vision-language checkpoint (`model_type: qwen3_5`,
+# with `vision_config` + `text_config`). Both runtimes serve it as text: mlx_lm
+# loads only the language backbone, oMLX routes it to its VLM engine. The
+# MTP sibling (`mlx-community/Qwen3.8-27B-MTP-4bit`) is a speculative-decoding
+# draft head, not a chat model, so it is deliberately absent.
+- id: qwen3.8-27b-mlx
+  artifact: mlx-community/Qwen3.8-27B-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
+- id: qwen3.8-27b-omlx
+  artifact: mlx-community/Qwen3.8-27B-4bit
+  runtime: omlx
+  quant: 4bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
+- id: qwen3.8-27b-mlx-5bit
+  artifact: lmstudio-community/Qwen3.8-27B-MLX-5bit
+  runtime: mlx
+  quant: 5bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
+- id: qwen3.8-27b-omlx-5bit
+  artifact: lmstudio-community/Qwen3.8-27B-MLX-5bit
+  runtime: omlx
+  quant: 5bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
+- id: qwen3.8-27b-mlx-6bit
+  artifact: lmstudio-community/Qwen3.8-27B-MLX-6bit
+  runtime: mlx
+  quant: 6bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
+- id: qwen3.8-27b-omlx-6bit
+  artifact: lmstudio-community/Qwen3.8-27B-MLX-6bit
+  runtime: omlx
+  quant: 6bit
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+
+# The llama.cpp leg of the Qwen 3.8 27B comparison. No Qwen3.8 GGUF is cached,
+# and `./bench run` never downloads, so these stay disabled until the weights
+# are fetched: `hf download unsloth/Qwen3.8-27B-GGUF --include "*UD-Q6_K.gguf"`
+# (or `"*Q8_0.gguf"`). The repo also ships an mmproj projector; llama-server
+# does not need it for text-only prompts.
+- id: qwen3.8-27b-llamacpp
+  artifact: unsloth/Qwen3.8-27B-GGUF
+  runtime: llamacpp
+  quant: UD-Q6_K
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
+
+- id: qwen3.8-27b-llamacpp-q8
+  artifact: unsloth/Qwen3.8-27B-GGUF
+  runtime: llamacpp
+  quant: Q8_0
+  temperature: 0.7
+  systemPrompt: default
+  maxTokens: 4096
+  active: false
 
 # ── Runtime twins of rostered <=10B models (the other runtime was already cached) ──
 - id: llama3.1-8b-llamacpp
