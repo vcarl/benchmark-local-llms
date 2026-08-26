@@ -45,7 +45,11 @@ omlx serve --model-dir ~/models --host 127.0.0.1 --port 8000
 - Multi-model server: `--model-dir` is a *directory of* model directories, and each first-level subdirectory holding a `config.json` is registered under its **leaf directory name** — `~/models/Qwen3-32B-4bit` is served as `Qwen3-32B-4bit`, never `mlx-community/Qwen3-32B-4bit`. Pick the model per request with the OpenAI `model` field.
 - OpenAI-compatible: `GET /v1/models`, `POST /v1/chat/completions`.
 - Weights load lazily on the first inference request, not at startup — `/v1/models` answers while the model is still cold.
-- `omlx serve` writes every explicitly-passed CLI flag to `~/.omlx/settings.json` and reuses it as the default on the next boot. Pass the flags you care about explicitly on every invocation rather than relying on that file.
+- Settings live in `$HOME/.omlx/settings.json`, and the coupling runs both ways: `omlx serve` writes every explicitly-passed CLI flag there, and it reads the rest of that file back on the next boot. Two settings bite hard when a script inherits a desktop install's file — `auth.api_key` makes every request 401 unless the caller sends the key, and `huggingface.hf_cache_enabled` (on by default) serves the entire HF hub cache alongside whatever `--model-dir` points at. Run headless servers under a scratch `HOME` to get stock defaults and leave the desktop config alone:
+
+  ```bash
+  HOME=$(mktemp -d) omlx serve --model-dir ~/models --host 127.0.0.1 --port 8000
+  ```
 
 ### llama.cpp (Recommended for flexibility)
 

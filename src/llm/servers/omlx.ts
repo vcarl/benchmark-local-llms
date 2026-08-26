@@ -25,10 +25,16 @@
  *    prompt. We therefore issue a `max_tokens: 1` warmup completion during
  *    acquisition, and fail the boot if it does not come back.
  *
- * Note: `omlx serve` persists explicitly-passed CLI flags to
- * `~/.omlx/settings.json`. That is oMLX's own behaviour; the bench always
- * passes model-dir/host/port explicitly, so the persisted values are simply
- * overwritten on every boot.
+ * 3. **It reads and writes a persistent settings file at `$HOME/.omlx`.** Left
+ *    alone, that couples every benchmark boot to whatever the operator's oMLX
+ *    menu-bar app has configured: `omlx serve` persists the flags we pass —
+ *    clobbering their `model_dir` and `port` — and inherits their settings in
+ *    return, including `auth.api_key` (every request 401s) and
+ *    `huggingface.hf_cache_enabled` (the whole HF hub cache is discovered
+ *    alongside the staged model). So the supervisor points `HOME` at a
+ *    per-port scratch directory. oMLX then boots from stock defaults with
+ *    exactly one model visible, and the operator's real settings are never
+ *    touched.
  */
 import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import os from "node:os";
@@ -67,36 +73,46 @@ export interface OmlxConfig {
 }
 
 /**
- * Per-port staging directory handed to `omlx serve --model-dir`. Keyed by port
- * so concurrent supervisors on different ports never share a directory.
+ * Per-port scratch root this module owns outright. Keyed by port so concurrent
+ * supervisors on different ports never share a directory.
  */
-export const stagingDirFor = (port: number): string => path.join(os.tmpdir(), `bench-omlx-${port}`);
+export const serverDirFor = (port: number): string => path.join(os.tmpdir(), `bench-omlx-${port}`);
+
+/** Directory handed to `omlx serve --model-dir`; holds exactly one symlink. */
+export const stagingDirFor = (port: number): string => path.join(serverDirFor(port), "models");
+
+/** `HOME` for the child, so it never reads or writes the operator's `~/.omlx`. */
+export const homeDirFor = (port: number): string => path.join(serverDirFor(port), "home");
 
 /** The model id oMLX registers for `artifact` — its leaf directory name. */
 export const leafModelId = (artifact: string): string => artifact.split("/").at(-1) ?? artifact;
 
 /**
- * Build the single-model staging directory: remove whatever sits at the exact
- * staging path, recreate it, and link `<leaf>` at the resolved snapshot. The
- * removal is a narrow, exact-path delete of a directory this module owns.
+ * Build the per-port scratch root: remove whatever sits at the exact path,
+ * recreate `models/` and `home/`, and link `models/<leaf>` at the resolved
+ * snapshot. The removal is a narrow, exact-path delete of a directory this
+ * module owns.
  */
-const stageModel = (
+const prepareServerDir = (
   snapshotDir: string,
   artifact: string,
   port: number,
-): Effect.Effect<string, ServerSpawnError> =>
+): Effect.Effect<{ readonly stagingDir: string; readonly homeDir: string }, ServerSpawnError> =>
   Effect.try({
     try: () => {
-      const staging = stagingDirFor(port);
-      if (existsSync(staging)) rmSync(staging, { recursive: true, force: true });
-      mkdirSync(staging, { recursive: true });
-      symlinkSync(snapshotDir, path.join(staging, leafModelId(artifact)), "dir");
-      return staging;
+      const root = serverDirFor(port);
+      if (existsSync(root)) rmSync(root, { recursive: true, force: true });
+      const stagingDir = stagingDirFor(port);
+      const homeDir = homeDirFor(port);
+      mkdirSync(stagingDir, { recursive: true });
+      mkdirSync(homeDir, { recursive: true });
+      symlinkSync(snapshotDir, path.join(stagingDir, leafModelId(artifact)), "dir");
+      return { stagingDir, homeDir };
     },
     catch: (err) =>
       new ServerSpawnError({
         runtime: "omlx",
-        reason: `could not build the omlx staging directory: ${String(err)}`,
+        reason: `could not build the omlx scratch directory: ${String(err)}`,
       }),
   });
 
@@ -199,9 +215,13 @@ export const omlxServer = (
       runtime: "omlx",
       ...(cfg.cacheRoot !== undefined ? { cacheRoot: cfg.cacheRoot } : {}),
     });
-    const stagingDir = yield* stageModel(snapshotDir, cfg.artifact, port);
+    const { stagingDir, homeDir } = yield* prepareServerDir(snapshotDir, cfg.artifact, port);
 
-    const command = Command.make(bin, ...buildArgs(cfg, stagingDir, port));
+    // Isolate the child from the operator's ~/.omlx (see note 3 above). The
+    // node executor merges this over `process.env`, so PATH and friends survive.
+    const command = Command.make(bin, ...buildArgs(cfg, stagingDir, port)).pipe(
+      Command.env({ HOME: homeDir }),
+    );
     const handle = yield* superviseServer({
       runtime: "omlx",
       port,

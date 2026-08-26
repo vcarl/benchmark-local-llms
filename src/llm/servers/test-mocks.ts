@@ -32,6 +32,8 @@ export interface MockProcessSpec {
 export interface MockCommandLog {
   readonly command: string;
   readonly args: ReadonlyArray<string>;
+  /** Environment overrides applied via `Command.env`, as a plain record. */
+  readonly env: Readonly<Record<string, string>>;
   readonly signalsReceived: ReadonlyArray<string>;
   /** Resolves once the caller has observed the process exit. */
   readonly exited: Deferred.Deferred<number, never>;
@@ -61,6 +63,7 @@ const cannedByteStream = (lines: ReadonlyArray<string> | undefined): Stream.Stre
 const buildMockProcess = (
   cmdString: string,
   args: ReadonlyArray<string>,
+  env: Readonly<Record<string, string>>,
   spec: MockProcessSpec,
   runs: Array<MockRun>,
 ): Effect.Effect<CommandExecutor.Process, never, import("effect/Scope").Scope> =>
@@ -70,6 +73,7 @@ const buildMockProcess = (
     const log: MockCommandLog = {
       command: cmdString,
       args,
+      env,
       get signalsReceived() {
         return signalsReceived;
       },
@@ -125,12 +129,21 @@ const buildMockProcess = (
 
 const extractCommandPieces = (
   cmd: Command.Command,
-): { bin: string; args: ReadonlyArray<string> } => {
-  // `Command.make` builds a StandardCommand with `{ command, args }`
-  // readable shape. Use `any` narrowly to read it; the platform exports
-  // type guards but no shape accessor.
-  const c = cmd as unknown as { command: string; args: ReadonlyArray<string> };
-  return { bin: c.command, args: c.args ?? [] };
+): { bin: string; args: ReadonlyArray<string>; env: Readonly<Record<string, string>> } => {
+  // `Command.make` builds a StandardCommand with `{ command, args, env }`
+  // readable shape; `env` is an entry-iterable HashMap, which is exactly how
+  // the real node executor reads it. Use `any` narrowly to read it; the
+  // platform exports type guards but no shape accessor.
+  const c = cmd as unknown as {
+    command: string;
+    args: ReadonlyArray<string>;
+    env?: Iterable<readonly [string, string]>;
+  };
+  return {
+    bin: c.command,
+    args: c.args ?? [],
+    env: c.env === undefined ? {} : Object.fromEntries(c.env),
+  };
 };
 
 export interface MockExecutorHandle {
@@ -151,7 +164,7 @@ export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
   const runs: Array<MockRun> = [];
   const executor = CommandExecutor.makeExecutor((cmd) =>
     Effect.gen(function* () {
-      const { bin, args } = extractCommandPieces(cmd);
+      const { bin, args, env } = extractCommandPieces(cmd);
       if (bin === "ps") {
         // RSS poller: return a minimal process with empty stdout so
         // sampleRssKb gets a null sample (skip this tick). Not tracked in runs.
@@ -175,7 +188,7 @@ export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
         };
         return psProc;
       }
-      return yield* buildMockProcess(bin, args, spec, runs);
+      return yield* buildMockProcess(bin, args, env, spec, runs);
     }),
   );
   return {
@@ -200,7 +213,7 @@ export const makeMockExecutorWithRss = (
   const encoder = new TextEncoder();
   const executor = CommandExecutor.makeExecutor((cmd) =>
     Effect.gen(function* () {
-      const { bin, args } = extractCommandPieces(cmd);
+      const { bin, args, env } = extractCommandPieces(cmd);
       if (bin === "ps") {
         // Return a minimal process whose stdout yields the RSS value.
         const rssBytes = encoder.encode(`${rssKb}\n`);
@@ -224,7 +237,7 @@ export const makeMockExecutorWithRss = (
         };
         return psProc;
       }
-      return yield* buildMockProcess(bin, args, spec, runs);
+      return yield* buildMockProcess(bin, args, env, spec, runs);
     }),
   );
   return {

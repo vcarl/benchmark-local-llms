@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
-import { OMLX_DEFAULT_PORT, omlxServer, stagingDirFor } from "./omlx.js";
+import { homeDirFor, OMLX_DEFAULT_PORT, omlxServer, serverDirFor, stagingDirFor } from "./omlx.js";
 import { httpClientLayer, makeMockExecutor, type TestHttpServer } from "./test-mocks.js";
 
 /**
@@ -116,7 +116,7 @@ describe("omlxServer", () => {
     ts = await startOmlxServer();
     const cacheRoot = await withCache();
     const mock = makeMockExecutor({ behaviour: "alive" });
-    cleanups.push(() => fsp.rm(stagingDirFor(ts?.port ?? 0), { recursive: true, force: true }));
+    cleanups.push(() => fsp.rm(serverDirFor(ts?.port ?? 0), { recursive: true, force: true }));
 
     await Effect.runPromise(
       Effect.scoped(
@@ -143,7 +143,7 @@ describe("omlxServer", () => {
     ts = await startOmlxServer();
     const cacheRoot = await withCache();
     const mock = makeMockExecutor({ behaviour: "alive" });
-    cleanups.push(() => fsp.rm(stagingDirFor(ts?.port ?? 0), { recursive: true, force: true }));
+    cleanups.push(() => fsp.rm(serverDirFor(ts?.port ?? 0), { recursive: true, force: true }));
 
     await Effect.runPromise(
       Effect.scoped(
@@ -170,7 +170,8 @@ describe("omlxServer", () => {
     const cacheRoot = await withCache();
     const mock = makeMockExecutor({ behaviour: "alive" });
     const staging = stagingDirFor(ts.port);
-    cleanups.push(() => fsp.rm(staging, { recursive: true, force: true }));
+    const root = serverDirFor(ts.port);
+    cleanups.push(() => fsp.rm(root, { recursive: true, force: true }));
 
     // A stale entry at the exact staging path must be replaced, not merged.
     await fsp.mkdir(staging, { recursive: true });
@@ -190,11 +191,40 @@ describe("omlxServer", () => {
     );
   });
 
+  it("points HOME at a per-port scratch dir so the operator's ~/.omlx is untouched", async () => {
+    // oMLX reads AND writes $HOME/.omlx/settings.json. Inheriting the real one
+    // means the child picks up the operator's `auth.api_key` (every request
+    // 401s) and `huggingface.hf_cache_enabled` (the whole HF cache is served
+    // alongside the staged model), and `omlx serve` writes our flags back over
+    // their `model_dir`/`port`. The scratch HOME severs both directions.
+    ts = await startOmlxServer();
+    const cacheRoot = await withCache();
+    const mock = makeMockExecutor({ behaviour: "alive" });
+    cleanups.push(() => fsp.rm(serverDirFor(ts?.port ?? 0), { recursive: true, force: true }));
+
+    await Effect.runPromise(
+      Effect.scoped(
+        omlxServer({ artifact: ARTIFACT, port: ts.port, healthTimeoutSec: 2, cacheRoot }),
+      ).pipe(Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer))),
+    );
+
+    const run = mock.runs[0];
+    if (!run) throw new Error("no run recorded");
+    expect(run.log.env["HOME"]).toBe(homeDirFor(ts.port));
+    expect(run.log.env["HOME"]).not.toBe(os.homedir());
+    // The directory must exist before spawn — oMLX writes settings on boot.
+    const stat = await fsp.stat(homeDirFor(ts.port));
+    expect(stat.isDirectory()).toBe(true);
+    // And it must sit outside the directory oMLX scans for models, or the
+    // settings file would register as a discovery candidate.
+    expect(homeDirFor(ts.port).startsWith(stagingDirFor(ts.port))).toBe(false);
+  });
+
   it("issues a max_tokens=1 warmup for the leaf model id after health passes", async () => {
     ts = await startOmlxServer();
     const cacheRoot = await withCache();
     const mock = makeMockExecutor({ behaviour: "alive" });
-    cleanups.push(() => fsp.rm(stagingDirFor(ts?.port ?? 0), { recursive: true, force: true }));
+    cleanups.push(() => fsp.rm(serverDirFor(ts?.port ?? 0), { recursive: true, force: true }));
 
     await Effect.runPromise(
       Effect.scoped(
@@ -220,7 +250,7 @@ describe("omlxServer", () => {
     ts.failWarmup(true);
     const cacheRoot = await withCache();
     const mock = makeMockExecutor({ behaviour: "alive" });
-    cleanups.push(() => fsp.rm(stagingDirFor(ts?.port ?? 0), { recursive: true, force: true }));
+    cleanups.push(() => fsp.rm(serverDirFor(ts?.port ?? 0), { recursive: true, force: true }));
 
     const outcome = await Effect.runPromise(
       Effect.scoped(

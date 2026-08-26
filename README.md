@@ -32,7 +32,7 @@ To run a real benchmark, add a configuration to `configs.yaml` (a model artifact
 
 - `llama-server` (llama.cpp) — install a pinned release tarball (see [`llama-cpp-guide.md`](./llama-cpp-guide.md)) and put it on `PATH`. Required for any configuration with `runtime: llamacpp`.
 - `python3 -m mlx_lm.server` (MLX runtime, mlx-lm) — `pip install mlx-lm` into a venv, default `~/llm-env`. Required for any configuration with `runtime: mlx`.
-- `omlx` (oMLX) — `brew tap jundot/omlx https://github.com/jundot/omlx && brew install jundot/omlx/omlx`, or `pip install -e .` from a source checkout. Required for any configuration with `runtime: omlx`. Note that `omlx serve` persists the CLI flags it is given to `~/.omlx/settings.json`; the harness always passes model directory, host, and port explicitly, so that file never changes what a run does.
+- `omlx` (oMLX) — `brew tap jundot/omlx https://github.com/jundot/omlx && brew install jundot/omlx/omlx`, or `pip install -e .` from a source checkout. Required for any configuration with `runtime: omlx`. The harness runs `omlx serve` under a scratch `HOME`, so it boots from stock defaults and neither reads nor writes the `~/.omlx/settings.json` your desktop oMLX install owns.
 
 A configuration's `runtime` field selects which server the harness launches per attempt; you only need the runtime(s) your configurations use.
 
