@@ -206,9 +206,11 @@
   maxTokens: 8192
   # mlx_lm leaves repetition_penalty at 0.0 (off), and this model
   # collapses into verbatim repetition on the financial reasoning items;
-  # the same weights served by omlx do not. Gentle enough not to punish
-  # the repeated figures that financial arithmetic legitimately needs.
-  repetitionPenalty: 1.05
+  # the same weights served by omlx do not. At 1.05 four of the seven
+  # formerly-looping items recovered and one still looped, so this is the
+  # firmer setting — watch the arithmetic items, which legitimately repeat
+  # figures and are the first thing a heavy penalty would damage.
+  repetitionPenalty: 1.15
   repetitionContextSize: 64
 
 - id: qwen3.8-27b-omlx
@@ -228,9 +230,11 @@
   maxTokens: 8192
   # mlx_lm leaves repetition_penalty at 0.0 (off), and this model
   # collapses into verbatim repetition on the financial reasoning items;
-  # the same weights served by omlx do not. Gentle enough not to punish
-  # the repeated figures that financial arithmetic legitimately needs.
-  repetitionPenalty: 1.05
+  # the same weights served by omlx do not. At 1.05 four of the seven
+  # formerly-looping items recovered and one still looped, so this is the
+  # firmer setting — watch the arithmetic items, which legitimately repeat
+  # figures and are the first thing a heavy penalty would damage.
+  repetitionPenalty: 1.15
   repetitionContextSize: 64
 
 - id: qwen3.8-27b-omlx-5bit
@@ -250,9 +254,11 @@
   maxTokens: 8192
   # mlx_lm leaves repetition_penalty at 0.0 (off), and this model
   # collapses into verbatim repetition on the financial reasoning items;
-  # the same weights served by omlx do not. Gentle enough not to punish
-  # the repeated figures that financial arithmetic legitimately needs.
-  repetitionPenalty: 1.05
+  # the same weights served by omlx do not. At 1.05 four of the seven
+  # formerly-looping items recovered and one still looped, so this is the
+  # firmer setting — watch the arithmetic items, which legitimately repeat
+  # figures and are the first thing a heavy penalty would damage.
+  repetitionPenalty: 1.15
   repetitionContextSize: 64
 
 - id: qwen3.8-27b-omlx-6bit
