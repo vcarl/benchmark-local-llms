@@ -28,12 +28,51 @@ const mockClient = (
     }),
   );
 
-const jsonResponse = (body: unknown, init?: ResponseInit): Response =>
-  new Response(JSON.stringify(body), {
+/**
+ * Build a server-sent-event body the way a real completion server streams one:
+ * per-token delta chunks, then (when asked) a trailing usage chunk, then
+ * `[DONE]`. `completion` is the non-streaming shape these tests were written
+ * against, translated so they keep asserting on behaviour rather than wire
+ * format.
+ */
+const sseResponse = (completion: {
+  content?: string | null;
+  reasoning_content?: string | null;
+  reasoning?: string | null;
+  finish_reason?: string | null;
+  usage?: { prompt_tokens: number; completion_tokens: number };
+  timings?: { prompt_per_second: number; predicted_per_second: number };
+  omitUsage?: boolean;
+}): Response => {
+  const lines: string[] = [];
+  const delta: Record<string, string> = {};
+  if (completion.content != null) delta["content"] = completion.content;
+  if (completion.reasoning_content != null)
+    delta["reasoning_content"] = completion.reasoning_content;
+  if (completion.reasoning != null) delta["reasoning"] = completion.reasoning;
+  lines.push(`data: ${JSON.stringify({ choices: [{ delta }] })}`);
+  lines.push(
+    `data: ${JSON.stringify({
+      choices: [{ delta: {}, finish_reason: completion.finish_reason ?? "stop" }],
+    })}`,
+  );
+  if (completion.omitUsage !== true) {
+    const tail: Record<string, unknown> = {
+      usage: completion.usage ?? { prompt_tokens: 0, completion_tokens: 0 },
+    };
+    if (completion.timings !== undefined) tail["timings"] = completion.timings;
+    lines.push(`data: ${JSON.stringify(tail)}`);
+  }
+  lines.push("data: [DONE]");
+  return new Response(`${lines.join("\n\n")}\n\n`, {
     status: 200,
-    headers: { "Content-Type": "application/json" },
-    ...init,
+    headers: { "Content-Type": "text/event-stream" },
   });
+};
+
+/** Stream a body verbatim — for malformed-stream cases. */
+const rawStreamResponse = (body: string): Response =>
+  new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 
 const baseParams = (overrides: Partial<CompletionParams> = {}): CompletionParams => ({
   runtime: "llamacpp",
@@ -61,8 +100,8 @@ describe("ChatCompletion", () => {
             const bytes = body._tag === "Uint8Array" ? body.body : new Uint8Array();
             capturedBody = JSON.parse(new TextDecoder().decode(bytes));
           }
-          return jsonResponse({
-            choices: [{ message: { content: "The answer is 4." } }],
+          return sseResponse({
+            content: "The answer is 4.",
             usage: { prompt_tokens: 10, completion_tokens: 5 },
             timings: { prompt_per_second: 120.5, predicted_per_second: 42.25 },
           });
@@ -82,7 +121,7 @@ describe("ChatCompletion", () => {
       model: "test-model",
       temperature: 0.7,
       max_tokens: 128,
-      stream: false,
+      stream: true,
       messages: [
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: "What is 2 + 2?" },
@@ -95,7 +134,7 @@ describe("ChatCompletion", () => {
       generationTokens: 5,
       promptTps: 120.5,
       generationTps: 42.25,
-      finishReason: null,
+      finishReason: "stop",
     });
   });
 
@@ -105,10 +144,7 @@ describe("ChatCompletion", () => {
       Layer.provide(
         mockClient((req) => {
           capturedUrl = req.url;
-          return jsonResponse({
-            choices: [{ message: { content: "hi" } }],
-            usage: { prompt_tokens: 1, completion_tokens: 1 },
-          });
+          return sseResponse({ content: "hi", usage: { prompt_tokens: 1, completion_tokens: 1 } });
         }),
       ),
     );
@@ -136,10 +172,7 @@ describe("ChatCompletion", () => {
           if (body._tag === "Uint8Array") {
             capturedBody = JSON.parse(new TextDecoder().decode(body.body));
           }
-          return jsonResponse({
-            choices: [{ message: { content: "ok" } }],
-            usage: { prompt_tokens: 1, completion_tokens: 1 },
-          });
+          return sseResponse({ content: "ok", usage: { prompt_tokens: 1, completion_tokens: 1 } });
         }),
       ),
     );
@@ -163,15 +196,9 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          jsonResponse({
-            choices: [
-              {
-                message: {
-                  content: "",
-                  reasoning_content: "hmm let me think… the answer is 4",
-                },
-              },
-            ],
+          sseResponse({
+            content: "",
+            reasoning_content: "hmm let me think… the answer is 4",
             usage: { prompt_tokens: 3, completion_tokens: 9 },
           }),
         ),
@@ -195,8 +222,9 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          jsonResponse({
-            choices: [{ message: { content: "", reasoning: "thinking it through" } }],
+          sseResponse({
+            content: "",
+            reasoning: "thinking it through",
             usage: { prompt_tokens: 3, completion_tokens: 9 },
           }),
         ),
@@ -222,15 +250,9 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          jsonResponse({
-            choices: [
-              {
-                message: {
-                  content: "12",
-                  reasoning: "7 + 5 = 12, user wants just the number",
-                },
-              },
-            ],
+          sseResponse({
+            content: "12",
+            reasoning: "7 + 5 = 12, user wants just the number",
             usage: { prompt_tokens: 16, completion_tokens: 200 },
           }),
         ),
@@ -296,7 +318,9 @@ describe("ChatCompletion", () => {
 
   it("maps malformed JSON (missing choices[]) to LlmMalformedResponse", async () => {
     const layer = ChatCompletionLive.pipe(
-      Layer.provide(mockClient(() => jsonResponse({ no: "choices here" }))),
+      Layer.provide(
+        mockClient(() => rawStreamResponse('data: {"totally": "unexpected"}\n\ndata: [DONE]\n\n')),
+      ),
     );
 
     const program = Effect.gen(function* () {
@@ -318,12 +342,7 @@ describe("ChatCompletion", () => {
     // and `reasoning` are all absent/empty, the result is an empty response.
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
-        mockClient(() =>
-          jsonResponse({
-            choices: [{ message: {} }],
-            usage: { prompt_tokens: 1, completion_tokens: 0 },
-          }),
-        ),
+        mockClient(() => sseResponse({ usage: { prompt_tokens: 1, completion_tokens: 0 } })),
       ),
     );
 
@@ -343,10 +362,7 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          jsonResponse({
-            choices: [{ message: { content: "   " } }],
-            usage: { prompt_tokens: 1, completion_tokens: 0 },
-          }),
+          sseResponse({ content: "   ", usage: { prompt_tokens: 1, completion_tokens: 0 } }),
         ),
       ),
     );
@@ -396,8 +412,8 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          jsonResponse({
-            choices: [{ message: { content: "ok" } }],
+          sseResponse({
+            content: "ok",
             usage: { prompt_tokens: 7, completion_tokens: 3 },
             // no `timings`
           }),
@@ -418,7 +434,7 @@ describe("ChatCompletion", () => {
       generationTokens: 3,
       promptTps: null,
       generationTps: null,
-      finishReason: null,
+      finishReason: "stop",
     });
   });
 
@@ -427,10 +443,7 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          jsonResponse({
-            choices: [{ message: { content: "hi" } }],
-            usage: { prompt_tokens: 4, completion_tokens: 2 },
-          }),
+          sseResponse({ content: "hi", usage: { prompt_tokens: 4, completion_tokens: 2 } }),
         ),
       ),
     );
@@ -477,8 +490,9 @@ describe("ChatCompletion", () => {
             if (body._tag === "Uint8Array") {
               captured = JSON.parse(new TextDecoder().decode(body.body)) as Record<string, unknown>;
             }
-            return jsonResponse({
-              choices: [{ message: { content: "ok" }, finish_reason: "length" }],
+            return sseResponse({
+              content: "ok",
+              finish_reason: "length",
               usage: { prompt_tokens: 1, completion_tokens: 1 },
             });
           }),
@@ -526,5 +540,129 @@ describe("ChatCompletion", () => {
   it("reports the server's finish_reason so a budget-exhausted answer is distinguishable", async () => {
     const { result } = await Effect.runPromise(captureBody(baseParams()));
     expect(result.finishReason).toBe("length");
+  });
+
+  it("aborts a generation that is provably repeating itself", async () => {
+    // The archive shape: a model that never stops repeating burns its whole
+    // token budget to produce nothing. Cutting it short is the point.
+    let chunksServed = 0;
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() => {
+          const lines: string[] = [];
+          // Enough distinct words to clear the detector's minimum, then a loop.
+          for (let i = 0; i < 420; i += 1) {
+            lines.push(
+              `data: ${JSON.stringify({ choices: [{ delta: { reasoning: `w${i} ` } }] })}`,
+            );
+          }
+          for (let i = 0; i < 2000; i += 1) {
+            lines.push(
+              `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "an upstream " } }] })}`,
+            );
+          }
+          lines.push(
+            `data: ${JSON.stringify({ usage: { prompt_tokens: 5, completion_tokens: 9999 } })}`,
+          );
+          lines.push("data: [DONE]");
+          chunksServed = lines.length;
+          return rawStreamResponse(`${lines.join("\n\n")}\n\n`);
+        }),
+      ),
+    );
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(baseParams());
+        }),
+        layer,
+      ),
+    );
+    expect(chunksServed).toBeGreaterThan(2000);
+    expect(result.finishReason).toBe("loop");
+    // Aborted before the trailing usage chunk, so counts are absent, not zero-
+    // as-observed. `stopReason` is what marks them unmeasured.
+    expect(result.generationTokens).toBe(0);
+    expect(result.reasoning).toContain("an upstream");
+  });
+
+  it("does not abort long reasoning that never repeats", async () => {
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() => {
+          const lines: string[] = [];
+          for (let i = 0; i < 4000; i += 1) {
+            lines.push(
+              `data: ${JSON.stringify({ choices: [{ delta: { reasoning: `tok${i} ` } }] })}`,
+            );
+          }
+          lines.push(
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}`,
+          );
+          lines.push(
+            `data: ${JSON.stringify({ usage: { prompt_tokens: 5, completion_tokens: 4000 } })}`,
+          );
+          lines.push("data: [DONE]");
+          return rawStreamResponse(`${lines.join("\n\n")}\n\n`);
+        }),
+      ),
+    );
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(baseParams());
+        }),
+        layer,
+      ),
+    );
+    expect(result.finishReason).toBe("length");
+    expect(result.generationTokens).toBe(4000);
+  });
+
+  it("refuses a streamed response that carries no usage block", async () => {
+    // Silently recording zero tokens would corrupt every efficiency metric,
+    // so a runtime that ignores stream_options must fail loudly instead.
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(mockClient(() => sseResponse({ content: "hi", omitUsage: true }))),
+    );
+    const exit = await Effect.runPromiseExit(
+      Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(baseParams());
+        }),
+        layer,
+      ),
+    );
+    expect(Exit.isFailure(exit)).toBe(true);
+  });
+
+  it("reassembles content split across many delta chunks", async () => {
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() => {
+          const lines = ["The ", "answer ", "is ", "4."].map(
+            (c) => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}`,
+          );
+          lines.push(
+            `data: ${JSON.stringify({ usage: { prompt_tokens: 3, completion_tokens: 4 } })}`,
+          );
+          lines.push("data: [DONE]");
+          return rawStreamResponse(`${lines.join("\n\n")}\n\n`);
+        }),
+      ),
+    );
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(baseParams());
+        }),
+        layer,
+      ),
+    );
+    expect(result.output).toBe("The answer is 4.");
   });
 });

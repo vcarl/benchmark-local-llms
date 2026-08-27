@@ -32,8 +32,7 @@
  */
 import { HttpClient, HttpClientRequest } from "@effect/platform";
 import type { HttpClientError } from "@effect/platform/HttpClientError";
-import { Clock, Context, Effect, Layer, Schema } from "effect";
-import type { ParseError } from "effect/ParseResult";
+import { Clock, Context, Effect, Layer, Schema, Stream } from "effect";
 import {
   LlmEmptyResponse,
   LlmMalformedResponse,
@@ -41,6 +40,7 @@ import {
   LlmTimeoutError,
 } from "../errors/llm.js";
 import type { Runtime } from "../schema/enums.js";
+import { makeLoopDetector } from "./loop-detector.js";
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -113,46 +113,6 @@ export class ChatCompletion extends Context.Tag("llm/ChatCompletion")<
 
 // ── Wire schema ─────────────────────────────────────────────────────────────
 
-/**
- * Minimal decoder for the OpenAI-compatible chat completion response. We
- * only pull the fields we actually use downstream — extra fields pass through
- * untouched.
- *
- * All three text-carrying fields are optional because different backends
- * split the model output differently:
- *   - `content`          — classic OpenAI shape, llama.cpp with
- *                          `--reasoning-format none` puts everything here.
- *   - `reasoning_content` — llama.cpp `--reasoning-format deepseek` strips
- *                          reasoning out of `content` and exposes it here.
- *   - `reasoning`        — `mlx_lm.server` always splits reasoning into this
- *                          field; `content` may be empty (budget hit mid-think)
- *                          or populated (reasoning + visible answer both fit).
- *
- * When a split-reasoning field is populated alongside `content`, both are
- * surfaced separately on `CompletionResult` (reasoning verbatim, content
- * verbatim) so the archive stays lossless. `extractOutput` rejects the
- * all-empty case (no content and no reasoning) with `LlmEmptyResponse`
- * downstream.
- */
-const MessageSchema = Schema.Struct({
-  content: Schema.optional(Schema.NullOr(Schema.String)),
-  reasoning_content: Schema.optional(Schema.NullOr(Schema.String)),
-  reasoning: Schema.optional(Schema.NullOr(Schema.String)),
-});
-
-const ChoiceSchema = Schema.Struct({
-  message: MessageSchema,
-  /**
-   * Why generation stopped, straight from the server: "stop" (the model
-   * finished), "length" (it exhausted `max_tokens`). Optional because not
-   * every runtime sets it. Recorded rather than inferred from token counts —
-   * a model that spends its whole budget thinking and never answers is a
-   * different outcome from one that answered wrongly, and only the server
-   * can tell us which happened.
-   */
-  finish_reason: Schema.optional(Schema.NullOr(Schema.String)),
-});
-
 const UsageSchema = Schema.Struct({
   prompt_tokens: Schema.optionalWith(Schema.Number, { default: () => 0 }),
   completion_tokens: Schema.optionalWith(Schema.Number, { default: () => 0 }),
@@ -162,16 +122,6 @@ const TimingsSchema = Schema.Struct({
   prompt_per_second: Schema.optionalWith(Schema.Number, { default: () => 0 }),
   predicted_per_second: Schema.optionalWith(Schema.Number, { default: () => 0 }),
 });
-
-const ChatResponseSchema = Schema.Struct({
-  choices: Schema.Array(ChoiceSchema),
-  usage: Schema.optionalWith(UsageSchema, {
-    default: () => ({ prompt_tokens: 0, completion_tokens: 0 }),
-  }),
-  timings: Schema.optional(TimingsSchema),
-});
-
-const decodeChatResponse = Schema.decodeUnknown(ChatResponseSchema);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -209,34 +159,158 @@ const buildBody = (p: CompletionParams) => ({
   ],
   temperature: p.temperature,
   max_tokens: p.maxTokens,
-  stream: false,
+  stream: true,
+  // mlx_lm reads `stream_options["include_usage"]` without guarding the key,
+  // so it must always be present — and without it no usage block is emitted
+  // in stream mode at all (server.py::handle_completion).
+  stream_options: { include_usage: true },
   ...penaltyFields(p),
 });
 
-export const extractOutput = (
-  choices: ReadonlyArray<{
-    readonly message: {
-      readonly content?: string | null | undefined;
-      readonly reasoning_content?: string | null | undefined;
-      readonly reasoning?: string | null | undefined;
+/**
+ * One server-sent chunk. Every field is optional because servers disagree
+ * about which of them appear on which chunk: the MLX servers emit `usage`
+ * only on a trailing chunk (and only when asked via `stream_options`), while
+ * llama.cpp appends its `timings` block at the end.
+ */
+const StreamChunkSchema = Schema.Struct({
+  choices: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        delta: Schema.optional(
+          Schema.Struct({
+            content: Schema.optional(Schema.NullOr(Schema.String)),
+            reasoning_content: Schema.optional(Schema.NullOr(Schema.String)),
+            reasoning: Schema.optional(Schema.NullOr(Schema.String)),
+          }),
+        ),
+        finish_reason: Schema.optional(Schema.NullOr(Schema.String)),
+      }),
+    ),
+  ),
+  usage: Schema.optional(UsageSchema),
+  timings: Schema.optional(TimingsSchema),
+});
+
+const decodeStreamChunk = Schema.decodeUnknownOption(StreamChunkSchema);
+
+/** Marker used to unwind the stream the moment a loop is proven. */
+const LOOP_DETECTED = Symbol.for("llm/loop-detected");
+
+/**
+ * Read an SSE completion stream, accumulating answer and reasoning text and
+ * watching for degenerate repetition. Returns as soon as the server finishes
+ * *or* the generation is proven stuck — the latter cancels the request, which
+ * is the entire point: a stuck generation otherwise runs to the full token
+ * budget, and in the archive that cost 346s per item to produce nothing.
+ */
+const consumeStream = (
+  params: CompletionParams,
+  response: { readonly stream: Stream.Stream<Uint8Array, unknown> },
+): Effect.Effect<CompletionResult, LlmMalformedResponse> =>
+  Effect.gen(function* () {
+    let content = "";
+    let reasoning = "";
+    let sawReasoning = false;
+    let finishReason: string | null = null;
+    let promptTokens: number | null = null;
+    let generationTokens: number | null = null;
+    let promptTps: number | null = null;
+    let generationTps: number | null = null;
+    let looped = false;
+    const detector = makeLoopDetector();
+
+    const handleLine = (line: string): Effect.Effect<void, typeof LOOP_DETECTED> => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) return Effect.void;
+      const payload = trimmed.slice(5).trim();
+      if (payload.length === 0 || payload === "[DONE]") return Effect.void;
+      const decoded = decodeStreamChunk(JSON.parse(payload) as unknown);
+      if (decoded._tag === "None") return Effect.void;
+      const chunk = decoded.value;
+      if (chunk.usage !== undefined) {
+        promptTokens = chunk.usage.prompt_tokens;
+        generationTokens = chunk.usage.completion_tokens;
+      }
+      if (chunk.timings !== undefined) {
+        promptTps = chunk.timings.prompt_per_second;
+        generationTps = chunk.timings.predicted_per_second;
+      }
+      const choice = chunk.choices?.[0];
+      if (choice === undefined) return Effect.void;
+      if (choice.finish_reason != null) finishReason = choice.finish_reason;
+      const delta = choice.delta;
+      if (delta === undefined) return Effect.void;
+      const think = delta.reasoning_content ?? delta.reasoning;
+      if (think != null && think.length > 0) {
+        reasoning += think;
+        sawReasoning = true;
+      }
+      if (delta.content != null && delta.content.length > 0) content += delta.content;
+      // Reasoning is where runaways happen, but score them together: a model
+      // repeating itself in the answer is just as stuck.
+      const advanced = (think ?? "") + (delta.content ?? "");
+      if (advanced.length > 0 && detector.push(advanced)) {
+        looped = true;
+        return Effect.fail(LOOP_DETECTED);
+      }
+      return Effect.void;
     };
-  }>,
-): { readonly content: string; readonly reasoning: string | null } => {
-  if (choices.length === 0) return { content: "", reasoning: null };
-  const first = choices[0];
-  if (first === undefined) return { content: "", reasoning: null };
-  const content = (first.message.content ?? "").trim();
-  const reasoningContent = (first.message.reasoning_content ?? "").trim();
-  const reasoning = (first.message.reasoning ?? "").trim();
-  // Providers that split reasoning out of `content` use either
-  // `reasoning_content` (llama.cpp `--reasoning-format deepseek`) or
-  // `reasoning` (mlx_lm.server); never both on the same response.
-  const split = reasoningContent.length > 0 ? reasoningContent : reasoning;
-  return {
-    content,
-    reasoning: split.length > 0 ? split : null,
-  };
-};
+
+    yield* response.stream.pipe(
+      Stream.decodeText(),
+      Stream.splitLines,
+      Stream.runForEach(handleLine),
+      // A proven loop is a successful early exit, not an error.
+      Effect.catchAll((cause) =>
+        cause === LOOP_DETECTED
+          ? Effect.void
+          : Effect.fail(
+              new LlmMalformedResponse({
+                model: params.model,
+                promptName: params.promptName,
+                body: `stream read failed: ${String(cause).slice(0, 500)}`,
+              }),
+            ),
+      ),
+    );
+
+    // Token counts are load-bearing: efficiency metrics and the
+    // budget-exhaustion signal both read them. A runtime that streams without
+    // reporting usage must fail loudly rather than silently record zeros.
+    if (!looped && (promptTokens === null || generationTokens === null)) {
+      return yield* Effect.fail(
+        new LlmMalformedResponse({
+          model: params.model,
+          promptName: params.promptName,
+          body:
+            "streamed response carried no usage block — the runtime ignored " +
+            "stream_options.include_usage, so token counts would be silently zero",
+        }),
+      );
+    }
+
+    // Match the non-streaming contract exactly: trim both sides, and treat
+    // whitespace-only reasoning as absent rather than present-but-blank.
+    const trimmedContent = content.trim();
+    const trimmedReasoning = reasoning.trim();
+
+    return {
+      output: trimmedContent,
+      reasoning: sawReasoning && trimmedReasoning.length > 0 ? trimmedReasoning : null,
+      promptTokens: promptTokens ?? 0,
+      // An aborted stream never receives the trailing usage block, so token
+      // counts are genuinely unmeasured here. They stay 0 and `stopReason`
+      // is "loop" — the pair is the signal that these numbers are absent
+      // rather than observed. Counting delta chunks instead was measured
+      // against a live server and came up ~9% short of the real count, so it
+      // would be a plausible-looking wrong number, which is worse than none.
+      generationTokens: generationTokens ?? 0,
+      promptTps,
+      generationTps,
+      finishReason: looped ? "loop" : finishReason,
+    } satisfies CompletionResult;
+  });
 
 // ── Layer ───────────────────────────────────────────────────────────────────
 
@@ -329,33 +403,9 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
         ),
       );
 
-      // Pull the body as JSON. `.json` fails with a `ResponseError`
-      // (`reason: "Decode"`) on non-JSON bodies; we map that to
-      // `LlmMalformedResponse` and preserve the raw text when possible.
-      const rawJson: unknown = yield* response.json.pipe(
-        Effect.mapError(
-          () =>
-            new LlmMalformedResponse({
-              model: params.model,
-              promptName: params.promptName,
-              body: "<response body was not valid JSON>",
-            }),
-        ),
-      );
+      const result = yield* consumeStream(params, response);
 
-      const decoded = yield* decodeChatResponse(rawJson).pipe(
-        Effect.mapError(
-          (cause: ParseError) =>
-            new LlmMalformedResponse({
-              model: params.model,
-              promptName: params.promptName,
-              body: `schema decode failed: ${cause.message ?? String(cause)}`,
-            }),
-        ),
-      );
-
-      const extracted = extractOutput(decoded.choices);
-      if (extracted.content.length === 0 && extracted.reasoning === null) {
+      if (result.output.length === 0 && result.reasoning === null) {
         return yield* Effect.fail(
           new LlmEmptyResponse({
             model: params.model,
@@ -367,23 +417,12 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
       const endMs = yield* Clock.currentTimeMillis;
       const elapsed = ((endMs - startMs) / 1000).toFixed(1);
       yield* Effect.logDebug(
-        `response 200 in ${elapsed}s, prompt_tokens=${decoded.usage.prompt_tokens} gen_tokens=${decoded.usage.completion_tokens}`,
+        result.finishReason === "loop"
+          ? `aborted after ${elapsed}s: generation was repeating itself`
+          : `response 200 in ${elapsed}s, prompt_tokens=${result.promptTokens} gen_tokens=${result.generationTokens}`,
       ).pipe(Effect.annotateLogs("scope", "chat"));
 
-      // `timings` is an llamacpp-only extension. When absent we return
-      // `null` so callers can compute a fallback from wall time (see
-      // `runPrompt::makeSuccessResult`). Silently defaulting to 0 here
-      // would make MLX runs look like they completed at 0 tokens/sec.
-      const timings = decoded.timings;
-      return {
-        output: extracted.content,
-        reasoning: extracted.reasoning,
-        promptTokens: decoded.usage.prompt_tokens,
-        generationTokens: decoded.usage.completion_tokens,
-        promptTps: timings === undefined ? null : timings.prompt_per_second,
-        generationTps: timings === undefined ? null : timings.predicted_per_second,
-        finishReason: decoded.choices[0]?.finish_reason ?? null,
-      } satisfies CompletionResult;
+      return result;
     }),
 });
 
