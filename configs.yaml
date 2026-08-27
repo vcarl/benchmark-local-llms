@@ -206,11 +206,12 @@
   maxTokens: 8192
   # mlx_lm leaves repetition_penalty at 0.0 (off), and this model
   # collapses into verbatim repetition on the financial reasoning items;
-  # the same weights served by omlx do not. At 1.05 four of the seven
-  # formerly-looping items recovered and one still looped, so this is the
-  # firmer setting — watch the arithmetic items, which legitimately repeat
-  # figures and are the first thing a heavy penalty would damage.
-  repetitionPenalty: 1.15
+  # the same weights served by omlx do not. 1.05 is measured, not guessed:
+  # against 1.15 over the same 26 items it scored 15 perfect to 12 and
+  # looped once to 6. The firmer setting did not suppress the cycles, it
+  # induced new ones on the contagion items, where the model has to restate
+  # running balances and a heavy penalty pushes it off its own arithmetic.
+  repetitionPenalty: 1.05
   repetitionContextSize: 64
 
 - id: qwen3.8-27b-omlx
@@ -230,11 +231,12 @@
   maxTokens: 8192
   # mlx_lm leaves repetition_penalty at 0.0 (off), and this model
   # collapses into verbatim repetition on the financial reasoning items;
-  # the same weights served by omlx do not. At 1.05 four of the seven
-  # formerly-looping items recovered and one still looped, so this is the
-  # firmer setting — watch the arithmetic items, which legitimately repeat
-  # figures and are the first thing a heavy penalty would damage.
-  repetitionPenalty: 1.15
+  # the same weights served by omlx do not. 1.05 is measured, not guessed:
+  # against 1.15 over the same 26 items it scored 15 perfect to 12 and
+  # looped once to 6. The firmer setting did not suppress the cycles, it
+  # induced new ones on the contagion items, where the model has to restate
+  # running balances and a heavy penalty pushes it off its own arithmetic.
+  repetitionPenalty: 1.05
   repetitionContextSize: 64
 
 - id: qwen3.8-27b-omlx-5bit
@@ -254,11 +256,12 @@
   maxTokens: 8192
   # mlx_lm leaves repetition_penalty at 0.0 (off), and this model
   # collapses into verbatim repetition on the financial reasoning items;
-  # the same weights served by omlx do not. At 1.05 four of the seven
-  # formerly-looping items recovered and one still looped, so this is the
-  # firmer setting — watch the arithmetic items, which legitimately repeat
-  # figures and are the first thing a heavy penalty would damage.
-  repetitionPenalty: 1.15
+  # the same weights served by omlx do not. 1.05 is measured, not guessed:
+  # against 1.15 over the same 26 items it scored 15 perfect to 12 and
+  # looped once to 6. The firmer setting did not suppress the cycles, it
+  # induced new ones on the contagion items, where the model has to restate
+  # running balances and a heavy penalty pushes it off its own arithmetic.
+  repetitionPenalty: 1.05
   repetitionContextSize: 64
 
 - id: qwen3.8-27b-omlx-6bit
