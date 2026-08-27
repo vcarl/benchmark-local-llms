@@ -10,7 +10,7 @@
  */
 import path from "node:path";
 import { Command, Options } from "@effect/cli";
-import { FetchHttpClient } from "@effect/platform";
+import { NodeHttpClient } from "@effect/platform-node";
 import { Effect, Layer, Option } from "effect";
 import { loadSelectedChallenges } from "../../config/challenges.js";
 import { loadConfigurations } from "../../config/configurations.js";
@@ -173,7 +173,11 @@ export const runCommand = Command.make(
     ).pipe(
       Effect.asVoid,
       Effect.provide(ChatCompletionLive),
-      Effect.provide(FetchHttpClient.layer),
+      // node:http, not global fetch: fetch/undici caps time-to-headers at 300s,
+      // and a non-streaming server (mlx_lm) sends none until generation finishes,
+      // so long completions died mid-flight as transport errors. node:http has no
+      // such cap, leaving DEFAULT_PROMPT_TIMEOUT_SEC as the single authority.
+      Effect.provide(NodeHttpClient.layer),
       Effect.provide(makeLoggerLayer(o.verbose)),
     ),
 ).pipe(Command.withDescription("Run matched configurations against matched challenges (sweep)"));

@@ -351,7 +351,7 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
 
 /**
  * Layer constructing a {@link ChatCompletion} service on top of the ambient
- * `HttpClient`. In production, provide `FetchHttpClient.layer` (or the C2
+ * `HttpClient`. In production, provide `NodeHttpClient.layer` (or the C2
  * server-lifecycle layer which composes that); in tests, provide a mock
  * client via `Layer.succeed(HttpClient.HttpClient, …)`.
  */

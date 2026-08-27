@@ -45,7 +45,9 @@ export interface RunPromptInput {
   readonly peakRssKb?: Effect.Effect<number>;
 }
 
-const DEFAULT_PROMPT_TIMEOUT_SEC = 600;
+// Sized to the slowest observed config generating a full maxTokens budget:
+// ~10 tok/s × 8192 tokens ≈ 810s, plus prompt-processing headroom.
+const DEFAULT_PROMPT_TIMEOUT_SEC = 1200;
 
 /** Render the model display name carried on the result line. */
 const displayName = (model: ModelConfig): string => model.name ?? model.artifact;
