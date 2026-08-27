@@ -40,7 +40,7 @@ import {
   LlmTimeoutError,
 } from "../errors/llm.js";
 import type { Runtime } from "../schema/enums.js";
-import { makeLoopDetector } from "./loop-detector.js";
+import { LOOP_WINDOW_WORDS, makeLoopDetector } from "./loop-detector.js";
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -252,7 +252,14 @@ const consumeStream = (
       const advanced = (think ?? "") + (delta.content ?? "");
       if (advanced.length > 0 && detector.push(advanced)) {
         looped = true;
-        return Effect.fail(LOOP_DETECTED);
+        // INFO, not debug: cancelling the request makes the server log a
+        // BrokenPipeError traceback, and without this line next to it that
+        // traceback reads like a crash rather than a deliberate abort.
+        return Effect.logInfo(
+          `loop detected in ${params.promptName} after ${detector.wordCount()} words ` +
+            `(a ${LOOP_WINDOW_WORDS}-word window repeated ${detector.maxRepeats()}x) — ` +
+            "cancelling the request; the server may log a broken pipe in response",
+        ).pipe(Effect.annotateLogs("scope", "chat"), Effect.zipRight(Effect.fail(LOOP_DETECTED)));
       }
       return Effect.void;
     };
@@ -416,10 +423,12 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
 
       const endMs = yield* Clock.currentTimeMillis;
       const elapsed = ((endMs - startMs) / 1000).toFixed(1);
-      yield* Effect.logDebug(
+      yield* (
         result.finishReason === "loop"
-          ? `aborted after ${elapsed}s: generation was repeating itself`
-          : `response 200 in ${elapsed}s, prompt_tokens=${result.promptTokens} gen_tokens=${result.generationTokens}`,
+          ? Effect.logInfo(`abandoned ${params.promptName} after ${elapsed}s (looping)`)
+          : Effect.logDebug(
+              `response 200 in ${elapsed}s, prompt_tokens=${result.promptTokens} gen_tokens=${result.generationTokens}`,
+            )
       ).pipe(Effect.annotateLogs("scope", "chat"));
 
       return result;

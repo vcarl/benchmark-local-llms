@@ -37,7 +37,11 @@ export interface LoopDetector {
   readonly maxRepeats: () => number;
 }
 
-const DEFAULT_N = 12;
+/**
+ * Window width, exported so anything reporting on a detection describes the
+ * same window the detector actually used.
+ */
+export const LOOP_WINDOW_WORDS = 12;
 /**
  * 40 sits an order of magnitude above the healthy ceiling (2) and well below
  * the observed loops (281, 2217), so it neither trips on legitimate repetition
@@ -52,7 +56,7 @@ const DEFAULT_THRESHOLD = 40;
 const DEFAULT_MIN_WORDS = 400;
 
 export const makeLoopDetector = (options: LoopDetectorOptions = {}): LoopDetector => {
-  const n = options.n ?? DEFAULT_N;
+  const n = options.n ?? LOOP_WINDOW_WORDS;
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
   const minWords = options.minWords ?? DEFAULT_MIN_WORDS;
 

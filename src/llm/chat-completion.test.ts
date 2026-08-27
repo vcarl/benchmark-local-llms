@@ -665,4 +665,38 @@ describe("ChatCompletion", () => {
     );
     expect(result.output).toBe("The answer is 4.");
   });
+
+  it("announces the abort at INFO so the server's broken-pipe traceback is explicable", async () => {
+    const sink: string[] = [];
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() => {
+          const lines: string[] = [];
+          for (let i = 0; i < 420; i += 1) {
+            lines.push(
+              `data: ${JSON.stringify({ choices: [{ delta: { reasoning: `w${i} ` } }] })}`,
+            );
+          }
+          for (let i = 0; i < 2000; i += 1) {
+            lines.push(
+              `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "an upstream " } }] })}`,
+            );
+          }
+          lines.push("data: [DONE]");
+          return rawStreamResponse(`${lines.join("\n\n")}\n\n`);
+        }),
+      ),
+    );
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const chat = yield* ChatCompletion;
+        return yield* chat.complete(baseParams());
+      }).pipe(Effect.provide(layer), Effect.provide(captureLogs(sink, LogLevel.Info))),
+    );
+    const line = sink.find((l) => l.includes("loop detected"));
+    expect(line).toBeDefined();
+    expect(line).toContain("math_multiply_direct");
+    expect(line).toContain("12-word window");
+    expect(line).toContain("broken pipe");
+  });
 });
