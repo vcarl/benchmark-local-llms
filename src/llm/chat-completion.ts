@@ -192,7 +192,13 @@ const StreamChunkSchema = Schema.Struct({
   timings: Schema.optional(TimingsSchema),
 });
 
-const decodeStreamChunk = Schema.decodeUnknownOption(StreamChunkSchema);
+/**
+ * Decode one SSE payload straight from its JSON text. Going through
+ * `Schema.parseJson` keeps a malformed frame inside the Option — a bare
+ * `JSON.parse` raises on bad input, and an exception raised here is a defect
+ * that slips past the error channel and takes the whole item with it.
+ */
+const decodeStreamFrame = Schema.decodeUnknownOption(Schema.parseJson(StreamChunkSchema));
 
 /** Marker used to unwind the stream the moment a loop is proven. */
 const LOOP_DETECTED = Symbol.for("llm/loop-detected");
@@ -225,17 +231,8 @@ const consumeStream = (
       if (!trimmed.startsWith("data:")) return Effect.void;
       const payload = trimmed.slice(5).trim();
       if (payload.length === 0 || payload === "[DONE]") return Effect.void;
-      // A chunk that will not parse is skipped, never thrown: an exception
-      // here is a defect, and `Effect.catchAll` below catches failures, not
-      // defects — so a single malformed frame would kill the fiber mid-item
-      // and drop the socket, losing everything generated so far.
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(payload) as unknown;
-      } catch {
-        return Effect.void;
-      }
-      const decoded = decodeStreamChunk(parsed);
+      // Unparseable or unexpected frames are skipped rather than fatal.
+      const decoded = decodeStreamFrame(payload);
       if (decoded._tag === "None") return Effect.void;
       const chunk = decoded.value;
       if (chunk.usage !== undefined) {

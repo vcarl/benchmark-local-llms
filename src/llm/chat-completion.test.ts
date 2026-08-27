@@ -707,13 +707,13 @@ describe("ChatCompletion", () => {
       Layer.provide(
         mockClient(() =>
           rawStreamResponse(
-            [
+            `${[
               `data: ${JSON.stringify({ choices: [{ delta: { content: "The " } }] })}`,
               "data: {this is not json",
               `data: ${JSON.stringify({ choices: [{ delta: { content: "answer." } }] })}`,
               `data: ${JSON.stringify({ usage: { prompt_tokens: 2, completion_tokens: 2 } })}`,
               "data: [DONE]",
-            ].join("\n\n") + "\n\n",
+            ].join("\n\n")}\n\n`,
           ),
         ),
       ),
