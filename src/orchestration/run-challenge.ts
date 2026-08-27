@@ -160,6 +160,12 @@ export const executeOrCacheItem = (
       systemPrompt: input.config.systemPromptText,
       temperature: input.config.temperature,
       maxTokens: input.config.maxTokens,
+      ...(input.config.repetitionPenalty === undefined
+        ? {}
+        : { repetitionPenalty: input.config.repetitionPenalty }),
+      ...(input.config.repetitionContextSize === undefined
+        ? {}
+        : { repetitionContextSize: input.config.repetitionContextSize }),
       ...(peakRssKb !== undefined ? { peakRssKb } : {}),
     });
 
@@ -188,6 +194,7 @@ export const executeOrCacheItem = (
       reasoning: exec.reasoning,
       rawOutput: exec.rawOutput,
       error: exec.error,
+      ...(exec.stopReason === undefined ? {} : { stopReason: exec.stopReason }),
       score: exec.error === null ? scoreResult.score : 0,
       // An errored execution scored 0 and must not carry a (stale) breakdown.
       // Only the constraint scorer sets `breakdown`; others leave it undefined,

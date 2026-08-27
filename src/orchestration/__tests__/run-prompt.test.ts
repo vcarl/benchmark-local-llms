@@ -16,6 +16,7 @@ describe("runPrompt", () => {
           generationTokens: 13,
           promptTps: 95.5,
           generationTps: 30.2,
+          finishReason: null,
         },
       },
     });
@@ -57,6 +58,7 @@ describe("runPrompt", () => {
           generationTokens: 5,
           promptTps: 100,
           generationTps: 20,
+          finishReason: null,
         },
       },
     });
@@ -88,6 +90,7 @@ describe("runPrompt", () => {
           generationTokens: 5,
           promptTps: 100,
           generationTps: 20,
+          finishReason: null,
         },
       },
     });
@@ -119,6 +122,7 @@ describe("runPrompt", () => {
           generationTokens: 5,
           promptTps: 100,
           generationTps: 20,
+          finishReason: null,
         },
       },
     });
@@ -264,6 +268,7 @@ describe("runPrompt", () => {
           generationTokens: 1,
           promptTps: 1,
           generationTps: 1,
+          finishReason: null,
         },
       },
     });
@@ -332,6 +337,7 @@ describe("runPrompt", () => {
         generationTokens: 200,
         promptTps: null,
         generationTps: null,
+        finishReason: null,
       },
       "2026-04-18T00:00:00.000Z",
       /* wallTimeSec */ 4,
@@ -361,6 +367,7 @@ describe("runPrompt", () => {
         generationTokens: 200,
         promptTps: 113.01,
         generationTps: 39.71,
+        finishReason: null,
       },
       "2026-04-18T00:00:00.000Z",
       /* wallTimeSec */ 5.2,

@@ -20,6 +20,14 @@ export const ItemResult = Schema.Struct({
   reasoning: Schema.NullOr(Schema.String),
   rawOutput: Schema.String,
   error: Schema.NullOr(Schema.String),
+  /**
+   * Why generation stopped ("stop" | "length"), straight from the server.
+   * `"length"` with an empty `output` is the signature of a model that spent
+   * its entire budget thinking and never answered — a real failure, but a
+   * distinguishable one, and not the same thing as a transport error.
+   * Optional: archives predating the field omit it.
+   */
+  stopReason: Schema.optional(Schema.NullOr(Schema.String)),
   score: Schema.Number,
   /**
    * Per-check breakdown for the constraint scorer (passed/failed/errored

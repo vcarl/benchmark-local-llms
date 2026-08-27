@@ -95,6 +95,7 @@ describe("ChatCompletion", () => {
       generationTokens: 5,
       promptTps: 120.5,
       generationTps: 42.25,
+      finishReason: null,
     });
   });
 
@@ -417,6 +418,7 @@ describe("ChatCompletion", () => {
       generationTokens: 3,
       promptTps: null,
       generationTps: null,
+      finishReason: null,
     });
   });
 
@@ -457,5 +459,72 @@ describe("ChatCompletion", () => {
       Effect.provide(program, layer).pipe(Effect.provide(captureLogs(sink, LogLevel.Debug))),
     );
     expect(sink.some((l) => /DBG.*chat.*error after \d/.test(l))).toBe(true);
+  });
+
+  /**
+   * The repetition knobs are the one place a configuration silently changes
+   * what the model generates, so these lock down both halves of the contract:
+   * the runtime-specific spelling, and the fact that an unset knob leaves the
+   * request body exactly as it was.
+   */
+  const captureBody = (params: CompletionParams) =>
+    Effect.gen(function* () {
+      let captured: Record<string, unknown> = {};
+      const layer = ChatCompletionLive.pipe(
+        Layer.provide(
+          mockClient((req) => {
+            const body = req.body;
+            if (body._tag === "Uint8Array") {
+              captured = JSON.parse(new TextDecoder().decode(body.body)) as Record<string, unknown>;
+            }
+            return jsonResponse({
+              choices: [{ message: { content: "ok" }, finish_reason: "length" }],
+              usage: { prompt_tokens: 1, completion_tokens: 1 },
+            });
+          }),
+        ),
+      );
+      const result = yield* Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(params);
+        }),
+        layer,
+      );
+      return { captured, result };
+    });
+
+  it("sends no repetition fields when the configuration does not set them", async () => {
+    const { captured } = await Effect.runPromise(captureBody(baseParams()));
+    expect(captured).not.toHaveProperty("repeat_penalty");
+    expect(captured).not.toHaveProperty("repetition_penalty");
+    expect(captured).not.toHaveProperty("repeat_last_n");
+    expect(captured).not.toHaveProperty("repetition_context_size");
+  });
+
+  it("spells the repetition penalty llama.cpp's way for llamacpp", async () => {
+    const { captured } = await Effect.runPromise(
+      captureBody(baseParams({ repetitionPenalty: 1.1, repetitionContextSize: 64 })),
+    );
+    expect(captured).toMatchObject({ repeat_penalty: 1.1, repeat_last_n: 64 });
+    expect(captured).not.toHaveProperty("repetition_penalty");
+  });
+
+  it("spells the repetition penalty the MLX way for mlx and omlx", async () => {
+    for (const runtime of ["mlx", "omlx"] as const) {
+      const { captured } = await Effect.runPromise(
+        captureBody(baseParams({ runtime, repetitionPenalty: 1.15, repetitionContextSize: 32 })),
+      );
+      expect(captured).toMatchObject({
+        repetition_penalty: 1.15,
+        repetition_context_size: 32,
+      });
+      expect(captured).not.toHaveProperty("repeat_penalty");
+    }
+  });
+
+  it("reports the server's finish_reason so a budget-exhausted answer is distinguishable", async () => {
+    const { result } = await Effect.runPromise(captureBody(baseParams()));
+    expect(result.finishReason).toBe("length");
   });
 });

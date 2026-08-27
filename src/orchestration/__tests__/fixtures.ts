@@ -169,6 +169,7 @@ export const makeChatCompletionMock = (
       generationTokens: 5,
       promptTps: 100,
       generationTps: 20,
+      finishReason: null,
     },
   },
 ): { layer: Layer.Layer<ChatCompletion>; log: ChatCompletionMockLog } => {
@@ -207,6 +208,7 @@ export const okStub = () =>
         generationTokens: 5,
         promptTps: 0,
         generationTps: 0,
+        finishReason: null,
       },
     },
   );

@@ -97,6 +97,7 @@ beforeAll(async () => {
         generationTokens: 3,
         promptTps: 100,
         generationTps: 50,
+        finishReason: null,
       },
     },
   );

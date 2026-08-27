@@ -27,6 +27,7 @@ const fakeChat = (): ChatCompletionService => ({
       generationTokens: 20,
       promptTps: 140,
       generationTps: 18,
+      finishReason: null,
     }),
 });
 

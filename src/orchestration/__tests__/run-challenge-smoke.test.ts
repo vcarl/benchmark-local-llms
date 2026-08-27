@@ -92,6 +92,7 @@ describe("runChallenge smoke", () => {
           generationTokens: 5,
           promptTps: 0,
           generationTps: 0,
+          finishReason: null,
         },
       },
     );

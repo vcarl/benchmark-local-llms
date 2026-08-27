@@ -58,6 +58,14 @@ export interface CompletionParams {
   readonly maxTokens: number;
   /** Optional per-request timeout in seconds. Omit to rely on HTTP defaults. */
   readonly timeoutSec?: number;
+  /**
+   * Sampler repetition penalty. Omitted entirely when undefined, so a
+   * configuration that does not set it produces the exact request body (and
+   * `configHash`) it did before this knob existed.
+   */
+  readonly repetitionPenalty?: number;
+  /** How many recent tokens the penalty considers. Ignored when no penalty is set. */
+  readonly repetitionContextSize?: number;
 }
 
 /** Decoded response body from a successful completion. */
@@ -84,6 +92,8 @@ export interface CompletionResult {
    */
   readonly promptTps: number | null;
   readonly generationTps: number | null;
+  /** Server-reported stop reason ("stop" | "length" | …), or `null` if unreported. */
+  readonly finishReason: string | null;
 }
 
 /** Service interface. */
@@ -132,6 +142,15 @@ const MessageSchema = Schema.Struct({
 
 const ChoiceSchema = Schema.Struct({
   message: MessageSchema,
+  /**
+   * Why generation stopped, straight from the server: "stop" (the model
+   * finished), "length" (it exhausted `max_tokens`). Optional because not
+   * every runtime sets it. Recorded rather than inferred from token counts —
+   * a model that spends its whole budget thinking and never answers is a
+   * different outcome from one that answered wrongly, and only the server
+   * can tell us which happened.
+   */
+  finish_reason: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const UsageSchema = Schema.Struct({
@@ -165,6 +184,23 @@ const PORTS: Record<Runtime, number> = {
 const endpointUrl = (runtime: Runtime): string =>
   `http://127.0.0.1:${PORTS[runtime]}/v1/chat/completions`;
 
+/**
+ * llama.cpp and the MLX servers spell the repetition knobs differently, so the
+ * same configuration value has to be rendered per runtime. Returns an empty
+ * object when unset — the body must stay byte-identical to its pre-knob shape
+ * for configurations that don't opt in.
+ */
+const penaltyFields = (p: CompletionParams): Record<string, number> => {
+  if (p.repetitionPenalty === undefined) return {};
+  const ctx = p.repetitionContextSize;
+  return p.runtime === "llamacpp"
+    ? { repeat_penalty: p.repetitionPenalty, ...(ctx === undefined ? {} : { repeat_last_n: ctx }) }
+    : {
+        repetition_penalty: p.repetitionPenalty,
+        ...(ctx === undefined ? {} : { repetition_context_size: ctx }),
+      };
+};
+
 const buildBody = (p: CompletionParams) => ({
   model: p.model,
   messages: [
@@ -174,6 +210,7 @@ const buildBody = (p: CompletionParams) => ({
   temperature: p.temperature,
   max_tokens: p.maxTokens,
   stream: false,
+  ...penaltyFields(p),
 });
 
 export const extractOutput = (
@@ -345,6 +382,7 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
         generationTokens: decoded.usage.completion_tokens,
         promptTps: timings === undefined ? null : timings.prompt_per_second,
         generationTps: timings === undefined ? null : timings.predicted_per_second,
+        finishReason: decoded.choices[0]?.finish_reason ?? null,
       } satisfies CompletionResult;
     }),
 });

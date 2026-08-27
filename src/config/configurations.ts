@@ -22,6 +22,8 @@ export const computeConfigHash = (
     quant?: string | undefined;
     temperature: number;
     maxTokens: number;
+    repetitionPenalty?: number | undefined;
+    repetitionContextSize?: number | undefined;
   },
   systemPromptText: string,
 ): string =>
@@ -33,6 +35,11 @@ export const computeConfigHash = (
       String(c.temperature),
       String(c.maxTokens),
       systemPromptText,
+      // Appended, and only when set, so every configuration that does not use
+      // the sampler knobs keeps the hash it already has — existing archives
+      // stay attached to their configuration.
+      ...(c.repetitionPenalty === undefined ? [] : [`rp=${c.repetitionPenalty}`]),
+      ...(c.repetitionContextSize === undefined ? [] : [`rcs=${c.repetitionContextSize}`]),
     ].join("|"),
   );
 

@@ -66,6 +66,12 @@ export const ExecutionResult = Schema.Struct({
   reasoning: Schema.NullOr(Schema.String),
   rawOutput: Schema.String,
   error: Schema.NullOr(Schema.String),
+  /**
+   * Why generation stopped, as reported by the server ("stop" | "length").
+   * Optional: archives written before this field existed omit it and degrade
+   * to "unknown", and a runtime that reports nothing leaves it null.
+   */
+  stopReason: Schema.optional(Schema.NullOr(Schema.String)),
 
   promptHash: Schema.String,
   scenarioHash: Schema.NullOr(Schema.String),

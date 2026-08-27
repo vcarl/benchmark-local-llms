@@ -31,6 +31,15 @@ const ConfigurationFields = Schema.Struct({
    * flags like `--trust-remote-code` for models that require custom code.
    */
   extraArgs: Schema.optional(Schema.Array(Schema.String)),
+  /**
+   * Sampler repetition penalty (>1 discourages verbatim repeats). Left unset,
+   * nothing is sent and the configuration hashes exactly as it did before this
+   * field existed. Set it and the value joins `configHash`, because it changes
+   * what the model generates — results either side of it are not comparable.
+   */
+  repetitionPenalty: Schema.optional(Schema.Number),
+  /** How many recent tokens {@link repetitionPenalty} considers. */
+  repetitionContextSize: Schema.optional(Schema.Number),
 });
 
 /**

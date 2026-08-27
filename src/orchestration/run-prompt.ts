@@ -34,8 +34,12 @@ export interface RunPromptInput {
   readonly systemPrompt: string;
   readonly temperature: number;
   readonly maxTokens: number;
-  /** Optional per-request timeout (seconds). Default: 600 (matches §5.3). */
+  /** Optional per-request timeout (seconds). Default: 1200 (see DEFAULT_PROMPT_TIMEOUT_SEC). */
   readonly timeoutSec?: number;
+  /** Sampler repetition penalty; omitted from the request when undefined. */
+  readonly repetitionPenalty?: number;
+  /** How many recent tokens the repetition penalty considers. */
+  readonly repetitionContextSize?: number;
   /**
    * Reader for the supervised LLM server's running peak RSS (KB). Sampled
    * after the completion settles and stamped onto the result. Omit (or
@@ -181,6 +185,7 @@ export const makeSuccessResult = (
     reasoning: fields.reasoning,
     rawOutput: fields.rawOutput,
     error: fields.error,
+    stopReason: completion.finishReason,
     promptHash: input.prompt.promptHash,
     scenarioHash: null,
     scenarioName: null,
@@ -253,6 +258,10 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   temperature: input.temperature,
   maxTokens: input.maxTokens,
   timeoutSec: input.timeoutSec ?? DEFAULT_PROMPT_TIMEOUT_SEC,
+  ...(input.repetitionPenalty === undefined ? {} : { repetitionPenalty: input.repetitionPenalty }),
+  ...(input.repetitionContextSize === undefined
+    ? {}
+    : { repetitionContextSize: input.repetitionContextSize }),
 });
 
 /**
