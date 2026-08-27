@@ -699,4 +699,35 @@ describe("ChatCompletion", () => {
     expect(line).toContain("12-word window");
     expect(line).toContain("broken pipe");
   });
+
+  it("skips a malformed frame instead of dying on it", async () => {
+    // An exception inside the stream reader is a defect, not a failure, so it
+    // would bypass the error channel entirely and take the whole item with it.
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(() =>
+          rawStreamResponse(
+            [
+              `data: ${JSON.stringify({ choices: [{ delta: { content: "The " } }] })}`,
+              "data: {this is not json",
+              `data: ${JSON.stringify({ choices: [{ delta: { content: "answer." } }] })}`,
+              `data: ${JSON.stringify({ usage: { prompt_tokens: 2, completion_tokens: 2 } })}`,
+              "data: [DONE]",
+            ].join("\n\n") + "\n\n",
+          ),
+        ),
+      ),
+    );
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(baseParams());
+        }),
+        layer,
+      ),
+    );
+    expect(result.output).toBe("The answer.");
+    expect(result.generationTokens).toBe(2);
+  });
 });

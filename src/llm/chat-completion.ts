@@ -225,7 +225,17 @@ const consumeStream = (
       if (!trimmed.startsWith("data:")) return Effect.void;
       const payload = trimmed.slice(5).trim();
       if (payload.length === 0 || payload === "[DONE]") return Effect.void;
-      const decoded = decodeStreamChunk(JSON.parse(payload) as unknown);
+      // A chunk that will not parse is skipped, never thrown: an exception
+      // here is a defect, and `Effect.catchAll` below catches failures, not
+      // defects — so a single malformed frame would kill the fiber mid-item
+      // and drop the socket, losing everything generated so far.
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(payload) as unknown;
+      } catch {
+        return Effect.void;
+      }
+      const decoded = decodeStreamChunk(parsed);
       if (decoded._tag === "None") return Effect.void;
       const chunk = decoded.value;
       if (chunk.usage !== undefined) {
