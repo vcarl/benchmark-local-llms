@@ -8,9 +8,9 @@ items:
     prompt: In Effect-TS, why is it wrong to call `Effect.runPromise` inside an `Effect.gen` block? Reply in one or two sentences.
     scorer: constraint
     constraints:
-      - name: mentions breaking the chain or losing types
+      - name: mentions escaping the Effect's context/composition
         check: regex
-        pattern: (?i)(break|lose|bypass|escape).*(chain|type|error|composition|context|pur[ei]|transparenc)
+        pattern: (?i)(break|broke|los|bypass|escap|sidestep|leav|exit|discard|abandon|circumvent|detach|outside)[a-z]*\b[^.]{0,80}\b(chain|type|error|compos|context|pur[ei]|transparenc|cancel|interrupt|concurren|fiber|runtime|scope|trac|suspen|declarative|semantic)
     tags:
       - TODO
       - code-synthesis
@@ -75,10 +75,16 @@ items:
     prompt: In Effect-TS, what function do you use to fork an Effect as a background fiber? And what function waits for a fiber to complete? Reply with both function names, one per line.
     scorer: constraint
     constraints:
-      - name: mentions Effect.fork
+      - name: names fork
+        check: regex
+        pattern: (?i)\bfork\b
+      - name: qualifies it as Effect.fork
         check: contains_exact
         value: Effect.fork
-      - name: mentions Fiber.join
+      - name: names join
+        check: regex
+        pattern: (?i)\bjoin\b
+      - name: qualifies it as Fiber.join
         check: contains_exact
         value: Fiber.join
     tags:
@@ -289,9 +295,9 @@ items:
     prompt: In Effect-TS, what class do you extend to create a service tag for dependency injection? Reply with just `Module.ClassName`.
     scorer: constraint
     constraints:
-      - name: says Context.Tag
+      - name: says Context.Tag or Effect.Service
         check: regex
-        pattern: (?i)Context\.Tag
+        pattern: (?i)(Context\.(Generic)?Tag|Effect\.Service)
     tags:
       - TODO
       - code-synthesis
@@ -400,9 +406,9 @@ items:
     prompt: In Effect-TS, what does `yield*` do inside an `Effect.gen(function* () { ... })` block? Explain in one sentence.
     scorer: constraint
     constraints:
-      - name: mentions unwrapping/extracting the value or delegation/composition
+      - name: mentions running the yielded Effect or binding out its value
         check: regex
-        pattern: (?i)(unwrap|extract|get.*value|like.*await|resolv|run.*effect|delegat|compos)
+        pattern: (?i)((unwrap|extract|bind|resolv|delegat|compos|await)[a-z]*|(run|execut|perform)[a-z]*\b[^.]{0,30}\beffect|(get|obtain|produc|yield|return)[a-z]*\b[^.]{0,40}\b(value|result))
       - name: is a sentence
         check: min_length
         length: 20
