@@ -40,6 +40,28 @@ const ConfigurationFields = Schema.Struct({
   repetitionPenalty: Schema.optional(Schema.Number),
   /** How many recent tokens {@link repetitionPenalty} considers. */
   repetitionContextSize: Schema.optional(Schema.Number),
+  /**
+   * Nucleus sampling cutoff, sent as `top_p`. Left unset, nothing is sent and
+   * the configuration hashes as it would without the field. Set, it joins
+   * `configHash`.
+   */
+  topP: Schema.optional(Schema.Number),
+  /** Top-k sampling cutoff, sent as `top_k`. Unset sends nothing; set joins `configHash`. */
+  topK: Schema.optional(Schema.Number),
+  /** Min-p sampling floor, sent as `min_p`. Unset sends nothing; set joins `configHash`. */
+  minP: Schema.optional(Schema.Number),
+  /** Presence penalty, sent as `presence_penalty`. Unset sends nothing; set joins `configHash`. */
+  presencePenalty: Schema.optional(Schema.Number),
+  /**
+   * Extra chat-template variables (e.g. `reasoning_effort`, `enable_thinking`),
+   * sent as `chat_template_kwargs`. Unset sends nothing; set joins `configHash`.
+   */
+  chatTemplateKwargs: Schema.optional(
+    Schema.Record({
+      key: Schema.String,
+      value: Schema.Union(Schema.String, Schema.Number, Schema.Boolean),
+    }),
+  ),
 });
 
 /**

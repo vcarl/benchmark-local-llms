@@ -72,7 +72,10 @@ const sseResponse = (completion: {
 
 /** Stream a body verbatim — for malformed-stream cases. */
 const rawStreamResponse = (body: string): Response =>
-  new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
 
 const baseParams = (overrides: Partial<CompletionParams> = {}): CompletionParams => ({
   runtime: "llamacpp",
@@ -144,7 +147,10 @@ describe("ChatCompletion", () => {
       Layer.provide(
         mockClient((req) => {
           capturedUrl = req.url;
-          return sseResponse({ content: "hi", usage: { prompt_tokens: 1, completion_tokens: 1 } });
+          return sseResponse({
+            content: "hi",
+            usage: { prompt_tokens: 1, completion_tokens: 1 },
+          });
         }),
       ),
     );
@@ -172,7 +178,10 @@ describe("ChatCompletion", () => {
           if (body._tag === "Uint8Array") {
             capturedBody = JSON.parse(new TextDecoder().decode(body.body));
           }
-          return sseResponse({ content: "ok", usage: { prompt_tokens: 1, completion_tokens: 1 } });
+          return sseResponse({
+            content: "ok",
+            usage: { prompt_tokens: 1, completion_tokens: 1 },
+          });
         }),
       ),
     );
@@ -362,7 +371,10 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          sseResponse({ content: "   ", usage: { prompt_tokens: 1, completion_tokens: 0 } }),
+          sseResponse({
+            content: "   ",
+            usage: { prompt_tokens: 1, completion_tokens: 0 },
+          }),
         ),
       ),
     );
@@ -443,7 +455,10 @@ describe("ChatCompletion", () => {
     const layer = ChatCompletionLive.pipe(
       Layer.provide(
         mockClient(() =>
-          sseResponse({ content: "hi", usage: { prompt_tokens: 4, completion_tokens: 2 } }),
+          sseResponse({
+            content: "hi",
+            usage: { prompt_tokens: 4, completion_tokens: 2 },
+          }),
         ),
       ),
     );
@@ -527,7 +542,13 @@ describe("ChatCompletion", () => {
   it("spells the repetition penalty the MLX way for mlx and omlx", async () => {
     for (const runtime of ["mlx", "omlx"] as const) {
       const { captured } = await Effect.runPromise(
-        captureBody(baseParams({ runtime, repetitionPenalty: 1.15, repetitionContextSize: 32 })),
+        captureBody(
+          baseParams({
+            runtime,
+            repetitionPenalty: 1.15,
+            repetitionContextSize: 32,
+          }),
+        ),
       );
       expect(captured).toMatchObject({
         repetition_penalty: 1.15,
@@ -535,6 +556,45 @@ describe("ChatCompletion", () => {
       });
       expect(captured).not.toHaveProperty("repeat_penalty");
     }
+  });
+
+  it("sends no top_p/top_k/min_p when the configuration does not set them", async () => {
+    const { captured } = await Effect.runPromise(captureBody(baseParams()));
+    for (const k of ["top_p", "top_k", "min_p", "presence_penalty"])
+      expect(captured).not.toHaveProperty(k);
+  });
+
+  it("sends top_p, top_k and min_p under the same names for every runtime", async () => {
+    for (const runtime of ["llamacpp", "mlx", "omlx"] as const) {
+      const { captured } = await Effect.runPromise(
+        captureBody(
+          baseParams({
+            runtime,
+            topP: 0.9,
+            topK: 40,
+            minP: 0.05,
+            presencePenalty: 1.5,
+          }),
+        ),
+      );
+      expect(captured).toMatchObject({
+        top_p: 0.9,
+        top_k: 40,
+        min_p: 0.05,
+        presence_penalty: 1.5,
+      });
+    }
+  });
+
+  it("sends chat_template_kwargs only when the configuration sets them", async () => {
+    const { captured: unset } = await Effect.runPromise(captureBody(baseParams()));
+    expect(unset).not.toHaveProperty("chat_template_kwargs");
+    const { captured } = await Effect.runPromise(
+      captureBody(
+        baseParams({ runtime: "omlx", chatTemplateKwargs: { reasoning_effort: "high" } }),
+      ),
+    );
+    expect(captured).toMatchObject({ chat_template_kwargs: { reasoning_effort: "high" } });
   });
 
   it("reports the server's finish_reason so a budget-exhausted answer is distinguishable", async () => {

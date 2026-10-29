@@ -166,6 +166,15 @@ export const executeOrCacheItem = (
       ...(input.config.repetitionContextSize === undefined
         ? {}
         : { repetitionContextSize: input.config.repetitionContextSize }),
+      ...(input.config.topP === undefined ? {} : { topP: input.config.topP }),
+      ...(input.config.topK === undefined ? {} : { topK: input.config.topK }),
+      ...(input.config.minP === undefined ? {} : { minP: input.config.minP }),
+      ...(input.config.presencePenalty === undefined
+        ? {}
+        : { presencePenalty: input.config.presencePenalty }),
+      ...(input.config.chatTemplateKwargs === undefined
+        ? {}
+        : { chatTemplateKwargs: input.config.chatTemplateKwargs }),
       ...(peakRssKb !== undefined ? { peakRssKb } : {}),
     });
 

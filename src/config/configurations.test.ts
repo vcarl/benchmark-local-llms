@@ -7,10 +7,9 @@ import { describe, expect, it } from "vitest";
 import { computeConfigHash, loadConfigurations } from "./configurations.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "./system-prompts.js";
 
-const registry = Layer.succeed(SystemPromptRegistry, { direct: "Be concise." } as Record<
-  string,
-  string
->);
+const registry = Layer.succeed(SystemPromptRegistry, {
+  direct: "Be concise.",
+} as Record<string, string>);
 
 const writeTmp = (body: string) =>
   Effect.gen(function* () {
@@ -45,6 +44,37 @@ describe("loadConfigurations", () => {
       "Be concise.",
     );
     expect(h1).toBe(h2);
+  });
+
+  it("sampler fields join the hash only when set", () => {
+    const base = {
+      artifact: "a",
+      runtime: "mlx",
+      temperature: 0.7,
+      maxTokens: 100,
+    };
+    const h = (extra: object) => computeConfigHash({ ...base, ...extra }, "Be concise.");
+    expect(
+      h({
+        topP: undefined,
+        topK: undefined,
+        minP: undefined,
+        presencePenalty: undefined,
+      }),
+    ).toBe(h({}));
+    const set = [h({ topP: 0.9 }), h({ topK: 40 }), h({ minP: 0.05 }), h({ presencePenalty: 1.5 })];
+    expect(new Set([h({}), ...set]).size).toBe(5);
+  });
+
+  it("chatTemplateKwargs joins the hash only when set, independent of key order", () => {
+    const base = { artifact: "a", runtime: "mlx", temperature: 0.7, maxTokens: 100 };
+    const h = (extra: object) => computeConfigHash({ ...base, ...extra }, "Be concise.");
+    // Pinned to the hash this configuration had before the field existed.
+    expect(h({ chatTemplateKwargs: undefined })).toBe("efcd17f58120");
+    expect(h({ chatTemplateKwargs: { enable_thinking: true } })).not.toBe(h({}));
+    expect(h({ chatTemplateKwargs: { a: 1, b: "x" } })).toBe(
+      h({ chatTemplateKwargs: { b: "x", a: 1 } }),
+    );
   });
 });
 

@@ -40,6 +40,16 @@ export interface RunPromptInput {
   readonly repetitionPenalty?: number;
   /** How many recent tokens the repetition penalty considers. */
   readonly repetitionContextSize?: number;
+  /** Nucleus sampling cutoff; omitted from the request when undefined. */
+  readonly topP?: number;
+  /** Top-k sampling cutoff; omitted from the request when undefined. */
+  readonly topK?: number;
+  /** Min-p sampling floor; omitted from the request when undefined. */
+  readonly minP?: number;
+  /** Presence penalty; omitted from the request when undefined. */
+  readonly presencePenalty?: number;
+  /** Extra chat-template variables; omitted from the request when undefined. */
+  readonly chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>>;
   /**
    * Reader for the supervised LLM server's running peak RSS (KB). Sampled
    * after the completion settles and stamped onto the result. Omit (or
@@ -262,6 +272,13 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   ...(input.repetitionContextSize === undefined
     ? {}
     : { repetitionContextSize: input.repetitionContextSize }),
+  ...(input.topP === undefined ? {} : { topP: input.topP }),
+  ...(input.topK === undefined ? {} : { topK: input.topK }),
+  ...(input.minP === undefined ? {} : { minP: input.minP }),
+  ...(input.presencePenalty === undefined ? {} : { presencePenalty: input.presencePenalty }),
+  ...(input.chatTemplateKwargs === undefined
+    ? {}
+    : { chatTemplateKwargs: input.chatTemplateKwargs }),
 });
 
 /**

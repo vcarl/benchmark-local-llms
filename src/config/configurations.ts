@@ -24,6 +24,11 @@ export const computeConfigHash = (
     maxTokens: number;
     repetitionPenalty?: number | undefined;
     repetitionContextSize?: number | undefined;
+    topP?: number | undefined;
+    topK?: number | undefined;
+    minP?: number | undefined;
+    presencePenalty?: number | undefined;
+    chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>> | undefined;
   },
   systemPromptText: string,
 ): string =>
@@ -40,6 +45,16 @@ export const computeConfigHash = (
       // stay attached to their configuration.
       ...(c.repetitionPenalty === undefined ? [] : [`rp=${c.repetitionPenalty}`]),
       ...(c.repetitionContextSize === undefined ? [] : [`rcs=${c.repetitionContextSize}`]),
+      ...(c.topP === undefined ? [] : [`tp=${c.topP}`]),
+      ...(c.topK === undefined ? [] : [`tk=${c.topK}`]),
+      ...(c.minP === undefined ? [] : [`mp=${c.minP}`]),
+      ...(c.presencePenalty === undefined ? [] : [`pp=${c.presencePenalty}`]),
+      // Keys sorted so YAML key order does not change identity.
+      ...(c.chatTemplateKwargs === undefined
+        ? []
+        : [
+            `ctk=${JSON.stringify(Object.entries(c.chatTemplateKwargs).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))}`,
+          ]),
     ].join("|"),
   );
 

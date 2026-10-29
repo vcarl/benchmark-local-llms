@@ -66,6 +66,16 @@ export interface CompletionParams {
   readonly repetitionPenalty?: number;
   /** How many recent tokens the penalty considers. Ignored when no penalty is set. */
   readonly repetitionContextSize?: number;
+  /** Nucleus sampling cutoff (`top_p`). Omitted from the body when undefined. */
+  readonly topP?: number;
+  /** Top-k sampling cutoff (`top_k`). Omitted from the body when undefined. */
+  readonly topK?: number;
+  /** Min-p sampling floor (`min_p`). Omitted from the body when undefined. */
+  readonly minP?: number;
+  /** Presence penalty (`presence_penalty`). Omitted from the body when undefined. */
+  readonly presencePenalty?: number;
+  /** Extra chat-template variables (`chat_template_kwargs`). Omitted from the body when undefined. */
+  readonly chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>>;
 }
 
 /** Decoded response body from a successful completion. */
@@ -151,6 +161,14 @@ const penaltyFields = (p: CompletionParams): Record<string, number> => {
       };
 };
 
+/** `top_p`/`top_k`/`min_p`/`presence_penalty` are spelled identically by all three runtimes. */
+const samplerFields = (p: CompletionParams): Record<string, number> => ({
+  ...(p.topP === undefined ? {} : { top_p: p.topP }),
+  ...(p.topK === undefined ? {} : { top_k: p.topK }),
+  ...(p.minP === undefined ? {} : { min_p: p.minP }),
+  ...(p.presencePenalty === undefined ? {} : { presence_penalty: p.presencePenalty }),
+});
+
 const buildBody = (p: CompletionParams) => ({
   model: p.model,
   messages: [
@@ -165,6 +183,8 @@ const buildBody = (p: CompletionParams) => ({
   // in stream mode at all (server.py::handle_completion).
   stream_options: { include_usage: true },
   ...penaltyFields(p),
+  ...samplerFields(p),
+  ...(p.chatTemplateKwargs === undefined ? {} : { chat_template_kwargs: p.chatTemplateKwargs }),
 });
 
 /**

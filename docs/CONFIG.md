@@ -46,6 +46,11 @@ A YAML array of configuration entries. Each entry is the full set of knobs a use
 | `systemPrompt` | `string` | yes | A key into `system-prompts.yaml`. |
 | `maxTokens` | `number` | yes | Generation cap per item. |
 | `ctxSize` | `number` | no | Context window override passed to the runtime. |
+| `topP` | `number` | no | Nucleus sampling cutoff, sent as `top_p`. Omitted from the request when unset; when set, it joins `configHash`. |
+| `topK` | `number` | no | Top-k sampling cutoff, sent as `top_k`. Omitted from the request when unset; when set, it joins `configHash`. |
+| `minP` | `number` | no | Min-p sampling floor, sent as `min_p`. Omitted from the request when unset; when set, it joins `configHash`. |
+| `presencePenalty` | `number` | no | Presence penalty, sent as `presence_penalty`. Omitted from the request when unset; when set, it joins `configHash`. |
+| `chatTemplateKwargs` | `Record<string, string \| number \| boolean>` | no | Extra chat-template variables (e.g. `reasoning_effort`, `enable_thinking`), sent as `chat_template_kwargs`. Omitted from the request when unset; when set, it joins `configHash` (keys sorted). |
 | `active` | `boolean` | no | Marks the entry for selection by the runner. |
 
 **Loader behavior.** The file decodes as an array of configurations. For each entry, the loader resolves `systemPrompt` to its literal text via the [system-prompt registry](#system-promptsyaml) — an unknown key fails with a `ConfigError` naming the entry and key. It then computes the configuration's identity:
@@ -54,7 +59,7 @@ A YAML array of configuration entries. Each entry is the full set of knobs a use
 configHash = shortSha256(artifact | runtime | quant | temperature | maxTokens | systemPromptText)
 ```
 
-The hash folds in the **resolved system-prompt text**, not the key, so identity is stable even if the registry is reorganized. `ctxSize` and `active` are not part of the hash.
+The hash folds in the **resolved system-prompt text**, not the key, so identity is stable even if the registry is reorganized. `topP`, `topK`, `minP`, `presencePenalty` and `chatTemplateKwargs` are appended to the hashed string only when set, so an entry without them hashes the same either way. `ctxSize` and `active` are not part of the hash.
 
 **Ref:** schema `src/schema/configuration.ts` · loader/hashing `src/config/configurations.ts`.
 
