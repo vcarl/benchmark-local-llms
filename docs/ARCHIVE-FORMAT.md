@@ -41,6 +41,7 @@ The header carries the attempt's full identity and provenance. Configuration and
 | `challengeId` | `string` | Challenge id. |
 | `challengeVersion` | `number` | Challenge version; a different version is a distinct challenge. |
 | `challengeHash` | `string` | 12-hex identity of the challenge's resolved items (see [Hashing](#hashing)). |
+| `restampedFrom` | `string?` | Original `attemptId` of an attempt `score --corpus` re-stamped onto the current challenge identity after a scorer-only change; its embedded `challengeHash` is the identity the model ran against. Absent when identity is as-run. |
 | `passThreshold` | `number?` | Fraction of items that must score perfect for the attempt to pass. |
 | `env` | `RunEnv` | Provenance: `{ hostname, platform, runtimeVersion, nodeVersion, benchmarkGitSha }`. Recorded for audit; **not** part of any identity hash. |
 | `aggregate` | `{ score, passed }` | Zeroed at header-write, filled at finalize. See [Aggregate](#aggregate). |
@@ -120,7 +121,7 @@ An attempt is written in three phases:
 
 Finalize overwrites only the header line; appended `ItemResult` records are never modified once written. An attempt that is interrupted before finalize keeps `interrupted: true` and `finishedAt: null` — and the report ignores it (see [Reporting](#reporting)).
 
-In-place re-scoring (`bench score`) is the one path that rewrites the whole file. It is **atomic**: the new contents are written to a sibling temp file and renamed over the target, so a failed or partial write never corrupts the existing archive.
+In-place re-scoring (`bench score`) is the one path that rewrites the whole file. It is **atomic**: the new contents are written to a sibling temp file and renamed over the target, so a failed or partial write never corrupts the existing archive. After a scorer-only challenge edit (same challenge id/version, items 1:1 with unchanged `promptHash`), `score --corpus` re-stamps the attempt onto the current identity: `challengeHash`, each item's `itemHash` and `scorerHash`, and `attemptId` take the current values, `restampedFrom` keeps the original `attemptId`, and the file is written atomically under the new `<attemptId>.jsonl` before the old one is removed. Blobs keyed by `configHash` and `promptHash` are unchanged; the current scorer blobs are written before the archive. Re-stamped items carry the current `itemHash`, so they serve the cross-attempt cache for the current scorer.
 
 ## Cache and resume
 

@@ -11,16 +11,25 @@
  * Clean break from the legacy format: a non-attempt / legacy file produces a
  * clear error, not a re-score (mirrors Phase 4). `score` never calls the LLM.
  *
- * Identity is never rewritten: re-scoring with an edited scorer leaves
- * `challengeHash` (and every other identity / provenance field) as-recorded.
- * A clean identity requires a real re-run via `submit`. Accepted limitation.
+ * Identity: the store path never touches identity. The corpus path RE-STAMPS
+ * an attempt onto the current challenge identity (challengeHash, per-item
+ * itemHash/scorerHash, attemptId + filename) only when the change was
+ * scorer-only — same challenge id/version, a completed attempt, and the
+ * archived items map 1:1 onto the resolved items with identical promptHash.
+ * Anything else is re-scored with identity left as-recorded. The original
+ * attemptId is kept in `restampedFrom`.
+ *
+ * `--stale` batch-processes every completed attempt in `--archive-dir` whose
+ * challengeHash differs from its current challenge's (implies `--corpus`).
  */
 import { Command, Options } from "@effect/cli";
-import type { CommandExecutor } from "@effect/platform";
-import { Effect } from "effect";
+import { type CommandExecutor, FileSystem, Path } from "@effect/platform";
+import { Effect, Option } from "effect";
 import { rewriteAttempt } from "../../archive/attempt-writer.js";
+import { scorerHash, writeBlob } from "../../archive/content-store.js";
 import type { ResolvedChallenge } from "../../config/challenges.js";
 import { loadChallenge } from "../../config/challenges.js";
+import { stableStringify } from "../../config/hashing.js";
 import { aggregate } from "../../orchestration/run-challenge.js";
 import { loadAttemptArchive } from "../../report/load-attempts.js";
 import { loadAttemptReconstruction } from "../../report/reconstruct.js";
@@ -36,7 +45,20 @@ const printLine = (line: string): Effect.Effect<void> =>
   });
 
 const archiveOpt = Options.file("archive").pipe(
-  Options.withDescription("Path to the attempt archive JSONL file to re-score in place"),
+  Options.repeated,
+  Options.withDescription("Attempt archive JSONL file to re-score in place (repeatable)"),
+);
+
+const staleOpt = Options.boolean("stale").pipe(
+  Options.withDefault(false),
+  Options.withDescription(
+    "Re-score every completed attempt in --archive-dir whose challengeHash differs from its current challenge's (implies --corpus)",
+  ),
+);
+
+const archiveDirOpt = Options.directory("archive-dir").pipe(
+  Options.withDefault("./benchmark-archive"),
+  Options.withDescription("Archive directory scanned by --stale"),
 );
 
 const challengesDirOpt = Options.directory("challenges-dir").pipe(
@@ -238,103 +260,166 @@ export const formatSummary = (s: SummaryInput): string => {
   return `${prefix}${s.configId} × ${s.challengeId}@${s.version} → aggregate ${s.aggregate.score.toFixed(3)} ${verdict}  ${counts}`;
 };
 
+// ── Re-stamp onto the current challenge identity ─────────────────────────────
+
+/**
+ * Why `manifest` + `items` may NOT be re-stamped onto `challenge`'s identity,
+ * or `null` when the change since the run was scorer-only: same challenge
+ * id/version, a completed attempt whose attemptId embeds its challengeHash,
+ * and archived items that map 1:1 (by name) onto the resolved items with an
+ * identical promptHash each.
+ */
+export const restampBlocker = (
+  manifest: AttemptManifest,
+  items: ReadonlyArray<ItemResult>,
+  challenge: ResolvedChallenge,
+): string | null => {
+  if (manifest.challengeId !== challenge.id || manifest.challengeVersion !== challenge.version) {
+    return `challenge ${manifest.challengeId}@${manifest.challengeVersion} ≠ resolved ${challenge.id}@${challenge.version}`;
+  }
+  if (manifest.finishedAt === null || manifest.interrupted) return "attempt incomplete";
+  if (manifest.attemptId.split("-")[2] !== manifest.challengeHash) {
+    return "attemptId does not embed challengeHash";
+  }
+  const archived = new Map(items.map((i) => [i.promptName, i]));
+  if (archived.size !== items.length || items.length !== challenge.items.length) {
+    return `item set differs (archive ${items.length}, challenge ${challenge.items.length})`;
+  }
+  for (const r of challenge.items) {
+    const a = archived.get(r.itemId);
+    if (a === undefined) return `item ${r.itemId} missing from archive`;
+    if (a.promptHash !== r.promptHash) return `promptHash drift on ${r.itemId}`;
+  }
+  return null;
+};
+
+/** Apply `challenge`'s identity to an eligible attempt (see {@link restampBlocker}). */
+export const restamp = (
+  manifest: AttemptManifest,
+  items: ReadonlyArray<ItemResult>,
+  challenge: ResolvedChallenge,
+): { manifest: AttemptManifest; items: ReadonlyArray<ItemResult> } => {
+  const byName = new Map(challenge.items.map((i) => [i.itemId, i]));
+  const parts = manifest.attemptId.split("-");
+  parts[2] = challenge.challengeHash;
+  return {
+    manifest: {
+      ...manifest,
+      attemptId: parts.join("-"),
+      challengeHash: challenge.challengeHash,
+      restampedFrom: manifest.restampedFrom ?? manifest.attemptId,
+    },
+    items: items.map((it) => {
+      const r = byName.get(it.promptName);
+      return r === undefined
+        ? it
+        : { ...it, itemHash: r.itemHash, scorerHash: scorerHash(r.scorer) };
+    }),
+  };
+};
+
 // ── Command ──────────────────────────────────────────────────────────────────
 
-export const scoreCommand = Command.make(
-  "score",
-  {
-    archive: archiveOpt,
-    challengesDir: challengesDirOpt,
-    challenge: challengeOpt,
-    dryRun: dryRunOpt,
-    verbose: verboseOpt,
-    corpus: corpusOpt,
-  },
-  ({ archive, challengesDir, challenge, dryRun, verbose, corpus }) =>
-    Effect.gen(function* () {
-      const loaded = yield* loadAttemptArchive(archive).pipe(
-        Effect.mapError(
-          () =>
-            new Error(
-              `${archive}: not an attempt archive (score no longer reads the legacy format)`,
-            ),
-        ),
+type Outcome = "restamped" | "rescored" | "skipped";
+
+/**
+ * Corpus re-score of one loaded attempt against the resolved challenge, with
+ * the scorer-only re-stamp. A re-stamp first writes the current prompt/scorer
+ * blobs, then atomically writes `<newAttemptId>.jsonl` and removes the old
+ * file — an interruption between the two leaves the old (still stale) file,
+ * which the next `--stale` pass re-stamps to the same name.
+ */
+const scoreFromCorpus = (
+  archive: string,
+  manifest: AttemptManifest,
+  items: ReadonlyArray<ItemResult>,
+  resolved: ResolvedChallenge,
+  dryRun: boolean,
+) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const pathSvc = yield* Path.Path;
+    const { updated, rescored, drift, notes, warnings } = yield* rescoreItems(items, resolved);
+    const agg = aggregate(updated, resolved.passThreshold);
+    const current = manifest.challengeHash === resolved.challengeHash;
+    const blocker = current ? null : restampBlocker(manifest, items, resolved);
+    const outcome: Outcome = !current && blocker === null ? "restamped" : "rescored";
+
+    // Dry-run shows every per-item note (incl. clean score changes); normal
+    // mode surfaces only the drift/skip warnings.
+    for (const note of dryRun ? notes : warnings) yield* printLine(note);
+
+    if (outcome === "restamped") {
+      const next = restamp({ ...manifest, aggregate: agg }, updated, resolved);
+      const archiveDir = pathSvc.dirname(archive);
+      const nextPath = pathSvc.join(archiveDir, `${next.manifest.attemptId}.jsonl`);
+      yield* printLine(
+        `  ${dryRun ? "would restamp" : "restamp"} ${manifest.attemptId} → ${next.manifest.attemptId}`,
       );
-      const { manifest, items } = loaded;
-
-      // Store-primary path: v2 archive + no --corpus flag → re-score from content
-      // store without needing corpus or challenge YAML on disk.
-      const useStore = corpus === false && manifest.schemaVersion === 2;
-      if (useStore) {
-        const recon = yield* loadAttemptReconstruction(archive).pipe(
-          Effect.mapError((e) => new Error(`${archive}: ${e.reason}`)),
-        );
-        const passThreshold = manifest.passThreshold ?? 1;
-        const { updated, rescored, drift, notes } = yield* rescoreItemsFromStore(
-          items,
-          recon.items,
-        );
-        const agg = aggregate(updated, passThreshold);
-        const newManifest: AttemptManifest = { ...manifest, aggregate: agg };
-        if (dryRun) {
-          for (const note of notes) yield* printLine(note);
-        } else {
-          yield* rewriteAttempt(archive, newManifest, updated);
+      if (!dryRun) {
+        for (const r of resolved.items) {
+          yield* writeBlob(archiveDir, "prompts", r.promptHash, r.prompt.promptText);
+          yield* writeBlob(archiveDir, "scorers", scorerHash(r.scorer), stableStringify(r.scorer));
         }
-        yield* printLine(
-          formatSummary({
-            configId: manifest.configId,
-            challengeId: manifest.challengeId,
-            version: manifest.challengeVersion,
-            aggregate: agg,
-            rescored,
-            total: items.length,
-            drift,
-            fallback: 0,
-            dryRun,
-          }),
-        );
-        return;
+        yield* rewriteAttempt(nextPath, next.manifest, next.items);
+        if (nextPath !== archive) yield* fs.remove(archive);
       }
-
-      // Corpus path: v1 archive, or v2 archive with --corpus flag → resolve the
-      // current challenge from disk and re-score against it.
-      const challengePath =
-        challenge._tag === "Some"
-          ? challenge.value
-          : `${challengesDir}/${manifest.challengeId}.yaml`;
-
-      // Whole-archive fallback: an unresolvable challenge (missing file or parse
-      // failure) is a graceful no-op, not a hard error. Warn, leave the file
-      // untouched, exit 0. Evaluated once, before the per-item loop.
-      const resolvedOpt = yield* loadChallenge(challengePath).pipe(Effect.either);
-      if (resolvedOpt._tag === "Left") {
-        yield* printLine(
-          `score (fallback, no write): ${manifest.configId} × ${manifest.challengeId}@${manifest.challengeVersion} → challenge unresolvable (${challengePath}); archive left untouched`,
-        );
-        return;
+    } else {
+      if (blocker !== null) {
+        yield* printLine(`  no restamp (${blocker}); challengeHash kept as-recorded`);
       }
-      const resolved = resolvedOpt.right;
+      if (!dryRun) yield* rewriteAttempt(archive, { ...manifest, aggregate: agg }, updated);
+    }
 
-      const { updated, rescored, drift, notes, warnings } = yield* rescoreItems(items, resolved);
-      const agg = aggregate(updated, resolved.passThreshold);
-      const newManifest: AttemptManifest = { ...manifest, aggregate: agg };
+    yield* printLine(
+      formatSummary({
+        configId: manifest.configId,
+        challengeId: manifest.challengeId,
+        version: manifest.challengeVersion,
+        aggregate: agg,
+        rescored,
+        total: items.length,
+        drift,
+        fallback: 0,
+        dryRun,
+      }),
+    );
+    return outcome;
+  });
 
+const scoreOne = (
+  archive: string,
+  opts: {
+    challengesDir: string;
+    challenge: Option.Option<string>;
+    dryRun: boolean;
+    corpus: boolean;
+  },
+) =>
+  Effect.gen(function* () {
+    const { dryRun } = opts;
+    const loaded = yield* loadAttemptArchive(archive).pipe(
+      Effect.mapError(
+        () =>
+          new Error(`${archive}: not an attempt archive (score no longer reads the legacy format)`),
+      ),
+    );
+    const { manifest, items } = loaded;
+
+    // Store-primary path: v2 archive + no --corpus flag → re-score from content
+    // store without needing corpus or challenge YAML on disk.
+    if (!opts.corpus && manifest.schemaVersion === 2) {
+      const recon = yield* loadAttemptReconstruction(archive).pipe(
+        Effect.mapError((e) => new Error(`${archive}: ${e.reason}`)),
+      );
+      const passThreshold = manifest.passThreshold ?? 1;
+      const { updated, rescored, drift, notes } = yield* rescoreItemsFromStore(items, recon.items);
+      const agg = aggregate(updated, passThreshold);
       if (dryRun) {
-        // Dry-run shows every per-item note (incl. clean score changes) so the
-        // operator can preview the full effect before committing to a write.
-        for (const note of notes) {
-          yield* printLine(note);
-        }
+        for (const note of notes) yield* printLine(note);
       } else {
-        yield* rewriteAttempt(archive, newManifest, updated);
-        // Normal mode still surfaces the drift/skip warnings so operators see
-        // which/how-many items were not re-applied — not just the summary count.
-        for (const warning of warnings) {
-          yield* printLine(warning);
-        }
+        yield* rewriteAttempt(archive, { ...manifest, aggregate: agg }, updated);
       }
-
       yield* printLine(
         formatSummary({
           configId: manifest.configId,
@@ -348,7 +433,119 @@ export const scoreCommand = Command.make(
           dryRun,
         }),
       );
+      return "rescored" as Outcome;
+    }
+
+    // Corpus path: v1 archive, or --corpus → resolve the current challenge.
+    const challengePath = Option.getOrElse(
+      opts.challenge,
+      () => `${opts.challengesDir}/${manifest.challengeId}.yaml`,
+    );
+    // Whole-archive fallback: an unresolvable challenge is a graceful no-op.
+    const resolvedOpt = yield* loadChallenge(challengePath).pipe(Effect.either);
+    if (resolvedOpt._tag === "Left") {
+      yield* printLine(
+        `score (fallback, no write): ${manifest.configId} × ${manifest.challengeId}@${manifest.challengeVersion} → challenge unresolvable (${challengePath}); archive left untouched`,
+      );
+      return "skipped" as Outcome;
+    }
+    return yield* scoreFromCorpus(archive, manifest, items, resolvedOpt.right, dryRun);
+  });
+
+/**
+ * `--stale`: every completed `att-*.jsonl` in `archiveDir` whose challengeHash
+ * differs from its current challenge's, via the corpus path. Unloadable,
+ * incomplete, and unresolvable attempts are tallied as skipped by reason.
+ */
+const scoreStale = (
+  archiveDir: string,
+  challengesDir: string,
+  dryRun: boolean,
+  tally: Record<Outcome | "current", number>,
+  skipReasons: Map<string, number>,
+) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const pathSvc = yield* Path.Path;
+    const skip = (reason: string) => {
+      tally.skipped += 1;
+      skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1);
+    };
+    const files = (yield* fs.readDirectory(archiveDir))
+      .filter((f) => f.startsWith("att-") && f.endsWith(".jsonl"))
+      .sort();
+    const challenges = new Map<string, ResolvedChallenge | null>();
+    for (const f of files) {
+      const archive = pathSvc.join(archiveDir, f);
+      const loaded = yield* loadAttemptArchive(archive).pipe(Effect.either);
+      if (loaded._tag === "Left") {
+        skip("not an attempt archive");
+        continue;
+      }
+      const { manifest, items } = loaded.right;
+      if (manifest.finishedAt === null || manifest.interrupted) {
+        skip("incomplete");
+        continue;
+      }
+      if (!challenges.has(manifest.challengeId)) {
+        const r = yield* loadChallenge(`${challengesDir}/${manifest.challengeId}.yaml`).pipe(
+          Effect.either,
+        );
+        challenges.set(manifest.challengeId, r._tag === "Right" ? r.right : null);
+      }
+      const resolved = challenges.get(manifest.challengeId) ?? null;
+      if (resolved === null) {
+        skip("challenge unresolvable");
+        continue;
+      }
+      if (manifest.challengeHash === resolved.challengeHash) {
+        tally.current += 1;
+        continue;
+      }
+      yield* printLine(`${f}:`);
+      tally[yield* scoreFromCorpus(archive, manifest, items, resolved, dryRun)] += 1;
+    }
+  });
+
+export const scoreCommand = Command.make(
+  "score",
+  {
+    archive: archiveOpt,
+    stale: staleOpt,
+    archiveDir: archiveDirOpt,
+    challengesDir: challengesDirOpt,
+    challenge: challengeOpt,
+    dryRun: dryRunOpt,
+    verbose: verboseOpt,
+    corpus: corpusOpt,
+  },
+  ({ archive, stale, archiveDir, challengesDir, challenge, dryRun, verbose, corpus }) =>
+    Effect.gen(function* () {
+      if (archive.length === 0 && !stale) {
+        return yield* Effect.fail(
+          new Error("score: pass --archive <file> (repeatable) or --stale"),
+        );
+      }
+      const tally: Record<Outcome | "current", number> = {
+        restamped: 0,
+        rescored: 0,
+        skipped: 0,
+        current: 0,
+      };
+      const skipReasons = new Map<string, number>();
+      for (const a of archive) {
+        tally[yield* scoreOne(a, { challengesDir, challenge, dryRun, corpus })] += 1;
+      }
+      if (stale) yield* scoreStale(archiveDir, challengesDir, dryRun, tally, skipReasons);
+      if (stale || archive.length > 1) {
+        const reasons = [...skipReasons].map(([r, n]) => `${r} ${n}`).join(", ");
+        yield* printLine(
+          `score${dryRun ? " (dry-run)" : ""}: ${tally.restamped} ${dryRun ? "would restamp" : "restamped"}, ${tally.rescored} rescored-only, ${tally.skipped} skipped${reasons === "" ? "" : ` (${reasons})`}${stale ? `, ${tally.current} already current` : ""}`,
+        );
+      }
     }).pipe(Effect.provide(makeLoggerLayer(verbose))),
 ).pipe(
-  Command.withDescription("Re-score an existing attempt archive in place against current scorers"),
+  Command.withDescription(
+    "Re-score attempt archives in place; --corpus re-stamps scorer-only changes onto the current challenge identity",
+  ),
 );

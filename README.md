@@ -76,7 +76,7 @@ All subcommands take `--help`. Paths default to convention.
 
 ./bench report [--archive-dir DIR] [--output DIR] [--verbose]
 
-./bench score --archive FILE
+./bench score [--archive FILE]... [--stale] [--archive-dir DIR]
               [--challenges-dir DIR] [--challenge FILE]
               [--corpus] [--dry-run] [--verbose]
 
@@ -88,7 +88,7 @@ All subcommands take `--help`. Paths default to convention.
 
 - **`run`** sweeps matched configurations against matched challenges (globs over config ids and challenge stems), executing each configuration × challenge cell, printing a live per-cell result line, and finishing with a summary grid. `--no-cache` forces fresh execution of every item; `--no-report` skips the end-of-sweep report regeneration.
 - **`report`** scans the archive directory, keeps only completed attempts, deduplicates by `attemptId`, and writes `data.js` plus a per-attempt detail file for every reconstructible attempt. It prints an audit block: attempts loaded, dropped (incomplete / duplicate), cells written, and details written / skipped.
-- **`score`** re-applies scorers to an attempt's stored outputs and rewrites the archive in place — no model call. By default it re-scores from the content store; `--corpus` instead re-resolves the current challenge inline from `challenges/` so an edited scorer takes effect. `--dry-run` reports the changes without writing.
+- **`score`** re-applies scorers to an attempt's stored outputs and rewrites the archive in place — no model call. By default it re-scores from the content store; `--corpus` instead re-resolves the current challenge inline from `challenges/` so an edited scorer takes effect. When the change since the run was scorer-only (every item matches the current challenge 1:1 with an unchanged `promptHash`), `--corpus` also re-stamps the attempt onto the current challenge identity — `challengeHash`, per-item `itemHash` / `scorerHash`, and the `attemptId` and filename — so it counts as canonical; any other difference re-scores with identity kept as recorded and says why. `--archive` repeats; `--stale` (implies `--corpus`) processes every completed attempt in `--archive-dir` whose `challengeHash` differs from its current challenge's. `--dry-run` reports the changes — would-restamp, rescored-only, skipped — without writing.
 - **`export`** bundles an attempt's `.jsonl` and exactly the content blobs it references into a portable, self-verifying archive — a `.tar.gz` by default, or a plain directory with `--dir`. Accepts an `attemptId` (resolved under `--archive-dir`) or a direct `.jsonl` path.
 - **`list-models`** reads `configs.yaml` and prints one line per configuration (`id`, `artifact`, `runtime`, `quant`, `active`). **`list-prompts`** aggregates every challenge file's inline items and prints each item's name, category, and tier (tab-separated), followed by a `# Scenarios` section. Both are read-only sanity checks.
 

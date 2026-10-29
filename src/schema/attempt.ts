@@ -77,6 +77,13 @@ export const AttemptManifest = Schema.Struct({
   challengeId: Schema.String,
   challengeVersion: Schema.Number,
   challengeHash: Schema.String,
+  /**
+   * The original `attemptId` of an attempt that `score --corpus` re-stamped
+   * onto the current challenge identity after a scorer-only edit. Its embedded
+   * challengeHash is the identity the model actually ran against. Absent on
+   * attempts whose identity is as-run.
+   */
+  restampedFrom: Schema.optional(Schema.String),
   passThreshold: Schema.optional(Schema.Number),
 
   env: RunEnv,

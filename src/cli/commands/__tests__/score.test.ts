@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { CommandExecutor } from "@effect/platform";
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scorerHash, writeBlob } from "../../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../../config/challenges.js";
 import { loadChallenge } from "../../../config/challenges.js";
+import { loadAttemptReconstruction } from "../../../report/reconstruct.js";
 import {
   AttemptManifest,
   type ItemResult,
@@ -237,7 +238,8 @@ const PASSING_OUTPUT =
   "The rocket climbed steadily until it reached a stable orbit, where gravity gently held it in place.";
 
 const runHandler = (args: {
-  archive: string;
+  archive?: string;
+  stale?: string;
   challenge?: string;
   dryRun?: boolean;
   corpus?: boolean;
@@ -245,7 +247,9 @@ const runHandler = (args: {
   Effect.runPromise(
     scoreCommand
       .handler({
-        archive: args.archive,
+        archive: args.archive === undefined ? [] : [args.archive],
+        stale: args.stale !== undefined,
+        archiveDir: args.stale ?? "unused",
         challengesDir: REAL_CHALLENGES,
         challenge: args.challenge === undefined ? Option.none() : Option.some(args.challenge),
         dryRun: args.dryRun ?? false,
@@ -608,5 +612,131 @@ describe("scoreCommand.handler (boundary)", () => {
     const written = readFileSync(file, "utf-8");
     expect(written).toContain('"score":0'); // item re-scored to 0 via corpus
     expect(written).toContain('"passed":false');
+  });
+});
+
+describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
+  let dir: string;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let logged: string[];
+  const OLD_HASH = "0ld0ld0ld0ld";
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "score-restamp-"));
+    logged = [];
+    logSpy = vi.spyOn(console, "log").mockImplementation((line?: unknown) => {
+      logged.push(String(line));
+    });
+  });
+  afterEach(() => {
+    logSpy.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A complete v2 smoke attempt recorded under an older (scorer-differing) identity. */
+  const writeStaleSmoke = async (opts: { driftItem?: string; id?: string } = {}) => {
+    const smoke = await resolveSmoke();
+    const oldScorer: ScorerConfig = { type: "exact_match", expected: "nope", extract: "(x)" };
+    const configHash = "cfgrestamp00";
+    const attemptId = `att-${configHash}-${OLD_HASH}-${opts.id ?? "1792738113316"}`;
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* writeBlob(dir, "system", configHash, "");
+        yield* writeBlob(dir, "scorers", scorerHash(oldScorer), JSON.stringify(oldScorer));
+      }).pipe(Effect.provide(NodeContext.layer)),
+    );
+    const items = smoke.items.map((r) =>
+      item({
+        itemId: r.itemId,
+        promptName: r.itemId,
+        promptHash: r.itemId === opts.driftItem ? "drifted00000" : r.promptHash,
+        itemHash: "oldih0000000",
+        scorerHash: scorerHash(oldScorer),
+        output: PASSING_OUTPUT,
+        rawOutput: PASSING_OUTPUT,
+      }),
+    );
+    const manifest = baseManifest({
+      schemaVersion: 2,
+      attemptId,
+      configHash,
+      challengeHash: OLD_HASH,
+      passThreshold: smoke.passThreshold,
+    });
+    const file = path.join(dir, `${attemptId}.jsonl`);
+    writeFileSync(file, await encodeArchive(manifest, items), "utf-8");
+    return {
+      smoke,
+      file,
+      attemptId,
+      newId: `att-${configHash}-${smoke.challengeHash}-${opts.id ?? "1792738113316"}`,
+    };
+  };
+
+  const header = (file: string) =>
+    JSON.parse(readFileSync(file, "utf-8").split("\n")[0] ?? "") as typeof AttemptManifest.Type;
+
+  it("re-stamps identity, renames the file, and stays reconstructible", async () => {
+    const { smoke, file, attemptId, newId } = await writeStaleSmoke();
+    await runHandler({ archive: file, corpus: true });
+
+    const newFile = path.join(dir, `${newId}.jsonl`);
+    expect(existsSync(file)).toBe(false);
+    const h = header(newFile);
+    expect(h.attemptId).toBe(newId);
+    expect(h.challengeHash).toBe(smoke.challengeHash);
+    expect(h.restampedFrom).toBe(attemptId);
+    expect(logged.join("\n")).toContain(`restamp ${attemptId} → ${newId}`);
+
+    const recon = await Effect.runPromise(
+      loadAttemptReconstruction(newFile).pipe(Effect.provide(NodeContext.layer)),
+    );
+    for (const r of smoke.items) {
+      const got = recon.items.find((x) => x.item.itemId === r.itemId);
+      expect(got?.item.itemHash).toBe(r.itemHash);
+      expect(got?.scorer).toEqual(r.scorer);
+    }
+  });
+
+  it("does not re-stamp when a promptHash drifted", async () => {
+    const { file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
+    await runHandler({ archive: file, corpus: true });
+
+    expect(existsSync(file)).toBe(true);
+    expect(header(file).challengeHash).toBe(OLD_HASH);
+    expect(header(file).restampedFrom).toBeUndefined();
+    expect(logged.join("\n")).toContain(
+      `no restamp (promptHash drift on ${SMOKE_CONSTRAINT_ITEM})`,
+    );
+  });
+
+  it("--dry-run reports the would-restamp and writes nothing", async () => {
+    const { file, newId } = await writeStaleSmoke();
+    const before = readFileSync(file);
+    await runHandler({ archive: file, corpus: true, dryRun: true });
+
+    expect(readFileSync(file).equals(before)).toBe(true);
+    expect(existsSync(path.join(dir, `${newId}.jsonl`))).toBe(false);
+    expect(logged.join("\n")).toContain("would restamp");
+  });
+
+  it("--stale tallies restamped / rescored-only / skipped across the directory", async () => {
+    await writeStaleSmoke({ id: "1" });
+    await writeStaleSmoke({ id: "2", driftItem: SMOKE_CONSTRAINT_ITEM });
+    const open = await writeStaleSmoke({ id: "3" });
+    const h = header(open.file);
+    writeFileSync(
+      open.file,
+      readFileSync(open.file, "utf-8").replace(
+        JSON.stringify(h),
+        JSON.stringify({ ...h, finishedAt: null, interrupted: true }),
+      ),
+    );
+    await runHandler({ stale: dir });
+
+    expect(logged.join("\n")).toContain(
+      "score: 1 restamped, 1 rescored-only, 1 skipped (incomplete 1), 0 already current",
+    );
+    expect(existsSync(path.join(dir, `${open.newId.replace(/-3$/, "-1")}.jsonl`))).toBe(true);
   });
 });
