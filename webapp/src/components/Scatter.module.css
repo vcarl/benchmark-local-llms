@@ -36,3 +36,17 @@
 .scatterTipTitle { font-weight: 600; margin-bottom: var(--space-2); }
 .scatterTipMeta { color: var(--text-secondary); font-size: var(--fz-11); margin-bottom: var(--space-2); }
 .scatterEmpty { text-align: center; padding: 40px var(--space-10); color: var(--text-faint); }
+/* Pareto frontier + direct labels. Off-frontier stars are desaturated (not
+   faded): fill-opacity already encodes TPS. */
+.scatterFrontier { fill: none; stroke: var(--gray-50); stroke-width: 1.5; stroke-opacity: 0.6; pointer-events: none; }
+.scatterDotOffFrontier { filter: saturate(0.3) brightness(0.8); }
+.scatterLabel {
+  fill: var(--text-muted);
+  font-size: var(--fz-11);
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--gray-960);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.scatterLabelFrontier { fill: var(--text-primary); font-weight: 500; }

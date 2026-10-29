@@ -39,6 +39,11 @@ export const applyChallengeFilter = (records: BenchmarkResult[], f: Filters): Be
     passesDim(f.challenge, baseChallengeId(`${r.challenge_id}@${r.challenge_version}`)),
   );
 
+// config_hashes of the `n` highest headline-scoring points (ScatterPoint.y, the
+// coverage-adjusted passRate). Ties break by input order.
+export const topConfigHashes = (points: ScatterPoint[], n: number): Set<string> =>
+  new Set([...points].sort((a, b) => b.y - a.y).slice(0, n).map((p) => p.config_hash));
+
 // ─── Config scores (shared utility) ──────────────────────────────────────────
 
 // The headline `passRate` is coverage-adjusted: its denominator is the FIXED

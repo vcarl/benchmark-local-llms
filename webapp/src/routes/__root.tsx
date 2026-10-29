@@ -3,13 +3,13 @@ import { useMemo, useState } from "react";
 import { DATA, uniqueSorted, modelFamily } from "../lib/data";
 import { RunGroupTable } from "../components/RunGroupTable";
 import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, applyChallengeFilter, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, defaultSortDir, type RunRow, type RunSortKey, type SortDir } from "../lib/pipeline";
+import { aggregateRuns, applyChallengeFilter, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, defaultSortDir, topConfigHashes, type RunRow, type RunSortKey, type SortDir } from "../lib/pipeline";
 import { buildChallengeUniverse } from "../lib/coverage";
 import { Scatter } from "../components/Scatter";
 import { ScatterLegend } from "../components/ScatterLegend";
 import { FilterPanel } from "../components/FilterPanel";
 import { familyColor } from "../lib/colors";
-import { parseFilters, type SearchState } from "../lib/filter-state";
+import { parseFilters, parseTop, type SearchState } from "../lib/filter-state";
 import { DrilldownPanel } from "../components/DrilldownPanel";
 import { issueTemplateUrl } from "../lib/constants";
 import styles from "./index.module.css";
@@ -63,7 +63,8 @@ function RootComponent() {
 
   const search = useSearch({ strict: false }) as SearchState;
   const filters = useMemo(() => parseFilters(search), [search]);
-  const filtered = useMemo(() => applyFilters(DATA, filters), [filters]);
+  const matching = useMemo(() => applyFilters(DATA, filters), [filters]);
+  const top = parseTop(search.top);
 
   // The coverage universe (shared denominator for the adjusted pass rate). Built
   // ONCE from the full DATA scoped by ONLY the active challenge filter, so it
@@ -75,11 +76,18 @@ function RootComponent() {
     [filters],
   );
 
+  // Top-N cap: rank configs (one scatter point each) by headline score AFTER the
+  // other filters, then restrict every consumer (chart, legend, table, drilldown)
+  // to those configs.
+  const allPoints = useMemo(() => computeScatterPoints(matching, universe), [matching, universe]);
+  const keep = useMemo(() => topConfigHashes(allPoints, top), [allPoints, top]);
+  const filtered = useMemo(() => matching.filter((r) => keep.has(r.config_hash)), [matching, keep]);
+
   const groups = useMemo(
     () => aggregateRuns(filtered, universe, primary, secondary, primaryDir, secondaryDir),
     [filtered, universe, primary, secondary, primaryDir, secondaryDir],
   );
-  const points = useMemo(() => computeScatterPoints(filtered, universe), [filtered, universe]);
+  const points = useMemo(() => allPoints.filter((p) => keep.has(p.config_hash)), [allPoints, keep]);
 
   const legendFamilies = useMemo(() => {
     const seen = new Set<string>();

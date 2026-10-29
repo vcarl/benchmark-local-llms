@@ -96,3 +96,14 @@ export function splitArtifact(artifact: string): { prefix: string | null; name: 
   if (idx === -1) return { prefix: null, name: artifact };
   return { prefix: artifact.slice(0, idx), name: artifact.slice(idx + 1) };
 }
+
+// Compact display name for tight spots (scatter labels): the artifact's last
+// path segment with org prefixes (`nvidia_…`) and packaging/quant tokens
+// (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`, `Instruct`, `it`) dropped.
+// `mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit` → `Qwen3-Coder-30B-A3B`.
+const NOISE_TOKEN = /^(gguf|mlx|\d+bit|mxfp\d+|q\d+(_k)?(_[sml])?|instruct|it)$/i;
+export function shortModelName(artifact: string): string {
+  const name = (artifact.split("/").pop() ?? artifact).replace(/^[a-z]+_/, "");
+  const kept = name.split("-").filter((t) => !NOISE_TOKEN.test(t));
+  return kept.length > 0 ? kept.join("-") : name;
+}

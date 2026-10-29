@@ -5,6 +5,7 @@ import { computeTpsDomain } from "../lib/pipeline";
 import { familyColor } from "../lib/colors";
 import { formatWallTime } from "../lib/format";
 import { glyphDrawParams, starPath } from "./ScatterGlyph";
+import { fitXDomain, fitYDomain, paretoFrontier, placeLabels, pointLabels, type AxisDomain } from "../lib/scatter-layout";
 
 interface Props {
   points: ScatterPoint[];
@@ -21,30 +22,7 @@ const M = { top: 20, right: 24, bottom: 50, left: 60 };
 const MIN_W = M.left + M.right + 80;
 const MIN_H = M.top + M.bottom + 80;
 
-interface XDomain { min: number; max: number; ticks: number[]; }
-
-const FALLBACK_DOMAIN: XDomain = { min: 100, max: 100000, ticks: [100, 1000, 10000, 100000] };
-
-const computeXDomain = (points: ScatterPoint[]): XDomain => {
-  const values = points.map((d) => d.x).filter((t) => t > 0);
-  if (values.length === 0) return FALLBACK_DOMAIN;
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const minExp = Math.floor(Math.log10(rawMin));
-  const maxExp = Math.ceil(Math.log10(rawMax));
-  const effectiveMaxExp = maxExp === minExp ? minExp + 1 : maxExp;
-  const min = 10 ** minExp;
-  const max = 10 ** effectiveMaxExp;
-  const ticks: number[] = [];
-  for (let e = minExp; e <= effectiveMaxExp; e += 1) {
-    const p = 10 ** e;
-    ticks.push(p);
-    if (e < effectiveMaxExp) ticks.push(3 * p);
-  }
-  return { min, max, ticks };
-};
-
-const xScaleFor = (domain: XDomain, iw: number) => (v: number): number => {
+const xScaleFor = (domain: AxisDomain, iw: number) => (v: number): number => {
   const clamped = Math.max(Math.min(v, domain.max), domain.min);
   return M.left + ((Math.log10(clamped) - Math.log10(domain.min)) / (Math.log10(domain.max) - Math.log10(domain.min))) * iw;
 };
@@ -55,11 +33,13 @@ const formatTick = (v: number): string => {
   return String(v);
 };
 
-// y-axis ticks in 0..1 space
-const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
-
 export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }: Props) {
-  const xDomain = useMemo(() => computeXDomain(points), [points]);
+  // Both axes fit the displayed points, so they re-fit whenever filters change.
+  const xDomain = useMemo(() => fitXDomain(points.map((p) => p.x)), [points]);
+  const yDomain = useMemo(() => fitYDomain(points.map((p) => p.y)), [points]);
+  const frontier = useMemo(() => paretoFrontier(points), [points]);
+  const onFrontier = useMemo(() => new Set(frontier.map((p) => p.config_hash)), [frontier]);
+  const labelText = useMemo(() => pointLabels(points), [points]);
   const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
   // The artifact (base model) of the currently-hovered config, if any — drives
   // the SECONDARY family-level dimming (keep the "dim the rest of the model"
@@ -92,7 +72,10 @@ export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }
   const IW = W - M.left - M.right;
   const IH = H - M.top - M.bottom;
 
-  const yScale = useMemo(() => (v: number): number => M.top + (1 - v) * IH, [IH]);
+  const yScale = useMemo(
+    () => (v: number): number => M.top + (1 - (v - yDomain.min) / (yDomain.max - yDomain.min)) * IH,
+    [yDomain, IH],
+  );
   const xScale = useMemo(() => xScaleFor(xDomain, IW), [xDomain, IW]);
 
   // Per-model trajectory polylines — connect dots of the same artifact (base model)
@@ -111,6 +94,22 @@ export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }
     }));
   }, [points]);
 
+  const labels = useMemo(
+    () =>
+      placeLabels(
+        points.map((d) => ({
+          key: d.config_hash,
+          text: labelText.get(d.config_hash) ?? d.artifact,
+          cx: xScale(d.x),
+          cy: yScale(d.y),
+          r: glyphDrawParams(d, tpsDomain).outerR,
+          required: onFrontier.has(d.config_hash),
+        })),
+        { x0: M.left, y0: M.top, x1: M.left + IW, y1: M.top + IH },
+      ),
+    [points, labelText, xScale, yScale, tpsDomain, onFrontier, IW, IH],
+  );
+
   if (points.length === 0) {
     return (
       <div className={styles.scatterWrap} ref={wrapRef}>
@@ -123,7 +122,7 @@ export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }
     <div className={styles.scatterWrap} ref={wrapRef}>
       {size && (
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className={styles.scatterSvg}>
-          {yTicks.map((v) => (
+          {yDomain.ticks.map((v) => (
             <g key={`y${v}`}>
               <line className={styles.scatterGrid} x1={M.left} x2={M.left + IW} y1={yScale(v)} y2={yScale(v)} />
               <text className={styles.scatterTick} x={M.left - 8} y={yScale(v) + 4} textAnchor="end">{(v * 100).toFixed(0)}%</text>
@@ -166,8 +165,18 @@ export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }
             );
           })}
 
-          {/* Star-shaped dots, fill-opacity encodes generation tps */}
-          {points.map((d) => {
+          {/* Pareto frontier — configs no other config beats on both pass rate and tokens */}
+          {frontier.length > 1 && (
+            <polyline
+              className={styles.scatterFrontier}
+              points={frontier.map((d) => `${xScale(d.x)},${yScale(d.y)}`).join(" ")}
+            />
+          )}
+
+          {/* Star-shaped dots, fill-opacity encodes generation tps. Frontier
+              stars draw last (on top); off-frontier stars are desaturated
+              rather than faded so the TPS→opacity channel stays intact. */}
+          {[...points].sort((a, b) => Number(onFrontier.has(a.config_hash)) - Number(onFrontier.has(b.config_hash))).map((d) => {
             const { outerR, innerR, points: n, fill, fillOpacity: baseOpacity } =
               glyphDrawParams(d, tpsDomain);
             // PRIMARY: the single config that matches the hovered row/point.
@@ -181,7 +190,7 @@ export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }
             return (
               <path
                 key={d.config_hash}
-                className={`${styles.scatterDot}${active ? ` ${styles.scatterDotActive}` : ""}`}
+                className={`${styles.scatterDot}${active ? ` ${styles.scatterDotActive}` : ""}${onFrontier.has(d.config_hash) ? "" : ` ${styles.scatterDotOffFrontier}`}`}
                 d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
                 fill={fill}
                 fillOpacity={fillOpacity}
@@ -202,6 +211,18 @@ export function Scatter({ points, hoveredConfig, onHoverConfig, onSelectConfig }
               />
             );
           })}
+
+          {labels.map((l) => (
+            <text
+              key={`l${l.key}`}
+              className={`${styles.scatterLabel}${onFrontier.has(l.key) ? ` ${styles.scatterLabelFrontier}` : ""}`}
+              x={l.x}
+              y={l.y + 4}
+              textAnchor={l.anchor}
+            >
+              {l.text}
+            </text>
+          ))}
         </svg>
       )}
 

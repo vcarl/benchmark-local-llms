@@ -6,6 +6,7 @@ import {
   challengeBreakdown,
   computeConfigScores,
   computeScatterPoints,
+  topConfigHashes,
   splitInvocations,
   starPointsForWallTime,
   computeTpsDomain,
@@ -557,5 +558,18 @@ describe("opacityForTps", () => {
     const domain: TpsDomain = { min: 10, max: 10 };
     const mid = opacityForTps(10, domain);
     expect(mid).toBeCloseTo((0.35 + 0.95) / 2, 5);
+  });
+});
+
+describe("topConfigHashes", () => {
+  it("keeps the n best-scoring configs", () => {
+    const recs = [
+      rec({ config_hash: "a", item_count: 4, passed_items: 1 }),
+      rec({ config_hash: "b", item_count: 4, passed_items: 4 }),
+      rec({ config_hash: "c", item_count: 4, passed_items: 2 }),
+    ];
+    const pts = computeScatterPoints(recs, uni(recs));
+    expect([...topConfigHashes(pts, 2)].sort()).toEqual(["b", "c"]);
+    expect(topConfigHashes(pts, Infinity).size).toBe(3);
   });
 });
