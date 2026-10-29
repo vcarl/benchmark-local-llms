@@ -13,6 +13,15 @@ describe("parseLlamacppVersion", () => {
     expect(parseLlamacppVersion("version: 8390 (b6c83aad5)")).toBe("llama.cpp b8390 (b6c83aad5)");
   });
 
+  it("parses the 0.x build/commit form", () => {
+    expect(parseLlamacppVersion("version: 0.7.0 (build 11669, commit 620d2225c)")).toBe(
+      "llama.cpp b11669 (620d2225c)",
+    );
+    expect(parseLlamacppVersion("version: 0.7.0-dev (build 11829, commit 184f65360)")).toBe(
+      "llama.cpp b11829 (184f65360)",
+    );
+  });
+
   it("finds the version line amid Metal-init stderr noise", () => {
     const raw = [
       "ggml_metal_device_init: testing tensor API for f16 support",

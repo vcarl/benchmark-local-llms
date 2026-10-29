@@ -1,3 +1,4 @@
+import { readdir, readFile } from "node:fs/promises";
 import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
@@ -91,4 +92,35 @@ it("isolates a boot failure: that row is SKIPPED, later configs still run", asyn
   const b = cells.find((c) => c.configId === "cfg-b");
   expect(a?.status).toBe("SKIPPED");
   expect(b?.status === "PASS" || b?.status === "FAIL").toBe(true);
+});
+
+it("stamps the probed runtime version into each attempt's env, probing once per runtime", async () => {
+  const probes: string[] = [];
+  const deps = {
+    ...fakeDeps(),
+    runtimeVersion: (rt: string) => {
+      probes.push(rt);
+      return Effect.succeed(`probed-${rt}`);
+    },
+  };
+  await Effect.runPromise(
+    runMatrix({
+      configs: [config],
+      challenges: [challengeA, challengeB],
+      archiveDir: dir,
+      env,
+      deps: deps as never,
+    }).pipe(
+      Effect.provide(okStub().layer),
+      Effect.provide(inertHttpClientLayer),
+      Effect.provide(NodeContext.layer),
+    ),
+  );
+  expect(probes).toEqual([config.runtime]);
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+  expect(files).toHaveLength(2);
+  for (const f of files) {
+    const header = JSON.parse((await readFile(`${dir}/${f}`, "utf8")).split("\n")[0] ?? "");
+    expect(header.env.runtimeVersion).toBe(`probed-${config.runtime}`);
+  }
 });

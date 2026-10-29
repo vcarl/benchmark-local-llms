@@ -1,24 +1,26 @@
 /**
  * Environment fingerprint for benchmark runs.
  *
- * `defaultRunEnv` is the only surviving export from this module after the
- * per-model run stack (runLoop / runModel) was removed. It is imported by
- * src/cli/commands/run.ts to build the `env` field stamped on every attempt.
+ * `defaultRunEnv` builds the `env` stamped on every attempt (imported by
+ * src/cli/commands/run.ts). `runtimeVersion` is a placeholder here; `runMatrix`
+ * overrides it per configuration with the probed runtime version.
  */
-
+import os from "node:os";
+import { Command, type CommandExecutor } from "@effect/platform";
+import { Effect } from "effect";
 import type { RunEnv } from "../schema/run-manifest.js";
 
-// ── Environment fingerprint ────────────────────────────────────────────────
+/** Short HEAD sha of the benchmark checkout; "unknown" if git is unavailable. */
+const gitSha = Command.string(Command.make("git", "rev-parse", "--short", "HEAD")).pipe(
+  Effect.map((s) => s.trim() || "unknown"),
+  Effect.catchAll(() => Effect.succeed("unknown")),
+);
 
-/**
- * Build the `env` field for a manifest. Falls back to light defaults when
- * called outside of test control. A follow-up patch can replace this with a
- * proper service (hostname from `os.hostname`, git SHA from a subprocess).
- */
-export const defaultRunEnv = (): RunEnv => ({
-  hostname: process.env["HOSTNAME"] ?? "unknown",
-  platform: `${process.platform}-${process.arch}`,
-  runtimeVersion: "unknown",
-  nodeVersion: process.version,
-  benchmarkGitSha: "unknown",
-});
+export const defaultRunEnv = (): Effect.Effect<RunEnv, never, CommandExecutor.CommandExecutor> =>
+  Effect.map(gitSha, (benchmarkGitSha) => ({
+    hostname: os.hostname(),
+    platform: `${process.platform}-${process.arch}`,
+    runtimeVersion: "unknown",
+    nodeVersion: process.version,
+    benchmarkGitSha,
+  }));

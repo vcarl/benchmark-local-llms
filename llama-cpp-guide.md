@@ -15,10 +15,11 @@ All binaries and shared libraries are in the extracted directory. No system-wide
 
 ### Pointing the benchmark harness at a pinned build
 
-A pinned-tarball `llama-server` is not on `PATH`. Tell the harness where it is:
+The harness launches whichever `llama-server` is first on `PATH`. Put the
+pinned tarball's directory ahead of any system install for the run:
 
 ```bash
-./bench run --llama-server-binary ~/llama.cpp/llama-b9692/llama-server …
+PATH=~/llama.cpp/llama-b9692:$PATH ./bench run …
 ```
 
 (The macOS arm64 tarball extracts the binaries flat into `llama-b9692/`. If a

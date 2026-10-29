@@ -73,7 +73,7 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
     }
     const challenges: MatrixChallenge[] = [...selected.challenges];
 
-    const env = defaultRunEnv();
+    const env = yield* defaultRunEnv();
     const cells = yield* runMatrix({
       configs,
       challenges,

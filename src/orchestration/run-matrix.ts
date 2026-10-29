@@ -14,6 +14,7 @@ import { Clock, Effect } from "effect";
 import type { ResolvedChallenge } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
+import type { Runtime } from "../schema/enums.js";
 import type { RunEnv } from "../schema/run-manifest.js";
 import { modelFromConfig, runChallengeWithServer } from "./run-challenge.js";
 import type { RunModelDeps } from "./run-model.js";
@@ -64,6 +65,8 @@ export const runMatrix = (
     const cells: MatrixCell[] = [];
     const total = input.configs.length;
     let configIndex = 0;
+    // One probe per distinct runtime per sweep.
+    const versions = new Map<Runtime, string>();
 
     for (const config of input.configs) {
       configIndex += 1;
@@ -72,6 +75,12 @@ export const runMatrix = (
       const row = yield* Effect.scoped(
         Effect.gen(function* () {
           const server = yield* input.deps.llmServer(modelFromConfig(config));
+          let runtimeVersion = versions.get(config.runtime);
+          if (runtimeVersion === undefined) {
+            runtimeVersion = yield* input.deps.runtimeVersion(config.runtime);
+            versions.set(config.runtime, runtimeVersion);
+          }
+          const env = { ...input.env, runtimeVersion };
           const rowCells: MatrixCell[] = [];
           for (const ch of input.challenges) {
             const now = yield* Clock.currentTimeMillis;
@@ -83,7 +92,7 @@ export const runMatrix = (
                 attemptId,
                 archiveDir: input.archiveDir,
                 archivePath: `${input.archiveDir}/${attemptId}.jsonl`,
-                env: input.env,
+                env,
                 deps: input.deps,
                 ...(input.noCache !== undefined ? { noCache: input.noCache } : {}),
               },

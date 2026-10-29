@@ -14,10 +14,16 @@ import { Command, type CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
 import type { Runtime } from "../../schema/enums.js";
 
-/** `version: 8390 (b6c83aad5)` → `llama.cpp b8390 (b6c83aad5)`. */
+/**
+ * `version: 8390 (b6c83aad5)` or `version: 0.7.0 (build 11669, commit 620d222)`
+ * (release tarballs append a suffix: `0.7.0-dev (build …)`)
+ * → `llama.cpp b8390 (b6c83aad5)` / `llama.cpp b11669 (620d222)`.
+ */
 export const parseLlamacppVersion = (raw: string): string => {
-  const m = raw.match(/^version:\s*(\d+)\s*\(([0-9a-f]+)\)/m);
-  return m ? `llama.cpp b${m[1]} (${m[2]})` : "unknown";
+  const m = raw.match(
+    /^version:\s*(?:(\d+)\s*\(|[\d.]+(?:-\w+)?\s*\(build\s+(\d+),\s*commit\s+)([0-9a-f]+)\)/m,
+  );
+  return m ? `llama.cpp b${m[1] ?? m[2]} (${m[3]})` : "unknown";
 };
 
 /** `0.31.2` → `mlx-lm 0.31.2`. */
