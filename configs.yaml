@@ -1400,3 +1400,124 @@
   maxTokens: 8192
   active: false
 
+
+# ── Batch 1 of late-2026 releases — reasoning models at vendor settings ──────
+# All six think by default when enable_thinking is not passed (the harness
+# never passes it) except Gemma 4, so each takes its card's thinking-mode set.
+# 32768-token budget as for Flint/Cyber-Tiel. 4-bit-class weights throughout.
+#
+# Qwen3.8-Flash-Next (125B total / 6B active, qwen4exp; llama.cpp support
+# merged 2026-08-27, ggml-org#27742). Card (huggingface.co/Qwen/Qwen3.8-Flash-Next)
+# thinking mode: temperature 1.0, top_p 0.95, top_k 20, min_p 0.0,
+# presence_penalty 0.0. UD-IQ4_XS (93.7 GB) leaves ~34 GB for KV/OS; the 107 GB
+# oQ4e MLX build would not.
+- id: qwen3.8-flash-next-llamacpp
+  artifact: unsloth/Qwen3.8-Flash-Next-GGUF
+  runtime: llamacpp
+  quant: UD-IQ4_XS
+  temperature: 1.0
+  topP: 0.95
+  topK: 20
+  minP: 0.0
+  systemPrompt: default
+  maxTokens: 32768
+  ctxSize: 65536
+
+# Laguna-S-2.1 (poolside, 118B/8B). The card gives no sampling; the official
+# generation_config.json: temperature 1.0, top_p 1.0, top_k 20, min_p 0.0.
+# Template defaults enable_thinking to true.
+- id: laguna-s-2.1-omlx
+  artifact: mlx-community/Laguna-S-2.1-oQ4e
+  runtime: omlx
+  quant: oQ4e
+  temperature: 1.0
+  topP: 1.0
+  topK: 20
+  minP: 0.0
+  systemPrompt: default
+  maxTokens: 32768
+
+# Kolibri-1 (Aleph Alpha, 78B/3.46B). Card (huggingface.co/Aleph-Alpha/Kolibri-1):
+# "temperature=1.0, top_p=0.97 and top_k=128". Reasons unless
+# enable_thinking=false.
+- id: kolibri-1-omlx
+  artifact: velaia/Kolibri-1-MLX-4bit
+  runtime: omlx
+  quant: 4bit
+  temperature: 1.0
+  topP: 0.97
+  topK: 128
+  systemPrompt: default
+  maxTokens: 32768
+  active: false  # weights still downloading; not yet load-probed
+
+# Nemotron-3.5-Lightning-30B-A3B. Card (huggingface.co/nvidia/NVIDIA-Nemotron-3.5-
+# Lightning-30B-A3B-BF16): "Temperature 1.0 and Top_P 0.95"; reasoning on by default.
+- id: nemotron-3.5-lightning-30b-a3b-omlx
+  artifact: mlx-community/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-4bit
+  runtime: omlx
+  quant: 4bit
+  temperature: 1.0
+  topP: 0.95
+  systemPrompt: default
+  maxTokens: 32768
+
+# Gemma-4-12B-it (gemma4_unified). Card (huggingface.co/google/gemma-4-12B-it):
+# "temperature=1.0, top_p=0.95, top_k=64" ("across all use cases", thinking
+# included). Thinking is on via chatTemplateKwargs enable_thinking: true (template
+# var, default false; injects <|think|> into the system turn).
+- id: gemma-4-12b-omlx
+  artifact: lmstudio-community/gemma-4-12B-it-MLX-4bit
+  runtime: omlx
+  quant: 4bit
+  temperature: 1.0
+  topP: 0.95
+  topK: 64
+  chatTemplateKwargs:
+    enable_thinking: true
+  systemPrompt: default
+  maxTokens: 32768
+
+# Mellum2.1-12B-A2.5B-Thinking (JetBrains). Card quickstart
+# (huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking): temperature 0.6,
+# top_p 0.95, top_k 20 (max_tokens 81920, capped here). No plain 4-bit MLX
+# build exists; mxfp4 is the 4-bit one.
+- id: mellum2.1-12b-a2.5b-thinking-omlx
+  artifact: randmaru/Mellum2.1-12B-A2.5B-Thinking-mlx-mxfp4
+  runtime: omlx
+  quant: mxfp4
+  temperature: 0.6
+  topP: 0.95
+  topK: 20
+  systemPrompt: default
+  maxTokens: 32768
+
+# Ling-3.0-flash (InclusionAI, 124B/5.1B MoE, bailing_hybrid). Card (huggingface.co/
+# inclusionAI/Ling-3.0-flash): "temperature=0.6, top_p=0.95, top_k=20"; thinking is
+# on by default in the chat template (enable_thinking). The MLX 4-bit builds need
+# trust_remote_code (model_type bailing_hybrid), which the harness's isolated oMLX
+# cannot enable, so this runs the official Q4_K_M GGUF (77 GB) on llama.cpp.
+- id: ling-3.0-flash-llamacpp
+  artifact: inclusionAI/Ling-3.0-flash-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.6
+  topP: 0.95
+  topK: 20
+  systemPrompt: default
+  maxTokens: 32768
+  ctxSize: 65536
+
+# Mistral-Small-4-119B-2603 (mistral3, 119B/~6B MoE). Card (huggingface.co/mistralai/
+# Mistral-Small-4-119B-2603): "Temperature: 0.7 for reasoning_effort=high; 0.0-0.7 for
+# none". Reasoning is on via chatTemplateKwargs reasoning_effort: high (template var,
+# "none" | "high", default none).
+- id: mistral-small-4-119b-omlx
+  artifact: mlx-community/Mistral-Small-4-119B-2603-4bit
+  runtime: omlx
+  quant: 4bit
+  temperature: 0.7
+  chatTemplateKwargs:
+    reasoning_effort: high
+  systemPrompt: default
+  maxTokens: 32768
