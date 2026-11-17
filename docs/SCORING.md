@@ -66,7 +66,7 @@ A challenge the row never ran, ran only at a stale content hash, or only interru
 
 The webapp ranks by this score. An incomplete row also shows its **running score**, passed over the items of the challenges it ran, muted and with its completeness (`86% · 5/11`), so a higher displayed figure can sit below a lower one.
 
-**Scope.** The webapp's scoring controls recompute every row from its cells: the dataset (when the report emits more than one), core or stretch items only (shown only when the challenge set tags items with a scope; it does not, so the control is hidden), or a subset of challenges. The formula is the same over the selected cells and items; a challenge with no items in scope drops out.
+**Scope.** The webapp's scoring controls recompute every row from its cells: the dataset (when the report emits more than one), core or stretch items only (shown only when the challenge set tags items with a scope; it does not, so the control is hidden), or a subset of challenges. The formula is the same over the selected cells and items; a challenge with no items in scope drops out. When the plotted points change, the scatter slides each point (matched across datasets by model, runtime and quant) and the axes to their new positions; points without a match fade in.
 
 ### Uncertainty and statistical ties
 

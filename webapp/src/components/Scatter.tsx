@@ -8,6 +8,7 @@ import { glyphDrawParams, starPath } from "./ScatterGlyph";
 import { Z95 } from "../lib/stats";
 import { fitXDomain, fitYDomain, paretoFrontier, placeLabels, pointLabels, type AxisDomain } from "../lib/scatter-layout";
 import { type Action, type GestureEvent, type GestureState, IDLE, step } from "../lib/gesture";
+import { type Frame, useTweenedFrame } from "../lib/tween";
 import { clampViewport, formatViewport, linTicks, logTicks, panViewport, type Viewport, zoomViewport } from "../lib/viewport";
 
 interface Props {
@@ -51,7 +52,22 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
   // change; a zoomed view is clamped into it.
   const fitX = useMemo(() => fitXDomain(points.map((p) => p.x)), [points]);
   const fitY = useMemo(() => fitYDomain(points.map((p) => p.y)), [points]);
-  const full = useMemo<Viewport>(() => ({ x0: fitX.min, x1: fitX.max, y0: fitY.min, y1: fitY.max }), [fitX, fitY]);
+  // A change of points slides the plot from what is on screen; everything below
+  // positions from `shown`. Zoom, pan and hover don't touch `points`, so stay instant.
+  const target = useMemo<Frame>(
+    () => ({ points: points.map((p) => ({ ...p, alpha: 1 })), x: fitX, y: fitY }),
+    [points, fitX, fitY],
+  );
+  const shown = useTweenedFrame(target);
+  const shownX = useMemo<AxisDomain>(
+    () => (shown === target ? fitX : { ...shown.x, ticks: logTicks(shown.x.min, shown.x.max) }),
+    [shown, target, fitX],
+  );
+  const shownY = useMemo<AxisDomain>(
+    () => (shown === target ? fitY : { ...shown.y, ticks: linTicks(shown.y.min, shown.y.max) }),
+    [shown, target, fitY],
+  );
+  const full = useMemo<Viewport>(() => ({ x0: shownX.min, x1: shownX.max, y0: shownY.min, y1: shownY.max }), [shownX, shownY]);
 
   // The live view follows gestures frame by frame; the URL gets it debounced.
   const [live, setLive] = useState<Viewport | undefined>(viewport);
@@ -65,16 +81,19 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
   }, [vpKey]);
   const vp = useMemo(() => (live === undefined ? undefined : clampViewport(live, full)), [live, full]);
   const xDomain = useMemo<AxisDomain>(
-    () => (vp === undefined ? fitX : { min: vp.x0, max: vp.x1, ticks: logTicks(vp.x0, vp.x1) }),
-    [vp, fitX],
+    () => (vp === undefined ? shownX : { min: vp.x0, max: vp.x1, ticks: logTicks(vp.x0, vp.x1) }),
+    [vp, shownX],
   );
   const yDomain = useMemo<AxisDomain>(
-    () => (vp === undefined ? fitY : { min: vp.y0, max: vp.y1, ticks: linTicks(vp.y0, vp.y1) }),
-    [vp, fitY],
+    () => (vp === undefined ? shownY : { min: vp.y0, max: vp.y1, ticks: linTicks(vp.y0, vp.y1) }),
+    [vp, shownY],
   );
   const yStep = (yDomain.ticks[1] ?? 1) - (yDomain.ticks[0] ?? 0);
-  const frontier = useMemo(() => paretoFrontier(points), [points]);
-  const onFrontier = useMemo(() => new Set(frontier.map((p) => p.id)), [frontier]);
+  const onFrontier = useMemo(() => new Set(paretoFrontier(points).map((p) => p.id)), [points]);
+  const frontier = useMemo(
+    () => shown.points.filter((p) => onFrontier.has(p.id)).sort((a, b) => a.x - b.x),
+    [shown, onFrontier],
+  );
   const labelText = useMemo(() => pointLabels(points), [points]);
   const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
   // The model of the hovered row, if any — drives the SECONDARY model-level
@@ -203,7 +222,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
   // sorted by x (tokens) ascending.
   const trajectories = useMemo(() => {
     const byModel = new Map<string, ScatterPoint[]>();
-    for (const d of points) {
+    for (const d of shown.points) {
       const arr = byModel.get(d.model);
       if (arr) arr.push(d);
       else byModel.set(d.model, [d]);
@@ -213,16 +232,16 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
       family: list[0]!.family,
       pts: list.slice().sort((a, b) => a.x - b.x),
     }));
-  }, [points]);
+  }, [shown]);
 
   const inView = useMemo(
     () =>
-      points.filter((d) => {
+      shown.points.filter((d) => {
         const x = xScale(d.x);
         const y = yScale(d.y);
         return x >= M.left && x <= M.left + IW && y >= M.top && y <= M.top + IH;
       }),
-    [points, xScale, yScale, IW, IH],
+    [shown, xScale, yScale, IW, IH],
   );
 
   const labels = useMemo(
@@ -240,6 +259,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
       ),
     [inView, labelText, xScale, yScale, tpsDomain, onFrontier, selected, IW, IH],
   );
+  const alpha = useMemo(() => new Map(shown.points.map((p) => [p.id, p.alpha])), [shown]);
 
   if (points.length === 0) {
     return (
@@ -249,7 +269,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
     );
   }
 
-  const sel = selected === undefined ? undefined : points.find((p) => p.id === selected);
+  const sel = selected === undefined ? undefined : shown.points.find((p) => p.id === selected);
 
   return (
     <div
@@ -316,7 +336,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
               plot or a ranking row): always-on whiskers span most of a zoomed
               y-axis and bury the plot. Clamped to the plotted range. */}
           {(() => {
-            const d = points.find((p) => p.id === hovered);
+            const d = shown.points.find((p) => p.id === hovered);
             if (d === undefined || d.ySE === null || d.ySE === 0) return null;
             const clampY = (v: number) => Math.max(yDomain.min, Math.min(yDomain.max, v));
             const x = xScale(d.x);
@@ -342,7 +362,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
           {/* Star-shaped dots, fill-opacity encodes generation tps. Frontier
               stars draw last (on top); off-frontier stars are desaturated
               rather than faded so the TPS→opacity channel stays intact. */}
-          {[...points]
+          {[...shown.points]
             .sort((a, b) => Number(onFrontier.has(a.id)) - Number(onFrontier.has(b.id)) || Number(a.id === selected) - Number(b.id === selected))
             .map((d) => {
             const { outerR, innerR, points: n, fill, fillOpacity: baseOpacity } =
@@ -363,6 +383,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
                 d={starPath(xScale(d.x), yScale(d.y), n, outerR, innerR)}
                 fill={fill}
                 fillOpacity={fillOpacity}
+                opacity={d.alpha < 1 ? d.alpha : undefined}
                 onMouseEnter={(ev) => {
                   onHover(d.id);
                   const rect = wrapRef.current?.getBoundingClientRect();
@@ -397,6 +418,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
               x={l.x}
               y={l.y + 4}
               textAnchor={l.anchor}
+              opacity={(alpha.get(l.key) ?? 1) < 1 ? alpha.get(l.key) : undefined}
             >
               {l.text}
             </text>
