@@ -49,7 +49,11 @@ export const resolveLlamacppGguf = (
     const cacheDirName = `models--${artifact.replace(/\//g, "--")}`;
     const modelCache = path.join(homedir(), ".cache", "huggingface", "hub", cacheDirName);
     const quantRe = new RegExp(`(?:[-.])${escapeRegex(quant)}(?:\\.gguf|-\\d)`, "i");
-    const candidates = walkGgufs(modelCache).filter((p) => quantRe.test(path.basename(p)));
+    // Only snapshots/ holds real files; `.no_exist/` holds empty markers hf
+    // writes for missing filenames, which would otherwise match the quant.
+    const candidates = walkGgufs(path.join(modelCache, "snapshots")).filter((p) =>
+      quantRe.test(path.basename(p)),
+    );
     candidates.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
     return candidates[0];
   }).pipe(
