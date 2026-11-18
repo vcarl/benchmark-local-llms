@@ -16,38 +16,37 @@
   container-name: shiftFrame;
 }
 
-/* The canvas is wider than the frame so the shift can sweep one full lane of
-   content out of view, swapping the scatter lane for the details lane while the
-   ranking lane stays fully on screen.
-     scatter  : 50/150 of canvas  → 50% of frame
-     ranking  : 50/150 of canvas  → 50% of frame  (fully visible after shift)
-     details  : 50/150 of canvas  → 50% of frame
-   Shift is -50/150 of canvas (= -50% of frame), so the visible window moves
-   from canvas[0..100%] to canvas[50%..150%] of the frame's width: ranking lane
-   becomes flush to the left edge and details fills the right half. */
+/* Four lanes on a canvas wider than the frame: scatter | filter rail | list |
+   details. The scatter and details lanes are each half the frame minus half
+   the collapsed rail (--s); the list takes what is left of the frame. Opening
+   the rail widens it in place, so the list loses width on its right (its stat
+   columns scroll off) while the scatter keeps its size. Opening the drilldown
+   shifts the canvas left by one scatter lane: rail, list and details fill the
+   frame. */
 .shiftCanvas {
+  --rail-closed: 44px;
+  --rail: var(--rail-closed);
+  --s: calc(50cqw - var(--rail-closed) / 2);
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-columns: 5fr 5fr 5fr;
-  grid-template-areas: "scatter ranking details";
-  width: calc(100% * 15 / 10);
+  grid-template-columns: var(--s) var(--rail) minmax(0, 1fr) var(--s);
+  grid-template-areas: "scatter rail list details";
+  width: calc(100cqw + var(--s));
   --shift-x: 0px;
   transform: translateX(var(--shift-x));
-  transition: transform 0.267s ease-out;
+  transition: transform 0.267s ease-out, grid-template-columns 0.2s ease-out;
   will-change: transform;
 
-  &[data-shifted="true"] {
-    --shift-x: calc(-5 / 15 * 100%);
-  }
+  &[data-rail-open="true"] { --rail: 340px; }
+  &[data-shifted="true"] { --shift-x: calc(-1 * var(--s)); }
 }
 
-/* Scatter lane fills its grid row and does NOT scroll itself: the plot must be
-   free to grow/shrink to the lane height while the inner bottom pane carries its
-   own overflow guard. */
+/* Scatter lane fills its grid row and does NOT scroll itself. */
 .regionScatter { grid-area: scatter; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .regionScatter > * { flex: 1 1 auto; min-height: 0; }
-.regionRanking { grid-area: ranking; overflow-y: auto; min-width: 0; z-index: var(--z-raised); }
+.regionRail { grid-area: rail; min-width: 0; min-height: 0; z-index: var(--z-raised); }
+.regionList { grid-area: list; overflow: hidden; min-width: 0; min-height: 0; z-index: var(--z-raised); background: var(--surface); }
 .regionDetails { grid-area: details; overflow-y: auto; min-width: 0; }
 
 /* Narrow frame: container query, not viewport media query.
@@ -60,10 +59,11 @@
   .shiftFrame { overflow: visible; min-height: 0; margin: 0; border: none; }
   .shiftCanvas {
     width: 100%;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "scatter"
-      "ranking";
+      "rail"
+      "list";
     --shift-x: 0px;
     /* The canvas never translates in narrow mode (the details pane slides via its
        own transform). Drop the transform/will-change here so the canvas does NOT
@@ -73,6 +73,7 @@
        click to the backdrop's close handler. */
     transform: none;
     will-change: auto;
+    height: auto;
   }
   /* The base `.shiftCanvas[data-shifted="true"]` shift rule is 0-2-0; reset it at
      matching specificity so an open drilldown doesn't translate the stacked canvas
@@ -80,8 +81,9 @@
   .shiftCanvas[data-shifted="true"] { --shift-x: 0px; }
   /* Stacked lanes have no fixed row height here, so the height:100% plot would
      collapse — pin the scatter lane to a usable viewport-relative height. */
-  .regionScatter { height: 70vh; min-height: 360px; }
-  .regionRanking { z-index: auto; }
+  .regionScatter { height: auto; }
+  .regionRail, .regionList { z-index: auto; }
+  .regionList { overflow: visible; }
   .regionDetails {
     position: fixed;
     top: 0; right: 0; bottom: 0;
@@ -129,7 +131,6 @@
 
 /* Phone breakpoint — keep 600px in sync across modules */
 @media (max-width: 600px) {
-  .regionScatter { height: 40vh; min-height: 260px; }
   .regionDetails { width: 100vw; border-left: none; }
 }
 

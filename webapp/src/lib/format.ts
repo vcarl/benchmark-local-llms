@@ -10,3 +10,7 @@ export const formatWallTime = (s: number): string => {
   const m = Math.round((s - h * 3600) / 60);
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
+
+// An item count that may be fractional (resampled items count their pass
+// fraction): whole numbers print as-is, others to one decimal.
+export const formatCount = (n: number): string => String(Number(n.toFixed(1)));

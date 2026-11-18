@@ -3,13 +3,15 @@ import styles from "./ShiftFrame.module.css";
 
 interface Props {
   shifted: boolean;
+  railOpen: boolean;
   onClose: () => void;
   scatter: ReactNode;
-  ranking: ReactNode;
+  rail: ReactNode;
+  list: ReactNode;
   details: ReactNode;
 }
 
-export function ShiftFrame({ shifted, onClose, scatter, ranking, details }: Props) {
+export function ShiftFrame({ shifted, railOpen, onClose, scatter, rail, list, details }: Props) {
   useEffect(() => {
     if (!shifted) return;
     const onKey = (e: KeyboardEvent) => {
@@ -21,19 +23,13 @@ export function ShiftFrame({ shifted, onClose, scatter, ranking, details }: Prop
 
   return (
     <div className={styles.shiftFrame}>
-      {shifted && (
-        <div className={styles.sheetBackdrop} onClick={onClose} aria-hidden="true" />
-      )}
-      <div className={styles.shiftCanvas} data-shifted={shifted}>
+      {shifted && <div className={styles.sheetBackdrop} onClick={onClose} aria-hidden="true" />}
+      <div className={styles.shiftCanvas} data-shifted={shifted} data-rail-open={railOpen}>
         <div className={styles.regionScatter}>{scatter}</div>
-        <div className={styles.regionRanking}>{ranking}</div>
+        <div className={styles.regionRail}>{rail}</div>
+        <div className={styles.regionList}>{list}</div>
         <div className={styles.regionDetails}>
-          <button
-            type="button"
-            className={styles.sheetClose}
-            onClick={onClose}
-            aria-label="Close details"
-          >
+          <button type="button" className={styles.sheetClose} onClick={onClose} aria-label="Close details">
             ×
           </button>
           {details}

@@ -1,5 +1,5 @@
-import { shortModelName } from "./data";
-import type { ScatterPoint } from "./pipeline";
+import { shortModelName } from "./artifact";
+import type { ScatterPoint } from "./encoding";
 
 // ─── Axis domains (fit to the displayed points) ──────────────────────────────
 
@@ -86,7 +86,7 @@ export const pointLabels = (points: ScatterPoint[]): Map<string, string> => {
   return new Map(points.map((p) => {
     let k = 0;
     while (k < 3 && points.some((q) => q !== p && at(q, k) === at(p, k))) k += 1;
-    return [p.config_hash, at(p, k)];
+    return [p.id, at(p, k)];
   }));
 };
 

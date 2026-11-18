@@ -1,5 +1,4 @@
-/* Page shell: header / frame stacked vertically. Filters now live in the
-   left lane of ShiftFrame, below the scatter chart. */
+/* Page shell: header / frame stacked vertically. */
 .app {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -44,13 +43,11 @@
 }
 .overviewButton:hover { background: var(--surface-4); }
 
-/* Scatter lane: plot fills the top (1fr, min-height:0 so it can shrink), with a
-   single bottom pane holding the filter controls + legend pinned below it. The
-   bottom pane is height-capped and scrolls so a tall Challenge pill row never
-   eats the whole lane. */
+/* Scatter lane: plot fills the top (1fr, min-height:0 so it can shrink), the
+   legend pinned below it. */
 .scatterLane {
   display: grid;
-  grid-template-rows: 2fr 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
 }
@@ -66,8 +63,22 @@
   overflow-y: auto;
 }
 
+/* List lane: the preset chips sit above the list and scroll sideways in their
+   own strip; the list scrolls below them. */
+.listLane { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+.listScroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* Narrow frame: lanes stack, so the plot needs its own height. */
+@media (max-width: 899px) {
+  .app { height: auto; min-height: 100dvh; }
+  .listLane { height: auto; }
+  .listScroll { overflow-x: auto; overflow-y: visible; }
+  .scatterPlotRegion { height: 60vh; min-height: 300px; }
+}
+
 /* Phone breakpoint — keep 600px in sync across modules */
 @media (max-width: 600px) {
   .appHeader { flex-wrap: wrap; gap: var(--space-4); padding: var(--space-5) var(--space-6); }
   .appHeaderActions { flex-wrap: wrap; gap: var(--space-4); width: 100%; }
+  .scatterPlotRegion { height: 45vh; min-height: 260px; }
 }

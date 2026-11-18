@@ -1,0 +1,403 @@
+<title>Efficiency Formula Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: instrument bench. Sticky control rack on the left, readouts stacked on the right; one column on phones. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --ink: #141821; --muted: #5a6474; --line: #dbe0e8; --soft: #eef1f6;
+  --accent: #2550c0; --accent-ink: #ffffff; --b: #b4520f; --good: #1d7a45; --warn: #9a6a00;
+  --font: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1116; --panel: #161a21; --ink: #e5e9f0; --muted: #98a2b2; --line: #2a313c; --soft: #1d222b;
+  --accent: #86a4ff; --accent-ink: #0e1116; --b: #f59a52; --good: #5cc98a; --warn: #e2b44a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1116; --panel: #161a21; --ink: #e5e9f0; --muted: #98a2b2; --line: #2a313c; --soft: #1d222b;
+  --accent: #86a4ff; --accent-ink: #0e1116; --b: #f59a52; --good: #5cc98a; --warn: #e2b44a; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+header h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 72ch; }
+.ctx { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); }
+.ctx b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.hw { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--warn); padding: 6px 10px; background: var(--soft); border-radius: 0 6px 6px 0; max-width: 90ch; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.rack { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; max-height: calc(100vh - 24px); overflow: auto; }
+@media (max-width: 900px) { .rack { position: static; max-height: none; } }
+.out { display: grid; gap: 16px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.group { display: grid; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+button, select { font: inherit; color: var(--ink); }
+.chip { border: 1px solid var(--line); background: var(--soft); border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 4px; }
+.seg button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 4px; cursor: pointer; font-size: 12.5px; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sl { display: grid; grid-template-columns: 96px minmax(0, 1fr) 44px; align-items: center; gap: 8px; font-size: 13px; }
+.sl output { font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 13px; }
+.hint { font-size: 12px; color: var(--muted); margin: 0; }
+.formula { font-family: var(--mono); font-size: 13px; background: var(--soft); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+.formula .where { display: block; white-space: normal; font-family: var(--font); color: var(--muted); font-size: 12px; margin-top: 6px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.sens { display: grid; grid-template-columns: 104px minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; align-items: center; font-size: 13px; }
+.sens .h { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.bar { position: relative; height: 18px; background: var(--soft); border-radius: 3px; }
+.bar i { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
+.bar.div::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.bar span { position: absolute; right: 4px; top: 0; font-family: var(--mono); font-size: 11px; line-height: 18px; color: var(--ink); }
+.bar.div span { right: auto; left: 4px; }
+svg text { fill: var(--muted); font-family: var(--mono); font-size: 10px; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--panel); }
+td.nm, th.nm { text-align: left; white-space: normal; min-width: 180px; max-width: 320px; }
+td.nm small { display: block; color: var(--muted); font-size: 11px; }
+td.e { font-family: var(--mono); font-weight: 600; color: var(--accent); }
+tr.inc td { color: var(--muted); }
+tr.inc td.nm { color: var(--ink); }
+.pill { display: inline-block; font-size: 10.5px; border-radius: 999px; padding: 0 6px; border: 1px solid currentColor; margin-left: 4px; vertical-align: 1px; }
+.pill.ok { color: var(--good); }
+.pill.no { color: var(--warn); }
+.up { color: var(--good); } .dn { color: var(--b); }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.btn.ghost { background: transparent; color: var(--accent); }
+textarea { width: 100%; box-sizing: border-box; min-height: 300px; font-family: var(--mono); font-size: 12px; background: var(--soft); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
+.cmp { font-size: 13px; display: grid; gap: 6px; }
+.cmp .b { color: var(--b); font-weight: 600; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Efficiency Formula Lab</h1>
+    <p>Try efficiency functions on the real <code>main</code> report rows. Watch what drives the ranking, then copy the configuration as a spec.</p>
+  </header>
+  <div class="ctx" id="ctx"></div>
+  <div class="hw"><b>Hardware note.</b> Wall time and generation tok/s depend on the machine and runtime. Every row here ran on one machine (<span id="hwid"></span>), so they compare fairly today. Once third-party submissions from other hardware arrive, any formula that uses wall time or tok/s will partly rank hardware. Tokens per item, score and peak memory (for a given quant) carry across machines.</div>
+
+  <div class="grid">
+    <aside class="rack" aria-label="Function controls">
+      <div class="group"><span class="lbl">Starting points</span><div class="chips" id="presets"></div></div>
+      <div class="group"><span class="lbl">Function family</span><div class="seg" id="fams"></div></div>
+      <div class="group" id="famctl"></div>
+      <div class="group">
+        <span class="lbl">Rows</span>
+        <div class="row">
+          <label for="basis">Score</label>
+          <select id="basis"><option value="s">coverage-adjusted (passRate)</option><option value="run">running (scored cells only)</option></select>
+        </div>
+        <div class="row"><label><input type="checkbox" id="pool"> Complete rows only (25)</label></div>
+        <p class="hint">Normalization references (medians, min/max, percentiles) come from the rows in play.</p>
+      </div>
+      <div class="group">
+        <span class="lbl">Compare</span>
+        <div class="row"><button class="btn ghost" id="pin">Pin as B</button><button class="btn ghost" id="unpin" hidden>Clear B</button></div>
+        <p class="hint">Pin freezes the current function as B. Keep adjusting A to see rank shifts.</p>
+      </div>
+    </aside>
+
+    <main class="out">
+      <section class="card"><h2>Formula A</h2><div class="formula" id="formula"></div><div class="cmp" id="cmp" hidden></div></section>
+      <div class="two">
+        <section class="card">
+          <h2>What drives the rank</h2>
+          <div class="sens" id="sens"></div>
+          <p class="hint" id="sensnote" style="margin-top:8px"></p>
+        </section>
+        <section class="card">
+          <h2>Scatter</h2>
+          <div class="row" style="margin-bottom:6px">
+            <label for="ax">x</label><select id="ax"></select>
+            <label for="ay">y</label><select id="ay"></select>
+          </div>
+          <div id="plot"></div>
+          <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>complete</span><span><i class="dot" style="border:1.5px solid var(--muted)"></i>incomplete</span><span><i class="dot" style="background:var(--b)"></i>top 10 by A</span></div>
+        </section>
+      </div>
+      <section class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Ranking</h2><button class="btn ghost" id="more">Show all rows</button></div>
+        <div class="tw"><table id="tbl"></table></div>
+      </section>
+      <section class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Instruction</h2><button class="btn" id="copy">Copy instruction</button></div>
+        <textarea id="spec" readonly aria-label="Specification text"></textarea>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+/*CORE*/
+const ROWS = /*DATA*/;
+const { F, COSTS } = Core;
+const W = (s, wall, tps, tok, mem) => ({ s, wall, tps, tok, mem });
+const DEF = () => ({ fam: "geo", basis: "s", pool: "all",
+  geo: { norm: "logmm", w: W(1, 0.25, 0, 0.25, 0.25) },
+  add: { method: "z", w: W(0.6, 0.1, 0.1, 0.1, 0.1) },
+  cpc: { unit: "gbh", p: 1, floor: 0.3, blend: { tok: 0.5, wall: 0.5, mem: 0.5 } },
+  gate: { mode: "gate", cost: "tok", T: 0.7, lambda: 0.1 },
+  pareto: { axes: { s: true, wall: false, tps: false, tok: true, mem: true } } });
+const PRESETS = {
+  "Current (rejected)": (c) => { c.fam = "geo"; c.geo = { norm: "med", w: W(1, 0, 0, 0.25, 0) }; },
+  "Accuracy-first": (c) => { c.fam = "geo"; c.geo = { norm: "logmm", w: W(1, 0.1, 0, 0.15, 0.1) }; },
+  "Balanced": (c) => { c.fam = "geo"; c.geo = { norm: "logmm", w: W(1, 0.25, 0, 0.25, 0.25) }; },
+  "Laptop-friendly": (c) => { c.fam = "geo"; c.geo = { norm: "logmm", w: W(1, 0.1, 0, 0.2, 0.75) }; },
+  "Throughput": (c) => { c.fam = "geo"; c.geo = { norm: "logmm", w: W(1, 0, 0.5, 0.25, 0) }; },
+  "Correct per GB·hour": (c) => { c.fam = "cpc"; c.cpc = { ...c.cpc, unit: "gbh", p: 1, floor: 0.3 }; },
+};
+const FAMS = { geo: "Geometric", add: "Additive", cpc: "Cost per correct", gate: "Score-gated", pareto: "Pareto" };
+let A = DEF(), B = null, preset = "Balanced", showAll = false;
+PRESETS[preset](A);
+
+const $ = (id) => document.getElementById(id);
+const fmt = (x, d = 2) => (x === null || x === undefined ? "—" : Math.abs(x) >= 1000 ? Math.round(x).toLocaleString("en-US") : (+x).toFixed(d));
+const pct = (x) => (x === null ? "—" : (100 * x).toFixed(1) + "%");
+const sig = (x) => (x === null ? "—" : Math.abs(x) >= 100 ? Math.round(x).toLocaleString("en-US") : Math.abs(x) >= 1 ? x.toFixed(2) : x.toPrecision(3));
+
+// ---------- context ----------
+const withCost = ROWS.filter((r) => r.tpi !== null);
+const hws = [...new Set(ROWS.map((r) => r.hw))];
+$("hwid").textContent = hws.join(", ");
+$("ctx").innerHTML = [["rows", ROWS.length], ["complete (11/11 challenges)", ROWS.filter((r) => r.ok).length], ["with cost data", withCost.length], ["machines", hws.length]]
+  .map(([k, v]) => `<span><b>${v}</b> ${k}</span>`).join("") + `<span>no cost: <b>${ROWS.filter((r) => r.tpi === null).map((r) => r.n).join(", ")}</b></span>`;
+
+// ---------- controls ----------
+const slider = (label, obj, key, min, max, step, id) =>
+  `<div class="sl"><label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${obj[key]}" data-path="${id}"><output id="${id}-o">${obj[key]}</output></div>`;
+const sel = (id, label, opts, v) => `<div class="row"><label for="${id}">${label}</label><select id="${id}">${Object.entries(opts).map(([k, t]) => `<option value="${k}"${k === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>`;
+const bind = {}; // id -> setter
+function famControls() {
+  const c = A, h = [];
+  for (const k in bind) delete bind[k];
+  const S = (label, obj, key, min, max, step) => { const id = "c-" + c.fam + "-" + key + "-" + label.replace(/\W/g, ""); bind[id] = (v) => (obj[key] = +v); h.push(slider(label, obj, key, min, max, step, id)); };
+  if (c.fam === "geo") {
+    h.push(sel("geo-norm", "Normalize costs", { logmm: "log min–max", pct: "rank percentile", med: "ratio to median" }, c.geo.norm));
+    bind["geo-norm"] = (v) => (c.geo.norm = v);
+    h.push(`<span class="lbl">Exponents</span>`);
+    for (const f of F) S(f.label, c.geo.w, f.id, 0, 2, 0.05);
+    h.push(`<p class="hint">Only exponent ratios change the rank. Score stays raw (it is already 0–1).</p>`);
+  } else if (c.fam === "add") {
+    h.push(sel("add-m", "Scale", { z: "z-score (log for costs)", pct: "rank percentile" }, c.add.method));
+    bind["add-m"] = (v) => (c.add.method = v);
+    h.push(`<span class="lbl">Weights (normalized to sum 1)</span>`);
+    for (const f of F) S(f.label, c.add.w, f.id, 0, 1, 0.05);
+  } else if (c.fam === "cpc") {
+    h.push(sel("cpc-u", "Correct per", { gbh: "GB·hour", mtok: "million tokens", min: "minute of wall time", blend: "custom blend" }, c.cpc.unit));
+    bind["cpc-u"] = (v) => (c.cpc.unit = v);
+    if (c.cpc.unit === "blend") { S("tokens exp", c.cpc.blend, "tok", 0, 2, 0.05); S("wall exp", c.cpc.blend, "wall", 0, 2, 0.05); S("mem exp", c.cpc.blend, "mem", 0, 2, 0.05); }
+    S("score exp", c.cpc, "p", 0, 4, 0.1);
+    S("score floor", c.cpc, "floor", 0, 0.9, 0.01);
+    h.push(`<p class="hint">Rows below the floor get no efficiency. Score exponent above 1 favours accuracy over cost.</p>`);
+  } else if (c.fam === "gate") {
+    h.push(sel("gate-m", "Mode", { gate: "gate, then rank by cost", penalty: "score minus cost penalty" }, c.gate.mode));
+    bind["gate-m"] = (v) => (c.gate.mode = v);
+    h.push(sel("gate-c", "Cost", { tok: "tokens / item", wall: "wall s / item", mem: "peak memory", gbh: "GB·hour / item" }, c.gate.cost));
+    bind["gate-c"] = (v) => (c.gate.cost = v);
+    if (c.gate.mode === "gate") S("threshold", c.gate, "T", 0, 0.95, 0.01);
+    else S("λ per 10×", c.gate, "lambda", 0, 0.5, 0.01);
+  } else {
+    h.push(`<span class="lbl">Axes</span><div class="row">` + F.map((f) => `<label><input type="checkbox" id="pa-${f.id}"${c.pareto.axes[f.id] ? " checked" : ""}> ${f.label}</label>`).join("") + `</div>`);
+    for (const f of F) bind["pa-" + f.id] = (v, el) => (c.pareto.axes[f.id] = el.checked);
+    h.push(`<p class="hint">Efficiency = how many rows this row beats or ties on every chosen axis (strictly better on one). No parameters.</p>`);
+  }
+  $("famctl").innerHTML = h.join("");
+}
+$("famctl").addEventListener("input", (e) => {
+  const fn = bind[e.target.id]; if (!fn) return;
+  fn(e.target.value, e.target);
+  const o = $(e.target.id + "-o"); if (o) o.textContent = e.target.value;
+  preset = null;
+  if (e.target.tagName === "SELECT") famControls();
+  render();
+});
+$("presets").addEventListener("click", (e) => {
+  const p = e.target.dataset.p; if (!p) return;
+  const keep = { basis: A.basis, pool: A.pool };
+  A = { ...DEF(), ...keep }; PRESETS[p](A); preset = p; famControls(); render();
+});
+$("fams").addEventListener("click", (e) => { const f = e.target.dataset.f; if (!f) return; A.fam = f; preset = null; famControls(); render(); });
+$("basis").addEventListener("change", (e) => { A.basis = e.target.value; render(); });
+$("pool").addEventListener("change", (e) => { A.pool = e.target.checked ? "complete" : "all"; if (B) B.pool = A.pool; render(); });
+$("pin").addEventListener("click", () => { B = structuredClone(A); B.label = preset ?? FAMS[A.fam]; render(); });
+$("unpin").addEventListener("click", () => { B = null; render(); });
+$("more").addEventListener("click", () => { showAll = !showAll; render(); });
+$("copy").addEventListener("click", async () => {
+  const t = $("spec");
+  try { await navigator.clipboard.writeText(t.value); $("copy").textContent = "Copied"; }
+  catch { t.focus(); t.select(); $("copy").textContent = "Selected, press copy"; }
+  setTimeout(() => ($("copy").textContent = "Copy instruction"), 1800);
+});
+const AX = { e: "Efficiency A", rank: "Rank A", ...Object.fromEntries(F.map((f) => [f.id, f.label])) };
+for (const [id, v] of [["ax", "s"], ["ay", "e"]]) { $(id).innerHTML = Object.entries(AX).map(([k, t]) => `<option value="${k}">${t}</option>`).join(""); $(id).value = v; $(id).addEventListener("change", render); }
+
+// ---------- formula text ----------
+function formula(c, html) {
+  const sup = (x) => (html ? `<sup>${x}</sup>` : `^${x}`);
+  const S = c.basis === "run" ? "S_run" : "S";
+  const w = (o) => F.filter((f) => o[f.id] > 0);
+  if (c.fam === "geo") {
+    const nm = { logmm: "g = ε + (1−ε)·u, u = log-min–max of x over the pool, flipped for lower-is-better; ε = 0.05", pct: "g = mid-rank percentile of x in the pool, oriented so 1 is best", med: "g = (x / median)^±1 over the pool (+ for tok/s, − for costs)" }[c.geo.norm];
+    const terms = w(c.geo.w).map((f) => (f.id === "s" ? S : `g_${f.short}`) + sup(c.geo.w[f.id].toFixed(2)));
+    return { main: "E = " + (terms.join(" · ") || "1"), where: `${S} = score. ${nm}.` };
+  }
+  if (c.fam === "add") {
+    const ws = w(c.add.w), tot = ws.reduce((a, f) => a + c.add.w[f.id], 0) || 1;
+    const terms = ws.map((f) => `${(c.add.w[f.id] / tot).toFixed(3)}·${c.add.method === "z" ? "z" : "p"}_${f.short}`);
+    return { main: "E = " + (terms.join(" + ") || "0"), where: c.add.method === "z" ? "z = (t − mean) / sd over the pool, t = score for score and ln(x) for the rest, sign flipped for lower-is-better costs." : "p = mid-rank percentile in the pool, oriented so 1 is best." };
+  }
+  if (c.fam === "cpc") {
+    const b = c.cpc.blend;
+    const cost = c.cpc.unit === "blend" ? `(tokPerItem/1000)${sup(b.tok)} · (wallSecPerItem/60)${sup(b.wall)} · memGB${sup(b.mem)}` : COSTS[c.cpc.unit].text;
+    return { main: `E = ${S}${c.cpc.p !== 1 ? sup(c.cpc.p) : ""} / (${cost})`, where: `Correct answers per ${COSTS[c.cpc.unit].per}. Rows with ${S} < ${c.cpc.floor} get no efficiency.` };
+  }
+  if (c.fam === "gate") {
+    const cost = COSTS[c.gate.cost === "gbh" ? "gbh" : c.gate.cost].text;
+    return c.gate.mode === "gate"
+      ? { main: `E = median(C) / C   if ${S} ≥ ${c.gate.T}, else none`, where: `C = ${cost}; median over the pool. Above the gate, only cost orders rows.` }
+      : { main: `E = ${S} − ${c.gate.lambda} · log10(C / median(C))`, where: `C = ${cost}. Each 10× more cost than the median costs ${(c.gate.lambda * 100).toFixed(0)} points of score.` };
+  }
+  const ax = F.filter((f) => c.pareto.axes[f.id]).map((f) => f.short);
+  return { main: `E = #{rows j : i ≥ j on all of [${ax.join(", ")}], > on one}`, where: "Higher score and tok/s are better; lower wall, tokens and memory are better." };
+}
+
+// ---------- spec ----------
+function spec(c, res) {
+  const f = formula(c, false), lines = [];
+  const S = c.basis === "run" ? "running score (Σ passed / Σ items of scored cells)" : "score = row passRate, coverage-adjusted (Σ passed / Σ set items; a non-scored challenge counts as failed)";
+  lines.push(`EFFICIENCY SPEC (${preset ?? FAMS[c.fam]}; family: ${FAMS[c.fam]})`, "", "Formula:", "  " + f.main, "  " + f.where, "");
+  lines.push("Inputs, per row, over the row's scored cells that carry cost (same aggregation as scopeRow in webapp/src/lib/model.ts):",
+    `  S              = ${S}`,
+    "  tokPerItem     = Σ cell.cost.tokens / Σ cell.items",
+    "  wallSecPerItem = Σ cell.cost.wallSec / Σ cell.items   (per item, so partial coverage does not shrink it)",
+    "  tps            = unweighted mean of cell.cost.genTps",
+    "  memGB          = max of cell.cost.peakMemoryGb", "");
+  const used = c.fam === "geo" ? F.filter((x) => c.geo.w[x.id] > 0).map((x) => x.id) : c.fam === "add" ? F.filter((x) => c.add.w[x.id] > 0).map((x) => x.id) : c.fam === "pareto" ? F.filter((x) => c.pareto.axes[x.id]).map((x) => x.id) : null;
+  if (c.fam === "geo" || c.fam === "add" || c.fam === "gate") {
+    lines.push(`Reference pool: rows of the same dataset with cost data${c.pool === "complete" ? " that are complete (every set challenge scored)" : ""}.`);
+    const r = res.refs, ref = [];
+    for (const x of F) if (r[x.id]) {
+      const v = r[x.id];
+      ref.push(`  ${x.short}: ` + (v.median !== undefined ? `median = ${sig(v.median)}` : v.min !== undefined ? `min = ${sig(v.min)}, max = ${sig(v.max)}` : v.mean !== undefined ? `mean${v.log ? "(ln)" : ""} = ${v.mean.toFixed(4)}, sd = ${v.sd.toFixed(4)}` : `percentile over ${v.n} rows`));
+    }
+    if (r.costMedian !== undefined) ref.push(`  median(C) = ${sig(r.costMedian)}`);
+    if (ref.length) lines.push("Current reference values (n = " + res.pool.length + "). Either recompute these per report, or freeze them as constants so a row's efficiency does not move when other rows are added:", ...ref);
+    if (c.fam === "geo" && c.geo.norm === "pct" || c.fam === "add" && c.add.method === "pct") lines.push("  Percentiles cannot be frozen; efficiency is relative to the current pool by construction.");
+    lines.push("");
+  }
+  lines.push("Incomplete rows: " + (c.pool === "complete" ? "efficiency = null for any row missing a scored set challenge; they sort after rows with efficiency." : c.basis === "run" ? "included. S is the running score, so missing challenges do not lower it (they also do not count against it)." : "included. S is coverage-adjusted, so a missing challenge counts as failed and lowers efficiency."));
+  lines.push("Missing cost data: efficiency = null when the row has no scored cell with cost (tokens, wallSec, peakMemoryGb, genTps all required); such rows sort last. In the current main dataset this is " + ROWS.filter((r) => r.tpi === null).map((r) => r.n).join(", ") + ".");
+  if (c.fam === "cpc") lines.push(`Score floor: efficiency = null for S < ${c.cpc.floor}.`);
+  if (c.fam === "gate" && c.gate.mode === "gate") lines.push(`Gate: efficiency = null for S < ${c.gate.T}.`);
+  lines.push("Ties: order by S descending, then rowId.", "");
+  const hwDep = (used ?? (c.fam === "cpc" ? (c.cpc.unit === "mtok" ? ["tok"] : c.cpc.unit === "blend" ? ["tok", "wall", "mem"].filter((k) => c.cpc.blend[k] > 0) : ["wall"]) : [c.gate.cost === "gbh" ? "wall" : c.gate.cost])).some((k) => k === "wall" || k === "tps");
+  lines.push("Hardware: " + (hwDep ? "this formula uses wall time and/or tok/s, which depend on machine and runtime. All current rows share one machine. Before rows from other hardware are ranked together, either compute efficiency within a hardwareId only, or normalize wall/tps against a per-machine reference." : "this formula uses no wall time or tok/s, so it compares across machines (memory still depends on quant and runtime)."));
+  const sn = Core.sensitivity(res, c);
+  if (sn) lines.push("", `Check on current data (n = ${sn.n}): Spearman ρ of efficiency with ` + F.map((x, i) => `${x.short} ${sn.rho[i].toFixed(2)}`).join(", ") + ".");
+  return lines.join("\n");
+}
+
+// ---------- render ----------
+function render() {
+  $("presets").innerHTML = Object.keys(PRESETS).map((p) => `<button class="chip" data-p="${p}" aria-pressed="${p === preset}">${p}</button>`).join("");
+  $("fams").innerHTML = Object.entries(FAMS).map(([k, t]) => `<button data-f="${k}" aria-pressed="${k === A.fam}">${t}</button>`).join("");
+  $("pool").checked = A.pool === "complete";
+  $("basis").value = A.basis;
+  const res = Core.compute(ROWS, A), resB = B ? Core.compute(ROWS, { ...B, pool: A.pool }) : null;
+  const f = formula(A, true);
+  $("formula").innerHTML = f.main + `<span class="where">${f.where}</span>`;
+
+  // compare
+  $("pin").textContent = B ? "Re-pin as B" : "Pin as B";
+  $("unpin").hidden = !B;
+  $("cmp").hidden = !B;
+  if (B) {
+    const both = res.ranked.filter((x) => x.rank && resB.rankOf.get(x.r));
+    const rho = both.length > 2 ? Core.spearman(both.map((x) => x.rank), both.map((x) => resB.rankOf.get(x.r))) : null;
+    const mv = both.map((x) => ({ n: x.r.n, d: resB.rankOf.get(x.r) - x.rank })).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 4);
+    const top10 = new Set(resB.ranked.slice(0, 10).map((x) => x.r));
+    const fb = formula(B, true);
+    $("cmp").innerHTML = `<div style="margin-top:10px"><span class="b">B · ${B.label}</span>: <span class="formula" style="display:inline-block;padding:2px 6px">${fb.main}</span></div>
+      <div>Rank agreement A vs B: Spearman <b>${rho === null ? "—" : rho.toFixed(3)}</b> · top-10 overlap <b>${res.ranked.slice(0, 10).filter((x) => top10.has(x.r)).length}/10</b></div>
+      <div class="hint">Biggest movers (B rank → A rank): ${mv.map((m) => `${m.n} <span class="${m.d > 0 ? "up" : "dn"}">${m.d > 0 ? "▲" : "▼"}${Math.abs(m.d)}</span>`).join(" · ")}</div>`;
+  }
+
+  // sensitivity
+  const sn = Core.sensitivity(res, A);
+  if (!sn) { $("sens").innerHTML = `<p class="hint">Too few rows with efficiency to measure.</p>`; $("sensnote").textContent = ""; }
+  else {
+    const mx = Math.max(...sn.share.map(Math.abs), 0.01);
+    $("sens").innerHTML = `<span class="h">Input</span><span class="h">Spearman <span style="text-transform:none">ρ</span> with E</span><span class="h">Share of rank variance</span>` +
+      F.map((x, i) => {
+        const r = sn.rho[i], s = sn.share[i];
+        const rb = `<div class="bar div"><i style="left:${r < 0 ? 50 + 50 * r : 50}%;width:${50 * Math.abs(r)}%;${r < 0 ? "background:var(--b)" : ""}"></i><span>${r.toFixed(2)}</span></div>`;
+        const sb = `<div class="bar"><i style="left:0;width:${Math.max(0, (100 * s) / mx)}%"></i><span>${(100 * s).toFixed(0)}%</span></div>`;
+        return `<span>${x.label}</span>${rb}${sb}`;
+      }).join("");
+    $("sensnote").textContent = `n = ${sn.n}. ρ < 0 means more of the input lowers the rank. Shares are Pratt measures from a regression of rank(E) on the five input ranks; together they explain R² = ${(100 * sn.r2).toFixed(0)}% of rank variance. Wall time, tok/s and tokens are linked (wall ≈ tokens ÷ tok/s), so their shares split credit between them.`;
+  }
+
+  // scatter
+  const pts = res.ranked.filter((x) => x.e !== null);
+  const v = (x, k) => (k === "e" ? x.e : k === "rank" ? x.rank : Core.val(x.r, F.find((f) => f.id === k), A));
+  const kx = $("ax").value, ky = $("ay").value;
+  const isLog = (k, vals) => ["wall", "tok", "mem", "tps"].includes(k) || (k === "e" && Math.min(...vals) > 0 && Math.max(...vals) / Math.min(...vals) > 50);
+  const W_ = 520, H_ = 330, m = { l: 48, r: 12, t: 10, b: 30 };
+  const scale = (k, vals, a, b) => {
+    const lg = isLog(k, vals), t = (z) => (lg ? Math.log10(z) : z);
+    let lo = Math.min(...vals.map(t)), hi = Math.max(...vals.map(t)); if (lo === hi) { lo -= 1; hi += 1; }
+    const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
+    const s = (z) => a + ((t(z) - lo) / (hi - lo)) * (b - a);
+    const ticks = [];
+    if (lg) { for (let e = Math.ceil(lo); e <= hi; e++) ticks.push(10 ** e); if (ticks.length < 2) for (const e of [lo + (hi - lo) * 0.2, lo + (hi - lo) * 0.8]) ticks.push(+(10 ** e).toPrecision(1)); }
+    else { const st = niceStep((hi - lo) / 4); for (let z = Math.ceil(lo / st) * st; z <= hi; z += st) ticks.push(+z.toFixed(10)); }
+    return { s, ticks, lg };
+  };
+  function niceStep(r) { const p = 10 ** Math.floor(Math.log10(r)), q = r / p; return (q < 1.5 ? 1 : q < 3 ? 2 : q < 7 ? 5 : 10) * p; }
+  let svg = "";
+  if (pts.length) {
+    const xv = pts.map((x) => v(x, kx)), yv = pts.map((x) => v(x, ky));
+    const sx = scale(kx, xv, m.l, W_ - m.r), sy = scale(ky, yv, H_ - m.b, m.t);
+    const lab = (z) => (Math.abs(z) >= 1000 ? (z / 1000).toFixed(z % 1000 ? 1 : 0) + "k" : Math.abs(z) < 0.01 && z !== 0 ? z.toExponential(0) : +z.toPrecision(3));
+    svg += sx.ticks.map((t) => `<line x1="${sx.s(t)}" x2="${sx.s(t)}" y1="${m.t}" y2="${H_ - m.b}" stroke="var(--line)"/><text x="${sx.s(t)}" y="${H_ - m.b + 14}" text-anchor="middle">${lab(t)}</text>`).join("");
+    svg += sy.ticks.map((t) => `<line x1="${m.l}" x2="${W_ - m.r}" y1="${sy.s(t)}" y2="${sy.s(t)}" stroke="var(--line)"/><text x="${m.l - 6}" y="${sy.s(t) + 3}" text-anchor="end">${lab(t)}</text>`).join("");
+    svg += `<text x="${W_ - m.r}" y="${H_ - 4}" text-anchor="end">${AX[kx]}${sx.lg ? " (log)" : ""}</text><text x="${m.l + 4}" y="${m.t + 10}">${AX[ky]}${sy.lg ? " (log)" : ""}</text>`;
+    const order = [...pts].reverse();
+    svg += order.map((x) => {
+      const cx = sx.s(v(x, kx)).toFixed(1), cy = sy.s(v(x, ky)).toFixed(1), top = x.rank <= 10;
+      const style = top ? `fill="var(--b)" stroke="none"` : x.r.ok ? `fill="var(--accent)" fill-opacity="0.75" stroke="none"` : `fill="var(--panel)" stroke="var(--muted)" stroke-width="1.3"`;
+      return `<circle cx="${cx}" cy="${cy}" r="${top ? 4.5 : 3.6}" ${style}><title>#${x.rank} ${x.r.n}\nE ${sig(x.e)} · score ${pct(x.r.s)}</title></circle>`;
+    }).join("");
+  }
+  $("plot").innerHTML = `<svg viewBox="0 0 ${W_} ${H_}" width="100%" role="img" aria-label="Scatter of ${AX[ky]} against ${AX[kx]}">${svg}</svg>`;
+
+  // table
+  const list = showAll ? res.ranked : res.ranked.slice(0, 25);
+  $("more").textContent = showAll ? "Show top 25" : `Show all ${res.ranked.length} rows`;
+  $("tbl").innerHTML = `<thead><tr><th>#</th>${B ? "<th>B #</th>" : ""}<th class="nm">Model</th><th>Score</th><th>Running</th><th>Chal.</th><th>Tok/item</th><th>Wall s/item</th><th>Tok/s</th><th>Mem GB</th><th>E</th></tr></thead><tbody>` +
+    list.map((x) => {
+      const rb = B ? resB.rankOf.get(x.r) : null, d = rb && x.rank ? rb - x.rank : null;
+      return `<tr class="${x.r.ok ? "" : "inc"}"><td>${x.rank ?? "—"}</td>${B ? `<td>${rb ?? "—"}${d ? ` <span class="${d > 0 ? "up" : "dn"}">${d > 0 ? "▲" : "▼"}${Math.abs(d)}</span>` : ""}</td>` : ""}
+        <td class="nm">${x.r.n}<span class="pill ${x.r.ok ? "ok" : "no"}">${x.r.ok ? "complete" : "incomplete"}</span><small>${x.r.rt} · ${x.r.q ?? ""}</small></td>
+        <td>${pct(x.r.s)}</td><td>${pct(x.r.run)}</td><td>${x.r.ch.join("/")}</td><td>${fmt(x.r.tpi, 0)}</td><td>${fmt(x.r.wpi, 1)}</td><td>${fmt(x.r.tps, 1)}</td><td>${fmt(x.r.mem, 1)}</td>
+        <td class="e">${x.e === null ? `<span class="hint">${x.note}</span>` : sig(x.e)}</td></tr>`;
+    }).join("") + "</tbody>";
+
+  $("spec").value = spec(A, res);
+}
+famControls();
+render();
+</script>
