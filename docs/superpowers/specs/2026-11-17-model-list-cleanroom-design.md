@@ -145,23 +145,27 @@ Below 900 px the lanes stack: scatter, a one-line filter bar (the title, horizon
 
 One point per visible row: x = generation tokens, y = adjusted score, and the glyph encodes memory, wall time and speed from the scoped cells' `cost`. Hover is shared with the list by `rowId`.
 
-**Zoom and pan.** The full extent fits the visible points. A zoomed view (`vp`) is clamped into it, with a minimum span of 1 point on y and a 2% ratio on x; a view as large as the extent is no view. Zooming scales both axes about the pointer, x in log space. Axes re-tick for the view (log ticks refine to every digit, then to linear 1/2/5 steps inside a decade); points and glyphs keep their size, points outside are clipped, only points in view are labelled, and the list drops their rows (see Scope vs filter). The scatter itself keeps every filtered point, so its extent never depends on the view. The view follows a gesture frame by frame and goes to the URL 250 ms after it settles, replacing the history entry. A Reset zoom button shows while zoomed.
+**Zoom and pan.** The full extent fits the visible points. A zoomed view (`vp`) is clamped into it, with a minimum span of 1 point on y and a 2% ratio on x; a view as large as the extent is no view. Zooming scales both axes about the pointer, x in log space. Axes re-tick for the view (log ticks refine to every digit, then to linear 1/2/5 steps inside a decade); points and glyphs keep their size, points outside are clipped, only points in view are labelled, and the list drops their rows (see Scope vs filter). The scatter itself keeps every filtered point, so its extent never depends on the view. The view follows a gesture frame by frame and goes to the URL 250 ms after it settles, replacing the history entry. In the plot's top-right corner, quiet + / − / ⟲ buttons zoom in, zoom out and reset; − and ⟲ are disabled at the full extent, and the buttons' titles carry a one-line gesture hint.
 
-Gestures, recognized by a pure reducer (`lib/gesture.ts`) over pointer events:
+Input, recognized by a pure reducer (`lib/gesture.ts`) over pointer, wheel and key events:
 
 | Input | Action |
 |---|---|
-| click | select the point under it (after the 300 ms multi-click window, so a double-click never selects); on the background, clear the selection |
+| click on a point | select it at once |
+| click on the background | clear the selection, after the 250 ms double-click window so a zooming double-click keeps it |
 | double-click | zoom in ×2 at the pointer |
-| triple-click | zoom out ×2 |
 | drag | pan |
-| press on the second click and drag | continuous zoom about the press: up zooms in, down out |
+| shift-drag | draw a box; on release zoom to it (a box under 8 px on either side is dropped) |
+| trackpad pinch, ⌘/Ctrl-wheel | zoom about the pointer by e^(−deltaY/100), one event capped at e^0.5; lines count 16 px, pages 400 px |
+| wheel, two-finger scroll | pan: scrolling down or right shows what is below or right |
+| `+` / `=`, `-` (plot focused) | zoom ×2 in / out about the plot's center |
+| `0` | reset to the full extent |
+| arrow keys | move the view 40 px in the arrow's direction |
 | touch tap | select at once |
 | one-finger drag | pan |
 | pinch | zoom about the fingers' midpoint, panning with it |
-| three-finger vertical swipe | zoom: up in, down out |
 
-The plot sets `touch-action: none`, so it owns touch gestures inside its bounds; the page scrolls everywhere else.
+The plot is focusable and shows a focus ring when reached by keyboard. It sets `touch-action: none`, so it owns touch gestures inside its bounds, and it cancels wheel events over itself only; the page scrolls everywhere else.
 
 ## Drilldown
 

@@ -7,9 +7,9 @@ import { formatWallTime } from "../lib/format";
 import { glyphDrawParams, starPath } from "./ScatterGlyph";
 import { Z95 } from "../lib/stats";
 import { fitXDomain, fitYDomain, paretoFrontier, placeLabels, pointLabels, type AxisDomain } from "../lib/scatter-layout";
-import { type Action, type GestureEvent, type GestureState, IDLE, step } from "../lib/gesture";
+import { type Action, type GestureEvent, type GestureState, IDLE, type Rect, step } from "../lib/gesture";
 import { type Frame, useTweenedFrame } from "../lib/tween";
-import { clampViewport, formatViewport, linTicks, logTicks, panViewport, type Viewport, zoomViewport } from "../lib/viewport";
+import { clampViewport, formatViewport, linTicks, logTicks, panViewport, subViewport, type Viewport, zoomViewport } from "../lib/viewport";
 
 interface Props {
   points: ScatterPoint[];
@@ -28,6 +28,8 @@ interface Props {
 
 /** Quiet period after the last gesture step before the view goes to the URL. */
 const COMMIT_MS = 250;
+
+const HINT = "Pinch or ⌘/Ctrl-scroll to zoom · scroll or drag to pan · ⇧-drag to box-zoom · double-click to zoom in";
 
 const M = { top: 20, right: 24, bottom: 50, left: 60 };
 
@@ -138,8 +140,16 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
     clearTimeout(timer.current);
     clearTimeout(commitTimer.current);
   }, []);
-  const geom = useRef({ IW, IH, full });
-  geom.current = { IW, IH, full };
+  const geom = useRef({ IW, IH, full, empty: points.length === 0 });
+  geom.current = { IW, IH, full, empty: points.length === 0 };
+  const [box, setBox] = useState<Rect | null>(null);
+
+  const resetZoom = useCallback(() => {
+    liveRef.current = undefined;
+    setLive(undefined);
+    clearTimeout(commitTimer.current);
+    onViewport(undefined);
+  }, [onViewport]);
 
   const apply = useCallback(
     (actions: Action[]) => {
@@ -153,26 +163,33 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
           commit();
           continue;
         }
+        if (a.kind === "box") {
+          setBox(a.rect);
+          continue;
+        }
+        if (a.kind === "reset") {
+          resetZoom();
+          continue;
+        }
         const cur = liveRef.current === undefined ? f : (clampViewport(liveRef.current, f) ?? f);
+        const u = (x: number) => Math.min(1, Math.max(0, (x - M.left) / iw));
+        const v = (y: number) => Math.min(1, Math.max(0, 1 - (y - M.top) / ih));
         const next =
           a.kind === "pan"
             ? panViewport(cur, -a.dx / iw, a.dy / ih)
-            : zoomViewport(
-                cur,
-                a.factor,
-                Math.min(1, Math.max(0, (a.x - M.left) / iw)),
-                Math.min(1, Math.max(0, 1 - (a.y - M.top) / ih)),
-              );
+            : a.kind === "zoomto"
+              ? subViewport(cur, u(a.rect.x0), u(a.rect.x1), v(a.rect.y1), v(a.rect.y0))
+              : zoomViewport(cur, a.factor, u(a.x), v(a.y));
         liveRef.current = clampViewport(next, f);
         commit();
       }
       setLive(liveRef.current);
     },
-    [onTap, commit],
+    [onTap, commit, resetZoom],
   );
 
   const feed = useCallback(
-    (e: GestureEvent) => {
+    (e: GestureEvent): Action[] => {
       const [next, actions] = step(gesture.current, e);
       gesture.current = next;
       clearTimeout(timer.current);
@@ -181,6 +198,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
         timer.current = setTimeout(() => feed({ type: "timeout", t: at }), Math.max(0, at - performance.now()));
       }
       if (actions.length > 0) apply(actions);
+      return actions;
     },
     [apply],
   );
@@ -201,15 +219,39 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
       y: e.clientY - rect.top,
       t: performance.now(),
       touch: e.pointerType !== "mouse",
+      shift: e.shiftKey,
       ...(target === undefined ? {} : { target }),
     });
   };
 
-  const resetZoom = () => {
-    liveRef.current = undefined;
-    setLive(undefined);
-    clearTimeout(commitTimer.current);
-    onViewport(undefined);
+  // Wheel over the plot: ctrl/meta (and trackpad pinch) zooms, plain scroll pans.
+  // React's onWheel is passive, so it could not stop the page from scrolling.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (geom.current.empty) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      feed({
+        type: "wheel",
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        dx: e.deltaX,
+        dy: e.deltaY,
+        mode: e.deltaMode,
+        zoom: e.ctrlKey || e.metaKey,
+        t: performance.now(),
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [feed]);
+
+  const key = (k: string) => feed({ type: "key", key: k, x: M.left + IW / 2, y: M.top + IH / 2, t: performance.now() });
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (key(e.key).length > 0) e.preventDefault();
   };
 
   const yScale = useMemo(
@@ -276,6 +318,10 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
       className={styles.scatterWrap}
       ref={wrapRef}
       data-zoomed={vp !== undefined}
+      tabIndex={0}
+      role="application"
+      aria-label={`Pass rate vs tokens scatter. ${HINT}. Keys: + and − zoom, 0 resets, arrows pan.`}
+      onKeyDown={onKeyDown}
       onPointerDown={pointer("down")}
       onPointerMove={pointer("move")}
       onPointerUp={pointer("up")}
@@ -426,11 +472,24 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
         </svg>
       )}
 
-      {vp !== undefined && (
-        <button type="button" className={styles.scatterReset} onClick={resetZoom}>
-          Reset zoom
-        </button>
+      {box && (
+        <div
+          className={styles.scatterBox}
+          style={{ left: box.x0, top: box.y0, width: box.x1 - box.x0, height: box.y1 - box.y0 }}
+        />
       )}
+
+      <div className={styles.scatterControls}>
+        <button type="button" onClick={() => key("+")} title={`Zoom in (+) · ${HINT}`} aria-label="Zoom in">
+          +
+        </button>
+        <button type="button" onClick={() => key("-")} disabled={vp === undefined} title={`Zoom out (−) · ${HINT}`} aria-label="Zoom out">
+          −
+        </button>
+        <button type="button" onClick={resetZoom} disabled={vp === undefined} title={`Reset zoom (0) · ${HINT}`} aria-label="Reset zoom">
+          ⟲
+        </button>
+      </div>
 
       {tip && (
         <div className={styles.scatterTip} style={{ left: tip.x + 12, top: tip.y + 12 }}>

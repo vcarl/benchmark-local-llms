@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampViewport, inView, formatViewport, linTicks, logTicks, panViewport, parseViewport, zoomViewport, type Viewport } from "./viewport";
+import { clampViewport, inView, formatViewport, linTicks, logTicks, panViewport, parseViewport, subViewport, zoomViewport, type Viewport } from "./viewport";
 
 const FULL: Viewport = { x0: 1000, x1: 1_000_000, y0: 0, y1: 1 };
 
@@ -24,6 +24,13 @@ describe("zoom and pan", () => {
     expect([v.y0, v.y1]).toEqual([0.25, 0.75]);
     const corner = zoomViewport(FULL, 2, 0, 0);
     expect([corner.x0, corner.y0]).toEqual([1000, 0]);
+  });
+
+  it("cuts a sub-view by fractions: x in log space, y linear", () => {
+    const v = subViewport(FULL, 0.5, 1, 0.25, 0.5);
+    expect(v.x0).toBeCloseTo(10 ** 4.5);
+    expect(v.x1).toBeCloseTo(1_000_000);
+    expect([v.y0, v.y1]).toEqual([0.25, 0.5]);
   });
 
   it("pans by a fraction of the view", () => {

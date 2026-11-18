@@ -38,6 +38,14 @@ export const zoomViewport = (vp: Viewport, f: number, u: number, v: number): Vie
   return { x0: 10 ** lx0, x1: 10 ** lx1, y0, y1 };
 };
 
+/** The part of the view between fractions u0..u1 (from the left) and v0..v1 (from the bottom). */
+export const subViewport = (vp: Viewport, u0: number, u1: number, v0: number, v1: number): Viewport => {
+  const lx0 = Math.log10(vp.x0);
+  const lw = Math.log10(vp.x1) - lx0;
+  const h = vp.y1 - vp.y0;
+  return { x0: 10 ** (lx0 + u0 * lw), x1: 10 ** (lx0 + u1 * lw), y0: vp.y0 + v0 * h, y1: vp.y0 + v1 * h };
+};
+
 /** Move the view by (du, dv) view widths/heights: positive du shows larger x, positive dv higher y. */
 export const panViewport = (vp: Viewport, du: number, dv: number): Viewport => {
   const lx = Math.log10(vp.x1 / vp.x0) * du;
