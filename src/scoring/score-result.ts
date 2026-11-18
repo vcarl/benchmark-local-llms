@@ -15,6 +15,14 @@ export interface PromptScore {
   readonly score: number; // [0, 1]
   readonly details: string;
   readonly breakdown?: ConstraintBreakdown;
+  /**
+   * Structured reason a zero score is not an ordinary wrong answer:
+   * `no_answer` when the scorer's extraction found nothing to grade,
+   * `scorer_error` when the scorer itself failed. Absent otherwise.
+   */
+  readonly failure?: "no_answer" | "scorer_error";
+  /** The `slip` of the declared near miss that set this score. */
+  readonly nearMiss?: string;
 }
 
 export interface ScenarioScore {

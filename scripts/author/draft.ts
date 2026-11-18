@@ -17,6 +17,7 @@ import {
   type RepActor,
   signalsToReach,
   trusted,
+  truncate6,
 } from "./alignment.js";
 import {
   backwardInduct,
@@ -39,7 +40,9 @@ import {
   decimalPattern,
   exactItem,
   orderedItem,
+  percentNearMiss,
   regexItem,
+  slipNearMiss,
   wordItem,
   writeSuiteFile,
 } from "./emit.js";
@@ -491,6 +494,7 @@ const mixedItems: AuthoredItem[] = [
       `Reply with just the probability as a decimal between 0 and 1 (e.g. 0.5).`,
     pattern: decimalPattern(serverProbL),
     label: `equals ${serverProbL}`,
+    nearMisses: [percentNearMiss(serverProbL)],
     why: "The Server mixes to make the Receiver indifferent, so it is pinned by the RECEIVER's payoffs: p = (c11−c10)/(c00−c10−c01+c11) = (2−6)/(2−6−8+2) = −4/−10 = 0.4.",
     tags: ["TODO", "game-theory", "mixed-strategy"],
   }),
@@ -504,6 +508,7 @@ const mixedItems: AuthoredItem[] = [
       `Reply with just the probability as a decimal between 0 and 1 (e.g. 0.5).`,
     pattern: decimalPattern(receiverProbL),
     label: `equals ${receiverProbL}`,
+    nearMisses: [percentNearMiss(receiverProbL)],
     why: "The Receiver mixes to make the Server indifferent, pinned by the SERVER's payoffs: q = (r11−r01)/(r00−r01−r10+r11) = (10−4)/(10−4−6+10) = 6/10 = 0.6.",
     tags: ["TODO", "game-theory", "mixed-strategy"],
   }),
@@ -745,6 +750,7 @@ const taxItems: AuthoredItem[] = [
       `between 0 and 1 (e.g. 0.5).`,
     pattern: decimalPattern(taxBuyerShare),
     label: `equals ${taxBuyerShare}`,
+    nearMisses: [percentNearMiss(taxBuyerShare)],
     why: "Buyers' share = δ/(β+δ) = 3/(1+3) = 0.75. Demand is the more inelastic side (slope 1 vs 3), so buyers bear more.",
     tags: ["TODO", "economics", "tax-incidence"],
   }),
@@ -1124,6 +1130,7 @@ const covenantItems: AuthoredItem[] = [
       `rate that would avoid any covenant breach across all 12 months? Give your answer as a decimal to 4 places.`,
     pattern: decimalPattern(covMinGrowth),
     label: `equals ${covMinGrowth}`,
+    nearMisses: [percentNearMiss(covMinGrowth)],
     why: `The month-7 step-up binds: 130·(1+g)⁶ ≥ 1.25·140 ⇒ g ≥ (175/130)^(1/6) − 1 ≈ ${covMinGrowth}.`,
     tags: ["TODO", "financial-model", "covenant", "min-growth"],
   }),
@@ -1187,6 +1194,7 @@ const npvItems: AuthoredItem[] = [
       `Give your answer as a decimal to 4 places.`,
     pattern: decimalPattern(crossover),
     label: `equals ${crossover}`,
+    nearMisses: [percentNearMiss(crossover)],
     why: `The difference stream A−B = [0, 400, 100, −600] has one sign change, so a unique crossover exists where NPV(A)=NPV(B): r ≈ ${crossover} (both ≈ $98.90).`,
     tags: ["TODO", "financial-model", "npv", "capstone", "crossover"],
   }),
@@ -1207,9 +1215,11 @@ const npvItems: AuthoredItem[] = [
 // ── Battery 5 — Loan amortization with extra principal ───────────────────────
 const amort = amortize(20000, 0.005, 60, 100);
 const amortPayment = amort.payment; // 386.66
-const amortBal12 = amort.schedule[11]?.balance ?? 0; // 15230.38
-const amortTotalInterest = amort.totalInterest; // 2444.38
+const amortBal12 = amort.schedule[11]?.balance ?? 0; // 15230.33
+const amortTotalInterest = amort.totalInterest; // 2444.36
 const amortPayoff = amort.payoffMonth; // 47
+// Round-at-end slip: same loan at full precision, only reported figures rounded (15230.38, 2444.38).
+const amortSlip = amortize(20000, 0.005, 60, 100, false);
 const amortScene =
   `A borrower takes a $20,000 loan at 6% annual interest compounded monthly (a 0.5% monthly rate) on a ` +
   `60-month level-payment schedule. On top of the scheduled payment, the borrower pays an extra $100 of ` +
@@ -1237,6 +1247,7 @@ const amortItems: AuthoredItem[] = [
       `(including the $100 extra each month)? Give your answer in dollars to the nearest cent.`,
     pattern: decimalPattern(amortBal12),
     label: `equals ${amortBal12}`,
+    nearMisses: slipNearMiss("round-at-end", amortBal12, amortSlip.schedule[11]?.balance ?? 0),
     why: `Simulating 12 months with the $100 extra principal each month leaves a balance of $${amortBal12} (vs $16,463.94 with no extra).`,
     tags: ["TODO", "financial-model", "amortization", "balance"],
   }),
@@ -1247,6 +1258,7 @@ const amortItems: AuthoredItem[] = [
     prompt: `${amortScene}\n\nWhat is the total interest paid over the life of the loan, given the $100 extra principal each month? Give your answer in dollars to the nearest cent.`,
     pattern: decimalPattern(amortTotalInterest),
     label: `equals ${amortTotalInterest}`,
+    nearMisses: slipNearMiss("round-at-end", amortTotalInterest, amortSlip.totalInterest),
     why: `Summing the interest portion of every payment until the balance clears gives $${amortTotalInterest} (vs $3,199.36 on the scheduled 60-month plan).`,
     tags: ["TODO", "financial-model", "amortization", "interest"],
   }),
@@ -1305,6 +1317,10 @@ const bayesItems: AuthoredItem[] = [
       `Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b1Posterior),
     label: `equals ${b1Posterior}`,
+    nearMisses: [
+      ...slipNearMiss("truncated", b1Posterior, posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b, truncate6)),
+      percentNearMiss(b1Posterior),
+    ],
     why:
       `Posterior odds = (0.4/0.6)·(0.8/0.3)^4·(0.2/0.7)^2 = 32768/11907 ≈ 2.751994; ` +
       `P(H|data) = 32768/44675 ≈ ${b1Posterior}.`,
@@ -1320,6 +1336,10 @@ const bayesItems: AuthoredItem[] = [
       `Honest? Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b1PostExtraBad),
     label: `equals ${b1PostExtraBad}`,
+    nearMisses: [
+      ...slipNearMiss("truncated", b1PostExtraBad, posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b + 1, truncate6)),
+      percentNearMiss(b1PostExtraBad),
+    ],
     why: `Multiply the odds by the bad-signal factor (1−s)/t = 2/7: P = 65536/148885 ≈ ${b1PostExtraBad}.`,
     tags: ["TODO", "trust", "bayesian"],
   }),
@@ -1394,6 +1414,7 @@ const folkItems: AuthoredItem[] = [
       `equilibrium under grim trigger? Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b2.deltaStar),
     label: `equals ${b2.deltaStar}`,
+    nearMisses: slipNearMiss("truncated", b2.deltaStar, folkThreshold(cartel, truncate6).deltaStar),
     why: `δ* = (T − R)/(T − P) = (9 − 5)/(9 − 2) = 4/7 ≈ ${b2.deltaStar}.`,
     tags: ["TODO", "trust", "folk-theorem"],
   }),
@@ -1461,6 +1482,7 @@ const moralHazardItems: AuthoredItem[] = [
       `Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b3Bonus),
     label: `equals ${b3Bonus}`,
+    nearMisses: slipNearMiss("truncated", b3Bonus, minBonusIC(B3.pH, B3.pL, B3.cH, B3.cL, truncate6)),
     why: `Δ* = (c_H − c_L)/(p_H − p_L) = (10 − 2)/(0.8 − 0.5) = 8/0.3 ≈ ${b3Bonus}.`,
     tags: ["TODO", "trust", "moral-hazard"],
   }),
@@ -1616,6 +1638,7 @@ const decayedItems: AuthoredItem[] = [
       `Ignoring timing entirely, what fraction of Vale's marks were kept? Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b5ValeFlat),
     label: `equals ${b5ValeFlat}`,
+    nearMisses: [...slipNearMiss("truncated", b5ValeFlat, flatScore(vale, truncate6)), percentNearMiss(b5ValeFlat)],
     why: `Vale kept 4 of 6 marks: 4/6 ≈ ${b5ValeFlat}.`,
     tags: ["TODO", "trust", "decayed-reputation"],
   }),
@@ -1628,6 +1651,7 @@ const decayedItems: AuthoredItem[] = [
       `What is Vale's recency-weighted reputation? Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b5ValeDecayed),
     label: `equals ${b5ValeDecayed}`,
+    nearMisses: slipNearMiss("truncated", b5ValeDecayed, decayedScore(vale, B5_LAMBDA, truncate6)),
     why:
       `P = λ²+λ³+λ⁴+λ⁵ = 0.78336, N = λ⁰+λ¹ = 1.6; reputation = 1.78336/4.38336 ≈ ${b5ValeDecayed}.`,
     tags: ["TODO", "trust", "decayed-reputation"],

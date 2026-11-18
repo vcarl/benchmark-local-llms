@@ -29,6 +29,8 @@ export interface History {
 
 const EPS = 1e-9;
 const round = (x: number): number => Math.round(x * 1e6) / 1e6;
+/** The truncation slip: cut to 6 dp instead of rounding. Pass as a solver's `rnd`. */
+export const truncate6 = (x: number): number => Math.trunc(x * 1e6 + 1e-9) / 1e6;
 
 // ── trust ─────────────────────────────────────────────────────────────────────
 
@@ -134,9 +136,16 @@ export function posteriorOdds(pi: number, s: number, t: number, g: number, b: nu
 }
 
 /** Posterior probability of honesty P(H | data), rounded to 6 dp. */
-export function posteriorMean(pi: number, s: number, t: number, g: number, b: number): number {
+export function posteriorMean(
+  pi: number,
+  s: number,
+  t: number,
+  g: number,
+  b: number,
+  rnd = round,
+): number {
   const odds = posteriorOdds(pi, s, t, g, b);
-  return round(odds / (1 + odds));
+  return rnd(odds / (1 + odds));
 }
 
 /**
@@ -181,7 +190,7 @@ export interface RepActor {
 }
 
 /** Flat (undecayed) reliability good/(good+bad), rounded; 0 with no history. */
-export function flatScore(actor: RepActor): number {
+export function flatScore(actor: RepActor, rnd = round): number {
   let good = 0;
   let bad = 0;
   for (const e of actor.events) {
@@ -189,11 +198,11 @@ export function flatScore(actor: RepActor): number {
     else bad++;
   }
   const total = good + bad;
-  return total === 0 ? 0 : round(good / total);
+  return total === 0 ? 0 : rnd(good / total);
 }
 
 /** Recency-weighted, Laplace-smoothed reputation (P+1)/(P+N+2), rounded. */
-export function decayedScore(actor: RepActor, lambda: number): number {
+export function decayedScore(actor: RepActor, lambda: number, rnd = round): number {
   let p = 0;
   let n = 0;
   for (const e of actor.events) {
@@ -201,7 +210,7 @@ export function decayedScore(actor: RepActor, lambda: number): number {
     if (e.good) p += w;
     else n += w;
   }
-  return round((p + 1) / (p + n + 2));
+  return rnd((p + 1) / (p + n + 2));
 }
 
 /** Argmax actor by decayed reputation; ties flagged like mostTrustworthy. */

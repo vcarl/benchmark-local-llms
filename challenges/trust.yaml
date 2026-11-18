@@ -287,6 +287,10 @@ items:
       - name: equals 0.733475
         check: regex
         pattern: (?<![\d.])0?\.7334750*(?!\d)
+    nearMisses:
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])73\.34750*(?!\d)\s*%
     tags:
       - TODO
       - trust
@@ -313,6 +317,13 @@ items:
       - name: equals 0.440179
         check: regex
         pattern: (?<![\d.])0?\.4401790*(?!\d)
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        pattern: (?<![\d.])0?\.4401780*(?!\d)
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])44\.01790*(?!\d)\s*%
     tags:
       - TODO
       - trust
@@ -416,6 +427,10 @@ items:
       - name: equals 0.571429
         check: regex
         pattern: (?<![\d.])0?\.5714290*(?!\d)
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        pattern: (?<![\d.])0?\.5714280*(?!\d)
     tags:
       - TODO
       - trust
@@ -518,6 +533,10 @@ items:
       - name: equals 26.666667
         check: regex
         pattern: (?<![\d.])26\.6666670*(?!\d)
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        pattern: (?<![\d.])26\.6666660*(?!\d)
     tags:
       - TODO
       - trust
@@ -693,6 +712,13 @@ items:
       - name: equals 0.666667
         check: regex
         pattern: (?<![\d.])0?\.6666670*(?!\d)
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        pattern: (?<![\d.])0?\.6666660*(?!\d)
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])66\.66670*(?!\d)\s*%
     tags:
       - TODO
       - trust
@@ -721,6 +747,10 @@ items:
       - name: equals 0.406848
         check: regex
         pattern: (?<![\d.])0?\.4068480*(?!\d)
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        pattern: (?<![\d.])0?\.4068470*(?!\d)
     tags:
       - TODO
       - trust

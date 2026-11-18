@@ -54,5 +54,8 @@ export const scoreOrderedMatch = (
       `LCS=${lcs}/${denom} predicted [${predicted.join(" → ")}]` +
       ` expected [${expected.join(" → ")}]`;
 
-    return { kind: "prompt", score, details };
+    // Nothing from the vocabulary named at all: an extraction miss, not a wrong order.
+    return predicted.length === 0 && expected.length > 0
+      ? { kind: "prompt", score, details, failure: "no_answer" }
+      : { kind: "prompt", score, details };
   });

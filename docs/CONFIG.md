@@ -51,6 +51,10 @@ A YAML array of configuration entries. Each entry is the full set of knobs a use
 | `minP` | `number` | no | Min-p sampling floor, sent as `min_p`. Omitted from the request when unset; when set, it joins `configHash`. |
 | `presencePenalty` | `number` | no | Presence penalty, sent as `presence_penalty`. Omitted from the request when unset; when set, it joins `configHash`. |
 | `chatTemplateKwargs` | `Record<string, string \| number \| boolean>` | no | Extra chat-template variables (e.g. `reasoning_effort`, `enable_thinking`), sent as `chat_template_kwargs`. Omitted from the request when unset; when set, it joins `configHash` (keys sorted). |
+| `repetitionPenalty` | `number` | no | Sampler repetition penalty. Omitted from the request when unset; when set, it joins `configHash`. |
+| `repetitionContextSize` | `number` | no | How many recent tokens `repetitionPenalty` considers. Omitted when unset; when set, it joins `configHash`. |
+| `chatTemplate` | `string` | no | llamacpp only. Vendored template name, resolved to `templates/<name>.jinja` and passed as `--chat-template-file`. The file's content joins `configHash`, so editing the template is a new identity. A missing file fails config load with a `ConfigError`. |
+| `extraArgs` | `string[]` | no | mlx/omlx only. Extra server CLI args appended after the built-in flags (e.g. `--trust-remote-code`). |
 | `active` | `boolean` | no | Marks the entry for selection by the runner. |
 
 **Loader behavior.** The file decodes as an array of configurations. For each entry, the loader resolves `systemPrompt` to its literal text via the [system-prompt registry](#system-promptsyaml) — an unknown key fails with a `ConfigError` naming the entry and key. It then computes the configuration's identity:
@@ -59,7 +63,7 @@ A YAML array of configuration entries. Each entry is the full set of knobs a use
 configHash = shortSha256(artifact | runtime | quant | temperature | maxTokens | systemPromptText)
 ```
 
-The hash folds in the **resolved system-prompt text**, not the key, so identity is stable even if the registry is reorganized. `topP`, `topK`, `minP`, `presencePenalty` and `chatTemplateKwargs` are appended to the hashed string only when set, so an entry without them hashes the same either way. `ctxSize` and `active` are not part of the hash.
+The hash folds in the **resolved system-prompt text**, not the key, so identity is stable even if the registry is reorganized. `repetitionPenalty`, `repetitionContextSize`, `topP`, `topK`, `minP`, `presencePenalty`, `chatTemplateKwargs`, and the content hash of the `chatTemplate` file are appended to the hashed string only when set, so an entry without them hashes the same either way. `ctxSize`, `extraArgs`, and `active` are not part of the hash. Every attempt manifest records the sampler and server knobs as provenance (see [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md#attemptmanifest-line-1)).
 
 **Ref:** schema `src/schema/configuration.ts` · loader/hashing `src/config/configurations.ts`.
 
@@ -115,10 +119,12 @@ The `scorer` field selects one variant, each with its own required sibling field
 
 | `scorer` | Fields | Becomes |
 |---|---|---|
-| `exact_match` | `expected`, `extract` (regex) | `{ type: exact_match, expected, extract }` |
-| `constraint` | `constraints[]` (each `{ name, check, value, … }`) | `{ type: constraint, constraints }` |
+| `exact_match` | `expected`, `extract` (regex), optional `nearMisses[]` (each `{ slip, credit, expected }`) | `{ type: exact_match, expected, extract, nearMisses? }` |
+| `constraint` | `constraints[]` (each `{ name, check, value, … }`), optional `nearMisses[]` (each `{ slip, credit, pattern }`) | `{ type: constraint, constraints, nearMisses? }` |
 | `code_exec` | `testFile` (path, relative to the challenge file's directory) | `{ type: code_exec, testCode }` — file read and embedded at load |
 | `game` | `gameScorer`, `scorerParams` | `{ type: game, gameScorer, scorerParams }` |
+
+`nearMisses` declares specific wrong answers that earn partial credit: `credit` is strictly between 0 and 1, `slip` names the mistake. An absent `nearMisses` leaves the scorer config (and its hash) unchanged. See [SCORING.md § Near misses](./SCORING.md#near-misses).
 
 The full constraint-check and scorer catalogs are in [SCORING.md](./SCORING.md).
 
@@ -138,7 +144,7 @@ challengeHash = shortSha256( join("|", [ promptHash + ":" + scorerKey  for each 
 
 where `scorerKey` is the canonical key-sorted JSON of the scorer config. Because `challengeHash` covers the ordered list of resolved items, reordering items or editing an item's prompt or scorer produces a different challenge.
 
-A published version is **never mutated in place** — edit a challenge by bumping `version`. The archive treats each `(id, version)` as its own challenge, so attempts never pool across versions.
+The archive treats each `(id, version)` as its own challenge, so attempts never pool across versions. Within a version, every scorer edit, prompt edit, retired item, and added item is recorded in `errata.yaml` and enforced against the release baseline ([ERRATA.md](./ERRATA.md)); `bench score --stale` carries existing attempts onto the edited challenge (see [ARCHIVE-FORMAT.md § Retired items](./ARCHIVE-FORMAT.md#retired-items)).
 
 **Ref:** schema `src/schema/challenge.ts` · loader/resolution/hashing `src/config/challenges.ts` · scorer schemas `src/schema/scorer.ts`, `src/schema/constraints.ts`. Scorer config variants: [SCORING.md](./SCORING.md).
 

@@ -66,6 +66,40 @@ describe("resolveChallenge", () => {
     const exit = await run(provide(resolveChallenge(challenge, challengesDir)));
     expect(exit._tag).toBe("Failure");
   });
+
+  it("carries declared near misses into the scorer and rejects an uncompilable one", async () => {
+    const item = (pattern: string) => ({
+      name: "n",
+      category: "x",
+      tier: 1,
+      prompt: "p",
+      scorer: "constraint" as const,
+      constraints: [{ check: "regex" as const, name: "r", pattern: "0\\.25" }],
+      nearMisses: [{ slip: "percent-for-decimal", credit: 0.5, pattern }],
+    });
+    const ok = await run(
+      provide(
+        resolveChallenge(
+          { id: "c", version: 1, passThreshold: 1, items: [item("25%")] },
+          challengesDir,
+        ),
+      ),
+    );
+    expect(ok._tag).toBe("Success");
+    if (ok._tag !== "Success") return;
+    expect(ok.value.items[0]?.scorer).toMatchObject({
+      nearMisses: [{ slip: "percent-for-decimal" }],
+    });
+    const bad = await run(
+      provide(
+        resolveChallenge(
+          { id: "c", version: 1, passThreshold: 1, items: [item("(")] },
+          challengesDir,
+        ),
+      ),
+    );
+    expect(bad._tag).toBe("Failure");
+  });
 });
 
 describe("resolveChallenge entity scorers (set_match / ordered_match)", () => {
@@ -233,7 +267,7 @@ describe("loadChallenge against real inline challenge files", () => {
     ["code", 12],
     ["constraint", 10],
     ["effect-ts", 26],
-    ["factual", 9],
+    ["factual", 7],
     ["logic", 10],
     ["math", 13],
   ] as const)("loads challenges/%s.yaml (%i inline items)", async (id, count) => {

@@ -13,6 +13,15 @@ export interface AttemptLoadIssue {
   readonly reason: string;
 }
 
+/** The attempt's item lines minus those its manifest lists as `retiredItems`. */
+export const currentItems = (
+  manifest: Pick<AttemptManifest, "retiredItems">,
+  items: ReadonlyArray<ItemResult>,
+): ReadonlyArray<ItemResult> => {
+  const retired = new Set(manifest.retiredItems ?? []);
+  return retired.size === 0 ? items : items.filter((i) => !retired.has(i.promptName));
+};
+
 const decodeManifest = Schema.decodeUnknown(AttemptManifest);
 const decodeItem = Schema.decodeUnknown(ItemResult);
 

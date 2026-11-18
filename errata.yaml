@@ -1,0 +1,82 @@
+# Errata registry: every change to an item since the last prompt release.
+# `npm test` (src/config/errata.test.ts) fails when an item differs from
+# release-baseline.json without an entry here. See docs/ERRATA.md.
+#
+#   kind:         answer-key | scorer | prompt-ambiguity | retired | added
+#   items:        challengeId/itemName of every affected item
+#   scorerChange: true when the entry changed how stored outputs score
+#   promptFix:    none | pending-next-release | fixed-in-release (+ release: <label>)
+errata:
+  - id: E-0001
+    date: 2026-11-16
+    kind: answer-key
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+    description: >-
+      The amortization solver carried full precision through the schedule, but
+      the prompt says "work to exact cents". Keys now round the payment and each
+      month's interest to the cent before use: balance after 12 months
+      15230.38 -> 15230.33, total interest 2444.38 -> 2444.36.
+    scorerChange: true
+    promptFix: none
+  - id: E-0002
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+    description: >-
+      Generated decimal answers of 1000 or more now also accept comma thousands
+      grouping (15,230.33 for 15230.33). Values under 1000 keep their pattern.
+    scorerChange: true
+    promptFix: none
+  - id: E-0003
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_decay_flat_vale
+      - trust/trust_decay_vale_score
+      - trust/trust_folk_delta_star
+      - trust/trust_hazard_min_bonus
+    description: >-
+      Rounding slips earn 0.5 partial credit as declared near misses computed by
+      the solvers: round-at-end on the amortization items (full precision, only
+      the reported figure rounded: 15230.38, 2444.38), and truncating instead of
+      rounding to 6 places on the 6-dp trust items (e.g. 0.571428 for 0.571429).
+    scorerChange: true
+    promptFix: none
+  - id: E-0004
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - economics/econ_mixed_receiver_prob_left
+      - economics/econ_mixed_server_prob_left
+      - economics/econ_tax_buyer_share
+      - financial/financial_covenant_min_growth_no_breach
+      - financial/financial_npv_crossover_rate
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_bayes_posterior
+      - trust/trust_decay_flat_vale
+    description: >-
+      A probability, share, or rate asked for as a decimal but written as a
+      percent (e.g. 5.08% for 0.0508) earns 0.5 partial credit as a declared
+      percent-for-decimal near miss. The % sign is required.
+    scorerChange: true
+    promptFix: none
+  - id: E-0005
+    date: 2026-11-16
+    kind: retired
+    items:
+      - factual/fact_gold_direct
+      - factual/fact_gold_noisy
+    description: >-
+      Saturated: zero failures across every tested config's latest result (99
+      configs each), so the items no longer discriminate. Found with
+      `./bench audit --flag zero-failure` on the archive re-scored under the
+      current scorers. Archived lines are kept and listed as retiredItems.
+    scorerChange: false
+    promptFix: pending-next-release

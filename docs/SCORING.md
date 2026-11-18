@@ -31,10 +31,12 @@ Ref: `src/scoring/score-result.ts`.
 ## Score shape
 
 ```ts
-interface Score {
+interface PromptScore {
   readonly score: number;
   readonly details: string;
   readonly breakdown?: ConstraintBreakdown;
+  readonly failure?: "no_answer" | "scorer_error";
+  readonly nearMiss?: string;
 }
 
 interface ConstraintBreakdown {
@@ -44,7 +46,7 @@ interface ConstraintBreakdown {
 }
 ```
 
-`score` is in `[0, 1]` for every scorer. `details` is a short human-readable string the report layer renders verbatim. `breakdown` is populated only by the constraint scorer so the report can render per-check pass/fail/error lists without re-running scoring.
+`score` is in `[0, 1]` for every scorer. `details` is a short human-readable string the report layer renders verbatim. `breakdown` is populated only by the constraint scorer so the report can render per-check pass/fail/error lists without re-running scoring. `failure` is the scorer's structured reason a zero is not an ordinary wrong answer: `no_answer` when extraction found nothing to grade (`exact_match` with no regex match; `set_match` / `ordered_match` naming no vocabulary token while some are expected), `scorer_error` when the scorer itself failed (see [Failure handling](#failure-handling)). `nearMiss` is the `slip` of the declared near miss that set the score (see [Near misses](#near-misses)).
 
 Ref: `src/schema/scorer.ts`, `src/scoring/score-result.ts`.
 
@@ -137,18 +139,65 @@ A cell carries its items, passed, `families` counts, its cost (generation tokens
 
 **Row figures.** `passRate = Σ passed / Σ set items` — the formula above, so a missing or stale challenge counts as failed. `se` is the CR1 standard error over the row's families (`null` below 5). `completeness` counts scored challenges and their items; `freshness` is the execution date range of the counted lines; `provenance` lists runtime versions, git shas, submitters (always `local`), samples per item, and re-stamped cells, and sets `mixed` when the counted lines span more than one runtime version, more than one git sha (`unknown` counts), or more than 7 days. `variant` holds only the fields that differ among rows of the same `artifact` — runtime, quant, temperature, max tokens, system prompt — and `variantLabel` joins them (`t0.7 · quant 8bit`). Sampler knobs are not in the attempt header, so configs of one artifact that differ only there share a label. `modelKey` groups the builds of one model: the artifact's last path segment, lower-cased, without an uploader's `org_` prefix or packaging tokens (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`…); a `configs.yaml` entry's `modelKey` overrides it for that artifact. `modelName` is the same name with case kept.
 
+## Item audit
+
+`./bench audit` is a read-only check on the items themselves, not the models. It loads completed attempts from `--archive-dir`, keeps each config's latest attempt (by `startedAt`) per challenge, and treats an item as passed when its score is exactly 1. Per item it prints the number of configs `n`, pass rate `p`, Bernoulli spread `p(1-p)`, discrimination, flags, and the most common wrong answers.
+
+- **Discrimination** is the point-biserial correlation between the item's pass/fail and each config's pass rate on all other items. High values mark items that separate strong configs from weak ones.
+- **`suspect-key`**: `p <= 0.05` with `n >= --min-n` (default 8). A cluster of identical wrong answers is the signature of a wrong answer key. Wrong answers are normalized to the last number in the output (commas stripped), else the lowercased first 40 characters; empty output shows as `(empty)`.
+- **`edge`**: the `--edge-top` (default 20) items with the highest discrimination among items with `n >= --min-n`. These are the candidates for targeted multi-sample re-runs; spending samples only on them keeps compute bounded.
+- **`saturated`**: `p >= 0.95` among configs whose overall pass rate is above the median.
+- **`zero-failure`**: `p = 1` — every config's latest result passed. Pruning removes these items (except the `smoke` challenge, which tests harness plumbing) and records a `retired` erratum ([ERRATA.md](./ERRATA.md)).
+
+Lines of retired items (`retiredItems` on the manifest) are not observed.
+
+Rows are sorted by discrimination, then spread. `--challenge` restricts to one challenge id, `--flag` to rows carrying a flag, and `--json` emits the rows as JSON. The pure statistics are in `src/audit/stats.ts`.
+
+Ref: `src/cli/commands/audit.ts`, `src/audit/stats.ts`.
+
+## Near misses
+
+A near miss is a specific wrong answer that earns partial credit. Each is declared per item as an alternative accepted value with a `credit` in `(0, 1)` and a named `slip` — never a numeric tolerance window. `exact_match` declares `{ slip, credit, expected }`, `constraint` declares `{ slip, credit, pattern }` (see [CONFIG.md](./CONFIG.md#challengesyaml)).
+
+| Answer | Credit |
+|---|---|
+| Pure formatting: comma grouping, `$`, trailing zeros, the sign of a payment whose magnitude is right | Full — the primary pattern normalizes it |
+| Rounding or precision slip on multi-step math: unrounded vs cent-rounded, rounding at the end vs per step, truncating instead of rounding | `0.5` |
+| Right value in the wrong unit or form: a percent where a decimal was asked, cents for dollars | `0.5` |
+| A conceptual error (e.g. a monthly rate where an annual one was asked) | `0` |
+
+For generated challenges the solvers in `scripts/author/` compute each near-miss value from the same inputs as the key, and the generator refuses a near-miss pattern that matches the prompt text itself. Hand-written challenges declare them directly in YAML. A near miss changes scores, so adding one is a scorer change and needs an erratum ([ERRATA.md](./ERRATA.md)).
+
+The headline pass rate stays binary — a near miss is not a pass (`score === 1` only). Partial credit is reported separately: the item line carries `failureKind: "near_miss"` and the `slip` in `nearMiss`, and each report record carries `near_miss_credit`, the sum of near-miss credit over its items.
+
+Ref: `src/schema/scorer.ts` (`ExactNearMiss`, `PatternNearMiss`), `src/scoring/exact-match.ts`, `src/scoring/constraint.ts`.
+
 ## Failure handling
 
-Scorers return `Effect<Score, ScorerNotFound | CodeExecTimeout | CodeExecFailed, CommandExecutor>`. Errors do **not** become `Score` values inside the scorer — they propagate on the error channel. The layer above catches them and collapses them to a sentinel score:
-
-- `src/report/aggregate.ts` wraps `scoreExecution` in `safeScore`, catching every tag and emitting `{ score: 0, details: "scorer error: <tag>" }`.
-- `src/cli/commands/score.ts` uses `Effect.either` and prints `error: <string>` for the failing row.
+Scorers return `Effect<PromptScore, ScorerNotFound | CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed, CommandExecutor>`. Errors do **not** become scores inside the scorer — they propagate on the error channel. Every caller that records a score goes through `scoreOrFold` (`src/scoring/dispatch.ts`), which folds an error into `{ score: 0, details: "scorer error: <tagged error>", failure: "scorer_error" }`: the run (`run-challenge.ts`) and re-scoring (`bench score`) both use it.
 
 Per-constraint evaluator errors are caught one level deeper: `scoreConstraints` wraps `evaluateConstraint` with `Effect.either` and routes thrown `ConstraintEvalError` into the `errored` bucket of the breakdown. The constraint scorer itself never fails on the error channel.
 
-Execution-level errors (LLM failures, cutoffs with no output) are detected upstream by the report layer reading `result.error`; those rows skip scoring entirely and get `{ score: 0, details: "execution error: ..." }`.
+An item whose execution recorded an `error` is not scored; it records `score: 0`.
 
-Ref: `src/errors/scorer.ts`, `src/report/aggregate.ts`, `src/cli/commands/score.ts`.
+### Failure kind
+
+Every scored item records a `failureKind` alongside its `score` — `null` on a full pass, otherwise why it fell short. `classifyFailure` (`src/scoring/failure-kind.ts`) derives it from the item's stored `error`, `stopReason`, `output`, and `reasoning` plus the scorer's `failure`; first matching rule wins:
+
+| `failureKind` | Detected by |
+|---|---|
+| `thinking_truncated` | `error: "thinking_truncated"` (an inline `<think>` never closed), or `stopReason: "length"` with empty `output` and non-null `reasoning` (a split-reasoning runtime spent the budget thinking) |
+| `execution_error` | any other non-null `error` — transport failure, timeout, malformed or empty response |
+| `near_miss` | a declared near miss set the score (`nearMiss`), however generation ended; the item line records the `slip` in `nearMiss` |
+| `loop` | `stopReason: "loop"` — the repetition detector cancelled the stream |
+| `length_cutoff` | `stopReason: "length"` otherwise — the answer was cut off by `maxTokens` |
+| `scorer_error` | the scorer failed (`failure: "scorer_error"`) |
+| `no_answer` | empty `output`, or the scorer found nothing to extract (`failure: "no_answer"`) |
+| `wrong` | everything else, including partial credit |
+
+The score is unaffected — every kind scores 0 (or its partial credit; `near_miss` scores its declared credit); `failureKind` records only why. Because the inputs are all on the stored line, `bench score` recomputes `failureKind` (and `scoreDetails`) for any archive it re-scores. Archives that predate `stopReason` classify a cutoff with empty output as `no_answer`.
+
+Ref: `src/errors/scorer.ts`, `src/scoring/dispatch.ts`, `src/scoring/failure-kind.ts`.
 
 ## `exact_match`
 
@@ -157,7 +206,8 @@ Operates on `result.output` (already cleaned of `<think>` and Harmony control to
 1. Compile `config.extract` as a global regex and collect every match against the output.
 2. Take the **last** match (models commonly show work before the final answer). Prefer capture group 1; fall back to the whole match if the pattern has no group.
 3. Strip commas from the extracted string (for `2,395,912`-style numerics).
-4. Compare to `config.expected` with case-sensitive string equality. `1` on match, `0` otherwise.
+4. Compare to `config.expected` with case-sensitive string equality. `1` on match.
+5. Otherwise, the first `config.nearMisses` entry whose `expected` equals the extracted string scores its `credit` and names its `slip`; no entry matching scores `0`.
 
 No match and no-capture-group patterns both degrade to `score: 0` with a descriptive `details`; the scorer is total and has no failure channel.
 
@@ -168,6 +218,8 @@ Ref: `src/scoring/exact-match.ts`. Reasoning extraction (the upstream pre-proces
 ## `constraint`
 
 Iterate over `config.constraints`. For each, dispatch on the `check` discriminator to a pure predicate over `result.output` (already cleaned upstream — see [Dispatch](#dispatch)). Predicate → `true` adds the constraint's `name` to `passed`; `false` adds it to `failed`; a thrown exception (wrapped as `ConstraintEvalError`) adds it to `errored`. Final score is `passed.length / total`; an empty constraint list scores `0`.
+
+When that score is below 1, each `config.nearMisses` entry is tried in order: the first whose `pattern` matches the output (same semantics as the `regex` check) and whose `credit` exceeds the score sets the score to `credit` and names its `slip`. The breakdown still lists the constraints as evaluated.
 
 `errored` is kept distinct from `failed` — an evaluator that throws (e.g. malformed regex pattern) is not the same signal as a predicate returning false. The distinction surfaces via `breakdown`.
 

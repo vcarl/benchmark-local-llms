@@ -2,6 +2,7 @@ import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import { Effect, Schema } from "effect";
 import { ConfigError, SchemaDecodeError, type YamlParseError } from "../errors/config.js";
+import { resolveChatTemplate } from "../llm/servers/resolve-chat-template.js";
 import { Configuration } from "../schema/configuration.js";
 import { shortSha256 } from "./hashing.js";
 import { SystemPromptRegistry } from "./system-prompts.js";
@@ -10,6 +11,8 @@ import { parseYaml } from "./yaml.js";
 export interface ResolvedConfiguration extends Configuration {
   readonly systemPromptText: string;
   readonly configHash: string;
+  /** shortSha256 of the `chatTemplate` file's content; set iff `chatTemplate` is. */
+  readonly chatTemplateSha?: string;
 }
 
 const ConfigArray = Schema.Array(Configuration);
@@ -29,6 +32,8 @@ export const computeConfigHash = (
     minP?: number | undefined;
     presencePenalty?: number | undefined;
     chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>> | undefined;
+    /** shortSha256 of the chat-template file's content (not its name). */
+    chatTemplateSha?: string | undefined;
   },
   systemPromptText: string,
 ): string =>
@@ -55,6 +60,9 @@ export const computeConfigHash = (
         : [
             `ctk=${JSON.stringify(Object.entries(c.chatTemplateKwargs).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))}`,
           ]),
+      // The template renders the prompt the model sees, so editing its file
+      // is a new identity: the cache must not replay outputs from the old one.
+      ...(c.chatTemplateSha === undefined ? [] : [`ct=${c.chatTemplateSha}`]),
     ].join("|"),
   );
 
@@ -84,7 +92,27 @@ export const loadConfigurations = (
             }),
           );
         }
-        return { ...c, systemPromptText, configHash: computeConfigHash(c, systemPromptText) };
+        const chatTemplateSha =
+          c.chatTemplate === undefined
+            ? undefined
+            : shortSha256(
+                yield* resolveChatTemplate(c.chatTemplate).pipe(
+                  Effect.flatMap((p) => fs.readFileString(p)),
+                  Effect.mapError(
+                    (e) =>
+                      new ConfigError({
+                        path,
+                        message: `Configuration '${c.id}': ${"reason" in e ? e.reason : String(e)}`,
+                      }),
+                  ),
+                ),
+              );
+        return {
+          ...c,
+          systemPromptText,
+          configHash: computeConfigHash({ ...c, chatTemplateSha }, systemPromptText),
+          ...(chatTemplateSha === undefined ? {} : { chatTemplateSha }),
+        };
       }),
     );
   });

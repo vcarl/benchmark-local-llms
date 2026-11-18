@@ -16,7 +16,13 @@ import {
 } from "../../../schema/attempt.js";
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
 import type { ScorerConfig } from "../../../schema/scorer.js";
-import { formatSummary, rescoreItems, rescoreItemsFromStore, scoreCommand } from "../score.js";
+import {
+  formatSummary,
+  rescoreItems,
+  rescoreItemsFromStore,
+  scoreCommand,
+  withStaleScoreItems,
+} from "../score.js";
 
 const exactMatch: ScorerConfig = { type: "exact_match", expected: "42", extract: "(\\d+)" };
 
@@ -101,12 +107,22 @@ describe("rescoreItems", () => {
     expect(res.drift).toBe(1);
   });
 
-  it("keeps the stored score and counts drift when prompt is missing from the challenge", async () => {
+  it("keeps the stored score and counts drift when prompt is missing from another version", async () => {
     const items = [item({ itemId: "ghost", promptName: "ghost", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")]), false));
     expect(res.updated[0]?.score).toBe(1);
     expect(res.rescored).toBe(0);
     expect(res.drift).toBe(1);
+    expect(res.retired).toEqual([]);
+  });
+
+  it("retires an item missing from the same challenge version: line kept verbatim, not drift", async () => {
+    const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
+    const res = await run(rescoreItems([ghost], resolved([resolvedItem("p1", "ph1")]), true));
+    expect(res.updated[0]).toEqual(ghost);
+    expect(res.retired).toEqual(["ghost"]);
+    expect(res.drift).toBe(0);
+    expect(res.kept).toEqual([]);
   });
 
   it("forces score 0 for an item that recorded an execution error", async () => {
@@ -179,7 +195,59 @@ describe("rescoreItems", () => {
     const items = [item({ promptHash: "ph1", score: 1 })];
     const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", gameScorer)])));
     expect(res.updated[0]?.score).toBe(0);
+    expect(res.updated[0]?.failureKind).toBe("scorer_error");
     expect(res.rescored).toBe(1);
+  });
+
+  it("re-scored items name the scorer that produced their score", async () => {
+    const newScorer: ScorerConfig = { type: "exact_match", expected: "42", extract: "is (\\d+)" };
+    const items = [item({ promptHash: "ph1", itemHash: "stale", scorerHash: "stale" })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", newScorer)])));
+    expect(res.updated[0]?.itemHash).toBe("ph1-ih");
+    expect(res.updated[0]?.scorerHash).toBe(scorerHash(newScorer));
+  });
+
+  it("records failureKind and scoreDetails on every re-scored item", async () => {
+    const items = [
+      item({ itemId: "p1", promptName: "p1", output: "the answer is 42" }),
+      item({ itemId: "p2", promptName: "p2", output: "the answer is 41" }),
+      item({ itemId: "p3", promptName: "p3", output: "no digits here" }),
+      item({ itemId: "p4", promptName: "p4", output: "", stopReason: "length", reasoning: "hmm" }),
+    ];
+    const res = await run(
+      rescoreItems(
+        items,
+        resolved([
+          resolvedItem("p1", "ph1"),
+          resolvedItem("p2", "ph1"),
+          resolvedItem("p3", "ph1"),
+          resolvedItem("p4", "ph1"),
+        ]),
+      ),
+    );
+    expect(res.updated.map((u) => u.failureKind)).toEqual([
+      null,
+      "wrong",
+      "no_answer",
+      "thinking_truncated",
+    ]);
+    expect(res.updated[1]?.scoreDetails).toBe("expected 42, got 41");
+  });
+
+  it("lists the items that kept a stored score", async () => {
+    const items = [item({ promptHash: "OLD", score: 1 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "NEW")])));
+    expect(res.kept).toEqual(["p1"]);
+  });
+});
+
+describe("withStaleScoreItems", () => {
+  it("records kept items and clears a prior record when none were kept", () => {
+    const m = baseManifest();
+    expect(withStaleScoreItems(m, ["a"]).staleScoreItems).toEqual(["a"]);
+    expect("staleScoreItems" in withStaleScoreItems({ ...m, staleScoreItems: ["a"] }, [])).toBe(
+      false,
+    );
   });
 });
 
@@ -495,9 +563,9 @@ describe("scoreCommand.handler (boundary)", () => {
       rawOutput: PASSING_OUTPUT,
       score: 0,
     });
-    // A drifted ghost item not present in the challenge → kept, warned, counts as drift.
+    // An item absent from another version of the challenge → kept, warned, counts as drift.
     const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
-    const contents = await encodeArchive(baseManifest(), [realItem, ghost]);
+    const contents = await encodeArchive(baseManifest({ challengeVersion: 0 }), [realItem, ghost]);
     const file = path.join(dir, "att.jsonl");
     writeFileSync(file, contents, "utf-8");
 
@@ -634,7 +702,9 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
   });
 
   /** A complete v2 smoke attempt recorded under an older (scorer-differing) identity. */
-  const writeStaleSmoke = async (opts: { driftItem?: string; id?: string } = {}) => {
+  const writeStaleSmoke = async (
+    opts: { driftItem?: string; id?: string; retiredItem?: string } = {},
+  ) => {
     const smoke = await resolveSmoke();
     const oldScorer: ScorerConfig = { type: "exact_match", expected: "nope", extract: "(x)" };
     const configHash = "cfgrestamp00";
@@ -656,6 +726,24 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
         rawOutput: PASSING_OUTPUT,
       }),
     );
+    if (opts.retiredItem !== undefined) {
+      items.push(
+        item({
+          itemId: opts.retiredItem,
+          promptName: opts.retiredItem,
+          promptHash: "retired00000",
+          itemHash: "oldih0000000",
+          scorerHash: scorerHash(oldScorer),
+          score: 1,
+          failureKind: null,
+        }),
+      );
+      await Effect.runPromise(
+        writeBlob(dir, "prompts", "retired00000", "a retired prompt").pipe(
+          Effect.provide(NodeContext.layer),
+        ),
+      );
+    }
     const manifest = baseManifest({
       schemaVersion: 2,
       attemptId,
@@ -698,6 +786,27 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
     }
   });
 
+  it("re-stamps an attempt holding a retired item, keeps its line, and scores the current items", async () => {
+    const { smoke, file, newId } = await writeStaleSmoke({ retiredItem: "gone_item" });
+    const retiredLine = readFileSync(file, "utf-8").trim().split("\n").at(-1);
+    await runHandler({ archive: file, corpus: true });
+
+    const newFile = path.join(dir, `${newId}.jsonl`);
+    const h = header(newFile);
+    expect(h.retiredItems).toEqual(["gone_item"]);
+    expect(h.staleScoreItems).toBeUndefined();
+    const lines = readFileSync(newFile, "utf-8").trim().split("\n").slice(1);
+    expect(lines).toContain(retiredLine);
+    const current = lines
+      .map((l) => JSON.parse(l) as ItemResult)
+      .filter((r) => r.promptName !== "gone_item");
+    expect(current).toHaveLength(smoke.items.length);
+    expect(h.aggregate.score).toBe(current.filter((r) => r.score === 1).length / current.length);
+    await Effect.runPromise(
+      loadAttemptReconstruction(newFile).pipe(Effect.provide(NodeContext.layer)),
+    );
+  });
+
   it("does not re-stamp when a promptHash drifted", async () => {
     const { file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
     await runHandler({ archive: file, corpus: true });
@@ -708,6 +817,20 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
     expect(logged.join("\n")).toContain(
       `no restamp (promptHash drift on ${SMOKE_CONSTRAINT_ITEM})`,
     );
+  });
+
+  it("on a partial-drift re-score, flags the kept items and names the current scorers", async () => {
+    const { smoke, file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
+    await runHandler({ archive: file, corpus: true });
+
+    expect(header(file).staleScoreItems).toEqual([SMOKE_CONSTRAINT_ITEM]);
+    const lines = readFileSync(file, "utf-8").trim().split("\n").slice(1);
+    const rows = lines.map((l) => JSON.parse(l) as ItemResult);
+    for (const r of smoke.items.filter((i) => i.itemId !== SMOKE_CONSTRAINT_ITEM)) {
+      const sh = scorerHash(r.scorer);
+      expect(rows.find((x) => x.itemId === r.itemId)?.scorerHash).toBe(sh);
+      expect(existsSync(path.join(dir, "content", "scorers", `${sh}.json`))).toBe(true);
+    }
   });
 
   it("--dry-run reports the would-restamp and writes nothing", async () => {

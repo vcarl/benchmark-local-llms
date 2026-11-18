@@ -479,6 +479,10 @@ items:
       - name: equals 0.0508
         check: regex
         pattern: (?<![\d.])0?\.05080*(?!\d)
+    nearMisses:
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])5\.080*(?!\d)\s*%
     tags:
       - TODO
       - financial-model
@@ -575,6 +579,10 @@ items:
       - name: equals 0.1061
         check: regex
         pattern: (?<![\d.])0?\.10610*(?!\d)
+    nearMisses:
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])10\.610*(?!\d)\s*%
     tags:
       - TODO
       - financial-model
@@ -632,7 +640,7 @@ items:
       - financial-model
       - amortization
       - payment
-  # Simulating 12 months with the $100 extra principal each month leaves a balance of $15230.38 (vs $16,463.94 with no extra).
+  # Simulating 12 months with the $100 extra principal each month leaves a balance of $15230.33 (vs $16,463.94 with no extra).
   - name: financial_amort_balance_after_12
     category: financial
     tier: 4
@@ -651,15 +659,19 @@ items:
       nearest cent.
     scorer: constraint
     constraints:
-      - name: equals 15230.38
+      - name: equals 15230.33
         check: regex
-        pattern: (?<![\d.])15230\.380*(?!\d)
+        pattern: (?<![\d.]|\d,)(?:15,230|15230)\.330*(?!\d)
+    nearMisses:
+      - slip: round-at-end
+        credit: 0.5
+        pattern: (?<![\d.]|\d,)(?:15,230|15230)\.380*(?!\d)
     tags:
       - TODO
       - financial-model
       - amortization
       - balance
-  # Summing the interest portion of every payment until the balance clears gives $2444.38 (vs $3,199.36 on the scheduled 60-month plan).
+  # Summing the interest portion of every payment until the balance clears gives $2444.36 (vs $3,199.36 on the scheduled 60-month plan).
   - name: financial_amort_total_interest
     category: financial
     tier: 4
@@ -678,9 +690,13 @@ items:
       cent.
     scorer: constraint
     constraints:
-      - name: equals 2444.38
+      - name: equals 2444.36
         check: regex
-        pattern: (?<![\d.])2444\.380*(?!\d)
+        pattern: (?<![\d.]|\d,)(?:2,444|2444)\.360*(?!\d)
+    nearMisses:
+      - slip: round-at-end
+        credit: 0.5
+        pattern: (?<![\d.]|\d,)(?:2,444|2444)\.380*(?!\d)
     tags:
       - TODO
       - financial-model

@@ -97,6 +97,50 @@ describe("writeDetails", () => {
     expect(detail.items[0].scorer.type).toBe("exact_match");
   });
 
+  it("leaves retired items out of the detail file", async () => {
+    const sh = scorerHash(SCORER as never);
+    const line = (promptName: string) => ({
+      itemId: promptName,
+      promptName,
+      promptHash: "ph",
+      itemHash: "ih",
+      scorerHash: sh,
+      executedAt: "t",
+      promptTokens: 1,
+      generationTokens: 1,
+      promptTps: 1,
+      generationTps: 1,
+      peakMemoryGb: 0,
+      wallTimeSec: 0,
+      output: "4",
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      score: 1,
+    });
+    const header = { ...v2Header, retiredItems: ["gone"] };
+    const file = join(dir, "att-x.jsonl");
+    const out = join(dir, "out");
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
+          yield* writeBlob(dir, "prompts", "ph", "What is 2+2?");
+          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
+          yield* writeBlob(dir, "system", "cfg", "Be concise.");
+          const body = [header, line("kept"), line("gone")]
+            .map((l) => JSON.stringify(l))
+            .join("\n");
+          yield* Effect.promise(() => writeFile(file, `${body}\n`));
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+        }),
+        NodeContext.layer,
+      ),
+    );
+    const detail = JSON.parse(await readFile(join(out, "att-x.json"), "utf8"));
+    expect(detail.items.map((i: { item_id: string }) => i.item_id)).toEqual(["kept"]);
+  });
+
   it("skips a v1 attempt gracefully (no file, counted as skipped)", async () => {
     const file = join(dir, "att-v1.jsonl");
     const out = join(dir, "out");

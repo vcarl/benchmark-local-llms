@@ -6,6 +6,8 @@
 //     substring of an unrelated word (e.g. "no" inside "cannot") cannot match
 //   • constraint/regex (decimal) — for decimal answers, accepting equivalent
 //     forms (0.5, .5, 0.50) while rejecting any other value
+//   • nearMisses — solver-computed slips (round-at-end, truncation,
+//     percent-for-decimal) that earn partial credit; see docs/SCORING.md
 // Each item carries a `why` rationale, emitted as a YAML comment above it —
 // documentation for whoever reviews the suite; never seen by the model.
 
@@ -96,16 +98,25 @@ export function wholeWordPattern(value: string): string {
  * Regex matching a decimal answer in any equivalent written form: optional
  * leading zero (`.5` ≡ `0.5`) and any number of trailing zeros (`0.50` ≡
  * `0.5`), while rejecting a different value (`0.55`, `10.5`) or a longer number
- * that merely contains these digits. Built from the canonical numeric value so
+ * that merely contains these digits. The integer part may also be written with
+ * comma thousands grouping (`15,230.38` ≡ `15230.38`). Built from the canonical numeric value so
  * it stays in sync with the computed answer.
  */
 export function decimalPattern(value: number): string {
   const [intRaw, fracRaw = ""] = String(value).split(".");
   // Allow the leading zero to be omitted only when the integer part is 0.
-  const intPart = intRaw === "0" ? "0?" : escapeRegExp(intRaw);
+  const grouped = intRaw.replace(/\B(?=(\d{3})+$)/g, ",");
+  const intPart =
+    intRaw === "0"
+      ? "0?"
+      : grouped === intRaw
+        ? escapeRegExp(intRaw)
+        : `(?:${escapeRegExp(grouped)}|${escapeRegExp(intRaw)})`;
   const frac = fracRaw.replace(/0+$/, "");
   const fracPat = `${frac.split("").map(escapeRegExp).join("")}0*`;
-  return `(?<![\\d.])${intPart}\\.${fracPat}(?!\\d)`;
+  // Only grouped values need the comma guard; others keep their original pattern (stable hashes).
+  const guard = grouped === intRaw ? "(?<![\\d.])" : "(?<![\\d.]|\\d,)";
+  return `${guard}${intPart}\\.${fracPat}(?!\\d)`;
 }
 
 /** A constraint item scored by a single whole-word, case-insensitive regex.
@@ -177,8 +188,42 @@ export function orderedItem(
   };
 }
 
-/** A constraint item scored by a single caller-supplied regex pattern. */
-export function regexItem(f: BaseFields & { pattern: string; label: string }): AuthoredItem {
+/** A specific wrong answer worth partial credit (see docs/SCORING.md § Near misses). */
+export interface NearMiss {
+  slip: string;
+  credit: number;
+  pattern: string;
+}
+
+/**
+ * A rounding/precision slip: `slipValue` is the solver's answer under another
+ * rounding rule (round-at-end, truncation). Empty when it equals the key.
+ */
+export function slipNearMiss(slip: string, key: number, slipValue: number): NearMiss[] {
+  return slipValue === key ? [] : [{ slip, credit: 0.5, pattern: decimalPattern(slipValue) }];
+}
+
+/** A decimal answer written as a percent (0.0508 as 5.08%); the `%` sign is required. */
+export function percentNearMiss(value: number): NearMiss {
+  const pct = Number((value * 100).toFixed(10));
+  const body = Number.isInteger(pct) ? `(?<![\\d.])${pct}(?:\\.0*)?` : decimalPattern(pct);
+  return { slip: "percent-for-decimal", credit: 0.5, pattern: `${body}\\s*%` };
+}
+
+/**
+ * A constraint item scored by a single caller-supplied regex pattern, with
+ * optional near misses. A near miss whose pattern matches the prompt itself
+ * would credit an answer that only restates the question, so it is refused.
+ */
+export function regexItem(
+  f: BaseFields & { pattern: string; label: string; nearMisses?: NearMiss[] },
+): AuthoredItem {
+  const nearMisses = f.nearMisses ?? [];
+  for (const n of nearMisses) {
+    if (new RegExp(n.pattern).test(f.prompt)) {
+      throw new Error(`${f.name}: near miss ${n.slip} matches its own prompt`);
+    }
+  }
   return {
     why: f.why,
     item: {
@@ -188,6 +233,7 @@ export function regexItem(f: BaseFields & { pattern: string; label: string }): A
       prompt: f.prompt,
       scorer: "constraint",
       constraints: [{ name: f.label, check: "regex", pattern: f.pattern }],
+      ...(nearMisses.length === 0 ? {} : { nearMisses }),
       tags: f.tags ?? ["TODO"],
     },
   };

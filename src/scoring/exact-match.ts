@@ -29,18 +29,37 @@ export const scoreExactMatch = (
     const re = new RegExp(config.extract, "g");
     const matches = Array.from(output.matchAll(re));
     if (matches.length === 0) {
-      return { kind: "prompt", score: 0, details: "no match for pattern in output" };
+      return {
+        kind: "prompt",
+        score: 0,
+        details: "no match for pattern in output",
+        failure: "no_answer",
+      };
     }
     // Last match (prototype behavior). Prefer first capture group; fall back
     // to whole match if the pattern has none (matches Python's re.findall).
     const last = matches[matches.length - 1];
     if (last === undefined) {
-      return { kind: "prompt", score: 0, details: "no match for pattern in output" };
+      return {
+        kind: "prompt",
+        score: 0,
+        details: "no match for pattern in output",
+        failure: "no_answer",
+      };
     }
     const raw = last[1] ?? last[0];
     const extracted = raw.replace(/,/g, "");
     if (extracted === config.expected) {
       return { kind: "prompt", score: 1, details: `correct: ${extracted}` };
+    }
+    const near = config.nearMisses?.find((n) => n.expected === extracted);
+    if (near !== undefined) {
+      return {
+        kind: "prompt",
+        score: near.credit,
+        details: `near miss (${near.slip}): expected ${config.expected}, got ${extracted}`,
+        nearMiss: near.slip,
+      };
     }
     return {
       kind: "prompt",

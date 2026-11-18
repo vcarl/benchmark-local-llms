@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readBlob, scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
-import { aggregate, runChallenge } from "../run-challenge.js";
+import { aggregate, baseHeader, runChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
   inertHttpClientLayer,
@@ -127,5 +127,88 @@ describe("runChallenge v2 + content store", () => {
       Effect.provide(readBlob(dir, "system", config.configHash), NodeContext.layer),
     );
     expect(system).toBe(config.systemPromptText);
+  });
+});
+
+describe("baseHeader provenance", () => {
+  const challenge: ResolvedChallenge = {
+    id: "c",
+    version: 1,
+    passThreshold: 1,
+    challengeHash: "chh",
+    items: [],
+  };
+  const header = (config: ResolvedConfiguration) =>
+    baseHeader(
+      {
+        config,
+        challenge,
+        attemptId: "att",
+        archiveDir: "/x",
+        archivePath: "/x/att.jsonl",
+        env: {
+          hostname: "h",
+          platform: "p",
+          runtimeVersion: "r",
+          nodeVersion: "n",
+          benchmarkGitSha: "g",
+        },
+        deps: fakeDeps(),
+      },
+      "2026-01-01T00:00:00Z",
+    );
+  const minimal: ResolvedConfiguration = {
+    id: "m",
+    artifact: "a",
+    runtime: "mlx",
+    temperature: 0.7,
+    systemPrompt: "direct",
+    maxTokens: 100,
+    systemPromptText: "",
+    configHash: "cfg",
+  };
+
+  it("records every sampler and server knob the configuration sets", () => {
+    const h = header({
+      ...minimal,
+      runtime: "llamacpp",
+      topP: 0.95,
+      topK: 20,
+      minP: 0,
+      presencePenalty: 1.5,
+      repetitionPenalty: 1.1,
+      repetitionContextSize: 64,
+      chatTemplateKwargs: { enable_thinking: true },
+      ctxSize: 32768,
+      chatTemplate: "tpl",
+      chatTemplateSha: "abc123abc123",
+    });
+    expect(h).toMatchObject({
+      configHash: "cfg",
+      topP: 0.95,
+      topK: 20,
+      minP: 0,
+      presencePenalty: 1.5,
+      repetitionPenalty: 1.1,
+      repetitionContextSize: 64,
+      chatTemplateKwargs: { enable_thinking: true },
+      ctxSize: 32768,
+      chatTemplate: "tpl",
+      chatTemplateSha: "abc123abc123",
+    });
+    expect(h.serverFlags).toContain("--reasoning-format");
+  });
+
+  it("records extraArgs where the runtime passes them to its server", () => {
+    expect(header({ ...minimal, extraArgs: ["--trust-remote-code"] }).extraArgs).toEqual([
+      "--trust-remote-code",
+    ]);
+  });
+
+  it("omits every unset knob, and serverFlags off llamacpp", () => {
+    const h = header(minimal);
+    for (const k of ["topP", "minP", "ctxSize", "chatTemplate", "serverFlags"]) {
+      expect(k in h).toBe(false);
+    }
   });
 });

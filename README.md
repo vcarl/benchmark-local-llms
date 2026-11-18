@@ -52,6 +52,7 @@ A configuration's `runtime` field selects which server the harness launches per 
 | `src/errors/` | Typed `Data.TaggedError` classes grouped by domain |
 | `challenges/` | Challenge suites (one YAML per suite), each a versioned set of fully-inline scored items, plus any companion `code_exec` `.test.py` files |
 | `scenarios/` | Multi-turn game scenarios, loaded separately (see `docs/SCENARIOS.md`) |
+| `errata.yaml`, `release-baseline.json` | Errata registry and last-release item snapshot; `npm test` requires an erratum for every item change (see `docs/ERRATA.md`) |
 | `configs.yaml` | Configuration registry: `id`, `artifact`, `runtime`, `quant`, `temperature`, `systemPrompt`, `maxTokens` |
 | `system-prompts.yaml` | System-prompt registry (key → text); a configuration selects one via `systemPrompt:` |
 | `benchmark-archive/` | Default archive output — attempt `.jsonl` files plus the shared `content/` store |
@@ -64,6 +65,7 @@ A configuration's `runtime` field selects which server the harness launches per 
 - [`docs/CONFIG.md`](./docs/CONFIG.md) — YAML schemas for configurations, inline challenge items, and system prompts
 - [`docs/ARCHIVE-FORMAT.md`](./docs/ARCHIVE-FORMAT.md) — attempt manifest + item-result format and content store
 - [`docs/SCORING.md`](./docs/SCORING.md) — scorer dispatch and the constraint-check catalog
+- [`docs/ERRATA.md`](./docs/ERRATA.md) — errata registry, release baseline, and the release command
 
 ## CLI reference
 
@@ -80,6 +82,9 @@ All subcommands take `--help`. Paths default to convention.
               [--challenges-dir DIR] [--challenge FILE]
               [--corpus] [--dry-run] [--verbose]
 
+./bench audit [--archive-dir DIR] [--challenge ID] [--flag suspect-key|saturated|edge|zero-failure]
+              [--min-n N] [--edge-top K] [--json] [--verbose]
+
 ./bench export <attempt> [--archive-dir DIR] [--out PATH] [--dir] [--verbose]
 
 ./bench list-models [--configs-file FILE] [--system-prompts-file FILE]
@@ -87,6 +92,7 @@ All subcommands take `--help`. Paths default to convention.
 ```
 
 - **`run`** sweeps matched configurations against matched challenges (globs over config ids and challenge stems), executing each configuration × challenge cell, printing a live per-cell result line, and finishing with a summary grid. `--no-cache` forces fresh execution of every item; `--no-report` skips the end-of-sweep report regeneration.
+- **`audit`** reads the archive's completed attempts, takes each config's latest result per challenge, and prints one row per item; see [Item audit](docs/SCORING.md#item-audit).
 - **`report`** scans the archive directory, keeps only completed attempts, deduplicates by `attemptId`, and writes `data.js` plus a per-attempt detail file for every reconstructible attempt. It prints an audit block: attempts loaded, dropped (incomplete / duplicate), cells written, and details written / skipped.
 - **`score`** re-applies scorers to an attempt's stored outputs and rewrites the archive in place — no model call. By default it re-scores from the content store; `--corpus` instead re-resolves the current challenge inline from `challenges/` so an edited scorer takes effect. When the change since the run was scorer-only (every item matches the current challenge 1:1 with an unchanged `promptHash`), `--corpus` also re-stamps the attempt onto the current challenge identity — `challengeHash`, per-item `itemHash` / `scorerHash`, and the `attemptId` and filename — so it counts as canonical; any other difference re-scores with identity kept as recorded and says why. `--archive` repeats; `--stale` (implies `--corpus`) processes every completed attempt in `--archive-dir` whose `challengeHash` differs from its current challenge's. `--dry-run` reports the changes — would-restamp, rescored-only, skipped — without writing.
 - **`export`** bundles an attempt's `.jsonl` and exactly the content blobs it references into a portable, self-verifying archive — a `.tar.gz` by default, or a plain directory with `--dir`. Accepts an `attemptId` (resolved under `--archive-dir`) or a direct `.jsonl` path.

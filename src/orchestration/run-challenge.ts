@@ -3,7 +3,7 @@
  *
  * Boots the LLM server for the configuration (reusing the LlmServerFactory from
  * RunModelDeps), runs each challenge item through `runPrompt`, scores each item
- * via `scoreByConfig` (scorer errors yield score 0, not a crashed attempt),
+ * via `scoreOrFold` (scorer errors yield a classified score 0, not a crashed attempt),
  * aggregates to `{ score, passed }`, and writes the per-attempt archive
  * (header → item lines → finalize).
  *
@@ -22,12 +22,13 @@ import type { ResolvedConfiguration } from "../config/configurations.js";
 import { stableStringify } from "../config/hashing.js";
 import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
+import { LLAMACPP_FIXED_FLAGS } from "../llm/servers/llamacpp.js";
 import type { ServerHandle } from "../llm/servers/supervisor.js";
 import type { AttemptAggregate, AttemptManifest, ItemResult } from "../schema/attempt.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { RunEnv } from "../schema/run-manifest.js";
-import { scoreByConfig } from "../scoring/dispatch.js";
-import type { PromptScore } from "../scoring/score-result.js";
+import { scoreOrFold } from "../scoring/dispatch.js";
+import { applyScore } from "../scoring/failure-kind.js";
 import type { RunModelDeps } from "./run-model.js";
 import { runPrompt } from "./run-prompt.js";
 
@@ -82,7 +83,31 @@ export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   ...(c.extraArgs !== undefined ? { extraArgs: c.extraArgs } : {}),
 });
 
-const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
+/** Configuration fields copied verbatim onto the manifest as provenance, when set. */
+const PROVENANCE_FIELDS = [
+  "topP",
+  "topK",
+  "minP",
+  "presencePenalty",
+  "repetitionPenalty",
+  "repetitionContextSize",
+  "chatTemplateKwargs",
+  "ctxSize",
+  "chatTemplate",
+  "chatTemplateSha",
+] as const satisfies ReadonlyArray<keyof ResolvedConfiguration & keyof AttemptManifest>;
+
+const provenance = (c: ResolvedConfiguration): Partial<AttemptManifest> => ({
+  ...Object.fromEntries(PROVENANCE_FIELDS.flatMap((k) => (c[k] === undefined ? [] : [[k, c[k]]]))),
+  // extraArgs reaches only the mlx/omlx servers (see cli/deps.ts); record it where it applied.
+  ...(c.runtime === "llamacpp"
+    ? { serverFlags: LLAMACPP_FIXED_FLAGS }
+    : c.extraArgs === undefined
+      ? {}
+      : { extraArgs: c.extraArgs }),
+});
+
+export const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
   schemaVersion: 2,
   attemptId: input.attemptId,
   startedAt,
@@ -102,6 +127,7 @@ const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifes
   env: input.env,
   aggregate: { score: 0, passed: false },
   ...(input.config.quant !== undefined ? { quant: input.config.quant } : {}),
+  ...provenance(input.config),
 });
 
 // ── Per-item helper ────────────────────────────────────────────────────────
@@ -178,15 +204,7 @@ export const executeOrCacheItem = (
       ...(peakRssKb !== undefined ? { peakRssKb } : {}),
     });
 
-    const scoreResult = yield* scoreByConfig(exec.output, item.scorer, {
-      promptName: item.itemId,
-    }).pipe(
-      Effect.catchAll(() =>
-        Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
-      ),
-    );
-
-    return {
+    const row: ItemResult = {
       itemId: item.itemId,
       promptName: item.itemId,
       promptHash: item.promptHash,
@@ -204,14 +222,14 @@ export const executeOrCacheItem = (
       rawOutput: exec.rawOutput,
       error: exec.error,
       ...(exec.stopReason === undefined ? {} : { stopReason: exec.stopReason }),
-      score: exec.error === null ? scoreResult.score : 0,
-      // An errored execution scored 0 and must not carry a (stale) breakdown.
-      // Only the constraint scorer sets `breakdown`; others leave it undefined,
-      // and the conditional spread omits the key entirely in that case.
-      ...(exec.error === null && scoreResult.breakdown !== undefined
-        ? { breakdown: scoreResult.breakdown }
-        : {}),
-    } satisfies ItemResult;
+      score: 0,
+    };
+    // An errored execution is not scored: it records score 0 and its failureKind.
+    const scored =
+      exec.error === null
+        ? yield* scoreOrFold(exec.output, item.scorer, { promptName: item.itemId })
+        : undefined;
+    return applyScore(row, scored);
   });
 
 // ── Main entry ─────────────────────────────────────────────────────────────

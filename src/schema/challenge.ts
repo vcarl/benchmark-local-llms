@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { ConstraintDef } from "./constraints.js";
+import { ExactNearMiss, PatternNearMiss } from "./scorer.js";
 
 /**
  * Raw on-disk shape of a single challenge item. The representation is
@@ -25,6 +26,7 @@ const ExactMatchItem = Schema.Struct({
   scorer: Schema.Literal("exact_match"),
   expected: Schema.String,
   extract: Schema.String,
+  nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
   tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
@@ -35,6 +37,7 @@ const ConstraintItem = Schema.Struct({
   prompt: Schema.String,
   scorer: Schema.Literal("constraint"),
   constraints: Schema.Array(ConstraintDef),
+  nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
   tags: Schema.optional(Schema.Array(Schema.String)),
 });
 

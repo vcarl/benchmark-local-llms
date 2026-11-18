@@ -9,6 +9,29 @@ import { ConstraintDef } from "./constraints.js";
  * evaluation lives in a separate scoring module (phase B3).
  */
 
+/** Partial credit for a near miss: strictly between 0 and 1. */
+const NearMissCredit = Schema.Number.pipe(Schema.greaterThan(0), Schema.lessThan(1));
+
+/**
+ * A named near miss on an `exact_match` item: an extracted answer equal to
+ * `expected` scores `credit` instead of 0. `slip` names the mistake (e.g.
+ * `round-at-end`, `percent-for-decimal`).
+ */
+export const ExactNearMiss = Schema.Struct({
+  slip: Schema.String,
+  credit: NearMissCredit,
+  expected: Schema.String,
+});
+export type ExactNearMiss = typeof ExactNearMiss.Type;
+
+/** A named near miss on a `constraint` item: output matching `pattern` scores `credit`. */
+export const PatternNearMiss = Schema.Struct({
+  slip: Schema.String,
+  credit: NearMissCredit,
+  pattern: Schema.String,
+});
+export type PatternNearMiss = typeof PatternNearMiss.Type;
+
 /** Regex-extraction + string-equality scorer (§4.2). */
 export const ExactMatchConfig = Schema.Struct({
   type: Schema.Literal("exact_match"),
@@ -16,6 +39,8 @@ export const ExactMatchConfig = Schema.Struct({
   expected: Schema.String,
   /** Regex with a capture group; last match's first group is compared. */
   extract: Schema.String,
+  /** Wrong answers that earn partial credit, checked in order when the answer is not `expected`. */
+  nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
 });
 export type ExactMatchConfig = typeof ExactMatchConfig.Type;
 
@@ -23,6 +48,8 @@ export type ExactMatchConfig = typeof ExactMatchConfig.Type;
 export const ConstraintConfig = Schema.Struct({
   type: Schema.Literal("constraint"),
   constraints: Schema.Array(ConstraintDef),
+  /** Patterns that earn partial credit, checked in order when the constraints score below 1. */
+  nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
 });
 export type ConstraintConfig = typeof ConstraintConfig.Type;
 

@@ -348,3 +348,68 @@ describe("runChallenge cache", () => {
     });
   });
 });
+
+describe("executeOrCacheItem failureKind", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const execute = (
+    result: { output: string; reasoning: string | null; finishReason: string | null },
+    scorer?: ResolvedItem["scorer"],
+  ) => {
+    const base = makeChallenge();
+    const first = base.items[0] as ResolvedItem;
+    const item = scorer === undefined ? first : { ...first, scorer };
+    const m = makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: { ...result, promptTokens: 5, generationTokens: 5, promptTps: 0, generationTps: 0 },
+      },
+    );
+    return Effect.runPromise(
+      executeOrCacheItem(
+        {
+          config,
+          challenge: { ...base, items: [item] },
+          attemptId: "att-fk",
+          archiveDir: dir,
+          archivePath: `${dir}/att-fk.jsonl`,
+          env,
+          noCache: true,
+          deps: fakeDeps(),
+        },
+        item,
+      ).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+  };
+
+  it("a split-reasoning run that spent its budget thinking is thinking_truncated, not wrong", async () => {
+    const row = await execute({ output: "", reasoning: "let me think…", finishReason: "length" });
+    expect(row).toMatchObject({ score: 0, error: null, failureKind: "thinking_truncated" });
+  });
+
+  it("a scorer crash is recorded as scorer_error with its cause", async () => {
+    const row = await execute({ output: SCORE_1, reasoning: null, finishReason: "stop" }, {
+      type: "game",
+      gameScorer: "nope",
+      scorerParams: {},
+    } as ResolvedItem["scorer"]);
+    expect(row).toMatchObject({ score: 0, failureKind: "scorer_error" });
+    expect(row.scoreDetails).toContain("ScorerNotFound");
+  });
+
+  it("a pass carries failureKind null", async () => {
+    const row = await execute({ output: SCORE_1, reasoning: null, finishReason: "stop" });
+    expect(row).toMatchObject({ score: 1, failureKind: null });
+  });
+});

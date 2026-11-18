@@ -9,6 +9,7 @@ import {
   type YamlParseError,
 } from "../errors/config.js";
 import { Challenge, type ChallengeItem } from "../schema/challenge.js";
+import type { ConstraintDef } from "../schema/constraints.js";
 import { ConstraintCheck } from "../schema/enums.js";
 import type { PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
 import type { ScorerConfig } from "../schema/scorer.js";
@@ -114,7 +115,14 @@ const validateConstraintPatterns = (
   item: ChallengeItem,
 ): ConfigError | null => {
   if (item.scorer !== "constraint") return null;
-  for (const c of item.constraints) {
+  const nearMisses = (item.nearMisses ?? []).map(
+    (n): ConstraintDef => ({
+      check: "regex",
+      name: `near miss ${n.slip}`,
+      pattern: n.pattern,
+    }),
+  );
+  for (const c of [...item.constraints, ...nearMisses]) {
     if (c.check !== "regex" && c.check !== "regex_count_min") continue;
     const base = c.check === "regex" ? (c.dotall === true ? "s" : "") : "g";
     const t = translateInlineFlags(c.pattern, base);
@@ -147,9 +155,15 @@ const resolveScorer = (
         type: "exact_match" as const,
         expected: item.expected,
         extract: item.extract,
+        // Absent unless declared, so items without near misses keep their scorerHash.
+        ...(item.nearMisses === undefined ? {} : { nearMisses: item.nearMisses }),
       });
     case "constraint":
-      return Effect.succeed({ type: "constraint" as const, constraints: item.constraints });
+      return Effect.succeed({
+        type: "constraint" as const,
+        constraints: item.constraints,
+        ...(item.nearMisses === undefined ? {} : { nearMisses: item.nearMisses }),
+      });
     case "game":
       return Effect.succeed({
         type: "game" as const,

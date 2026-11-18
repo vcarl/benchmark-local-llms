@@ -69,6 +69,24 @@ export interface LlamacppConfig {
   readonly extraArgs?: ReadonlyArray<string>;
 }
 
+/**
+ * The fixed llama-server flags that shape generation (KV-cache precision,
+ * reasoning split, Jinja rendering). Recorded on every llamacpp attempt
+ * manifest as `serverFlags`.
+ */
+export const LLAMACPP_FIXED_FLAGS: ReadonlyArray<string> = [
+  "--cache-type-k",
+  "q8_0",
+  "--cache-type-v",
+  "q8_0",
+  "--reasoning-format",
+  "auto",
+  // Always pin --jinja so a future llama.cpp default flip can't silently
+  // change prompt rendering. Must precede --chat-template-file below, which
+  // llama.cpp only treats as arbitrary Jinja when --jinja is set first.
+  "--jinja",
+];
+
 const buildArgs = (cfg: LlamacppConfig, port: number): ReadonlyArray<string> => {
   const base: string[] = [
     "-m",
@@ -77,16 +95,7 @@ const buildArgs = (cfg: LlamacppConfig, port: number): ReadonlyArray<string> => 
     "127.0.0.1",
     "--port",
     String(port),
-    "--cache-type-k",
-    "q8_0",
-    "--cache-type-v",
-    "q8_0",
-    "--reasoning-format",
-    "auto",
-    // Always pin --jinja so a future llama.cpp default flip can't silently
-    // change prompt rendering. Must precede --chat-template-file below, which
-    // llama.cpp only treats as arbitrary Jinja when --jinja is set first.
-    "--jinja",
+    ...LLAMACPP_FIXED_FLAGS,
   ];
   if (cfg.ctxSize !== undefined) {
     base.push("-c", String(cfg.ctxSize));

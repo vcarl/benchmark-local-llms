@@ -2,6 +2,23 @@ import { Schema } from "effect";
 import { Runtime } from "./enums.js";
 import { RunEnv } from "./run-manifest.js";
 
+/**
+ * Why an item did not score a full pass. `null` on a full pass (score 1).
+ * Derived by `classifyFailure` (src/scoring/failure-kind.ts) from the stored
+ * item fields plus the scorer's outcome, so `bench score` can recompute it.
+ */
+export const FailureKind = Schema.Literal(
+  "wrong",
+  "no_answer",
+  "length_cutoff",
+  "thinking_truncated",
+  "loop",
+  "scorer_error",
+  "execution_error",
+  "near_miss",
+);
+export type FailureKind = typeof FailureKind.Type;
+
 /** One challenge item's execution + per-item score. Body line of the attempt archive. */
 export const ItemResult = Schema.Struct({
   itemId: Schema.String,
@@ -29,6 +46,16 @@ export const ItemResult = Schema.Struct({
    */
   stopReason: Schema.optional(Schema.NullOr(Schema.String)),
   score: Schema.Number,
+  /**
+   * Why the item fell short of a full pass; `null` when `score` is 1. Optional:
+   * archives scored before the field existed omit it until `bench score`
+   * re-scores them.
+   */
+  failureKind: Schema.optional(Schema.NullOr(FailureKind)),
+  /** The scorer's human-readable verdict (e.g. `expected 42, got 41`). Absent when the item was not scored. */
+  scoreDetails: Schema.optional(Schema.String),
+  /** The `slip` of the declared near miss that earned this item partial credit; present iff `failureKind` is `near_miss`. */
+  nearMiss: Schema.optional(Schema.String),
   /**
    * Per-check breakdown for the constraint scorer (passed/failed/errored
    * constraint `name`s). Optional and constraint-shaped: only the constraint
@@ -73,6 +100,33 @@ export const AttemptManifest = Schema.Struct({
   temperature: Schema.Number,
   systemPrompt: Schema.String,
   maxTokens: Schema.Number,
+  /*
+   * Generation provenance: the configuration's sampler and server knobs as
+   * run. Recorded only, never hashed — `configHash` stays the identity. Each
+   * is present iff the configuration set it; archives predating the fields
+   * omit them.
+   */
+  topP: Schema.optional(Schema.Number),
+  topK: Schema.optional(Schema.Number),
+  minP: Schema.optional(Schema.Number),
+  presencePenalty: Schema.optional(Schema.Number),
+  repetitionPenalty: Schema.optional(Schema.Number),
+  repetitionContextSize: Schema.optional(Schema.Number),
+  chatTemplateKwargs: Schema.optional(
+    Schema.Record({
+      key: Schema.String,
+      value: Schema.Union(Schema.String, Schema.Number, Schema.Boolean),
+    }),
+  ),
+  ctxSize: Schema.optional(Schema.Number),
+  /** Extra server CLI args as passed (mlx/omlx; llamacpp does not consume them). */
+  extraArgs: Schema.optional(Schema.Array(Schema.String)),
+  /** Vendored template name (`templates/<name>.jinja`) passed to llama-server. */
+  chatTemplate: Schema.optional(Schema.String),
+  /** shortSha256 of that template file's content at run time; also part of `configHash`. */
+  chatTemplateSha: Schema.optional(Schema.String),
+  /** The harness's fixed server flags (llamacpp only), e.g. KV-cache type and reasoning format. */
+  serverFlags: Schema.optional(Schema.Array(Schema.String)),
 
   challengeId: Schema.String,
   challengeVersion: Schema.Number,
@@ -85,6 +139,18 @@ export const AttemptManifest = Schema.Struct({
    */
   restampedFrom: Schema.optional(Schema.String),
   passThreshold: Schema.optional(Schema.Number),
+  /**
+   * promptNames of items whose score `bench score` kept from an earlier scorer
+   * because their prompt drifted from the current challenge — the attempt mixes
+   * scorers. Absent when every item was scored by the scorer its line names.
+   */
+  staleScoreItems: Schema.optional(Schema.Array(Schema.String)),
+  /**
+   * promptNames of archived lines whose item has been removed from this
+   * challenge version. Their lines stay in the file for audit; the aggregate,
+   * report, and audit count only the remaining items. Absent when none.
+   */
+  retiredItems: Schema.optional(Schema.Array(Schema.String)),
 
   env: RunEnv,
   aggregate: AttemptAggregate,

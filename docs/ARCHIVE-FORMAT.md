@@ -21,7 +21,7 @@ Blank lines are tolerated by the reader; the trailing newline on the last record
 
 ## AttemptManifest (line 1)
 
-The header carries the attempt's full identity and provenance. Configuration and challenge identity are **denormalized** into the header so a single line is self-describing.
+The header carries the attempt's full identity and provenance. Configuration and challenge identity are **denormalized** into the header so a single line is self-describing. The generation knobs (sampler settings, chat template, server flags) are recorded alongside as provenance; `configHash` is computed from the configuration, never read back from these fields.
 
 | Field | Type | Description |
 |---|---|---|
@@ -38,11 +38,20 @@ The header carries the attempt's full identity and provenance. Configuration and
 | `temperature` | `number` | Sampling temperature. |
 | `systemPrompt` | `string` | System-prompt key from the configuration. |
 | `maxTokens` | `number` | Generation cap per item. |
+| `topP`, `topK`, `minP`, `presencePenalty`, `repetitionPenalty`, `repetitionContextSize` | `number?` | Sampler settings as sent; each present iff the configuration set it. |
+| `chatTemplateKwargs` | `Record<string, string \| number \| boolean>?` | Chat-template variables as sent. |
+| `ctxSize` | `number?` | Context-window override passed to the server. |
+| `extraArgs` | `string[]?` | Extra server CLI args as passed (mlx/omlx). |
+| `chatTemplate` | `string?` | Vendored template name (`templates/<name>.jinja`) passed to llama-server. |
+| `chatTemplateSha` | `string?` | 12-hex SHA-256 prefix of that template file's content at run time; part of `configHash`. |
+| `serverFlags` | `string[]?` | The harness's fixed llama-server flags (KV-cache type, reasoning format, `--jinja`); llamacpp only. |
 | `challengeId` | `string` | Challenge id. |
 | `challengeVersion` | `number` | Challenge version; a different version is a distinct challenge. |
 | `challengeHash` | `string` | 12-hex identity of the challenge's resolved items (see [Hashing](#hashing)). |
 | `restampedFrom` | `string?` | Original `attemptId` of an attempt `score --corpus` re-stamped onto the current challenge identity after a scorer-only change; its embedded `challengeHash` is the identity the model ran against. Absent when identity is as-run. |
 | `passThreshold` | `number?` | Fraction of items that must score perfect for the attempt to pass. |
+| `staleScoreItems` | `string[]?` | `promptName`s of items whose score `bench score` kept from an earlier scorer because their prompt drifted from the current challenge — the attempt's scores come from mixed scorers. Absent when every line's score came from the scorer its `scorerHash` names. |
+| `retiredItems` | `string[]?` | `promptName`s of lines whose item has since been removed from this challenge version. The lines stay in the file; the aggregate, report, and audit count only the remaining items. Absent when none. See [Retired items](#retired-items). |
 | `env` | `RunEnv` | Provenance: `{ hostname, platform, runtimeVersion, nodeVersion, benchmarkGitSha }`. Recorded for audit; **not** part of any identity hash. |
 | `aggregate` | `{ score, passed }` | Zeroed at header-write, filled at finalize. See [Aggregate](#aggregate). |
 
@@ -68,11 +77,16 @@ One line per challenge item — the item's execution metrics, the model's output
 | `reasoning` | `string \| null` | Separated chain-of-thought, when the runtime emitted it as a distinct field or it was extracted from inline `<think>` / channel markers. `null` when nothing was stripped. |
 | `rawOutput` | `string` | Unmodified API content, always retained for audit. |
 | `error` | `string \| null` | `null` on success; a tagged-error string on failure. An item with a non-null `error` scores `0`. |
+| `stopReason` | `string \| null`? | Why generation stopped: the server's `finish_reason` (`"stop"`, `"length"`), or `"loop"` when the repetition detector cancelled the stream. |
 | `score` | `number` | Per-item score in `[0, 1]`. |
+| `failureKind` | `string \| null`? | Why the item fell short of a full pass; `null` when `score` is `1`. One of `wrong`, `no_answer`, `length_cutoff`, `thinking_truncated`, `loop`, `scorer_error`, `execution_error`, `near_miss` — see [SCORING.md § Failure kind](./SCORING.md#failure-kind). Absent on lines not yet (re-)scored by a harness that records it. |
+| `scoreDetails` | `string`? | The scorer's human-readable verdict (e.g. `expected 42, got 41`, or the scorer error). Absent when the item was not scored. |
+| `nearMiss` | `string`? | The `slip` of the declared near miss that set `score`; present iff `failureKind` is `near_miss`. |
+| `breakdown` | `{ passed, failed, errored }`? | Constraint-scorer per-check names; absent for other scorers. |
 
 ## Aggregate
 
-The attempt's headline score is **pooled over items**: `score = (items scoring exactly 1) / (total items)`. Partial credit on an item (`0 < score < 1`) does not count toward the passing count. The attempt `passed` when `score >= passThreshold`. An attempt with no items scores `{ score: 0, passed: false }`.
+The attempt's headline score is **pooled over items**: `score = (items scoring exactly 1) / (total items)`, where retired items are not counted. Partial credit on an item (`0 < score < 1`) does not count toward the passing count. The attempt `passed` when `score >= passThreshold`. An attempt with no items scores `{ score: 0, passed: false }`.
 
 The same definition drives the report: a "pass" anywhere downstream means an item scored exactly `1`.
 
@@ -103,7 +117,7 @@ Five 12-hex hashes (SHA-256 prefixes over canonical, key-sorted JSON) give the f
 
 | Hash | Preimage | Meaning |
 |---|---|---|
-| `configHash` | `artifact \| runtime \| quant \| temperature \| maxTokens \| systemPromptText` | Identity of the configuration — the knobs a user sets. Code version (`env.benchmarkGitSha`) is deliberately excluded. |
+| `configHash` | `artifact \| runtime \| quant \| temperature \| maxTokens \| systemPromptText`, then each of `repetitionPenalty`, `repetitionContextSize`, `topP`, `topK`, `minP`, `presencePenalty`, `chatTemplateKwargs`, and the chat-template file's content hash (`chatTemplateSha`) only when set | Identity of the configuration — the knobs a user sets. Code version (`env.benchmarkGitSha`), `ctxSize`, `extraArgs`, and `serverFlags` are excluded; the manifest records them as provenance. |
 | `promptHash` | `promptText \| resolvedSystemText` | What the model sees; changes when either the prompt or the system prompt changes. |
 | `scorerHash` | the scorer config | Identity of the scorer. Kept **separate** — it is never folded into `itemHash`, `configHash`, `challengeHash`, or `attemptId`. |
 | `itemHash` | `promptHash \| scorer` | Per-item identity; the cross-attempt cache key. A scorer-only edit changes `itemHash` (so re-scoring applies) but leaves `promptHash` untouched. |
@@ -121,7 +135,13 @@ An attempt is written in three phases:
 
 Finalize overwrites only the header line; appended `ItemResult` records are never modified once written. An attempt that is interrupted before finalize keeps `interrupted: true` and `finishedAt: null` — and the report ignores it (see [Reporting](#reporting)).
 
-In-place re-scoring (`bench score`) is the one path that rewrites the whole file. It is **atomic**: the new contents are written to a sibling temp file and renamed over the target, so a failed or partial write never corrupts the existing archive. After a scorer-only challenge edit (same challenge id/version, items 1:1 with unchanged `promptHash`), `score --corpus` re-stamps the attempt onto the current identity: `challengeHash`, each item's `itemHash` and `scorerHash`, and `attemptId` take the current values, `restampedFrom` keeps the original `attemptId`, and the file is written atomically under the new `<attemptId>.jsonl` before the old one is removed. Blobs keyed by `configHash` and `promptHash` are unchanged; the current scorer blobs are written before the archive. Re-stamped items carry the current `itemHash`, so they serve the cross-attempt cache for the current scorer.
+In-place re-scoring (`bench score`) is the one path that rewrites the whole file. It is **atomic**: the new contents are written to a sibling temp file and renamed over the target, so a failed or partial write never corrupts the existing archive. After a scorer-only challenge edit or an item retirement (same challenge id/version, every current item present in the attempt with unchanged `promptHash`), `score --corpus` re-stamps the attempt onto the current identity: `challengeHash`, each item's `itemHash` and `scorerHash`, and `attemptId` take the current values, `restampedFrom` keeps the original `attemptId`, and the file is written atomically under the new `<attemptId>.jsonl` before the old one is removed. Blobs keyed by `configHash` and `promptHash` are unchanged; the current scorer blobs are written before the archive. Re-stamped items carry the current `itemHash`, so they serve the cross-attempt cache for the current scorer.
+
+Without a re-stamp (`score --corpus` on an attempt with prompt drift), each re-scored item still takes the current `itemHash` and `scorerHash` — every line names the scorer that produced its score — and the current scorer blobs are written first. Drifted items keep their stored score and hashes, and the header's `staleScoreItems` lists them. Every re-scored line also gets a fresh `failureKind` and `scoreDetails`.
+
+## Retired items
+
+Removing an item from a challenge (see [ERRATA.md](./ERRATA.md)) keeps the challenge's id and version, so existing attempts carry forward. `score --corpus` (and `--stale`) treats an archived line whose item is absent from the same challenge version as **retired**: the line is kept byte-for-byte, its `promptName` is listed in the header's `retiredItems`, and the aggregate is computed over the remaining items. The attempt then re-stamps onto the current identity like a scorer-only edit, so every config's results stay comparable at one `challengeHash`. The report's per-attempt record (`item_count`, `passed_items`, token and time sums, failure kinds) and the drilldown detail file skip retired lines; `./bench audit` ignores them. An attempt of a different challenge version is never retired — a line missing from the resolved challenge keeps its stored score and is listed in `staleScoreItems`.
 
 ## Cache and resume
 

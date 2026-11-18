@@ -40,7 +40,9 @@ export const writeDetails = (
         skipped++;
         continue;
       }
-      const { manifest, systemPromptText, items } = recon.right;
+      const { manifest, systemPromptText } = recon.right;
+      const retired = new Set(manifest.retiredItems ?? []);
+      const items = recon.right.items.filter(({ item }) => !retired.has(item.promptName));
       const payload = {
         attempt_id: manifest.attemptId,
         config_id: manifest.configId,
