@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { scopeRow } from "./model";
+import { groupRows, scopeRow, type ScopedRow } from "./model";
 import type { Cell, Row } from "./rows";
 import {
   activePreset,
   applyFilters,
   applyPreset,
+  applyView,
   defaultView,
   facetCounts,
   funnel,
@@ -115,5 +116,45 @@ describe("funnel", () => {
   it("reads the same horizontal or rotated", () => {
     expect(funnelText({ total: 109, inScope: 108, match: 87, models: 38 })).toBe("109 rows · 108 in scope · 87 match · 38 models");
     expect(funnelText({ total: 1, inScope: 1, match: 1, models: 1 })).toBe("1 row · 1 in scope · 1 match · 1 model");
+  });
+
+  it("adds the in-view stage only while zoomed; models count the rows in view", () => {
+    const f = funnel(3, scoped, scoped, scoped.slice(0, 1));
+    expect(f).toEqual({ total: 3, inScope: 3, match: 3, view: 1, models: 1 });
+    expect(funnelText(f)).toBe("3 rows · 3 in scope · 3 match · 1 in view · 1 model");
+  });
+});
+
+describe("zoomed view", () => {
+  // x = cost.tokens, y = score.
+  const at = (id: string, model: string, tokens: number | null, passed: number): ScopedRow => {
+    const r = scopeRow(row(id, "mlx", "4bit", 20), { items: "all", challenges: [] });
+    return {
+      ...r,
+      row: { ...r.row, modelKey: model },
+      score: passed,
+      cost: tokens === null ? null : { ...r.cost!, tokens },
+    };
+  };
+  const vp = { x0: 10_000, x1: 100_000, y0: 0.5, y1: 0.8 };
+  const rows = [
+    at("m-in", "m", 30_000, 0.7),
+    at("m-right", "m", 200_000, 0.75),
+    at("n-low", "n", 30_000, 0.4),
+    at("n-nocost", "n", null, 0.6),
+    at("o-edge", "o", 100_000, 0.5),
+  ];
+
+  it("keeps rows whose point is inside the view, edges included; a row without a point is out", () => {
+    expect(applyView(rows, vp).map((r) => r.row.rowId)).toEqual(["m-in", "o-edge"]);
+    expect(applyView(rows, undefined)).toBe(rows);
+  });
+
+  it("filters before grouping: a model keeps only its in-view rows, one with none disappears", () => {
+    const g = groupRows(applyView(rows, vp), "model", "score");
+    expect(g.map((x) => [x.key, x.rows.map((r) => r.row.rowId)])).toEqual([
+      ["m", ["m-in"]],
+      ["o", ["o-edge"]],
+    ]);
   });
 });

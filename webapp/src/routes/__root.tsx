@@ -12,8 +12,9 @@ import { issueTemplateUrl } from "../lib/constants";
 import { computeTpsDomain, type ScatterPoint } from "../lib/encoding";
 import { groupRows, scopeRow, sortRows, withEfficiency } from "../lib/model";
 import { DATASETS } from "../lib/rows";
-import { applyFilters, funnel, inScope, parseView, toSearch, type ViewState } from "../lib/view-state";
-import type { Viewport } from "../lib/viewport";
+import { applyFilters, applyView, funnel, inScope, parseView, toSearch, type ViewState } from "../lib/view-state";
+import { fitXDomain, fitYDomain } from "../lib/scatter-layout";
+import { clampViewport, type Viewport } from "../lib/viewport";
 import styles from "./index.module.css";
 
 export const Route = createRootRoute({
@@ -50,8 +51,6 @@ function RootComponent() {
   const scoped = useMemo(() => (dataset?.rows ?? []).map((r) => scopeRow(r, view.scope)), [dataset, scopeKey]);
   const scopedIn = useMemo(() => withEfficiency(scoped.filter(inScope)), [scoped]);
   const visible = useMemo(() => sortRows(applyFilters(scopedIn, view.filters), view.sort), [scopedIn, view.filters, view.sort]);
-  const counts = useMemo(() => funnel(dataset?.rows.length ?? 0, scoped, visible), [dataset, scoped, visible]);
-  const groups = useMemo(() => groupRows(visible, view.group, view.sort), [visible, view.group, view.sort]);
   const points = useMemo<ScatterPoint[]>(
     () =>
       visible.flatMap((r) =>
@@ -77,6 +76,21 @@ function RootComponent() {
       ),
     [visible],
   );
+  // The zoom filters the list: clamped into the extent the scatter fits to the
+  // filtered points (as the scatter does), then one more row filter. The scatter
+  // keeps every filtered point, so its extent never depends on the zoom.
+  const vp = useMemo(() => {
+    if (view.vp === undefined) return undefined;
+    const x = fitXDomain(points.map((p) => p.x));
+    const y = fitYDomain(points.map((p) => p.y));
+    return clampViewport(view.vp, { x0: x.min, x1: x.max, y0: y.min, y1: y.max });
+  }, [view.vp, points]);
+  const listed = useMemo(() => applyView(visible, vp), [visible, vp]);
+  const counts = useMemo(
+    () => funnel(dataset?.rows.length ?? 0, scoped, visible, vp === undefined ? undefined : listed),
+    [dataset, scoped, visible, vp, listed],
+  );
+  const groups = useMemo(() => groupRows(listed, view.group, view.sort), [listed, view.group, view.sort]);
   const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
   const legendFamilies = useMemo(
     () => [...new Set(points.map((p) => p.family))].map((name) => ({ name, color: familyColor(name) })),

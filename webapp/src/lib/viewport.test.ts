@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampViewport, formatViewport, linTicks, logTicks, panViewport, parseViewport, zoomViewport, type Viewport } from "./viewport";
+import { clampViewport, inView, formatViewport, linTicks, logTicks, panViewport, parseViewport, zoomViewport, type Viewport } from "./viewport";
 
 const FULL: Viewport = { x0: 1000, x1: 1_000_000, y0: 0, y1: 1 };
 
@@ -55,5 +55,18 @@ describe("ticks", () => {
     expect(logTicks(1000, 1_000_000)).toEqual([1000, 3000, 10000, 30000, 100000, 300000, 1000000]);
     expect(logTicks(20000, 90000)).toEqual([20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000]);
     expect(logTicks(41000, 47000)).toEqual([42000, 44000, 46000]);
+  });
+});
+
+describe("inView", () => {
+  const vp: Viewport = { x0: 10_000, x1: 100_000, y0: 0.5, y1: 0.8 };
+  it("tests x on the log axis and y linearly, edges inclusive", () => {
+    expect(inView(vp, Math.sqrt(10_000 * 100_000), 0.65)).toBe(true);
+    expect(inView(vp, 10_000, 0.5)).toBe(true);
+    expect(inView(vp, 100_000, 0.8)).toBe(true);
+    expect(inView(vp, 9_999, 0.6)).toBe(false);
+    expect(inView(vp, 100_001, 0.6)).toBe(false);
+    expect(inView(vp, 50_000, 0.49)).toBe(false);
+    expect(inView(vp, 50_000, 0.81)).toBe(false);
   });
 });

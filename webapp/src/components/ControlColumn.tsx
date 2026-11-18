@@ -254,7 +254,7 @@ export function ControlColumn({ view, defaultSet, datasets, dataset, scoped, fun
 
       <div className={styles.footer}>
         <span>
-          Showing {funnel.match} of {funnel.inScope} rows in scope
+          Showing {funnel.view ?? funnel.match} of {funnel.inScope} rows in scope
         </span>
         <button type="button" className={styles.reset} onClick={() => onChange({ ...view, ...defaultView(defaultSet), open: true })}>
           Reset

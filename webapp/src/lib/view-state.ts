@@ -3,7 +3,7 @@
 // setting of the controls, and the active preset is derived, never stored.
 import { modelFamily } from "./artifact";
 import type { GroupBy, ItemScope, Scope, ScopedRow, SortKey } from "./model";
-import { formatViewport, parseViewport, type Viewport } from "./viewport";
+import { formatViewport, inView, parseViewport, type Viewport } from "./viewport";
 
 export const FACETS = ["runtime", "quant", "family", "hw", "sub"] as const;
 export type Facet = (typeof FACETS)[number];
@@ -198,6 +198,14 @@ export const facetCounts = (rows: ScopedRow[], f: Filters, facet: Facet): Map<st
   return new Map([...out].sort(([a], [b]) => a.localeCompare(b)));
 };
 
+/**
+ * The scatter's zoom as one more row filter, after the facet filters: rows whose
+ * point (tokens, adjusted score) is inside `vp`. A row without a point is out.
+ * No view = every row.
+ */
+export const applyView = (rows: ScopedRow[], vp: Viewport | undefined): ScopedRow[] =>
+  vp === undefined ? rows : rows.filter((r) => r.cost !== null && inView(vp, r.cost.tokens, r.score));
+
 /** Active row filters, for the collapsed summary. */
 export const activeFilterCount = (f: Filters): number =>
   FACETS.filter((k) => f[k].length > 0).length + (f.complete ? 1 : 0) + (f.mem === null ? 0 : 1);
@@ -212,19 +220,23 @@ export interface Funnel {
   total: number;
   /** Rows in scope; the list never shows another. */
   inScope: number;
-  /** In-scope rows passing the filters: the list's rows. */
+  /** In-scope rows passing the filters. */
   match: number;
-  /** Distinct models (modelKey) among them, whatever the grouping. */
+  /** Of those, rows whose point is inside the scatter's zoom; only while zoomed. */
+  view?: number;
+  /** Distinct models (modelKey) among the list's rows, whatever the grouping. */
   models: number;
 }
 
-export const funnel = (total: number, scoped: ScopedRow[], shown: ScopedRow[]): Funnel => ({
+/** `inView` is the rows left by the zoom, when zoomed; the list shows it, else `shown`. */
+export const funnel = (total: number, scoped: ScopedRow[], shown: ScopedRow[], inView?: ScopedRow[]): Funnel => ({
   total,
   inScope: scoped.filter(inScope).length,
   match: shown.length,
-  models: new Set(shown.map((r) => r.row.modelKey)).size,
+  ...(inView === undefined ? {} : { view: inView.length }),
+  models: new Set((inView ?? shown).map((r) => r.row.modelKey)).size,
 });
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export const funnelText = (f: Funnel): string =>
-  `${plural(f.total, "row")} · ${f.inScope} in scope · ${f.match} match · ${plural(f.models, "model")}`;
+  `${plural(f.total, "row")} · ${f.inScope} in scope · ${f.match} match · ${f.view === undefined ? "" : `${f.view} in view · `}${plural(f.models, "model")}`;

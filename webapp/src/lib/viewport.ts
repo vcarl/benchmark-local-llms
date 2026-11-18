@@ -60,6 +60,9 @@ export const clampViewport = (vp: Viewport, full: Viewport): Viewport | undefine
   return fx && fy ? undefined : { x0: 10 ** lx0, x1: 10 ** lx1, y0, y1 };
 };
 
+/** A point at (x, y) is inside the view, edges included. Comparing raw x is the log-axis test: log10 is monotone. */
+export const inView = (vp: Viewport, x: number, y: number): boolean => x >= vp.x0 && x <= vp.x1 && y >= vp.y0 && y <= vp.y1;
+
 const niceStep = (raw: number): number => {
   const p = 10 ** Math.floor(Math.log10(raw));
   return p * ([1, 2, 5, 10].find((m) => m * p >= raw * (1 - 1e-9)) ?? 10);

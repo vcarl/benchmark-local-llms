@@ -51,17 +51,19 @@ A **scope** changes what the score means, so every row's number, CI, completenes
 
 A **filter** hides rows and never changes a score: runtime, quant, family, hardware, submitter, "complete only", and "fits in N GB" (peak memory under the scope ≤ N).
 
+The scatter's **zoom** is one more row filter, applied after the others: while zoomed, the list keeps only rows whose point lies inside the view (edges included). A row with no point (no cost) is out while zoomed. Rows are filtered before grouping, so a model lists only its in-view rows and a model with none disappears; ranks and tiers count the rows left, as with any filter. Facet counts ignore the zoom: the scatter's extent is fitted to the filtered points, so the view is defined relative to the filter result and cannot feed back into it. Efficiency is unaffected (its pool is the in-scope rows before any filter).
+
 The control column puts scopes in a framed block at the top, titled "Scoring", separate from "Filter rows".
 
 ## Control column
 
 Top to bottom:
 
-1. **Title**: the row funnel, preceded by a non-default item scope or challenge subset (`core · 3 challenges · …`). The funnel reads `109 rows · 108 in scope · 108 match · 42 models`: rows of the set → rows in scope → in-scope rows passing the filters (the list's rows) → distinct models (`modelKey`) among them, whatever the grouping. The title is the column's head button and the same text in both states; collapsing rotates it 90° into the bar (an animated transform about its corner), expanding lays it flat. A short wording that reads both ways was chosen over separate collapsed and expanded summaries.
+1. **Title**: the row funnel, preceded by a non-default item scope or challenge subset (`core · 3 challenges · …`). The funnel reads `109 rows · 108 in scope · 108 match · 42 models`: rows of the set → rows in scope → in-scope rows passing the filters → distinct models (`modelKey`) among the list's rows, whatever the grouping. While the scatter is zoomed a stage for the view sits before the models: `… 87 match · 24 in view · 11 models`. The title is the column's head button and the same text in both states; collapsing rotates it 90° into the bar (an animated transform about its corner), expanding lays it flat. A short wording that reads both ways was chosen over separate collapsed and expanded summaries.
 2. **Scoring**: Set (segmented), Items (all / core / stretch), Challenges (checkbox list with each challenge's item count; none checked = all).
 3. **Filter rows**: one checkbox list per facet (runtime, quant, family, hardware, submitter), each value with a live count. The count is the number of rows that would show if this value were selected together with every other active filter. Below: "Complete only" and "Fits in" (any, 16, 32, 64, 128 GB).
 4. **View**: Group (model / none) and Sort (score, efficiency, speed, memory, recent; each with its natural direction).
-5. Footer: `Showing N of M rows in scope` (the funnel's match and in-scope counts) and Reset, which restores the default settings and keeps the selection and zoom.
+5. Footer: `Showing N of M rows in scope` (the list's rows, i.e. the funnel's in-view count while zoomed and its match count otherwise, and the in-scope count) and Reset, which restores the default settings and keeps the selection and zoom.
 
 Collapsed, the column is a 44 px bar holding the rotated title. Clicking the bar expands it; clicking the title collapses it.
 
@@ -101,7 +103,7 @@ All state lives in the hash route's search, so a view is shareable. A default is
 
 There is no preset parameter: the active preset is derived from the state. Parsing and serializing are pure functions with a round-trip test.
 
-**Selection.** Choosing a row (list or scatter) sets `row` and `sel`. Closing the drilldown clears `row` and keeps `sel`, so the row stays highlighted in the list (tinted, with an accent bar) and ringed and labelled in the scatter, across filter and preset changes while it is still shown. In the side-by-side layout a selection scrolls its list row into view. A tap on the scatter background clears `sel`.
+**Selection.** Choosing a row (list or scatter) sets `row` and `sel`. Closing the drilldown clears `row` and keeps `sel`, so the row stays highlighted in the list (tinted, with an accent bar) and ringed and labelled in the scatter, across filter and preset changes while it is still shown. A selected row that a filter or the zoom removes keeps `sel` and its ring in the scatter; it leaves the list until it is shown again. In the side-by-side layout a selection scrolls its list row into view. A tap on the scatter background clears `sel`.
 
 ## Layout
 
@@ -143,7 +145,7 @@ Below 900 px the lanes stack: scatter, a one-line filter bar (the title, horizon
 
 One point per visible row: x = generation tokens, y = adjusted score, and the glyph encodes memory, wall time and speed from the scoped cells' `cost`. Hover is shared with the list by `rowId`.
 
-**Zoom and pan.** The full extent fits the visible points. A zoomed view (`vp`) is clamped into it, with a minimum span of 1 point on y and a 2% ratio on x; a view as large as the extent is no view. Zooming scales both axes about the pointer, x in log space. Axes re-tick for the view (log ticks refine to every digit, then to linear 1/2/5 steps inside a decade); points and glyphs keep their size, points outside are clipped, and only points in view are labelled. The view follows a gesture frame by frame and goes to the URL 250 ms after it settles, replacing the history entry. A Reset zoom button shows while zoomed.
+**Zoom and pan.** The full extent fits the visible points. A zoomed view (`vp`) is clamped into it, with a minimum span of 1 point on y and a 2% ratio on x; a view as large as the extent is no view. Zooming scales both axes about the pointer, x in log space. Axes re-tick for the view (log ticks refine to every digit, then to linear 1/2/5 steps inside a decade); points and glyphs keep their size, points outside are clipped, only points in view are labelled, and the list drops their rows (see Scope vs filter). The scatter itself keeps every filtered point, so its extent never depends on the view. The view follows a gesture frame by frame and goes to the URL 250 ms after it settles, replacing the history entry. A Reset zoom button shows while zoomed.
 
 Gestures, recognized by a pure reducer (`lib/gesture.ts`) over pointer events:
 
