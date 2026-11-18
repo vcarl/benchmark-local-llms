@@ -52,7 +52,7 @@ export const scoreByConfig = (
     case "constraint":
       return scoreConstraints(output, cfg);
     case "code_exec":
-      return scoreCodeExec(output, cfg.testCode);
+      return scoreCodeExec(output, cfg.testCode, { submission: cfg.submission });
     case "set_match":
       return scoreSetMatch(output, cfg);
     case "ordered_match":

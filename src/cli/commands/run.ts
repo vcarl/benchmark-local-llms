@@ -122,7 +122,11 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
 
     if (!args.noReport) {
       const outputPath = path.join(args.output, "data.js");
-      const summary = yield* runReport({ archiveDir: args.archiveDir, outputPath });
+      const summary = yield* runReport({
+        archiveDir: args.archiveDir,
+        outputPath,
+        challengesDir: args.challengesDir,
+      });
       yield* logAuditBlock(summary);
     }
     return grid;

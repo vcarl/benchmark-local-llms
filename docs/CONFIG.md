@@ -115,6 +115,8 @@ Each entry in `items` is a complete item:
 | `scorer` | enum | yes | Scorer discriminator (see below); the matching per-scorer fields are siblings of `scorer`. |
 | `tags` | `string[]` | no | Free-form labels. |
 | `family` | `string` | no | Uncertainty cluster: items sharing a scenario share a family. Default: the item stands alone. Metadata only — enters no hash. See [SCORING.md § Uncertainty](./SCORING.md#uncertainty-and-statistical-ties). |
+| `scope` | `core` \| `stretch` | no | Coverage tag. Default: `stretch` in `economics`, `financial` and `trust`, `core` elsewhere. Metadata only — enters no hash. See [SCORING.md § Scope](./SCORING.md#scope). |
+| `seed` | `number` | no | Generator seed of a seeded variant (named `<item>_s<seed>`). Provenance only — enters no hash. |
 
 The `scorer` field selects one variant, each with its own required sibling fields:
 
@@ -122,7 +124,7 @@ The `scorer` field selects one variant, each with its own required sibling field
 |---|---|---|
 | `exact_match` | `expected`, `extract` (regex), optional `nearMisses[]` (each `{ slip, credit, expected }`) | `{ type: exact_match, expected, extract, nearMisses? }` |
 | `constraint` | `constraints[]` (each `{ name, check, value, … }`), optional `nearMisses[]` (each `{ slip, credit, pattern }`) | `{ type: constraint, constraints, nearMisses? }` |
-| `code_exec` | `testFile` (path, relative to the challenge file's directory) | `{ type: code_exec, testCode }` — file read and embedded at load |
+| `code_exec` | `testFile` (path, relative to the challenge file's directory); optional `submission: <lang>` | `{ type: code_exec, testCode, submission? }` — file read and embedded at load; `submission` binds the answer to `SUBMISSION` instead of running it ([SCORING.md](./SCORING.md#submission-mode)) |
 | `game` | `gameScorer`, `scorerParams` | `{ type: game, gameScorer, scorerParams }` |
 
 `nearMisses` declares specific wrong answers that earn partial credit: `credit` is strictly between 0 and 1, `slip` names the mistake. An absent `nearMisses` leaves the scorer config (and its hash) unchanged. See [SCORING.md § Near misses](./SCORING.md#near-misses).

@@ -18,6 +18,21 @@ import { ExactNearMiss, PatternNearMiss } from "./scorer.js";
  * owned by `configs.yaml` (`systemPrompt:` → `system-prompts.yaml`), not a
  * property of a challenge item.
  */
+/** Coverage tag: `core` (local-model sweet spot) or `stretch` (solver-backed reasoning). */
+export const Scope = Schema.Literal("core", "stretch");
+export type Scope = typeof Scope.Type;
+
+/** Item metadata. None of it is hashed, so changing it never re-identifies an item. */
+const meta = {
+  tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. */
+  family: Schema.optional(Schema.String),
+  /** Coverage tag; absent → `defaultScope(challengeId)` (src/config/challenges.ts). */
+  scope: Schema.optional(Scope),
+  /** Generator seed of a seeded variant (`<item>_s<seed>`); provenance only. */
+  seed: Schema.optional(Schema.Number),
+};
+
 const ExactMatchItem = Schema.Struct({
   name: Schema.String,
   category: Schema.String,
@@ -27,9 +42,7 @@ const ExactMatchItem = Schema.Struct({
   expected: Schema.String,
   extract: Schema.String,
   nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  ...meta,
 });
 
 const ConstraintItem = Schema.Struct({
@@ -40,9 +53,7 @@ const ConstraintItem = Schema.Struct({
   scorer: Schema.Literal("constraint"),
   constraints: Schema.Array(ConstraintDef),
   nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  ...meta,
 });
 
 const CodeExecItem = Schema.Struct({
@@ -53,9 +64,9 @@ const CodeExecItem = Schema.Struct({
   scorer: Schema.Literal("code_exec"),
   /** Path to companion test file, resolved relative to the challenge file's dir. */
   testFile: Schema.String,
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  /** Submission mode language (see `CodeExecConfig.submission`). */
+  submission: Schema.optional(Schema.String),
+  ...meta,
 });
 
 const GameItem = Schema.Struct({
@@ -66,9 +77,7 @@ const GameItem = Schema.Struct({
   scorer: Schema.Literal("game"),
   gameScorer: Schema.String,
   scorerParams: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  ...meta,
 });
 
 const SetMatchItem = Schema.Struct({
@@ -80,9 +89,7 @@ const SetMatchItem = Schema.Struct({
   vocabulary: Schema.Array(Schema.String),
   expected: Schema.Array(Schema.String),
   caseSensitive: Schema.optional(Schema.Boolean),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  ...meta,
 });
 
 const OrderedMatchItem = Schema.Struct({
@@ -94,9 +101,7 @@ const OrderedMatchItem = Schema.Struct({
   vocabulary: Schema.Array(Schema.String),
   expected: Schema.Array(Schema.String),
   caseSensitive: Schema.optional(Schema.Boolean),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  ...meta,
 });
 
 /**
@@ -132,9 +137,7 @@ const MultiTurnItem = Schema.Struct({
   category: Schema.String,
   tier: Schema.Number,
   turns: Schema.Array(Turn).pipe(Schema.minItems(2)),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
-  family: Schema.optional(Schema.String),
+  ...meta,
 });
 export type MultiTurnItem = typeof MultiTurnItem.Type;
 

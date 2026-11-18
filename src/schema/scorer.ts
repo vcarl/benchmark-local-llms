@@ -61,6 +61,12 @@ export type ConstraintConfig = typeof ConstraintConfig.Type;
 export const CodeExecConfig = Schema.Struct({
   type: Schema.Literal("code_exec"),
   testCode: Schema.String,
+  /**
+   * Submission mode (`sql`, `regex`, ...): the output's first fenced `<lang>`
+   * block is bound to the Python string `SUBMISSION` for `testCode` to judge,
+   * instead of being executed. Absent: the output is Python and runs.
+   */
+  submission: Schema.optional(Schema.String),
 });
 export type CodeExecConfig = typeof CodeExecConfig.Type;
 

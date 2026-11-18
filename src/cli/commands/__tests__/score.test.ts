@@ -45,6 +45,7 @@ const resolvedItem = (
 ): ResolvedItem => ({
   itemId,
   family: itemId,
+  scope: "core",
   promptHash,
   itemHash: `${promptHash}-ih`,
   scorer,

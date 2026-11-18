@@ -233,7 +233,7 @@ When that score is below 1, each `config.nearMisses` entry is tried in order: th
 
 ### Check catalog
 
-20 check variants, ordered as declared in the `ConstraintDef` union.
+21 check variants, ordered as declared in the `ConstraintDef` union.
 
 | `check` | Semantics |
 |---|---|
@@ -251,6 +251,7 @@ When that score is below 1, each `config.nearMisses` entry is tried in order: th
 | `json_field_equals` | Parsed JSON is an object and `obj[key]` deep-equals `value`. |
 | `json_field_is_list` | Parsed JSON is an object and `obj[key]` is an array. |
 | `json_list_item_has` | Parsed JSON has a `listKey` array containing some item whose `matchField` deep-equals `matchValue` and whose `checkField` deep-equals `checkValue`. |
+| `json_matches` | The answer JSON deep-equals `value` (see [`json_matches`](#json_matches)). |
 | `numbered_lines` | Output has a line starting with `from` **and** a line starting with `to` (followed by `.`, `)`, `:`, or whitespace), in multiline mode. |
 | `no_numbered_line` | Output has **no** line starting with `line` followed by `.`, `)`, `:`, or whitespace. |
 | `numbered_line_exists` | Output **has** a line starting with `line` followed by `.`, `)`, `:`, or whitespace. |
@@ -258,7 +259,22 @@ When that score is below 1, each `config.nearMisses` entry is tried in order: th
 | `word_count_exact` | Case-insensitive `\b<word>\b` match count equals `count`. |
 | `all_lines_word_count` | Every non-empty trimmed line has between `min` and `max` whitespace-separated words (inclusive). |
 
-JSON-reading checks all use the same fallback parser: try `JSON.parse(text.trim())`; on failure, extract the first `{[^{}]*}` block and try that; return `null` otherwise. A `null` parse causes every JSON check to return `false` (not errored).
+JSON-reading checks other than `json_matches` all use the same fallback parser: try `JSON.parse(text.trim())`; on failure, the first fenced block; on failure, the first balanced `{...}` or `[...]` block (string-literal aware) that parses; return `null` otherwise. A `null` parse causes every JSON check to return `false` (not errored).
+
+### `json_matches`
+
+Grades a whole structured answer against a key (`value`), for extraction and reshaping items.
+
+1. **Extract** the answer: the whole trimmed output if it parses; else the **last** fenced block (any language tag) that parses; else the **last** top-level balanced `{...}` or `[...]` block that parses (a parsed block's inner blocks are skipped). Last, like `exact_match`'s last match: a model that drafts or echoes a schema first states its answer at the end.
+2. **Compare** by JSON deep equality:
+   - Object key order is ignored; the key sets must be equal — a missing or extra key fails.
+   - Array order matters.
+   - Numbers compare by value after `JSON.parse`, so `12.5`, `12.50` and `1.25e1` are equal.
+   - No type coercion: `"5"` ≠ `5`, `"true"` ≠ `true`, `null` ≠ `""`, and `null` ≠ a missing key.
+   - Strings compare exactly — case, whitespace and Unicode form all count. Prompts state any canonical form (ISO dates, upper-case codes) the key uses.
+3. A parsed JSON `null` is treated as no answer, so `value: null` is never a valid key.
+
+It declares no near misses: a partial record is a wrong record. A pattern near miss on the item still applies as for any constraint item.
 
 Ref: schema `src/schema/constraints.ts`, handlers `src/scoring/constraint-checks.ts`, dispatcher `src/scoring/constraint.ts`.
 
@@ -275,6 +291,10 @@ Ref: schema `src/schema/constraints.ts`, handlers `src/scoring/constraint-checks
    - Non-zero exit, no marker → `{ score: 0.0, details: "<classified failure>" }`, where the classifier inspects stderr for `AssertionError` / `SyntaxError` / `NameError` and reports the last stderr line (truncated to 120 chars), or falls back to a stdout snippet.
 
 The scorer is the only one with a `R` requirement (`CommandExecutor.CommandExecutor`), propagated through `scoreExecution`'s signature.
+
+### Submission mode
+
+An item with `submission: <lang>` (e.g. `sql`, `regex`) grades a non-Python answer. Step 1 becomes: take the first ```` ```<lang> ```` fenced block, else the first unlabeled ```` ``` ```` fence, else the whole trimmed output, and bind it verbatim (trimmed) as the Python string `SUBMISSION`. The program is `SUBMISSION = "<answer>"` followed by the test code and the marker; the answer is never executed as Python. The test code decides pass or fail with assertions over `SUBMISSION` — for SQL it builds an in-memory `sqlite3` database and compares the submission's result set with the reference query's; for regex it runs `re.fullmatch` over held-out cases. Steps 2–5 are unchanged: same subprocess, timeout, and classification. A catastrophically backtracking regex times out, which is a scorer error scored 0.
 
 Ref: `src/scoring/code-exec.ts`, `src/scoring/extract-code.ts`.
 

@@ -5,7 +5,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { type Challenge, Challenge as ChallengeSchema } from "../schema/challenge.js";
-import { loadChallenge, resolveChallenge } from "./challenges.js";
+import { defaultScope, loadChallenge, resolveChallenge } from "./challenges.js";
 import { computePromptHash, stableStringify } from "./hashing.js";
 
 // Absolute path to the repo root (two levels up from src/config/)
@@ -293,6 +293,28 @@ describe("resolveChallenge hashing", () => {
     expect(t.items.map((i) => [i.itemHash, i.promptHash])).toEqual(
       u.items.map((i) => [i.itemHash, i.promptHash]),
     );
+  });
+
+  it("scope and seed are metadata: scope defaults by challenge id and changes no hash", async () => {
+    const mk = (id: string, extra: object) =>
+      ({
+        id,
+        version: 1,
+        passThreshold: 0.8,
+        items: [{ ...exactItem("a", "q-a"), ...extra }],
+      }) as unknown as Challenge;
+    const [core, stretch, tagged] = await Promise.all([
+      Effect.runPromise(provide(resolveChallenge(mk("logic", {}), challengesDir))),
+      Effect.runPromise(provide(resolveChallenge(mk("financial", {}), challengesDir))),
+      Effect.runPromise(
+        provide(resolveChallenge(mk("logic", { scope: "stretch", seed: 2 }), challengesDir)),
+      ),
+    ]);
+    expect(core.items[0]?.scope).toBe("core");
+    expect(stretch.items[0]?.scope).toBe("stretch");
+    expect(tagged.items[0]?.scope).toBe("stretch");
+    expect(tagged.challengeHash).toBe(core.challengeHash);
+    expect(defaultScope("extraction")).toBe("core");
   });
 });
 

@@ -22,6 +22,24 @@ const TESTS_PASSED_MARKER = "ALL_TESTS_PASSED";
 const buildProgram = (extracted: string, testCode: string): string =>
   `${extracted}\n\n${testCode}\nprint('${TESTS_PASSED_MARKER}')\n`;
 
+const escapeRegExp = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
+
+/**
+ * Submission mode: the first ```<lang> fenced block, else the first unlabeled
+ * fence, else the whole trimmed output — bound as a Python string, never run.
+ */
+export const extractSubmission = (output: string, lang: string): string => {
+  const fence = (tag: string) => new RegExp(`\`\`\`${tag}[ \\t]*\\r?\\n([\\s\\S]*?)\`\`\``);
+  const m = fence(escapeRegExp(lang)).exec(output) ?? fence("").exec(output);
+  return (m?.[1] ?? output).trim();
+};
+
+/**
+ * `SUBMISSION = <literal>`. A JSON string literal is a valid Python 3 str
+ * literal (same escapes; non-ASCII passes through raw), so no hand quoting.
+ */
+const bindSubmission = (submission: string): string => `SUBMISSION = ${JSON.stringify(submission)}`;
+
 const classifyFailure = (stdout: string, stderr: string): string => {
   const lines = stderr.trim().split(/\r?\n/);
   const last = lines[lines.length - 1] ?? "";
@@ -37,6 +55,8 @@ const classifyFailure = (stdout: string, stderr: string): string => {
 export interface CodeExecOptions {
   readonly timeoutMs?: number;
   readonly pythonBin?: string;
+  /** Submission mode: bind the output's `<lang>` block to `SUBMISSION` instead of executing it. */
+  readonly submission?: string | undefined;
 }
 
 /**
@@ -51,7 +71,10 @@ export const scoreCodeExec = (
   Effect.gen(function* () {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const pythonBin = options.pythonBin ?? "python3";
-    const extracted = extractCode(output);
+    const extracted =
+      options.submission === undefined
+        ? extractCode(output)
+        : bindSubmission(extractSubmission(output, options.submission));
     const program = buildProgram(extracted, testCode);
 
     const cmd = Command.make(pythonBin, "-c", program);

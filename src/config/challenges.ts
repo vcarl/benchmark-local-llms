@@ -8,7 +8,7 @@ import {
   UnknownConstraintCheck,
   type YamlParseError,
 } from "../errors/config.js";
-import { Challenge, type ChallengeItem, type SingleItem } from "../schema/challenge.js";
+import { Challenge, type ChallengeItem, type Scope, type SingleItem } from "../schema/challenge.js";
 import type { ConstraintDef } from "../schema/constraints.js";
 import { ConstraintCheck } from "../schema/enums.js";
 import type { ChatMessage, PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
@@ -36,6 +36,8 @@ export interface ResolvedItem {
    * it enters no hash, so changing it never re-identifies an item.
    */
   readonly family: string;
+  /** Coverage tag: the YAML `scope`, else {@link defaultScope}. Metadata only, like `family`. */
+  readonly scope: Scope;
 }
 export interface ResolvedChallenge {
   readonly id: string;
@@ -46,6 +48,13 @@ export interface ResolvedChallenge {
 }
 
 const scorerKey = (s: ScorerConfig): string => stableStringify(s);
+
+/** Challenges whose items are solver-backed multi-step reasoning (docs/SCORING.md § Scope). */
+const STRETCH_CHALLENGES: ReadonlySet<string> = new Set(["economics", "financial", "trust"]);
+
+/** Scope of an item that declares none: `stretch` for the solver suites, else `core`. */
+export const defaultScope = (challengeId: string): Scope =>
+  STRETCH_CHALLENGES.has(challengeId) ? "stretch" : "core";
 
 /**
  * System prompt is a config concern, not a challenge concern. Inline items
@@ -218,7 +227,12 @@ const resolveScorer = (
               }),
           ),
         );
-        return { type: "code_exec" as const, testCode };
+        // Absent unless declared, so Python items keep their scorerHash.
+        return {
+          type: "code_exec" as const,
+          testCode,
+          ...(item.submission === undefined ? {} : { submission: item.submission }),
+        };
       });
     }
   }
@@ -281,6 +295,7 @@ const expandItem = (item: ChallengeItem): ReadonlyArray<Unit> => {
         tier: item.tier,
         tags: item.tags,
         family: item.family,
+        scope: item.scope,
       },
       answer,
       ...(history.length === 0 ? {} : { history: [...history] }),
@@ -343,6 +358,7 @@ export const resolveChallenge = (
           prompt,
           ...turn,
           family: item.family ?? `${challenge.id}/${turn.parentItemId ?? item.name}`,
+          scope: item.scope ?? defaultScope(challenge.id),
         } satisfies ResolvedItem;
       }),
     );

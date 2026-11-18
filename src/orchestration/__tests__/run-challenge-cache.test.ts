@@ -42,6 +42,7 @@ const makeChallenge = (): ResolvedChallenge => {
   const item: ResolvedItem = {
     itemId: prompt.name,
     family: prompt.name,
+    scope: "core",
     promptHash: prompt.promptHash,
     itemHash: "ih-fixed",
     scorer: prompt.scorer,

@@ -50,7 +50,7 @@ export const AgentEventType = Schema.Literal(
 export type AgentEventType = typeof AgentEventType.Type;
 
 /**
- * Discriminator for the 20 constraint check variants defined in `./constraints.ts`.
+ * Discriminator for the 21 constraint check variants defined in `./constraints.ts`.
  * Used to tag `ConstraintDef` union members and (at config load time) to validate
  * unknown check names before any execution.
  */
@@ -69,6 +69,7 @@ export const ConstraintCheck = Schema.Literal(
   "json_field_equals",
   "json_field_is_list",
   "json_list_item_has",
+  "json_matches",
   "numbered_lines",
   "no_numbered_line",
   "numbered_line_exists",

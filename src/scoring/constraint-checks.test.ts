@@ -472,3 +472,49 @@ describe("constraint checks — count family", () => {
     expect(run("a b c d e\nf g", def)).toBe(false); // first line too long
   });
 });
+
+describe("constraint checks — json_matches", () => {
+  const value = { id: "INV-7", total: 12.5, lines: [{ sku: "A", qty: 2 }], note: null };
+  const def: ConstraintDef = { check: "json_matches", name: "m", value };
+  const ok = '{"note":null,"lines":[{"qty":2,"sku":"A"}],"total":12.50,"id":"INV-7"}';
+
+  it("passes on the whole output, ignoring key order and numeric spelling", () => {
+    expect(run(ok, def)).toBe(true);
+    expect(run(ok.replace("12.50", "1.25e1"), def)).toBe(true);
+  });
+
+  it("reads a fenced json block amid prose", () => {
+    expect(run(`Here you go:\n\`\`\`json\n${ok}\n\`\`\`\nDone.`, def)).toBe(true);
+  });
+
+  it("reads the last balanced block when prose surrounds nested JSON", () => {
+    expect(run(`Schema: {"id": "string"}. Answer: ${ok} — hope that helps`, def)).toBe(true);
+  });
+
+  it("takes the last fenced block when several are present", () => {
+    const draft = '{"id":"wrong"}';
+    expect(run(`\`\`\`json\n${draft}\n\`\`\`\nFixed:\n\`\`\`json\n${ok}\n\`\`\``, def)).toBe(true);
+    expect(run(`\`\`\`json\n${ok}\n\`\`\`\nOr:\n\`\`\`json\n${draft}\n\`\`\``, def)).toBe(false);
+  });
+
+  it("does not coerce a numeric string to a number", () => {
+    expect(run(ok.replace("12.50", '"12.50"'), def)).toBe(false);
+  });
+
+  it("fails on an extra key, a missing key, or a reordered array", () => {
+    expect(run(ok.replace('"id"', '"extra":1,"id"'), def)).toBe(false);
+    expect(run(ok.replace('"note":null,', ""), def)).toBe(false);
+    const arr: ConstraintDef = { check: "json_matches", name: "m", value: [1, 2] };
+    expect(run("[1, 2]", arr)).toBe(true);
+    expect(run("[2, 1]", arr)).toBe(false);
+  });
+
+  it("is case- and whitespace-sensitive on strings", () => {
+    expect(run(ok.replace("INV-7", "inv-7"), def)).toBe(false);
+    expect(run(ok.replace("INV-7", "INV-7 "), def)).toBe(false);
+  });
+
+  it("fails on unparseable output", () => {
+    expect(run("no json here", def)).toBe(false);
+  });
+});
