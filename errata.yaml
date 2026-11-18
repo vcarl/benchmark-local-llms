@@ -2,36 +2,44 @@
 # `npm test` (src/config/errata.test.ts) fails when an item differs from
 # release-baseline.json without an entry here. See docs/ERRATA.md.
 #
-#   kind:         answer-key | scorer | prompt-ambiguity | retired | added
-#   items:        challengeId/itemName of every affected item
-#   scorerChange: true when the entry changed how stored outputs score
-#   promptFix:    none | pending-next-release | fixed-in-release (+ release: <label>)
+#   id:            <release>.<n>, n = 1, 2, … within the baseline release (0 = pre-release)
+#   kind:          answer-key | scorer | prompt-ambiguity | retired | added
+#   items:         challengeId/itemName of every affected item
+#   description:   public, plain language: what was wrong and what changed
+#   notes:         optional, internal technical detail (not published)
+#   scorerChange:  true when the entry changed how stored outputs score
+#   releaseStatus: none | next-release | released (+ releasedIn: <release>)
 errata:
-  - id: E-0001
+  - id: "0.1"
     date: 2026-11-16
     kind: answer-key
     items:
       - financial/financial_amort_balance_after_12
       - financial/financial_amort_total_interest
     description: >-
-      The amortization solver carried full precision through the schedule, but
-      the prompt says "work to exact cents". Keys now round the payment and each
-      month's interest to the cent before use: balance after 12 months
-      15230.38 -> 15230.33, total interest 2444.38 -> 2444.36.
+      The answer keys for two amortization items kept full precision, but the
+      prompt asks for exact cents. The keys now round to the cent at each step:
+      balance after 12 months 15230.33 (was 15230.38), total interest 2444.36
+      (was 2444.38).
+    notes: >-
+      The amortization solver carried full precision through the schedule; it
+      now rounds the payment and each month's interest to the cent before use.
     scorerChange: true
-    promptFix: none
-  - id: E-0002
+    releaseStatus: none
+  - id: "0.2"
     date: 2026-11-16
     kind: scorer
     items:
       - financial/financial_amort_balance_after_12
       - financial/financial_amort_total_interest
     description: >-
-      Generated decimal answers of 1000 or more now also accept comma thousands
-      grouping (15,230.33 for 15230.33). Values under 1000 keep their pattern.
+      Answers of 1000 or more may now use comma thousands separators (15,230.33
+      for 15230.33). Smaller values are unchanged.
+    notes: >-
+      Applies to generated decimal answer patterns only.
     scorerChange: true
-    promptFix: none
-  - id: E-0003
+    releaseStatus: none
+  - id: "0.3"
     date: 2026-11-16
     kind: scorer
     items:
@@ -43,13 +51,16 @@ errata:
       - trust/trust_folk_delta_star
       - trust/trust_hazard_min_bonus
     description: >-
-      Rounding slips earn 0.5 partial credit as declared near misses computed by
-      the solvers: round-at-end on the amortization items (full precision, only
-      the reported figure rounded: 15230.38, 2444.38), and truncating instead of
-      rounding to 6 places on the 6-dp trust items (e.g. 0.571428 for 0.571429).
+      Answers with a rounding slip now earn half credit: on the amortization
+      items, rounding only the final figure (15230.38, 2444.38); on the
+      six-decimal trust items, truncating instead of rounding (0.571428 for
+      0.571429). An item still passes only at full credit.
+    notes: >-
+      Declared near misses computed by the solvers: round-at-end on the
+      amortization items, truncate-to-6-dp on the 6-dp trust items.
     scorerChange: true
-    promptFix: none
-  - id: E-0004
+    releaseStatus: none
+  - id: "0.4"
     date: 2026-11-16
     kind: scorer
     items:
@@ -62,25 +73,30 @@ errata:
       - trust/trust_bayes_posterior
       - trust/trust_decay_flat_vale
     description: >-
-      A probability, share, or rate asked for as a decimal but written as a
-      percent (e.g. 5.08% for 0.0508) earns 0.5 partial credit as a declared
-      percent-for-decimal near miss. The % sign is required.
+      A probability, share, or rate asked for as a decimal but given as a
+      percent (5.08% for 0.0508) now earns half credit. The % sign is required.
+    notes: >-
+      Declared percent-for-decimal near miss.
     scorerChange: true
-    promptFix: none
-  - id: E-0005
+    releaseStatus: none
+  - id: "0.5"
     date: 2026-11-16
     kind: retired
     items:
       - factual/fact_gold_direct
       - factual/fact_gold_noisy
     description: >-
-      Saturated: zero failures across every tested config's latest result (99
-      configs each), so the items no longer discriminate. Found with
-      `./bench audit --flag zero-failure` on the archive re-scored under the
-      current scorers. Archived lines are kept and listed as retiredItems.
+      Two factual items were removed because every tested model answered them
+      correctly, so they no longer separate models. Results already recorded
+      for them are kept but no longer counted.
+    notes: >-
+      Zero failures across every tested config's latest result (99 configs
+      each), found with `./bench audit --flag zero-failure` on the archive
+      re-scored under the current scorers. Archived lines are kept and listed
+      as retiredItems.
     scorerChange: false
-    promptFix: pending-next-release
-  - id: E-0007
+    releaseStatus: next-release
+  - id: "0.6"
     date: 2026-11-16
     kind: scorer
     items:
@@ -125,15 +141,19 @@ errata:
       - trust/trust_hazard_principal_profit
       - trust/trust_hazard_worth_incentivizing
     description: >-
+      When a model ran out of tokens while still reasoning, one model server
+      returned the unfinished reasoning as the answer, and the scorer could
+      pass it on an intermediate figure. Such a response now scores as no
+      answer. This rule applies to every item; the items listed are the ones
+      whose recorded passes it changed.
+    notes: >-
       oMLX, when thinking hits maxTokens, returns the unfinished reasoning as
-      both reasoning and content, so the scorer graded the chain of thought and
-      could pass on an intermediate figure. A line stopped by "length" whose
-      output equals its reasoning now scores as no output (score 0,
-      failureKind thinking_truncated); rawOutput keeps the content. The rule is
-      harness-wide, not per-item, and changes no scorerHash, so the coverage
-      check neither requires nor tests this entry; the items listed are those
-      with archived passes it flipped (121 lines across 13 omlx configs).
-      `./bench score --stale` treats an attempt holding such a line as stale
-      and re-scores it.
+      both reasoning and content. A line stopped by "length" whose output
+      equals its reasoning now scores as no output (score 0, failureKind
+      thinking_truncated); rawOutput keeps the content. The rule is
+      harness-wide and changes no scorerHash, so the coverage check neither
+      requires nor tests this entry; the items listed are those with archived
+      passes it flipped (121 lines across 13 omlx configs). `./bench score
+      --stale` treats an attempt holding such a line as stale and re-scores it.
     scorerChange: true
-    promptFix: none
+    releaseStatus: none

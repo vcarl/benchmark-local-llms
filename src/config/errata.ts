@@ -8,6 +8,10 @@
  * `npm test` enforces: every item that differs from the baseline is named by an
  * erratum of the matching shape. `scripts/release-baseline.ts` refreshes the
  * baseline at release time.
+ *
+ * Versions: a release is `0` (pre-release) or CalVer `YYYY.M`; errata are its
+ * sub-releases `<release>.<n>`, n = 1, 2, … in file order, so eval
+ * `<release>.<n>` is the release baseline plus errata 1..n.
  */
 import { Schema } from "effect";
 import { scorerHash } from "../archive/content-store.js";
@@ -21,8 +25,11 @@ export const ErratumKind = Schema.Literal(
   "added",
 );
 
-/** Whether a prompt-text fix is owed, waiting for the next release, or shipped. */
-export const PromptFix = Schema.Literal("none", "pending-next-release", "fixed-in-release");
+/**
+ * Whether the change waits on a release: `none` (complete now), `next-release`
+ * (prompt text or the item set changes at the next release), `released`.
+ */
+export const ReleaseStatus = Schema.Literal("none", "next-release", "released");
 
 export const Erratum = Schema.Struct({
   id: Schema.String,
@@ -30,12 +37,15 @@ export const Erratum = Schema.Struct({
   kind: ErratumKind,
   /** `challengeId/itemName` of every affected item. */
   items: Schema.Array(Schema.String),
+  /** Public, plain-language: what was wrong and what changed. */
   description: Schema.String,
+  /** Internal technical detail; never emitted to the report. */
+  notes: Schema.optional(Schema.String),
   /** True when the erratum changed how stored outputs score. */
   scorerChange: Schema.Boolean,
-  promptFix: PromptFix,
-  /** Release label the prompt fix shipped in; set iff `promptFix` is `fixed-in-release`. */
-  release: Schema.optional(Schema.String),
+  releaseStatus: ReleaseStatus,
+  /** Release the change shipped in; set iff `releaseStatus` is `released`. */
+  releasedIn: Schema.optional(Schema.String),
 });
 export type Erratum = typeof Erratum.Type;
 
@@ -45,7 +55,10 @@ export const ItemIdentity = Schema.Struct({ promptHash: Schema.String, scorerHas
 export type ItemIdentity = typeof ItemIdentity.Type;
 
 export const ReleaseBaseline = Schema.Struct({
+  /** Release version: `0` (pre-release) or `YYYY.M`. */
   release: Schema.String,
+  /** Optional human label for the snapshot (the pre-release names its commit). */
+  label: Schema.optional(Schema.String),
   date: Schema.String,
   /** Keyed by `challengeId/itemName`. */
   items: Schema.Record({ key: Schema.String, value: ItemIdentity }),
@@ -70,12 +83,75 @@ export const snapshotItems = (
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 
+const RELEASE = String.raw`0|\d{4}\.(?:[1-9]|1[0-2])`;
+const RELEASE_RE = new RegExp(`^(?:${RELEASE})$`);
+const ID_RE = new RegExp(`^(${RELEASE})\\.([1-9]\\d*)$`);
+
+/** `<release>.<n>` → its parts; undefined for any other shape. */
+export const parseErratumId = (id: string): { release: string; n: number } | undefined => {
+  const m = ID_RE.exec(id);
+  return m?.[1] === undefined ? undefined : { release: m[1], n: Number(m[2]) };
+};
+
+const compareReleases = (a: string, b: string): number => {
+  const [ay = 0, am = 0] = a.split(".").map(Number);
+  const [by = 0, bm = 0] = b.split(".").map(Number);
+  return ay - by || am - bm;
+};
+
+/**
+ * Id problems: every id is `<release>.<n>` for the baseline release or an
+ * earlier one, numbered 1, 2, … within its release in file order.
+ */
+export const errataIdProblems = (
+  baselineRelease: string,
+  errata: ReadonlyArray<Erratum>,
+): string[] => {
+  if (!RELEASE_RE.test(baselineRelease)) {
+    return [`baseline release ${baselineRelease} is not 0 or YYYY.M`];
+  }
+  const problems: string[] = [];
+  const count = new Map<string, number>();
+  for (const { id } of errata) {
+    const p = parseErratumId(id);
+    if (p === undefined) {
+      problems.push(`${id}: id is not <release>.<n>`);
+      continue;
+    }
+    if (compareReleases(p.release, baselineRelease) > 0) {
+      problems.push(
+        `${id}: release ${p.release} is newer than the baseline release ${baselineRelease}`,
+      );
+      continue;
+    }
+    const n = (count.get(p.release) ?? 0) + 1;
+    count.set(p.release, n);
+    if (p.n !== n) problems.push(`${id}: expected id ${p.release}.${n}`);
+  }
+  return problems;
+};
+
+/** The eval version: `<release>.<n>` for n errata on the baseline release, or the release alone. */
+export const evalVersion = (baselineRelease: string, errata: ReadonlyArray<Erratum>): string => {
+  const n = errata.filter((e) => parseErratumId(e.id)?.release === baselineRelease).length;
+  return n === 0 ? baselineRelease : `${baselineRelease}.${n}`;
+};
+
+/** Why `next` cannot be cut after `prior` (the current baseline release), or undefined. */
+export const releaseArgProblem = (next: string, prior: string | undefined): string | undefined => {
+  if (next === "0" || !RELEASE_RE.test(next)) return `release ${next} is not YYYY.M (e.g. 2027.1)`;
+  if (prior !== undefined && compareReleases(next, prior) <= 0) {
+    return `release ${next} does not follow ${prior}`;
+  }
+  return undefined;
+};
+
 /**
  * Every item that differs from `baseline` without an erratum to account for it,
- * plus duplicate ids and misplaced release labels, as human-readable lines. Empty means fully covered.
+ * plus misplaced `releasedIn` fields, as human-readable lines. Empty means fully covered.
  *
  *   scorer changed → an erratum naming the item with `scorerChange: true`
- *   prompt changed → an erratum naming the item with `promptFix` other than `none`
+ *   prompt changed → an erratum naming the item with `releaseStatus` other than `none`
  *   item removed   → an erratum naming the item of kind `retired`
  *   item added     → an erratum naming the item of kind `added`
  */
@@ -86,12 +162,9 @@ export const coverageGaps = (
 ): string[] => {
   const gaps: string[] = [];
   const byItem = new Map<string, Erratum[]>();
-  const ids = new Set<string>();
   for (const e of errata) {
-    if (ids.has(e.id)) gaps.push(`duplicate erratum id ${e.id}`);
-    ids.add(e.id);
-    if ((e.promptFix === "fixed-in-release") !== (e.release !== undefined)) {
-      gaps.push(`${e.id}: release is set iff promptFix is fixed-in-release`);
+    if ((e.releaseStatus === "released") !== (e.releasedIn !== undefined)) {
+      gaps.push(`${e.id}: releasedIn is set iff releaseStatus is released`);
     }
     // An item id matching nothing is not checked: errata outlive the items they
     // name (a retired item leaves both snapshots at the next release), and a
@@ -110,8 +183,8 @@ export const coverageGaps = (
       if (b.scorerHash !== c.scorerHash && !covered(k, (e) => e.scorerChange)) {
         gaps.push(`${k}: scorer changed without an erratum (scorerChange: true)`);
       }
-      if (b.promptHash !== c.promptHash && !covered(k, (e) => e.promptFix !== "none")) {
-        gaps.push(`${k}: prompt changed without an erratum (promptFix)`);
+      if (b.promptHash !== c.promptHash && !covered(k, (e) => e.releaseStatus !== "none")) {
+        gaps.push(`${k}: prompt changed without an erratum (releaseStatus)`);
       }
     }
   }

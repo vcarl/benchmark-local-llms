@@ -1,5 +1,6 @@
 {
-  "release": "initial-main-5fa9760",
+  "release": "0",
+  "label": "initial-main-5fa9760",
   "date": "2026-11-16",
   "items": {
     "code/code_caesar_cipher_bugfix": {

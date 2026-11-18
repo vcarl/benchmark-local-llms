@@ -77,8 +77,8 @@ export interface Erratum {
   items: string[];
   description: string;
   scorerChange: boolean;
-  promptFix: "none" | "pending-next-release" | "fixed-in-release";
-  release?: string;
+  releaseStatus: "none" | "next-release" | "released";
+  releasedIn?: string;
 }
 
 export interface RowsDataset {
@@ -86,7 +86,10 @@ export interface RowsDataset {
     label: string;
     archiveDir: string;
     challengesDir: string;
+    /** Baseline release: `0` (pre-release) or `YYYY.M`. */
     release: string | null;
+    /** Eval version `<release>.<n>`: the baseline plus its errata 1..n. */
+    version: string | null;
     errata: Erratum[];
     generatedAt: string;
   };

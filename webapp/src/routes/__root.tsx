@@ -10,6 +10,7 @@ import { modelFamily } from "../lib/artifact";
 import { familyColor } from "../lib/colors";
 import { issueTemplateUrl } from "../lib/constants";
 import { computeTpsDomain, type ScatterPoint } from "../lib/encoding";
+import { errataOnRelease } from "../lib/errata";
 import { groupRows, scopeRow, sortRows, withEfficiency } from "../lib/model";
 import { DATASETS } from "../lib/rows";
 import { applyFilters, applyView, funnel, inScope, parseView, toSearch, type ViewState } from "../lib/view-state";
@@ -119,12 +120,13 @@ function RootComponent() {
           <h1>Benchmark Analysis</h1>
           <div className={styles.appSubtitle}>
             {ds.label}
-            {ds.release !== null && ` · release ${ds.release}`}
-            {ds.errata.length > 0 && (
+            {ds.release !== null && ds.version !== null && (
               <>
-                {" + "}
+                {` · eval ${ds.version}`}
+                {ds.release === "0" && " · pre-release"}
+                {" · "}
                 <Link to="/errata" className={styles.subtitleLink}>
-                  {ds.errata.length} errata
+                  {errataOnRelease(ds.errata, ds.release).length} errata
                 </Link>
               </>
             )}{" "}

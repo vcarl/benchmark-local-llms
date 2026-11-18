@@ -15,7 +15,7 @@ import path from "node:path";
 import { FileSystem, type Path } from "@effect/platform";
 import { Clock, Effect, Option, Schema } from "effect";
 import { listChallengeFiles, loadChallenge, type ResolvedChallenge } from "../config/challenges.js";
-import { ErrataFile, ReleaseBaseline } from "../config/errata.js";
+import { ErrataFile, evalVersion, ReleaseBaseline } from "../config/errata.js";
 import { parseYaml } from "../config/yaml.js";
 import type { FileIOError } from "../errors/index.js";
 import type { HardwareProfile } from "../schema/run-manifest.js";
@@ -130,10 +130,11 @@ export const defaultDatasetLabel = (challengesDir: string): string => {
 };
 
 /**
- * Release label and errata that apply to the set: the `release-baseline.json`
- * and `errata.yaml` beside the challenges directory, when they name a set item.
- * An erratum also applies when it names an item of an applicable baseline, so a
- * retired item's erratum stays listed. A missing or unreadable file contributes nothing.
+ * Release, eval version, and errata that apply to the set: the
+ * `release-baseline.json` and `errata.yaml` beside the challenges directory,
+ * when they name a set item. An erratum also applies when it names an item of
+ * an applicable baseline, so a retired item's erratum stays listed. Internal
+ * `notes` are not emitted. A missing or unreadable file contributes nothing.
  */
 const loadReleaseContext = (challengesDir: string, challenges: ReadonlyArray<ResolvedChallenge>) =>
   Effect.gen(function* () {
@@ -164,12 +165,16 @@ const loadReleaseContext = (challengesDir: string, challenges: ReadonlyArray<Res
       ...keys,
       ...Option.match(applied, { onNone: () => [], onSome: (b) => Object.keys(b.items) }),
     ]);
+    const all = Option.match(errata, { onNone: () => [], onSome: (e) => e.errata });
     return {
       release: Option.match(applied, { onNone: () => null, onSome: (b) => b.release }),
-      errata: Option.match(errata, {
-        onNone: () => [],
-        onSome: (e) => e.errata.filter((x) => x.items.some((k) => named.has(k))),
+      version: Option.match(applied, {
+        onNone: () => null,
+        onSome: (b) => evalVersion(b.release, all),
       }),
+      errata: all
+        .filter((x) => x.items.some((k) => named.has(k)))
+        .map(({ notes: _, ...publicFields }) => publicFields),
     };
   });
 

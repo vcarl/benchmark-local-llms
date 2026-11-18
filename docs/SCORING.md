@@ -6,7 +6,7 @@
 
 `scoreExecution(result, entry)` picks a scorer by whether the corpus entry is a prompt or a scenario. Prompt entries carry a `ScorerConfig` discriminated union (`type`); scenario entries carry a bare `scorer` name resolved against the game scorer registry at scoring time.
 
-Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit. One rule is re-applied on re-score: an archived line with `stopReason: "length"` whose `output` equals its `reasoning` (oMLX echoing unfinished thinking as content) is scored as no output, `thinking_truncated` ([E-0007](../errata.yaml)).
+Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit. One rule is re-applied on re-score: an archived line with `stopReason: "length"` whose `output` equals its `reasoning` (oMLX echoing unfinished thinking as content) is scored as no output, `thinking_truncated` ([erratum 0.6](../errata.yaml)).
 
 Why the split lives in orchestration, not scoring:
 

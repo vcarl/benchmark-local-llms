@@ -1,6 +1,6 @@
 # Errata process
 
-**Pre-release.** No versioned release of the benchmark has been cut. The current baseline is the initial state of the `main` branch, and these commitments may be refined before the first release.
+**Pre-release.** No versioned release of the benchmark has been cut. The current baseline, version `0`, is the initial state of the `main` branch, and these commitments may be refined before the first release.
 
 An erratum is a public record of a change to a benchmark item after the baseline: its answer key, its scorer, its prompt, or whether it is in the set at all. This page describes how errata are identified, recorded, and patched, and how they affect published results.
 
@@ -21,14 +21,18 @@ Each erratum has one kind:
 - **Retired**: the item is removed from the set.
 - **Added**: the item is new since the baseline.
 
-Each erratum records an id (`E-0001`, …), the date it was recorded, its kind, every affected item, what changed and why, whether it changes how stored outputs score, and its prompt-fix status: none, pending the next release, or fixed in a named release.
+Each erratum records an id, the date it was recorded, its kind, every affected item, what changed and why, whether it changes how stored outputs score, and whether it waits on a release: in effect now, at the next release, or shipped in a named release.
+
+## Versions
+
+Each release of the benchmark has a version, `YYYY.M` by the date it is cut; the current baseline, before the first release, is version `0`, shown as pre-release. Errata are numbered as sub-releases of the release they patch: `0.1`, `0.2`, … now, and `2027.1.1`, `2027.1.2`, … after a release `2027.1`. A result cited as eval `0.6` means the release baseline plus errata 1 to 6.
 
 ## How a scoring change is linked to an erratum
 
 The baseline holds a hash of each item's prompt and of its scorer. The check requires:
 
 - a changed scorer hash: an erratum naming the item and marked as a scoring change;
-- a changed prompt hash: an erratum naming the item with a prompt fix pending or shipped;
+- a changed prompt hash: an erratum naming the item with a fix pending the next release or shipped;
 - a removed item: a retired erratum naming it;
 - a new item: an added erratum naming it.
 

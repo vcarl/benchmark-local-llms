@@ -9,7 +9,7 @@ type Classifiable = Pick<ItemResult, "score" | "error" | "output" | "reasoning" 
  * oMLX, when the budget runs out mid-thinking, streams the unclosed reasoning
  * as `content` too. Such an output is no answer: scoring it would grep the
  * chain of thought. Shared by the runner (new results) and `bench score`
- * (archived ones), so both drop it the same way (erratum E-0007).
+ * (archived ones), so both drop it the same way (erratum 0.6).
  */
 export const echoesTruncatedReasoning = (r: {
   output: string;

@@ -79,7 +79,14 @@ const C2: SetChallenge = {
 const input = (attempts: LoadedAttempt[], over: Partial<RowsInput> = {}): RowsInput => ({
   attempts,
   challengeSet: [C1, C2],
-  dataset: { label: "main", archiveDir: "a", challengesDir: "c", release: null, errata: [] },
+  dataset: {
+    label: "main",
+    archiveDir: "a",
+    challengesDir: "c",
+    release: null,
+    version: null,
+    errata: [],
+  },
   legacyHardware: { id: "local-hw" },
   generatedAt: T(9),
   ...over,

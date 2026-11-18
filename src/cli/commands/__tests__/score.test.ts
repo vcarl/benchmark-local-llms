@@ -237,7 +237,7 @@ describe("rescoreItems", () => {
     expect(res.updated[1]?.scoreDetails).toBe("expected 42, got 41");
   });
 
-  it("scores an answer that only echoes truncated reasoning as no output (E-0007)", async () => {
+  it("scores an answer that only echoes truncated reasoning as no output (erratum 0.6)", async () => {
     const thinking = "We need 6*7... the answer is 42? Let's re";
     const items = [
       item({

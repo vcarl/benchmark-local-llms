@@ -1,7 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import processMd from "../../../docs/ERRATA-PROCESS.md?raw";
-import { type Block, KIND_LABEL, parseInline, parseMarkdown, promptFixLabel } from "../lib/errata";
+import {
+  type Block,
+  errataOnRelease,
+  KIND_LABEL,
+  parseInline,
+  parseMarkdown,
+  releaseName,
+  releaseStatusLabel,
+} from "../lib/errata";
 import { DATASETS } from "../lib/rows";
 import styles from "./errata.module.css";
 
@@ -60,7 +68,14 @@ function ErrataPage() {
         {BLOCKS.map(block)}
         <h3>Errata</h3>
         <p className={styles.baseline}>
-          Baseline <code>{ds?.release ?? "none"}</code> · {errata.length} errata
+          {ds !== undefined && ds.release !== null && ds.version !== null ? (
+            <>
+              Eval <code>{ds.version}</code> · {releaseName(ds.release)} baseline ·{" "}
+              {errataOnRelease(errata, ds.release).length} errata
+            </>
+          ) : (
+            `${errata.length} errata`
+          )}
           {ds?.generatedAt !== undefined && ` · as of ${ds.generatedAt.slice(0, 10)}`}
         </p>
         <ol className={styles.list}>
@@ -74,7 +89,7 @@ function ErrataPage() {
               <p>{inline(e.description)}</p>
               <div className={styles.meta}>
                 <span>{e.scorerChange ? "Changes scores" : "No score change"}</span>
-                <span>{promptFixLabel(e)}</span>
+                <span>{releaseStatusLabel(e)}</span>
               </div>
               <details className={styles.items}>
                 <summary>

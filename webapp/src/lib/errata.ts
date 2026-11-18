@@ -47,13 +47,24 @@ export const KIND_LABEL: Record<Erratum["kind"], string> = {
   added: "Added",
 };
 
-export const promptFixLabel = (e: Erratum): string => {
-  switch (e.promptFix) {
+/** Errata numbered on `release` (`<release>.<n>`): the n in eval version `<release>.<n>`. */
+export const errataOnRelease = (errata: Erratum[], release: string): Erratum[] =>
+  errata.filter((e) => e.id.startsWith(`${release}.`));
+
+/** How a release reads in prose: `0` is the pre-release baseline. */
+export const releaseName = (release: string): string => (release === "0" ? "pre-release" : `release ${release}`);
+
+/** Whether the change is in effect, or waits on a release. Prompt wording only for prompt fixes. */
+export const releaseStatusLabel = (e: Erratum): string => {
+  const prompt = e.kind === "prompt-ambiguity";
+  switch (e.releaseStatus) {
     case "none":
-      return "No prompt fix";
-    case "pending-next-release":
-      return "Prompt fix pending next release";
-    case "fixed-in-release":
-      return `Prompt fix shipped in ${e.release ?? "a release"}`;
+      return prompt ? "No prompt fix planned" : "In effect now";
+    case "next-release":
+      return prompt ? "Prompt fix pending next release" : "In effect now · joins the baseline at the next release";
+    case "released":
+      return prompt
+        ? `Prompt fixed in ${releaseName(e.releasedIn ?? "a release")}`
+        : `In the baseline since ${releaseName(e.releasedIn ?? "a release")}`;
   }
 };

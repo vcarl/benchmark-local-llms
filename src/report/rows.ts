@@ -29,9 +29,12 @@ export interface Dataset {
   readonly label: string;
   readonly archiveDir: string;
   readonly challengesDir: string;
+  /** Baseline release version: `0` (pre-release) or `YYYY.M`. */
   readonly release: string | null;
-  /** Every `errata.yaml` entry naming an item of the set or of its release baseline. */
-  readonly errata: ReadonlyArray<Erratum>;
+  /** Eval version `<release>.<n>`: the baseline plus its errata 1..n. */
+  readonly version: string | null;
+  /** Every `errata.yaml` entry naming an item of the set or of its release baseline, without `notes`. */
+  readonly errata: ReadonlyArray<Omit<Erratum, "notes">>;
 }
 
 export interface RowsInput {

@@ -23,7 +23,7 @@
  *
  * `--stale` batch-processes every completed attempt in `--archive-dir` whose
  * challengeHash differs from its current challenge's, or that holds an
- * echoed-reasoning output not yet dropped (E-0007) (implies `--corpus`).
+ * echoed-reasoning output not yet dropped (erratum 0.6) (implies `--corpus`).
  */
 import { Command, Options } from "@effect/cli";
 import { type CommandExecutor, FileSystem, Path } from "@effect/platform";
@@ -125,7 +125,7 @@ export interface RescoreResult {
  * challenge. The whole-archive (challenge-unresolvable) fallback is handled by
  * the caller BEFORE this runs; here the challenge is known-resolved.
  *
- * Per item (an output echoing truncated reasoning is first dropped, E-0007):
+ * Per item (an output echoing truncated reasoning is first dropped, erratum 0.6):
  *   1. promptName missing in the challenge → with `retire` (same challenge
  *      version) the item is retired: line kept verbatim, listed in `retired`;
  *      otherwise keep stored score, +drift, warn.
@@ -513,7 +513,7 @@ const scoreOne = (
 /**
  * `--stale`: every completed attempt `.jsonl` in `archiveDir` whose
  * challengeHash differs from its current challenge's, or that holds an
- * echoed-reasoning output (E-0007), via the corpus path.
+ * echoed-reasoning output (erratum 0.6), via the corpus path.
  * Non-attempt (legacy run) files are named and skipped; they and incomplete
  * and unresolvable attempts are tallied as skipped by reason.
  */
@@ -558,7 +558,7 @@ const scoreStale = (
         continue;
       }
       // A current attempt is still stale while it holds an echoed-reasoning
-      // output scored as an answer (E-0007).
+      // output scored as an answer (erratum 0.6).
       if (
         manifest.challengeHash === resolved.challengeHash &&
         items.every((i) => dropEchoedReasoning(i) === i)

@@ -195,19 +195,26 @@ describe("runReport", () => {
       );
     const main = await report("challenges");
     expect(main.dataset).toMatchObject({ label: "main", challengesDir: "challenges" });
-    expect(main.dataset.release).toBe("initial-main-5fa9760");
-    const e1 = main.dataset.errata.find((e) => e.id === "E-0001");
-    expect(e1).toMatchObject({ kind: "answer-key", scorerChange: true, promptFix: "none" });
+    expect(main.dataset).toMatchObject({ release: "0", version: "0.6" });
+    const e1 = main.dataset.errata.find((e) => e.id === "0.1");
+    expect(e1).toMatchObject({ kind: "answer-key", scorerChange: true, releaseStatus: "none" });
+    // Internal notes stay out of the emitted report.
+    expect(main.dataset.errata.some((e) => "notes" in e)).toBe(false);
     expect(e1?.items).toContain("financial/financial_amort_total_interest");
     // A retired item is in the baseline, not the set; its erratum still applies.
-    expect(main.dataset.errata.map((e) => e.id)).toContain("E-0005");
+    expect(main.dataset.errata.map((e) => e.id)).toContain("0.5");
     expect(main.challengeSet.map((c) => c.id)).toContain("code");
     // The fixture's stale "code" attempt forms a row, with the cell marked stale.
     expect(main.rows[0]?.cells["code"]?.status).toBe("stale_hash");
     expect(main.rows[0]?.hardwareId).toBe("unknown");
 
     const pilot = await report("challenges-next");
-    expect(pilot.dataset).toMatchObject({ label: "challenges-next", release: null, errata: [] });
+    expect(pilot.dataset).toMatchObject({
+      label: "challenges-next",
+      release: null,
+      version: null,
+      errata: [],
+    });
     expect(pilot.rows).toEqual([]);
   });
 });
