@@ -1,0 +1,93 @@
+/* Model list. One grid track set for header and rows; the list keeps a
+   minimum width so that when its lane narrows (filter column open, phone) the
+   result-stat columns move off screen and the lane scrolls horizontally,
+   while glyph, rank, name and score stay visible. */
+.list {
+  --cols: 34px 28px minmax(160px, 1fr) 64px repeat(5, 52px);
+  min-width: 616px;
+  font-size: var(--fz-13);
+}
+.head,
+.row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  gap: var(--space-4);
+  align-items: center;
+}
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-4) var(--space-6);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-faint);
+  font-size: var(--fz-10);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.empty { padding: var(--space-8); color: var(--text-faint); }
+.group { border-bottom: 1px solid var(--border-subtle); }
+.rowWrap { position: relative; }
+.row {
+  width: 100%;
+  padding: var(--space-4) var(--space-6);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.row:hover,
+.hot { background: var(--surface-hover); }
+.hot { box-shadow: inset 2px 0 0 0 var(--accent-300); }
+/* Selected (URL `sel`): stays while the drilldown is open and across filter changes. */
+.sel,
+.sel:hover { background: color-mix(in srgb, var(--accent-700) 55%, transparent); box-shadow: inset 3px 0 0 0 var(--accent-300); }
+
+/* Score-sort tier boundary: the entry below is significantly worse than the
+   tier head above (paired 95% CI). Sparing by construction. */
+.tierRule {
+  padding: var(--space-2) var(--space-6) var(--space-2) calc(var(--space-6) + 34px + 28px + 2 * var(--space-4));
+  border-top: 1px solid var(--border-strong);
+  color: var(--text-faint);
+  font-size: var(--fz-10);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sub { padding-top: var(--space-2); padding-bottom: var(--space-2); font-size: var(--fz-12); }
+.sub .name { font-weight: 400; color: var(--text-secondary); font-size: var(--fz-11); }
+
+.glyph { display: flex; justify-content: center; line-height: 0; }
+.row .rank { align-self: start; padding-top: 1px; }
+.rank { text-align: right; color: var(--text-faint); font-size: var(--fz-12); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.model { min-width: 0; display: flex; flex-direction: column; }
+.name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta { font-size: var(--fz-11); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mixed { color: var(--text-faint); margin-left: var(--space-3); cursor: help; }
+
+.score { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.pct { font-size: var(--fz-15); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--band, var(--text-primary)); }
+/* Incomplete: the running score, muted — it is not what the row is ranked by. */
+.partial { color: var(--text-muted); font-weight: 500; }
+.done { font-size: var(--fz-10); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.stat { text-align: right; font-size: var(--fz-12); color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.head .stat, .head .score, .head .rank { color: var(--text-faint); font-size: var(--fz-10); }
+
+/* "+N" opens a model's other rows; sits under the rank number. */
+.more {
+  position: absolute;
+  bottom: var(--space-3);
+  left: calc(var(--space-6) + 34px + var(--space-4) - var(--space-4));
+  width: calc(28px + var(--space-4));
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--fz-10);
+  text-align: right;
+  cursor: pointer;
+}
+.more:hover { color: var(--text-primary); }

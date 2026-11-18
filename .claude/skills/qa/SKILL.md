@@ -42,22 +42,22 @@ All commands run from the repo root. `./bench` is the repo-root executable.
 | A2 | `./bench list-models` | exit 0; ≥1 non-empty model row printed. |
 | A3 | `./bench list-prompts` | exit 0; prompt count in the ~90 ballpark across the 6 categories. |
 | A4 | `node_modules/.bin/tsx .claude/skills/qa/check-resolution.ts` | exit 0; prints `configHash`/`challengeHash`/`itemHash` (each 12-hex) and `RESOLUTION OK` (identical on re-resolve = deterministic). The golden-`challengeHash` invariant for the canonical challenge is pinned by `src/config/challenges.test.ts` (unit), not re-checked here. |
-| A5 | `node_modules/.bin/tsx .claude/skills/qa/seed-archive.ts "$SEED"` then `./bench report --archive-dir "$SCRATCH_ARCH" --output "$SCRATCH_OUT/webapp/src/data"` | `SEED OK`; report logs `loaded 1 attempts`, `dropped 0 (incomplete)`, and `details 1 written, 0 skipped` — the seed is self-sufficient, so its drilldown is reconstructed; `$SCRATCH_OUT/webapp/src/data/data.js` parses and `globalThis.__BENCHMARK_DATA.length >= 1`. |
-| A6 | **JUDGMENT PAUSE** (below) | webapp builds; screenshot captured; user confirms the matrix renders. |
+| A5 | `node_modules/.bin/tsx .claude/skills/qa/seed-archive.ts "$SEED"` then `./bench report --archive-dir "$SCRATCH_ARCH" --output "$SCRATCH_OUT/webapp/src/data"` | `SEED OK`; report logs `loaded 1 attempts`, `dropped 0 (incomplete)`, and `details 1 written, 0 skipped` — the seed is self-sufficient, so its drilldown is reconstructed; `$SCRATCH_OUT/webapp/src/data/data.js` parses and its main dataset has `rows.length >= 1`. |
+| A6 | **JUDGMENT PAUSE** (below) | webapp builds; screenshot captured; user confirms the model list renders. |
 | A7 | `./bench score --archive "$SEED"` | exit 0; takes the store-primary path; prints `score: … → aggregate <x.xxx> PASS\|FAIL [rescored 2/2, drift 0, fallback 0]`; re-parses + rewrites the seed in place (below). |
 | A8 | `./bench export "$SEED" --dir --out "$SCRATCH_OUT/bundle"` | exit 0; prints `export: … → …/bundle/ (5 files)`; bundle contains the `.jsonl` + `content/system/<configHash>.txt` + `content/scorers/<scorerHash>.json` + both `content/prompts/<promptHash>.txt`. Negative: exporting a no-store archive fails loudly (below). |
 | A9 | reconstruction / drilldown JSON (below) | the A5 detail file exists, parses, and carries the reconstructed `system_prompt_text`, per-item `prompt_text`, and `scorer` — proving the content store round-trips. |
 
-Verify A5 record count with:
-`node -e 'globalThis.__BENCHMARK_DATA=[];require(process.argv[1]);console.log(globalThis.__BENCHMARK_DATA.length)' "$SCRATCH_OUT/webapp/src/data/data.js"`
+Verify A5 row count with:
+`node -e 'require(process.argv[1]);console.log(globalThis.__BENCHMARK_ROWS[0].rows.length)' "$SCRATCH_OUT/webapp/src/data/data.js"`
 
 ### A6 — Webapp render (JUDGMENT PAUSE)
 
 1. `cp "$SCRATCH_OUT/webapp/src/data/data.js" webapp/src/data/data.js` (original already backed up in Setup).
 2. `cd webapp && npm run build` — PASS requires it to exit 0 (`webapp/dist/` produced).
 3. `cd webapp && npm run dev` (vite, ~port 5173); screenshot the page.
-4. **ASK the user** to confirm the config×challenge matrix renders (rows = configs, columns =
-   challenges, score cells). Their confirmation is the evidence.
+4. **ASK the user** to confirm the model list and scatter render (the seeded row listed with
+   its score and completeness). Their confirmation is the evidence.
 5. **Restore regardless of outcome**: `cp /tmp/qa-data-backup.js webapp/src/data/data.js`
    (or `git stash pop`). Stop the dev server gracefully (SIGTERM, not SIGKILL).
 

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { fitXDomain, fitYDomain, paretoFrontier, placeLabels, pointLabels } from "./scatter-layout";
-import { shortModelName } from "./data";
-import type { ScatterPoint } from "./pipeline";
+import { shortModelName } from "./artifact";
+import type { ScatterPoint } from "./encoding";
 
 const pt = (o: Partial<ScatterPoint>): ScatterPoint => ({
-  config_hash: "h", artifact: "org/Model-7B-4bit", family: "Qwen", runtime: "omlx", quant: "4bit",
-  temperature: 0, x: 1000, y: 0.5, efficiency: null, sizeB: 7, peak_memory_gb: 4,
+  id: "h", model: "m", artifact: "org/Model-7B-4bit", family: "Qwen", runtime: "omlx", quant: "4bit",
+  temperature: 0, x: 1000, y: 0.5, ySE: null, peak_memory_gb: 4,
   generation_tps: 50, wall_time_sec: 60, ...o,
 });
 
@@ -58,17 +58,17 @@ describe("fitXDomain", () => {
 
 describe("paretoFrontier", () => {
   it("keeps points not dominated on (more pass, fewer tokens), sorted by x", () => {
-    const a = pt({ config_hash: "a", x: 100, y: 0.5 });
-    const b = pt({ config_hash: "b", x: 200, y: 0.8 });
-    const c = pt({ config_hash: "c", x: 300, y: 0.7 }); // dominated by b
-    const d = pt({ config_hash: "d", x: 400, y: 0.9 });
-    const e = pt({ config_hash: "e", x: 200, y: 0.6 }); // dominated by b (equal x)
-    expect(paretoFrontier([d, c, b, a, e]).map((p) => p.config_hash)).toEqual(["a", "b", "d"]);
+    const a = pt({ id: "a", x: 100, y: 0.5 });
+    const b = pt({ id: "b", x: 200, y: 0.8 });
+    const c = pt({ id: "c", x: 300, y: 0.7 }); // dominated by b
+    const d = pt({ id: "d", x: 400, y: 0.9 });
+    const e = pt({ id: "e", x: 200, y: 0.6 }); // dominated by b (equal x)
+    expect(paretoFrontier([d, c, b, a, e]).map((p) => p.id)).toEqual(["a", "b", "d"]);
   });
   it("keeps exact duplicates and handles 0/1 points", () => {
     expect(paretoFrontier([])).toEqual([]);
     expect(paretoFrontier([pt({})])).toHaveLength(1);
-    expect(paretoFrontier([pt({ config_hash: "a" }), pt({ config_hash: "b" })])).toHaveLength(2);
+    expect(paretoFrontier([pt({ id: "a" }), pt({ id: "b" })])).toHaveLength(2);
   });
 });
 
@@ -83,18 +83,18 @@ describe("shortModelName / pointLabels", () => {
   });
   it("disambiguates shared short names with quant, then runtime, then temperature", () => {
     const labels = pointLabels([
-      pt({ config_hash: "a", artifact: "x/Q-27B-4bit", quant: "4bit", runtime: "mlx", temperature: 0.7 }),
-      pt({ config_hash: "b", artifact: "x/Q-27B-4bit", quant: "4bit", runtime: "omlx", temperature: 0.7 }),
-      pt({ config_hash: "c", artifact: "x/Q-27B-4bit", quant: "4bit", runtime: "omlx", temperature: 1 }),
-      pt({ config_hash: "d", artifact: "y/Q-27B-MLX-6bit", quant: "6bit" }),
+      pt({ id: "a", artifact: "x/Q-27B-4bit", quant: "4bit", runtime: "mlx", temperature: 0.7 }),
+      pt({ id: "b", artifact: "x/Q-27B-4bit", quant: "4bit", runtime: "omlx", temperature: 0.7 }),
+      pt({ id: "c", artifact: "x/Q-27B-4bit", quant: "4bit", runtime: "omlx", temperature: 1 }),
+      pt({ id: "d", artifact: "y/Q-27B-MLX-6bit", quant: "6bit" }),
     ]);
     expect([...labels.values()]).toEqual(["Q-27B 4bit mlx", "Q-27B 4bit omlx t0.7", "Q-27B 4bit omlx t1", "Q-27B 6bit"]);
   });
   it("adds only the quant when that suffices", () => {
     const labels = pointLabels([
-      pt({ config_hash: "a", artifact: "x/Q-27B-4bit", quant: "4bit" }),
-      pt({ config_hash: "b", artifact: "y/Q-27B-MLX-6bit", quant: "6bit" }),
-      pt({ config_hash: "c", artifact: "x/Other-4bit" }),
+      pt({ id: "a", artifact: "x/Q-27B-4bit", quant: "4bit" }),
+      pt({ id: "b", artifact: "y/Q-27B-MLX-6bit", quant: "6bit" }),
+      pt({ id: "c", artifact: "x/Other-4bit" }),
     ]);
     expect([...labels.values()]).toEqual(["Q-27B 4bit", "Q-27B 6bit", "Other"]);
   });

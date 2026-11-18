@@ -3,7 +3,7 @@ import {
   opacityForTps,
   starPointsForWallTime,
   type TpsDomain,
-} from "../lib/pipeline";
+} from "../lib/encoding";
 import { starPath } from "./ScatterGlyph";
 
 interface Props {

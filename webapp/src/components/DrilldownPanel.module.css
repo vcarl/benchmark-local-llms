@@ -19,11 +19,11 @@
   font: inherit;
 }
 .challengeRow:hover { background: var(--surface-hover); }
-.challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; }
+.challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; white-space: nowrap; }
 .challengeScore { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
 .challengeCoverage { color: var(--text-muted); font-size: var(--fz-11); }
-/* Universe challenges this config doesn't cover (never-run or stale). Listed as
-   0% so the source of the adjusted-score penalty is visible; not clickable. */
+/* Cells that count as 0 (stale, interrupted, not run). Listed so the source of
+   the score penalty is visible; not clickable. */
 .challengeRowMissing { cursor: default; opacity: 0.6; }
 .challengeRowMissing:hover { background: transparent; }
 .challengeRowMissing .challengeCoverage { font-style: italic; }
@@ -52,14 +52,21 @@
   background: var(--surface-hover);
 }
 
-/* ─── Debug panel ─────────────────────────────────────────────────────────── */
-.debugPanel {
+.title { font-size: var(--fz-15); font-weight: 600; }
+.subtitle { color: var(--text-muted); font-size: var(--fz-11); }
+.attempts { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-4); }
+.attempt {
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
-  background: var(--surface-hover);
+  border-radius: var(--r-4);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: var(--fz-11);
+  padding: var(--space-1) var(--space-4);
+  cursor: pointer;
 }
+.attempt[aria-pressed="true"] { border-color: var(--accent-300); color: var(--text-primary); }
 .debugGroup {
   display: flex;
   flex-wrap: wrap;
@@ -80,8 +87,6 @@
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
-/* Subtle muted incomplete-coverage flag, sits immediately left of the score. */
-.coverageFlag { color: var(--text-muted); margin-right: var(--space-2); cursor: help; }
 .debugTally {
   display: flex;
   gap: var(--space-3);
@@ -91,8 +96,6 @@
   font-size: var(--fz-11);
 }
 .debugTallyNum { font-variant-numeric: tabular-nums; font-weight: 600; }
-.debugErrors { margin-top: var(--space-2); }
-.debugUnavailable { color: var(--text-muted); font-size: var(--fz-11); margin-top: var(--space-2); }
 
 /* ─── Per-item thinking <details> ─────────────────────────────────────────── */
 .thinking { margin: var(--space-2) 0; }

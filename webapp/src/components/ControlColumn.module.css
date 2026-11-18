@@ -1,0 +1,169 @@
+/* Filter column. One element in both states: a head button whose title (the
+   row funnel) is the same text collapsed and expanded — collapsed it rotates
+   90° into the 44 px bar, expanded it lies flat above the controls. On a
+   narrow frame the collapsed column is a one-line strip and the expanded one
+   a full-screen sheet; the title never rotates there. */
+.column {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  background: var(--gray-955);
+  font-size: var(--fz-12);
+  color: var(--text-secondary);
+}
+.head {
+  position: relative;
+  flex: 0 0 36px;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.column[data-open="false"] .head { flex: 1 1 auto; border-bottom: none; }
+.head:hover { background: var(--surface-hover); color: var(--text-primary); }
+.icon { position: absolute; top: 9px; left: 14px; font-size: var(--fz-14); line-height: 16px; }
+.title {
+  position: absolute;
+  top: 10px;
+  left: 34px;
+  font-size: var(--fz-11);
+  line-height: 16px;
+  white-space: nowrap;
+  transform-origin: 0 0;
+  transition: transform 0.2s ease-out, top 0.2s ease-out, left 0.2s ease-out;
+}
+/* Rotating 90° about the top-left corner puts the line box left of the
+   origin, so the origin sits half a line right of the bar's centre. */
+.column[data-open="false"] .title { top: 38px; left: calc(50% + 8px); transform: rotate(90deg); }
+.close {
+  position: absolute;
+  top: 7px;
+  right: var(--space-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-4);
+  color: var(--text-muted);
+  padding: 0 var(--space-4);
+  line-height: 18px;
+}
+.column[data-open="false"] .close { display: none; }
+.head:hover .close { color: var(--text-primary); }
+.closeNarrow { display: none; }
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-8) 0;
+}
+
+/* Presets: a chip row above the list, outside the column. It scrolls
+   sideways inside its own strip and never widens the page. */
+.chips {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fz-12);
+}
+.chips .preset { flex: 0 0 auto; white-space: nowrap; }
+
+.preset,
+.seg {
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fz-11);
+  padding: var(--space-2) var(--space-5);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.preset:hover, .seg:hover { color: var(--text-primary); border-color: var(--border-strong); }
+.preset[aria-pressed="true"],
+.seg[aria-checked="true"] { background: var(--accent-700); border-color: var(--accent-300); color: var(--text-primary); }
+
+/* Scopes sit in their own frame: they change what the number means. */
+.scope {
+  border: 1px solid var(--accent-700);
+  border-radius: var(--r-6);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.scope legend { padding: 0 var(--space-3); font-weight: 600; color: var(--text-primary); }
+.hint { color: var(--text-faint); font-size: var(--fz-11); margin-top: calc(-1 * var(--space-3)); }
+
+.section { display: flex; flex-direction: column; gap: var(--space-6); }
+.sectionTitle { font-weight: 600; color: var(--text-primary); }
+.field { display: flex; flex-direction: column; gap: var(--space-3); }
+.fieldLabel { color: var(--text-faint); font-size: var(--fz-10); text-transform: uppercase; letter-spacing: 0.05em; }
+.segmented { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.checks { display: flex; flex-direction: column; gap: var(--space-1); max-height: 220px; overflow-y: auto; }
+.check { display: flex; align-items: center; gap: var(--space-4); cursor: pointer; min-height: 22px; }
+.check > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.check[data-empty="true"] { color: var(--text-faint); }
+.count { color: var(--text-faint); font-variant-numeric: tabular-nums; font-size: var(--fz-11); }
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--gray-955);
+  color: var(--text-muted);
+}
+.reset {
+  border: none;
+  background: transparent;
+  color: var(--accent-300);
+  font: inherit;
+  cursor: pointer;
+}
+
+@container shiftFrame (max-width: 899px) {
+  .column[data-open="false"] {
+    height: 40px;
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .column[data-open="false"] .title,
+  .title { top: 12px; left: 36px; right: var(--space-6); transform: none; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .column[data-open="true"] .title { right: 72px; top: 14px; }
+  .column[data-open="true"] {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    height: auto;
+    border: none;
+  }
+  .column[data-open="true"] .head { flex-basis: 44px; }
+  .column[data-open="true"] .icon { top: 14px; }
+  .closeWide { display: none; }
+  .closeNarrow { display: inline; }
+  .close { top: 9px; padding: var(--space-2) var(--space-8); color: var(--text-primary); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title { transition: none; }
+}

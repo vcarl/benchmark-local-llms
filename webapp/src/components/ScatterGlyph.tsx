@@ -1,5 +1,5 @@
 import { familyColor } from "../lib/colors";
-import { opacityForTps, starPointsForWallTime, type TpsDomain } from "../lib/pipeline";
+import { opacityForTps, starPointsForWallTime, type TpsDomain } from "../lib/encoding";
 
 // ─── The descriptor glyph — single source of truth ───────────────────────────
 //

@@ -55,8 +55,9 @@ src/archive/
 src/report/
   index.ts               pipeline entry (runReport)
   load-attempts.ts       parse *.jsonl archives into LoadedAttempt
-  aggregate.ts           completed-only filter, dedup, flatten to WebappRecord
-  webapp-contract.ts     WebappRecord — the backend→webapp data contract
+  aggregate.ts           completed-only filter and dedup: the attempts that get a detail file
+  rows.ts                selection: rows per config × machine over the challenge set (__BENCHMARK_ROWS)
+  model-key.ts           modelKey: the model identity GGUF / MLX builds share
   write-data-js.ts       emit webapp/src/data/data.js
   write-details.ts       emit per-attempt drilldown JSON
   reconstruct.ts         rebuild an attempt from .jsonl + content store
@@ -78,18 +79,19 @@ The header→append→finalize order is what makes interruption safe: if the pro
 
 ## Report pipeline
 
-`report` turns attempt archives into the webapp's data:
+`report` turns attempt archives into the webapp's data, scored against the challenge set in `--challenges-dir`:
 
 ```
-loadAttemptArchives → aggregateAttempts → writeDataJs + writeDetails
+loadAttemptArchives → buildRows + detailSources → writeDataJs → writeDetails
 ```
 
 1. **`loadAttemptArchives`** reads every `*.jsonl` under the archive directory, decoding line 1 as an `AttemptManifest` and lines 2+ as `ItemResult`s. A file that fails to parse becomes a collected load issue, not a failure.
-2. **`aggregateAttempts`** keeps only **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicates by `attemptId` (first wins), and flattens each survivor to one `WebappRecord`. Incomplete and duplicate attempts are counted and dropped.
-3. **`writeDataJs`** writes all records as a single global assignment — `globalThis.__BENCHMARK_DATA = [...]` — to `webapp/src/data/data.js`.
-4. **`writeDetails`** writes one `webapp/public/details/<attemptId>.json` per completed, reconstructible attempt, joining the reconstructed prompt / scorer / system text with the in-memory output, reasoning, score, and error. A non-reconstructible attempt is skipped gracefully — its row still appears in `data.js`, only its drilldown is absent.
+2. **`buildRows`** (`src/report/rows.ts`) selects the ranking: one row per `configHash × hardwareId` over the dataset's challenge set, with per-challenge cells, completeness, freshness, execution provenance, and the `modelKey` that groups builds of one model (`configs.yaml` `modelKey` overrides it). The rules are in [SCORING.md § Report rows](./SCORING.md#report-rows).
+3. **`detailSources`** keeps the **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicated by `attemptId` (first wins); incomplete and duplicate attempts are counted.
+4. **`writeDataJs`** writes `globalThis.__BENCHMARK_ROWS = [...]`, one entry per dataset, on one line to `webapp/src/data/data.js`. It is the webapp's only input.
+5. **`writeDetails`** writes one `webapp/public/details/<attemptId>.json` per completed, reconstructible attempt, joining the reconstructed prompt / scorer / system text with the in-memory output, reasoning, score, and error. A non-reconstructible attempt is skipped gracefully — its row still appears in `data.js`, only its drilldown is absent.
 
-`WebappRecord` (`src/report/webapp-contract.ts`) is the backend→webapp contract. It must stay **field-for-field identical** to `BenchmarkResult` in `webapp/src/lib/data.ts`; this is a hand-maintained invariant with no compile-time link between the two files, so any change to one must be mirrored in the other.
+`RowsDataset` (`src/report/rows.ts`) is the backend→webapp contract. `webapp/src/lib/rows.ts` mirrors the fields the webapp reads; there is no compile-time link between the two files, so a change to one must be mirrored in the other.
 
 ## Reasoning split
 
@@ -108,8 +110,8 @@ Scorers consume the already-cleaned `output` and never re-strip. The split happe
 | Add a new scorer type | `src/schema/scorer.ts` (add the config variant), then a new case in `src/scoring/dispatch.ts` and its scorer module |
 | Add a new runtime | `src/llm/servers/` (a spawner over `supervisor.ts`), the port map in `src/llm/chat-completion.ts`, the `Runtime` enum in `src/schema/enums.ts`, and the factory in `src/cli/deps.ts` |
 | Debug a shutdown that hangs | `src/llm/servers/supervisor.ts` — the SIGTERM→SIGKILL finalizer and its bounded, interruptible kill timeouts |
-| Add a new report field | `src/report/webapp-contract.ts` **and** `webapp/src/lib/data.ts` together (the contract is hand-maintained) |
-| Know what counts as a pass | An item passes when its `score === 1`; the same definition drives the attempt aggregate and `passed_items` in `WebappRecord` |
+| Add a new report field | `src/report/rows.ts` **and** `webapp/src/lib/rows.ts` together (the contract is hand-maintained) |
+| Know what counts as a pass | An item passes when its `score === 1`; the same definition drives the attempt aggregate and each cell's `passed` |
 
 ## Conventions
 

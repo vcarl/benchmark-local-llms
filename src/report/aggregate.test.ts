@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { aggregateAttempts } from "./aggregate.js";
+import { detailSources } from "./aggregate.js";
 import type { LoadedAttempt } from "./load-attempts.js";
 
-const att = (over: Partial<LoadedAttempt["manifest"]>, gen = 100, wall = 2): LoadedAttempt => ({
+const att = (over: Partial<LoadedAttempt["manifest"]>): LoadedAttempt => ({
   sourcePath: "/x/att.jsonl",
   manifest: {
     schemaVersion: 1,
@@ -39,11 +39,11 @@ const att = (over: Partial<LoadedAttempt["manifest"]>, gen = 100, wall = 2): Loa
       itemHash: "ih",
       executedAt: "t",
       promptTokens: 1,
-      generationTokens: gen,
+      generationTokens: 100,
       promptTps: 1,
       generationTps: 1,
       peakMemoryGb: 0,
-      wallTimeSec: wall,
+      wallTimeSec: 2,
       output: "o",
       reasoning: null,
       rawOutput: "o",
@@ -53,41 +53,31 @@ const att = (over: Partial<LoadedAttempt["manifest"]>, gen = 100, wall = 2): Loa
   ],
 });
 
-describe("aggregateAttempts", () => {
-  it("keeps completed attempts and emits one record each", () => {
-    const out = aggregateAttempts([att({ attemptId: "a" }), att({ attemptId: "b" })]);
-    expect(out.records).toHaveLength(2);
-    expect(out.records[0]?.generation_tokens).toBe(100);
-  });
-
-  it("drops interrupted and unfinalized attempts", () => {
-    const out = aggregateAttempts([
-      att({ attemptId: "a" }),
-      att({ attemptId: "b", interrupted: true }),
-      att({ attemptId: "c", finishedAt: null }),
-    ]);
-    expect(out.records).toHaveLength(1);
-    expect(out.dropped.incomplete).toBe(2);
-  });
-
-  it("dedups by attemptId, counting extras as dropped", () => {
-    const out = aggregateAttempts([att({ attemptId: "dup" }), att({ attemptId: "dup" })]);
-    expect(out.records).toHaveLength(1);
-    expect(out.dropped.duplicate).toBe(1);
-  });
-});
-
-describe("aggregateAttempts detailSources", () => {
-  it("emits one {attemptId, sourcePath} per kept record, in record order", () => {
-    const a = att({ attemptId: "a" });
-    const b = att({ attemptId: "b" });
-    const out = aggregateAttempts([
-      { ...a, sourcePath: "/x/a.jsonl" },
-      { ...b, sourcePath: "/x/b.jsonl" },
+describe("detailSources", () => {
+  it("keeps completed attempts, in order, with their source path", () => {
+    const out = detailSources([
+      { ...att({ attemptId: "a" }), sourcePath: "/x/a.jsonl" },
+      { ...att({ attemptId: "b" }), sourcePath: "/x/b.jsonl" },
     ]);
     expect(out.detailSources).toEqual([
       { attemptId: "a", sourcePath: "/x/a.jsonl" },
       { attemptId: "b", sourcePath: "/x/b.jsonl" },
     ]);
+  });
+
+  it("drops interrupted and unfinalized attempts", () => {
+    const out = detailSources([
+      att({ attemptId: "a" }),
+      att({ attemptId: "b", interrupted: true }),
+      att({ attemptId: "c", finishedAt: null }),
+    ]);
+    expect(out.detailSources).toHaveLength(1);
+    expect(out.dropped.incomplete).toBe(2);
+  });
+
+  it("dedups by attemptId, counting extras as dropped", () => {
+    const out = detailSources([att({ attemptId: "dup" }), att({ attemptId: "dup" })]);
+    expect(out.detailSources).toHaveLength(1);
+    expect(out.dropped.duplicate).toBe(1);
   });
 });

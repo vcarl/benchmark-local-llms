@@ -1,192 +1,114 @@
 import { createRootRoute, Outlet, useNavigate, useSearch } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { DATA, uniqueSorted, modelFamily } from "../lib/data";
-import { RunGroupTable } from "../components/RunGroupTable";
-import { ShiftFrame } from "../components/ShiftFrame";
-import { aggregateRuns, applyChallengeFilter, applyFilters, baseChallengeId, computeScatterPoints, computeTpsDomain, defaultSortDir, topConfigHashes, type RunRow, type RunSortKey, type SortDir } from "../lib/pipeline";
-import { buildChallengeUniverse } from "../lib/coverage";
+import { useCallback, useMemo, useState } from "react";
+import { ControlColumn, PresetChips } from "../components/ControlColumn";
+import { DrilldownPanel } from "../components/DrilldownPanel";
+import { ModelList } from "../components/ModelList";
 import { Scatter } from "../components/Scatter";
 import { ScatterLegend } from "../components/ScatterLegend";
-import { FilterPanel } from "../components/FilterPanel";
+import { ShiftFrame } from "../components/ShiftFrame";
+import { modelFamily } from "../lib/artifact";
 import { familyColor } from "../lib/colors";
-import { parseFilters, parseTop, type SearchState } from "../lib/filter-state";
-import { DrilldownPanel } from "../components/DrilldownPanel";
 import { issueTemplateUrl } from "../lib/constants";
+import { computeTpsDomain, type ScatterPoint } from "../lib/encoding";
+import { groupRows, scopeRow, sortRows, withEfficiency } from "../lib/model";
+import { DATASETS } from "../lib/rows";
+import { applyFilters, applyView, funnel, inScope, parseView, toSearch, type ViewState } from "../lib/view-state";
+import { fitXDomain, fitYDomain } from "../lib/scatter-layout";
+import { clampViewport, type Viewport } from "../lib/viewport";
 import styles from "./index.module.css";
 
 export const Route = createRootRoute({
   component: RootComponent,
-  validateSearch: (s: Record<string, unknown>): SearchState => ({
-    family: typeof s.family === "string" ? s.family : undefined,
-    runtime: typeof s.runtime === "string" ? s.runtime : undefined,
-    quant: typeof s.quant === "string" ? s.quant : undefined,
-    temperature: typeof s.temperature === "string" ? s.temperature : undefined,
-    challenge: typeof s.challenge === "string" ? s.challenge : undefined,
-    config: typeof s.config === "string" ? s.config : undefined,
-    attempt: typeof s.attempt === "string" ? s.attempt : undefined,
-    sortPrimary: typeof s.sortPrimary === "string" ? s.sortPrimary : undefined,
-    sortSecondary: typeof s.sortSecondary === "string" ? s.sortSecondary : undefined,
-    sortPrimaryDir: typeof s.sortPrimaryDir === "string" ? s.sortPrimaryDir : undefined,
-    sortSecondaryDir: typeof s.sortSecondaryDir === "string" ? s.sortSecondaryDir : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>) => s,
 });
+
+const DEFAULT_SET = DATASETS[0]?.dataset.label ?? "main";
 
 function RootComponent() {
   const navigate = useNavigate();
-
-  const [primary, setPrimary] = useState<RunSortKey>("score");
-  const [secondary, setSecondary] = useState<RunSortKey>("score");
-  const [primaryDir, setPrimaryDir] = useState<SortDir>(defaultSortDir("score"));
-  const [secondaryDir, setSecondaryDir] = useState<SortDir>(defaultSortDir("score"));
-
-  // Picking a new metric resets that side to the metric's natural direction;
-  // the toggle button flips only the current direction (metric unchanged).
-  const onPrimaryChange = (k: RunSortKey) => {
-    setPrimary(k);
-    setPrimaryDir(defaultSortDir(k));
-  };
-  const onSecondaryChange = (k: RunSortKey) => {
-    setSecondary(k);
-    setSecondaryDir(defaultSortDir(k));
-  };
-  const onPrimaryDirToggle = () =>
-    setPrimaryDir((d) => (d === "desc" ? "asc" : "desc"));
-  const onSecondaryDirToggle = () =>
-    setSecondaryDir((d) => (d === "desc" ? "asc" : "desc"));
-
-  // Ephemeral cross-component hover, keyed on config_hash — the identity that maps
-  // exactly one scatter point (computeScatterPoints groups by config_hash) to one
-  // ranking row (aggregateRuns groups by config_hash). Lifted here so the scatter
-  // and the ranking table can highlight each other symmetrically. Kept as React
-  // state (not URL state): hover is transient and shouldn't pollute history.
-  const [hoveredConfig, setHoveredConfig] = useState<string | null>(null);
-
-  const search = useSearch({ strict: false }) as SearchState;
-  const filters = useMemo(() => parseFilters(search), [search]);
-  const matching = useMemo(() => applyFilters(DATA, filters), [filters]);
-  const top = parseTop(search.top);
-
-  // The coverage universe (shared denominator for the adjusted pass rate). Built
-  // ONCE from the full DATA scoped by ONLY the active challenge filter, so it
-  // shrinks when the user filters challenges but never moves when configs are
-  // hidden by family/runtime/quant/temperature. Threaded into every aggregation
-  // so the adjusted score flows to the scatter, ranking, and config summary.
-  const universe = useMemo(
-    () => buildChallengeUniverse(applyChallengeFilter(DATA, filters)),
-    [filters],
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const view = useMemo(() => parseView(search, DEFAULT_SET), [search]);
+  const setView = useCallback(
+    (v: ViewState) => navigate({ search: toSearch(v, DEFAULT_SET) as never }),
+    [navigate],
+  );
+  // Zoom writes replace the history entry and read the latest URL, since they land after a debounce.
+  const setViewport = useCallback(
+    (vp: Viewport | undefined) =>
+      navigate({
+        search: ((prev: Record<string, unknown>) => toSearch({ ...parseView(prev, DEFAULT_SET), vp }, DEFAULT_SET)) as never,
+        replace: true,
+      }),
+    [navigate],
   );
 
-  // Top-N cap: rank configs (one scatter point each) by headline score AFTER the
-  // other filters, then restrict every consumer (chart, legend, table, drilldown)
-  // to those configs.
-  const allPoints = useMemo(() => computeScatterPoints(matching, universe), [matching, universe]);
-  const keep = useMemo(() => topConfigHashes(allPoints, top), [allPoints, top]);
-  const filtered = useMemo(() => matching.filter((r) => keep.has(r.config_hash)), [matching, keep]);
+  // Ephemeral cross-component hover keyed on rowId: one scatter point ⇄ one list row.
+  const [hovered, setHovered] = useState<string | null>(null);
 
-  const groups = useMemo(
-    () => aggregateRuns(filtered, universe, primary, secondary, primaryDir, secondaryDir),
-    [filtered, universe, primary, secondary, primaryDir, secondaryDir],
+  const dataset = DATASETS.find((d) => d.dataset.label === view.set) ?? DATASETS[0];
+  const scopeKey = JSON.stringify(view.scope);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scopeKey stands for view.scope
+  const scoped = useMemo(() => (dataset?.rows ?? []).map((r) => scopeRow(r, view.scope)), [dataset, scopeKey]);
+  const scopedIn = useMemo(() => withEfficiency(scoped.filter(inScope)), [scoped]);
+  const visible = useMemo(() => sortRows(applyFilters(scopedIn, view.filters), view.sort), [scopedIn, view.filters, view.sort]);
+  const points = useMemo<ScatterPoint[]>(
+    () =>
+      visible.flatMap((r) =>
+        r.cost === null
+          ? []
+          : [
+              {
+                id: r.row.rowId,
+                model: r.row.modelKey,
+                artifact: r.row.artifact,
+                family: modelFamily(r.row.artifact),
+                runtime: r.row.runtime,
+                quant: r.row.quant,
+                temperature: r.row.temperature,
+                x: r.cost.tokens,
+                y: r.score,
+                ySE: r.se,
+                peak_memory_gb: r.cost.peakMemoryGb,
+                generation_tps: r.cost.genTps,
+                wall_time_sec: r.cost.wallSec,
+              },
+            ],
+      ),
+    [visible],
   );
-  const points = useMemo(() => allPoints.filter((p) => keep.has(p.config_hash)), [allPoints, keep]);
-
-  const legendFamilies = useMemo(() => {
-    const seen = new Set<string>();
-    const out: Array<{ name: string; color: string }> = [];
-    for (const d of points) {
-      if (!seen.has(d.family)) {
-        seen.add(d.family);
-        out.push({ name: d.family, color: familyColor(d.family) });
-      }
-    }
-    return out;
-  }, [points]);
+  // The zoom filters the list: clamped into the extent the scatter fits to the
+  // filtered points (as the scatter does), then one more row filter. The scatter
+  // keeps every filtered point, so its extent never depends on the zoom.
+  const vp = useMemo(() => {
+    if (view.vp === undefined) return undefined;
+    const x = fitXDomain(points.map((p) => p.x));
+    const y = fitYDomain(points.map((p) => p.y));
+    return clampViewport(view.vp, { x0: x.min, x1: x.max, y0: y.min, y1: y.max });
+  }, [view.vp, points]);
+  const listed = useMemo(() => applyView(visible, vp), [visible, vp]);
+  const counts = useMemo(
+    () => funnel(dataset?.rows.length ?? 0, scoped, visible, vp === undefined ? undefined : listed),
+    [dataset, scoped, visible, vp, listed],
+  );
+  const groups = useMemo(() => groupRows(listed, view.group, view.sort), [listed, view.group, view.sort]);
   const tpsDomain = useMemo(() => computeTpsDomain(points), [points]);
-
-  const allValues = useMemo(() => ({
-    families: [...new Set(DATA.map((r) => modelFamily(r.artifact)))].sort(),
-    runtimes: uniqueSorted(DATA, "runtime").map(String),
-    quants: [...new Set(DATA.map((r) => r.quant ?? "—"))].sort(),
-    temperatures: [...new Set(DATA.map((r) => String(r.temperature)))].sort(),
-    challenges: [...new Set(DATA.map((r) => baseChallengeId(`${r.challenge_id}@${r.challenge_version}`)))].sort(),
-  }), []);
-
-  const shifted = search.config !== undefined;
-
-  const closeDetails = () =>
-    navigate({ search: (prev) => ({ ...(prev as SearchState), config: undefined, attempt: undefined }) as never });
-
-  // Select a config (open/drive the details drilldown) by writing the `config`
-  // search param. Shared by a ranking-row click and a scatter-icon click so both
-  // open the same drilldown.
-  const selectConfig = (configHash: string) =>
-    navigate({ search: (prev) => ({ ...(prev as SearchState), config: configHash, attempt: undefined }) as never });
-
-  const onRowClick = (row: RunRow) => selectConfig(row.config_hash);
-
-  const onSelectAttempt = (id: string | undefined) =>
-    navigate({ search: (prev) => ({ ...(prev as SearchState), attempt: id }) as never });
-
-  const ranking = (
-    <RunGroupTable
-      groups={groups}
-      primary={primary}
-      secondary={secondary}
-      primaryDir={primaryDir}
-      secondaryDir={secondaryDir}
-      tpsDomain={tpsDomain}
-      onPrimaryChange={onPrimaryChange}
-      onSecondaryChange={onSecondaryChange}
-      onPrimaryDirToggle={onPrimaryDirToggle}
-      onSecondaryDirToggle={onSecondaryDirToggle}
-      onRowClick={onRowClick}
-      hoveredConfig={hoveredConfig}
-      onHoverConfig={setHoveredConfig}
-    />
+  const legendFamilies = useMemo(
+    () => [...new Set(points.map((p) => p.family))].map((name) => ({ name, color: familyColor(name) })),
+    [points],
   );
 
-  const leftLane = (
-    <div className={styles.scatterLane}>
-      <div className={styles.scatterPlotRegion}>
-        <Scatter
-          points={points}
-          hoveredConfig={hoveredConfig}
-          onHoverConfig={setHoveredConfig}
-          onSelectConfig={selectConfig}
-        />
-      </div>
-      <div className={styles.scatterBottomPane}>
-        <ScatterLegend families={legendFamilies} tpsDomain={tpsDomain} />
-        <FilterPanel allValues={allValues} />
-      </div>
-    </div>
-  );
+  if (dataset === undefined) {
+    return <div className={styles.app}>No data. Run ./bench report --output webapp/src/data.</div>;
+  }
 
-  // The per-config aggregate (RunRow) for the open drilldown, pulled from the
-  // SAME aggregateRuns output that feeds the ranking table so the config summary
-  // panel's headline numbers can't diverge from the ranking row.
-  const selectedRow = useMemo<RunRow | null>(() => {
-    if (search.config === undefined) return null;
-    for (const g of groups) {
-      for (const r of g.rows) {
-        if (r.config_hash === search.config) return r;
-      }
-    }
-    return null;
-  }, [groups, search.config]);
-
-  const details =
-    search.config !== undefined ? (
-      <DrilldownPanel
-        records={filtered}
-        configHash={search.config}
-        runRow={selectedRow}
-        universe={universe}
-        attemptId={search.attempt}
-        onSelectAttempt={onSelectAttempt}
-      />
-    ) : (
-      <Outlet />
-    );
+  const selected = view.row === undefined ? undefined : scoped.find((r) => r.row.rowId === view.row);
+  const select = (rowId: string) => setView({ ...view, row: rowId, sel: rowId, attempt: undefined });
+  // Closing the drilldown keeps the selection highlighted.
+  const closeDetails = () => setView({ ...view, row: undefined, attempt: undefined });
+  const tap = (rowId: string | undefined) => (rowId === undefined ? setView({ ...view, sel: undefined }) : select(rowId));
+  const selectedIndex = selected === undefined ? -1 : groups.findIndex((g) => g.rows[0]?.row.rowId === selected.row.rowId);
+  const ds = dataset.dataset;
+  const items = dataset.challengeSet.reduce((s, c) => s + c.items, 0);
 
   return (
     <div className={styles.app}>
@@ -194,39 +116,89 @@ function RootComponent() {
         <div className={styles.appHeaderTitle}>
           <h1>Benchmark Analysis</h1>
           <div className={styles.appSubtitle}>
-            {filtered.length} attempts · {groups.length} models
+            {ds.label}
+            {ds.release !== null && ` · release ${ds.release}`}
+            {ds.errata.length > 0 && ` + ${ds.errata.length} errata`} · {dataset.challengeSet.length} challenges · {items} items
           </div>
         </div>
         <div className={styles.appHeaderActions}>
-          <a
-            className={styles.requestLink}
-            href={issueTemplateUrl("request-model.yml")}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a className={styles.requestLink} href={issueTemplateUrl("request-model.yml")} target="_blank" rel="noreferrer">
             Request a model
           </a>
-          <a
-            className={styles.requestLink}
-            href={issueTemplateUrl("request-challenge-set.yml")}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a className={styles.requestLink} href={issueTemplateUrl("request-challenge-set.yml")} target="_blank" rel="noreferrer">
             Request a challenge
           </a>
-          {shifted && (
-            <button
-              type="button"
-              className={styles.overviewButton}
-              onClick={closeDetails}
-              aria-label="Back to overview"
-            >
+          {selected !== undefined && (
+            <button type="button" className={styles.overviewButton} onClick={closeDetails} aria-label="Back to overview">
               ← Overview
             </button>
           )}
         </div>
       </header>
-      <ShiftFrame shifted={shifted} onClose={closeDetails} scatter={leftLane} ranking={ranking} details={details} />
+      <ShiftFrame
+        shifted={selected !== undefined}
+        railOpen={view.open}
+        onClose={closeDetails}
+        scatter={
+          <div className={styles.scatterLane}>
+            <div className={styles.scatterPlotRegion}>
+              <Scatter
+                points={points}
+                hovered={hovered}
+                onHover={setHovered}
+                selected={view.sel}
+                onTap={tap}
+                viewport={view.vp}
+                onViewport={setViewport}
+              />
+            </div>
+            <div className={styles.scatterBottomPane}>
+              <ScatterLegend families={legendFamilies} tpsDomain={tpsDomain} />
+            </div>
+          </div>
+        }
+        rail={
+          <ControlColumn
+            view={view}
+            defaultSet={DEFAULT_SET}
+            datasets={DATASETS}
+            dataset={dataset}
+            scoped={scopedIn}
+            funnel={counts}
+            onChange={setView}
+          />
+        }
+        list={
+          <div className={styles.listLane}>
+            <PresetChips view={view} defaultSet={DEFAULT_SET} datasets={DATASETS} onChange={setView} />
+            <div className={styles.listScroll}>
+              <ModelList
+                groups={groups}
+                dataset={dataset}
+                tpsDomain={tpsDomain}
+                hovered={hovered}
+                selected={view.sel}
+                onHover={setHovered}
+                onSelect={select}
+              />
+            </div>
+          </div>
+        }
+        details={
+          selected !== undefined ? (
+            <DrilldownPanel
+              r={selected}
+              dataset={dataset}
+              scope={view.scope}
+              rank={selectedIndex < 0 ? undefined : { position: selectedIndex + 1, tier: groups[selectedIndex]?.tier }}
+              attemptId={view.attempt}
+              onSelectAttempt={(a) => setView({ ...view, attempt: a })}
+            />
+          ) : (
+            <Outlet />
+          )
+        }
+      />
     </div>
   );
 }

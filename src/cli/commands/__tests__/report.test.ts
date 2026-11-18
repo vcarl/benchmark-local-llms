@@ -149,6 +149,6 @@ describe("logAuditBlock", () => {
 
     expect(sink.some((l) => l.includes("loaded 2 attempts"))).toBe(true);
     expect(sink.some((l) => l.includes("dropped 1 (incomplete), 0 (duplicate)"))).toBe(true);
-    expect(sink.some((l) => l.includes("wrote 1 cells"))).toBe(true);
+    expect(sink.some((l) => l.includes("dataset main: 1 rows"))).toBe(true);
   });
 });

@@ -7,6 +7,9 @@ export interface AttemptDetailItem {
   output: string;
   reasoning: string | null;
   score: number;
+  // [passed, n] over the item's samples when it was resampled (n > 1); this
+  // entry shows its first sample. Absent on single-sample items.
+  samples?: [number, number];
   error: string | null;
   scorer: unknown;
   // Per-check constraint breakdown (constraint scorer only). Absent on archives
