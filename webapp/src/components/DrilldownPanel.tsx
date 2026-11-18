@@ -1,6 +1,7 @@
 import { useState } from "react";
 import styles from "./DrilldownPanel.module.css";
 import { formatDiff, variantLine } from "./ModelList";
+import { RunSpread } from "./RunSpread";
 import { scoreBand } from "../lib/constants";
 import { describeScorer } from "../lib/describe-scorer";
 import { formatCount, formatWallTime } from "../lib/format";
@@ -11,6 +12,8 @@ import { useAttemptDetail } from "../lib/use-attempt-detail";
 
 interface Props {
   r: ScopedRow;
+  /** Every listed run of the same model, `r` included. */
+  runs: ScopedRow[];
   dataset: RowsDataset;
   scope: Scope;
   /** The row's list position when it leads an entry; its tier under the score sort. */
@@ -44,7 +47,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 const counts = (c: Cell, scope: Scope): [number, number] =>
   scope.items === "all" ? [c.items, c.passed] : (c.scopes[scope.items] ?? [0, 0]);
 
-export function DrilldownPanel({ r, dataset, scope, rank, attemptId, onSelectAttempt }: Props) {
+export function DrilldownPanel({ r, runs, dataset, scope, rank, attemptId, onSelectAttempt }: Props) {
   const t = rank?.tier;
   const { row } = r;
   // A shared URL with an attempt opens that attempt's challenge.
@@ -83,9 +86,10 @@ export function DrilldownPanel({ r, dataset, scope, rank, attemptId, onSelectAtt
 
   return (
     <div className={styles.panel}>
+      <div className={styles.title}>{row.modelName}</div>
+      <RunSpread rows={runs} scope={scope} />
       <div className={styles.summaryPanel}>
-        <div className={styles.title}>{row.modelName}</div>
-        <div className={styles.subtitle}>{variantLine(row, dataset)}</div>
+        <div className={styles.subtitle}>Selected run · {variantLine(row, dataset)}</div>
 
         <div className={styles.debugGroup}>
           <Stat
