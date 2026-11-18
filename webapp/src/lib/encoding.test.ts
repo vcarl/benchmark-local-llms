@@ -2,31 +2,25 @@ import { describe, expect, it } from "vitest";
 import { computeTpsDomain, opacityForTps, starPointsForWallTime, type ScatterPoint, type TpsDomain } from "./encoding";
 
 describe("starPointsForWallTime", () => {
-  // formula: floor(log2(max(s,1)) * 1.08) - 1, clamped to [4, 15]
-  it("short runs clamped to 4 points (minimum)", () => {
-    expect(starPointsForWallTime(1)).toBe(4);
-    expect(starPointsForWallTime(10)).toBe(4);
-    expect(starPointsForWallTime(30)).toBe(4);
+  // formula: round(0.4 + 0.55 * max(s,1)^0.32), clamped to [2, 24]
+  it("short runs clamped to 2 points (minimum)", () => {
+    expect(starPointsForWallTime(0)).toBe(2);
+    expect(starPointsForWallTime(1)).toBe(2);
+    expect(starPointsForWallTime(10)).toBe(2);
   });
 
-  it("5 minutes (300s) gives 7 points", () => {
-    expect(starPointsForWallTime(300)).toBe(7);
+  it.each([
+    [30, 2],
+    [300, 4],
+    [1800, 6],
+    [7200, 10],
+    [36000, 16],
+  ])("%ds gives %d points", (seconds, points) => {
+    expect(starPointsForWallTime(seconds)).toBe(points);
   });
 
-  it("30 minutes (1800s) gives 10 points", () => {
-    expect(starPointsForWallTime(1800)).toBe(10);
-  });
-
-  it("2 hours (7200s) gives 12 points", () => {
-    expect(starPointsForWallTime(7200)).toBe(12);
-  });
-
-  it("10 hours (36000s) gives 15 points (hits max)", () => {
-    expect(starPointsForWallTime(36000)).toBe(15);
-  });
-
-  it("very long runs are clamped to 15 points (maximum)", () => {
-    expect(starPointsForWallTime(1e9)).toBe(15);
+  it("very long runs are clamped to 24 points (maximum)", () => {
+    expect(starPointsForWallTime(1e9)).toBe(24);
   });
 });
 
