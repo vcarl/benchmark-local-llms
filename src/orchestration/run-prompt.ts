@@ -24,6 +24,7 @@ import { leafModelId } from "../llm/servers/omlx.js";
 import type { ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { PromptCorpusEntry } from "../schema/prompt.js";
+import { echoesTruncatedReasoning } from "../scoring/failure-kind.js";
 import { stripThinkingTags } from "../scoring/strip-thinking.js";
 
 export interface RunPromptInput {
@@ -50,6 +51,8 @@ export interface RunPromptInput {
   readonly presencePenalty?: number;
   /** Extra chat-template variables; omitted from the request when undefined. */
   readonly chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>>;
+  /** Sampler seed; omitted from the request when undefined. */
+  readonly seed?: number;
   /**
    * Reader for the supervised LLM server's running peak RSS (KB). Sampled
    * after the completion settles and stamped onto the result. Omit (or
@@ -130,8 +133,11 @@ const resolveOutputFields = (
   error: string | null;
 } => {
   if (completion.reasoning !== null) {
+    // An output that only echoes truncated reasoning is no answer;
+    // `rawOutput` keeps the content for audit.
+    const echoed = echoesTruncatedReasoning({ ...completion, stopReason: completion.finishReason });
     return {
-      output: completion.output,
+      output: echoed ? "" : completion.output,
       reasoning: completion.reasoning,
       // The runtime already split reasoning out of the API response, so
       // there's no pre-strip "raw" body distinct from `output` to preserve.
@@ -265,6 +271,7 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   promptName: input.prompt.name,
   systemPrompt: input.systemPrompt,
   userPrompt: input.prompt.promptText,
+  ...(input.prompt.history === undefined ? {} : { history: input.prompt.history }),
   temperature: input.temperature,
   maxTokens: input.maxTokens,
   timeoutSec: input.timeoutSec ?? DEFAULT_PROMPT_TIMEOUT_SEC,
@@ -279,6 +286,7 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   ...(input.chatTemplateKwargs === undefined
     ? {}
     : { chatTemplateKwargs: input.chatTemplateKwargs }),
+  ...(input.seed === undefined ? {} : { seed: input.seed }),
 });
 
 /**

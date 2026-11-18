@@ -42,6 +42,20 @@ export const scoreConstraints = (
     const breakdown: ConstraintBreakdown = { passed, failed, errored };
 
     const details = formatDetails(passed.length, total, failed, errored);
+    for (const n of score < 1 ? (config.nearMisses ?? []) : []) {
+      const hit = yield* Effect.either(
+        evaluateConstraint(output, { check: "regex", name: n.slip, pattern: n.pattern }),
+      );
+      if (hit._tag === "Right" && hit.right && n.credit > score) {
+        return {
+          kind: "prompt",
+          score: n.credit,
+          details: `near miss (${n.slip}): ${details}`,
+          breakdown,
+          nearMiss: n.slip,
+        };
+      }
+    }
     return { kind: "prompt", score, details, breakdown };
   });
 

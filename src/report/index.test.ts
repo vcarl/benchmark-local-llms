@@ -130,22 +130,30 @@ describe("runReport", () => {
     expect(summary.detailsSkipped).toBe(0);
   });
 
-  it("loads attempts, writes the dataset rows to data.js", async () => {
+  it("loads attempts, writes the rows of every dataset to data.js", async () => {
     const summary = await Effect.runPromise(
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const dir = `/tmp/p3-report-${process.pid}`;
         const out = `${dir}/out/data.js`;
-        yield* fs.makeDirectory(dir, { recursive: true });
-        yield* fs.writeFileString(`${dir}/att-1.jsonl`, `${HEADER}\n${ITEM}\n`);
-        const s = yield* runReport({ archiveDir: dir, outputPath: out });
+        yield* fs.makeDirectory(`${dir}/main`, { recursive: true });
+        yield* fs.makeDirectory(`${dir}/next`, { recursive: true });
+        yield* fs.writeFileString(`${dir}/main/att-1.jsonl`, `${HEADER}\n${ITEM}\n`);
+        const s = yield* runReport({
+          archiveDir: `${dir}/main`,
+          outputPath: out,
+          pilot: { archiveDir: `${dir}/next`, challengesDir: "challenges-next", label: "pilot1" },
+        });
         const written = yield* fs.readFileString(out);
         expect(written).toMatch(/^globalThis\.__BENCHMARK_ROWS = \[/);
         expect(written).not.toContain("__BENCHMARK_DATA");
         return s;
       }).pipe(Effect.provide(NodeContext.layer)),
     );
-    expect(summary.datasets.map((d) => [d.dataset.label, d.rows.length])).toEqual([["main", 1]]);
+    expect(summary.datasets.map((d) => [d.dataset.label, d.rows.length])).toEqual([
+      ["main", 1],
+      ["pilot1", 0],
+    ]);
     expect(summary.attemptsLoaded).toBe(1);
     expect(summary.loadIssues).toHaveLength(0);
   });
@@ -171,7 +179,7 @@ describe("runReport", () => {
     expect(summary.datasets[0]?.rows[0]?.modelKey).toBe("qwen-x");
   });
 
-  it("emits the dataset rows: the set comes from --challenges-dir", async () => {
+  it("emits the dataset rows: set from --challenges-dir, release and errata scoped to it", async () => {
     const report = (challengesDir: string) =>
       Effect.runPromise(
         Effect.gen(function* () {
@@ -186,20 +194,27 @@ describe("runReport", () => {
         }).pipe(Effect.provide(NodeContext.layer)),
       );
     const main = await report("challenges");
-    expect(main.dataset).toMatchObject({
-      label: "main",
-      challengesDir: "challenges",
-      release: null,
-      errata: [],
-    });
+    expect(main.dataset).toMatchObject({ label: "main", challengesDir: "challenges" });
+    expect(main.dataset).toMatchObject({ release: "0", version: "0.6" });
+    const e1 = main.dataset.errata.find((e) => e.id === "0.1");
+    expect(e1).toMatchObject({ kind: "answer-key", scorerChange: true, releaseStatus: "none" });
+    // Internal notes stay out of the emitted report.
+    expect(main.dataset.errata.some((e) => "notes" in e)).toBe(false);
+    expect(e1?.items).toContain("financial/financial_amort_total_interest");
+    // A retired item is in the baseline, not the set; its erratum still applies.
+    expect(main.dataset.errata.map((e) => e.id)).toContain("0.5");
     expect(main.challengeSet.map((c) => c.id)).toContain("code");
     // The fixture's stale "code" attempt forms a row, with the cell marked stale.
     expect(main.rows[0]?.cells["code"]?.status).toBe("stale_hash");
     expect(main.rows[0]?.hardwareId).toBe("unknown");
 
-    const other = await report("no-such-challenges");
-    expect(other.dataset).toMatchObject({ label: "no-such-challenges" });
-    expect(other.challengeSet).toEqual([]);
-    expect(other.rows).toEqual([]);
+    const pilot = await report("challenges-next");
+    expect(pilot.dataset).toMatchObject({
+      label: "challenges-next",
+      release: null,
+      version: null,
+      errata: [],
+    });
+    expect(pilot.rows).toEqual([]);
   });
 });

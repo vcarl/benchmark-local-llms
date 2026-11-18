@@ -8,10 +8,13 @@ import {
   UnknownConstraintCheck,
   type YamlParseError,
 } from "../errors/config.js";
-import { Challenge, type ChallengeItem } from "../schema/challenge.js";
+import { Challenge, type ChallengeItem, type Scope, type SingleItem } from "../schema/challenge.js";
+import type { ConstraintDef } from "../schema/constraints.js";
 import { ConstraintCheck } from "../schema/enums.js";
-import type { PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
+import type { ChatMessage, PromptCorpusEntry, SystemPrompt } from "../schema/prompt.js";
 import type { ScorerConfig } from "../schema/scorer.js";
+import { scoreConstraints } from "../scoring/constraint.js";
+import { scoreExactMatch } from "../scoring/exact-match.js";
 import { translateInlineFlags } from "../scoring/regex-flags.js";
 import { computePromptHash, shortSha256, stableStringify } from "./hashing.js";
 import { selectChallengeStems } from "./select.js";
@@ -23,6 +26,18 @@ export interface ResolvedItem {
   readonly itemHash: string;
   readonly scorer: ScorerConfig;
   readonly prompt: PromptCorpusEntry;
+  /** Multi-turn item name this unit is a turn of; absent on single-shot items. */
+  readonly parentItemId?: string;
+  /** 1-based turn index; absent on single-shot items. */
+  readonly turn?: number;
+  /**
+   * Cluster id for the report's uncertainty: the YAML `family`, else the item's
+   * own `challengeId/name` (a turn defaults to its parent's). Metadata only —
+   * it enters no hash, so changing it never re-identifies an item.
+   */
+  readonly family: string;
+  /** Coverage tag: the YAML `scope`, else {@link defaultScope}. Metadata only, like `family`. */
+  readonly scope: Scope;
 }
 export interface ResolvedChallenge {
   readonly id: string;
@@ -33,6 +48,13 @@ export interface ResolvedChallenge {
 }
 
 const scorerKey = (s: ScorerConfig): string => stableStringify(s);
+
+/** Challenges whose items are solver-backed multi-step reasoning (docs/SCORING.md § Scope). */
+const STRETCH_CHALLENGES: ReadonlySet<string> = new Set(["economics", "financial", "trust"]);
+
+/** Scope of an item that declares none: `stretch` for the solver suites, else `core`. */
+export const defaultScope = (challengeId: string): Scope =>
+  STRETCH_CHALLENGES.has(challengeId) ? "stretch" : "core";
 
 /**
  * System prompt is a config concern, not a challenge concern. Inline items
@@ -50,10 +72,18 @@ const NONE_SYSTEM: SystemPrompt = { key: "none", text: "" };
  */
 const KNOWN_CONSTRAINT_CHECKS: ReadonlySet<string> = new Set(ConstraintCheck.literals);
 
-/** Scan one raw parsed item for an unknown constraint `check` discriminator. */
+/** Scan one raw parsed item (and each of its turns) for an unknown constraint `check` discriminator. */
 const detectUnknownConstraintCheck = (rawItem: unknown): string | null => {
   if (rawItem === null || typeof rawItem !== "object") return null;
   const item = rawItem as Record<string, unknown>;
+  const turns = item["turns"];
+  if (Array.isArray(turns)) {
+    for (const t of turns) {
+      const bad = detectUnknownConstraintCheck(t);
+      if (bad !== null) return bad;
+    }
+    return null;
+  }
   if (item["scorer"] !== "constraint") return null;
   const constraints = item["constraints"];
   if (!Array.isArray(constraints)) return null;
@@ -109,12 +139,16 @@ const regexCompileProblem = (pattern: string, flags: string): string | null =>
  * `errored` bucket and silently counts as 0 — so authoring mistakes must be
  * loud here rather than quietly capping every attempt's score.
  */
-const validateConstraintPatterns = (
-  challengeId: string,
-  item: ChallengeItem,
-): ConfigError | null => {
+const validateConstraintPatterns = (challengeId: string, item: SingleItem): ConfigError | null => {
   if (item.scorer !== "constraint") return null;
-  for (const c of item.constraints) {
+  const nearMisses = (item.nearMisses ?? []).map(
+    (n): ConstraintDef => ({
+      check: "regex",
+      name: `near miss ${n.slip}`,
+      pattern: n.pattern,
+    }),
+  );
+  for (const c of [...item.constraints, ...nearMisses]) {
     if (c.check !== "regex" && c.check !== "regex_count_min") continue;
     const base = c.check === "regex" ? (c.dotall === true ? "s" : "") : "g";
     const t = translateInlineFlags(c.pattern, base);
@@ -133,12 +167,12 @@ const validateConstraintPatterns = (
 };
 
 /**
- * Bridge a decoded inline {@link ChallengeItem} (flat YAML shape) into a nested
+ * Bridge a decoded inline {@link SingleItem} (flat YAML shape) into a nested
  * {@link ScorerConfig}. For `code_exec` the companion test file is read here,
  * resolved relative to {@link challengeDir}.
  */
 const resolveScorer = (
-  item: ChallengeItem,
+  item: SingleItem,
   challengeDir: string,
 ): Effect.Effect<ScorerConfig, ConfigError, FileSystem.FileSystem> => {
   switch (item.scorer) {
@@ -147,9 +181,15 @@ const resolveScorer = (
         type: "exact_match" as const,
         expected: item.expected,
         extract: item.extract,
+        // Absent unless declared, so items without near misses keep their scorerHash.
+        ...(item.nearMisses === undefined ? {} : { nearMisses: item.nearMisses }),
       });
     case "constraint":
-      return Effect.succeed({ type: "constraint" as const, constraints: item.constraints });
+      return Effect.succeed({
+        type: "constraint" as const,
+        constraints: item.constraints,
+        ...(item.nearMisses === undefined ? {} : { nearMisses: item.nearMisses }),
+      });
     case "game":
       return Effect.succeed({
         type: "game" as const,
@@ -187,30 +227,93 @@ const resolveScorer = (
               }),
           ),
         );
-        return { type: "code_exec" as const, testCode };
+        // Absent unless declared, so Python items keep their scorerHash.
+        return {
+          type: "code_exec" as const,
+          testCode,
+          ...(item.submission === undefined ? {} : { submission: item.submission }),
+        };
       });
     }
   }
 };
 
-/** Build the frozen {@link PromptCorpusEntry} for one inline item. */
+/**
+ * The text behind a prompt's `promptHash` and its `prompts/` blob: the plain
+ * prompt when there is no history, otherwise the full conversation the turn is
+ * asked under (`stableStringify` of the gold history plus the turn's prompt).
+ */
+export const promptContent = (p: Pick<PromptCorpusEntry, "promptText" | "history">): string =>
+  p.history === undefined
+    ? p.promptText
+    : stableStringify([...p.history, { role: "user", content: p.promptText }]);
+
+/** Build the frozen {@link PromptCorpusEntry} for one inline item (or one turn). */
 const buildPromptEntry = (
-  item: ChallengeItem,
+  item: SingleItem,
   challengeDir: string,
+  history: ReadonlyArray<ChatMessage> | undefined,
 ): Effect.Effect<PromptCorpusEntry, ConfigError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const scorer = yield* resolveScorer(item, challengeDir);
+    const text = { promptText: item.prompt, ...(history === undefined ? {} : { history }) };
     return {
       name: item.name,
       category: item.category,
       tier: item.tier,
       system: NONE_SYSTEM,
-      promptText: item.prompt,
+      ...text,
       scorer,
-      promptHash: computePromptHash(item.prompt, NONE_SYSTEM.text),
+      promptHash: computePromptHash(promptContent(text), NONE_SYSTEM.text),
       tags: item.tags,
     };
   });
+
+/** One scored unit: a single-shot item, or one turn of a multi-turn item. */
+interface Unit {
+  readonly item: SingleItem;
+  /** Gold assistant answer (turns only). */
+  readonly answer?: string;
+  readonly history?: ReadonlyArray<ChatMessage>;
+  readonly parentItemId?: string;
+  readonly turn?: number;
+}
+
+/**
+ * Expand a multi-turn item into one unit per turn (`name#k`), each carrying
+ * the gold history of turns 1..k-1. Single-shot items pass through.
+ */
+const expandItem = (item: ChallengeItem): ReadonlyArray<Unit> => {
+  if (!("turns" in item)) return [{ item }];
+  const history: ChatMessage[] = [];
+  return item.turns.map(({ answer, ...turn }, i) => {
+    const unit: Unit = {
+      item: {
+        ...turn,
+        name: `${item.name}#${i + 1}`,
+        category: item.category,
+        tier: item.tier,
+        tags: item.tags,
+        family: item.family,
+        scope: item.scope,
+      },
+      answer,
+      ...(history.length === 0 ? {} : { history: [...history] }),
+      parentItemId: item.name,
+      turn: i + 1,
+    };
+    history.push({ role: "user", content: turn.prompt }, { role: "assistant", content: answer });
+    return unit;
+  });
+};
+
+/** Score a turn's gold answer under its own scorer; turns allow only the pure scorers. */
+const goldScore = (answer: string, scorer: ScorerConfig): Effect.Effect<number> =>
+  scorer.type === "exact_match"
+    ? Effect.map(scoreExactMatch(answer, scorer), (s) => s.score)
+    : scorer.type === "constraint"
+      ? Effect.map(scoreConstraints(answer, scorer), (s) => s.score)
+      : Effect.succeed(0);
 
 export const resolveChallenge = (
   challenge: Challenge,
@@ -218,7 +321,10 @@ export const resolveChallenge = (
 ): Effect.Effect<ResolvedChallenge, ConfigError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const seen = new Map<string, number>();
-    const items = yield* Effect.forEach(challenge.items, (item, index) =>
+    const units = challenge.items.flatMap((item, index) =>
+      expandItem(item).map((u) => ({ ...u, index })),
+    );
+    const items = yield* Effect.forEach(units, ({ item, answer, history, index, ...turn }) =>
       Effect.gen(function* () {
         const prior = seen.get(item.name);
         if (prior !== undefined) {
@@ -234,7 +340,15 @@ export const resolveChallenge = (
         if (patternProblem !== null) {
           return yield* Effect.fail(patternProblem);
         }
-        const prompt = yield* buildPromptEntry(item, challengeDir);
+        const prompt = yield* buildPromptEntry(item, challengeDir, history);
+        if (answer !== undefined && (yield* goldScore(answer, prompt.scorer)) !== 1) {
+          return yield* Effect.fail(
+            new ConfigError({
+              path: challenge.id,
+              message: `Challenge '${challenge.id}' turn '${item.name}': gold answer '${answer}' does not score 1 under its own scorer.`,
+            }),
+          );
+        }
         const itemHash = shortSha256(`${prompt.promptHash}|${scorerKey(prompt.scorer)}`);
         return {
           itemId: prompt.name,
@@ -242,6 +356,9 @@ export const resolveChallenge = (
           itemHash,
           scorer: prompt.scorer,
           prompt,
+          ...turn,
+          family: item.family ?? `${challenge.id}/${turn.parentItemId ?? item.name}`,
+          scope: item.scope ?? defaultScope(challenge.id),
         } satisfies ResolvedItem;
       }),
     );

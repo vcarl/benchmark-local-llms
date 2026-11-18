@@ -3,6 +3,13 @@ import { useEffect, useState } from "react";
 export interface AttemptDetailItem {
   item_id: string;
   prompt_name: string;
+  // Turn units of a multi-turn item only. For turn > 1, prompt_text is the
+  // conversation JSON (gold history + this turn's prompt).
+  parent_item_id?: string;
+  turn?: number;
+  // Whether the model's own answer to the previous turn passed; null on turn 1
+  // and single-shot items.
+  prior_turn_passed?: boolean | null;
   prompt_text: string;
   output: string;
   reasoning: string | null;

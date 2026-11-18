@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { ConstraintDef } from "./constraints.js";
+import { ExactNearMiss, PatternNearMiss } from "./scorer.js";
 
 /**
  * Raw on-disk shape of a single challenge item. The representation is
@@ -17,6 +18,21 @@ import { ConstraintDef } from "./constraints.js";
  * owned by `configs.yaml` (`systemPrompt:` → `system-prompts.yaml`), not a
  * property of a challenge item.
  */
+/** Coverage tag: `core` (local-model sweet spot) or `stretch` (solver-backed reasoning). */
+export const Scope = Schema.Literal("core", "stretch");
+export type Scope = typeof Scope.Type;
+
+/** Item metadata. None of it is hashed, so changing it never re-identifies an item. */
+const meta = {
+  tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. */
+  family: Schema.optional(Schema.String),
+  /** Coverage tag; absent → `defaultScope(challengeId)` (src/config/challenges.ts). */
+  scope: Schema.optional(Scope),
+  /** Generator seed of a seeded variant (`<item>_s<seed>`); provenance only. */
+  seed: Schema.optional(Schema.Number),
+};
+
 const ExactMatchItem = Schema.Struct({
   name: Schema.String,
   category: Schema.String,
@@ -25,7 +41,8 @@ const ExactMatchItem = Schema.Struct({
   scorer: Schema.Literal("exact_match"),
   expected: Schema.String,
   extract: Schema.String,
-  tags: Schema.optional(Schema.Array(Schema.String)),
+  nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
+  ...meta,
 });
 
 const ConstraintItem = Schema.Struct({
@@ -35,7 +52,8 @@ const ConstraintItem = Schema.Struct({
   prompt: Schema.String,
   scorer: Schema.Literal("constraint"),
   constraints: Schema.Array(ConstraintDef),
-  tags: Schema.optional(Schema.Array(Schema.String)),
+  nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
+  ...meta,
 });
 
 const CodeExecItem = Schema.Struct({
@@ -46,7 +64,9 @@ const CodeExecItem = Schema.Struct({
   scorer: Schema.Literal("code_exec"),
   /** Path to companion test file, resolved relative to the challenge file's dir. */
   testFile: Schema.String,
-  tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Submission mode language (see `CodeExecConfig.submission`). */
+  submission: Schema.optional(Schema.String),
+  ...meta,
 });
 
 const GameItem = Schema.Struct({
@@ -57,7 +77,7 @@ const GameItem = Schema.Struct({
   scorer: Schema.Literal("game"),
   gameScorer: Schema.String,
   scorerParams: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-  tags: Schema.optional(Schema.Array(Schema.String)),
+  ...meta,
 });
 
 const SetMatchItem = Schema.Struct({
@@ -69,7 +89,7 @@ const SetMatchItem = Schema.Struct({
   vocabulary: Schema.Array(Schema.String),
   expected: Schema.Array(Schema.String),
   caseSensitive: Schema.optional(Schema.Boolean),
-  tags: Schema.optional(Schema.Array(Schema.String)),
+  ...meta,
 });
 
 const OrderedMatchItem = Schema.Struct({
@@ -81,10 +101,47 @@ const OrderedMatchItem = Schema.Struct({
   vocabulary: Schema.Array(Schema.String),
   expected: Schema.Array(Schema.String),
   caseSensitive: Schema.optional(Schema.Boolean),
-  tags: Schema.optional(Schema.Array(Schema.String)),
+  ...meta,
 });
 
-export const ChallengeItem = Schema.Union(
+/**
+ * One turn of a multi-turn item: a prompt, its scorer (exact_match or
+ * constraint, same fields as the single-shot items), and `answer` — the gold
+ * assistant message injected as history before every later turn.
+ */
+const turnFields = { prompt: Schema.String, answer: Schema.String };
+export const Turn = Schema.Union(
+  Schema.Struct({
+    ...turnFields,
+    scorer: Schema.Literal("exact_match"),
+    expected: Schema.String,
+    extract: Schema.String,
+    nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
+  }),
+  Schema.Struct({
+    ...turnFields,
+    scorer: Schema.Literal("constraint"),
+    constraints: Schema.Array(ConstraintDef),
+    nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
+  }),
+);
+export type Turn = typeof Turn.Type;
+
+/**
+ * A conversational item: an ordered list of turns, each scored independently.
+ * The loader expands it into one scored unit per turn (see
+ * docs/superpowers/specs/2026-11-16-multiturn-challenges-design.md).
+ */
+const MultiTurnItem = Schema.Struct({
+  name: Schema.String,
+  category: Schema.String,
+  tier: Schema.Number,
+  turns: Schema.Array(Turn).pipe(Schema.minItems(2)),
+  ...meta,
+});
+export type MultiTurnItem = typeof MultiTurnItem.Type;
+
+export const SingleItem = Schema.Union(
   ExactMatchItem,
   ConstraintItem,
   CodeExecItem,
@@ -92,6 +149,9 @@ export const ChallengeItem = Schema.Union(
   SetMatchItem,
   OrderedMatchItem,
 );
+export type SingleItem = typeof SingleItem.Type;
+
+export const ChallengeItem = Schema.Union(SingleItem, MultiTurnItem);
 export type ChallengeItem = typeof ChallengeItem.Type;
 
 /**

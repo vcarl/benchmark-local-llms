@@ -10,7 +10,7 @@ import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   fakeDeps,
   inertHttpClientLayer,
@@ -150,4 +150,55 @@ it("fails fast when no challenges are found", async () => {
       ),
     ),
   ).rejects.toThrow();
+});
+
+describe("--samples with --items", () => {
+  const setup = async () => {
+    const challengesDir = path.join(dir, "challenges");
+    const archiveDir = path.join(dir, "archive");
+    await fsp.mkdir(challengesDir);
+    await fsp.mkdir(archiveDir);
+    await fsp.writeFile(path.join(dir, "system-prompts.yaml"), SYSTEM_PROMPTS_YAML);
+    await fsp.writeFile(path.join(dir, "configs.yaml"), CONFIGS_YAML);
+    await fsp.writeFile(path.join(challengesDir, "alpha.yaml"), CHALLENGE_ALPHA_YAML);
+    await fsp.writeFile(path.join(challengesDir, "beta.yaml"), CHALLENGE_BETA_YAML);
+    return { challengesDir, archiveDir };
+  };
+  const sweep = (challengesDir: string, archiveDir: string, items: string[] | undefined) => {
+    const m = okStub();
+    return Effect.runPromise(
+      runSweep(
+        {
+          configsPattern: "cfg-a",
+          challengesPattern: undefined,
+          challengesDir,
+          configsFile: path.join(dir, "configs.yaml"),
+          systemPromptsFile: path.join(dir, "system-prompts.yaml"),
+          archiveDir,
+          output: path.join(dir, "webapp", "src", "data"),
+          noCache: false,
+          noReport: true,
+          samples: 3,
+          items,
+        },
+        fakeDeps() as never,
+      ).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    ).then(() => m.log.calls.map((c) => c.promptName));
+  };
+
+  it("samples only the matched items; the rest run once", async () => {
+    const { challengesDir, archiveDir } = await setup();
+    const calls = await sweep(challengesDir, archiveDir, ["alpha/math_two_*"]);
+    expect(calls.filter((n) => n === "math_two_plus_two")).toHaveLength(3);
+    expect(calls.filter((n) => n === "math_three_plus_three")).toHaveLength(1);
+  });
+
+  it("fails fast when an --items pattern matches no item", async () => {
+    const { challengesDir, archiveDir } = await setup();
+    await expect(sweep(challengesDir, archiveDir, ["alpha/typo"])).rejects.toThrow(/typo/);
+  });
 });

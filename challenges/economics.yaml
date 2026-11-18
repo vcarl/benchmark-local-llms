@@ -28,6 +28,7 @@ items:
       - TODO
       - game-theory
       - dominant-strategy
+    family: econ-prisoners
   # Both Confess: given the other confesses, 1>0 makes confessing each player's best reply, so neither can profitably deviate. Mutual silence pays more jointly but is unstable.
   - name: econ_nash_equilibrium
     category: economics
@@ -54,6 +55,7 @@ items:
       - TODO
       - game-theory
       - nash-equilibrium
+    family: econ-prisoners
   # Opportunity cost of one barrel of wine: Borland 1 cloth (6/6) vs Atland 2 cloth (20/10). Lower cost ⇒ Borland — even though Atland is absolutely more productive.
   - name: econ_comparative_advantage
     category: economics
@@ -119,6 +121,7 @@ items:
       - TODO
       - economics
       - elasticity
+    family: econ-elasticity
   # Elasticity is 0.2 (< 1): quantity changes less than proportionally to price, so demand is inelastic.
   - name: econ_elasticity_classify
     category: economics
@@ -135,6 +138,7 @@ items:
       - TODO
       - economics
       - elasticity
+    family: econ-elasticity
   # Produce each unit whose marginal cost ≤ $10: units 1–4 ($3,5,7,9) qualify; unit 5 ($11) exceeds MR. Optimal quantity 4.
   - name: econ_marginal_quantity
     category: economics
@@ -231,6 +235,7 @@ items:
       - TODO
       - game-theory
       - mixed-strategy
+    family: econ-mixed
   # The Server mixes to make the Receiver indifferent, so it is pinned by the RECEIVER's payoffs: p = (c11−c10)/(c00−c10−c01+c11) = (2−6)/(2−6−8+2) = −4/−10 = 0.4.
   - name: econ_mixed_server_prob_left
     category: economics
@@ -258,10 +263,15 @@ items:
       - name: equals 0.4
         check: regex
         pattern: (?<![\d.])0?\.40*(?!\d)
+    nearMisses:
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])40(?:\.0*)?\s*%
     tags:
       - TODO
       - game-theory
       - mixed-strategy
+    family: econ-mixed
   # The Receiver mixes to make the Server indifferent, pinned by the SERVER's payoffs: q = (r11−r01)/(r00−r01−r10+r11) = (10−4)/(10−4−6+10) = 6/10 = 0.6.
   - name: econ_mixed_receiver_prob_left
     category: economics
@@ -289,10 +299,15 @@ items:
       - name: equals 0.6
         check: regex
         pattern: (?<![\d.])0?\.60*(?!\d)
+    nearMisses:
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])60(?:\.0*)?\s*%
     tags:
       - TODO
       - game-theory
       - mixed-strategy
+    family: econ-mixed
   # Value to Server = q·r00 + (1−q)·r01 = 0.6·10 + 0.4·4 = 7.6 (cross-checks against the Aim-Right row: 0.6·6 + 0.4·10 = 7.6).
   - name: econ_mixed_server_value
     category: economics
@@ -323,6 +338,7 @@ items:
       - TODO
       - game-theory
       - mixed-strategy
+    family: econ-mixed
   # Once entry has happened, Accommodate (50) beats Fight (25), so fighting is never the Incumbent's best response. The threat is off-equilibrium and not credible: no.
   - name: econ_entry_threat_credible
     category: economics
@@ -355,6 +371,7 @@ items:
       - TODO
       - game-theory
       - backward-induction
+    family: econ-entry
   # Anticipating Accommodate, the Entrant compares Enter (40) vs Stay Out (0) and enters. SPE = (Enter, Accommodate), so the Entrant earns 40.
   - name: econ_entry_entrant_payoff
     category: economics
@@ -386,6 +403,7 @@ items:
       - TODO
       - game-theory
       - backward-induction
+    family: econ-entry
   # At the SPE (Enter, Accommodate) the Incumbent accommodates and earns 50 — not the 120 it would keep if its non-credible Fight threat actually deterred entry.
   - name: econ_entry_incumbent_payoff
     category: economics
@@ -416,6 +434,7 @@ items:
       - TODO
       - game-theory
       - backward-induction
+    family: econ-entry
   # Stay-Out leaves the Incumbent 120; the SPE leaves it 50. The commitment value of a CREDIBLE deterrent would be 120 − 50 = 70.
   - name: econ_entry_threat_gap
     category: economics
@@ -448,6 +467,7 @@ items:
       - TODO
       - game-theory
       - backward-induction
+    family: econ-entry
   # q1 = (a − 2c1 + c2)/(3b) = (120 − 40 + 40)/3 = 40 (reaction functions q1=(100−q2)/2, q2=(80−q1)/2 give q1=40, q2=20).
   - name: econ_cournot_q1
     category: economics
@@ -469,6 +489,7 @@ items:
       - economics
       - cournot
       - oligopoly
+    family: econ-cournot
   # q2 = (a − 2c2 + c1)/(3b) = (120 − 80 + 20)/3 = 20 — the higher-cost firm produces less.
   - name: econ_cournot_q2
     category: economics
@@ -490,6 +511,7 @@ items:
       - economics
       - cournot
       - oligopoly
+    family: econ-cournot
   # Q = q1 + q2 = 40 + 20 = 60, so P = 120 − 60 = 60.
   - name: econ_cournot_price
     category: economics
@@ -511,6 +533,7 @@ items:
       - economics
       - cournot
       - oligopoly
+    family: econ-cournot
   # Profit1 = (P − c1)·q1 = (60 − 20)·40 = 1600.
   - name: econ_cournot_profit1
     category: economics
@@ -532,6 +555,7 @@ items:
       - economics
       - cournot
       - oligopoly
+    family: econ-cournot
   # The lower-cost firm (firm 1, c=$20) produces more: 40 vs 20.
   - name: econ_cournot_which_firm
     category: economics
@@ -555,6 +579,7 @@ items:
       - economics
       - cournot
       - oligopoly
+    family: econ-cournot
   # Pre-tax P*=(100−20)/4=20, Q*=80. The tax cuts quantity by ΔQ=βδt/(β+δ)=3·8/4=6, so Q_t=74 (Qd(26)=Qs(18)=74).
   - name: econ_tax_quantity
     category: economics
@@ -573,6 +598,7 @@ items:
       - TODO
       - economics
       - tax-incidence
+    family: econ-tax
   # Pb = P* + t·δ/(β+δ) = 20 + 8·0.75 = 26.
   - name: econ_tax_buyer_price
     category: economics
@@ -591,6 +617,7 @@ items:
       - TODO
       - economics
       - tax-incidence
+    family: econ-tax
   # Ps = P* − t·β/(β+δ) = 20 − 8·0.25 = 18 (check Pb − Ps = 26 − 18 = 8 = t).
   - name: econ_tax_seller_price
     category: economics
@@ -609,6 +636,7 @@ items:
       - TODO
       - economics
       - tax-incidence
+    family: econ-tax
   # Buyers' share = δ/(β+δ) = 3/(1+3) = 0.75. Demand is the more inelastic side (slope 1 vs 3), so buyers bear more.
   - name: econ_tax_buyer_share
     category: economics
@@ -625,10 +653,15 @@ items:
       - name: equals 0.75
         check: regex
         pattern: (?<![\d.])0?\.750*(?!\d)
+    nearMisses:
+      - slip: percent-for-decimal
+        credit: 0.5
+        pattern: (?<![\d.])75(?:\.0*)?\s*%
     tags:
       - TODO
       - economics
       - tax-incidence
+    family: econ-tax
   # DWL = ½·t²·βδ/(β+δ) = ½·64·(3/4) = 24 (the Harberger triangle ½·t·ΔQ = ½·8·6).
   - name: econ_tax_dwl
     category: economics
@@ -648,6 +681,7 @@ items:
       - economics
       - tax-incidence
       - deadweight-loss
+    family: econ-tax
   # Revenue = t·Q_t = 8·74 = 592.
   - name: econ_tax_revenue
     category: economics
@@ -666,6 +700,7 @@ items:
       - TODO
       - economics
       - tax-incidence
+    family: econ-tax
   # Set MR = MC: 100 − 2Q = 10 + Q ⇒ Q* = (a−e)/(2b+f) = 90/3 = 30. (Setting P=MC instead gives the wrong 45.)
   - name: econ_monopoly_quantity
     category: economics
@@ -685,6 +720,7 @@ items:
       - TODO
       - economics
       - monopoly
+    family: econ-monopoly
   # P* = 100 − Q* = 100 − 30 = 70 (read off the demand curve, not MR).
   - name: econ_monopoly_price
     category: economics
@@ -704,6 +740,7 @@ items:
       - TODO
       - economics
       - monopoly
+    family: econ-monopoly
   # Profit = P·Q − (eQ + ½fQ²) = 70·30 − (10·30 + ½·900) = 2100 − 750 = 1350.
   - name: econ_monopoly_profit
     category: economics
@@ -723,6 +760,7 @@ items:
       - TODO
       - economics
       - monopoly
+    family: econ-monopoly
   # P = MC: 100 − Q = 10 + Q ⇒ Qc = (a−e)/(b+f) = 90/2 = 45 (more than the monopoly's 30).
   - name: econ_monopoly_competitive_quantity
     category: economics
@@ -744,6 +782,7 @@ items:
       - economics
       - monopoly
       - welfare
+    family: econ-monopoly
   # Triangle between demand and MC over [30, 45]: ½·(45−30)·(P(30)−MC(30)) = ½·15·(70−40) = 225.
   - name: econ_monopoly_dwl
     category: economics
@@ -764,3 +803,4 @@ items:
       - economics
       - monopoly
       - deadweight-loss
+    family: econ-monopoly

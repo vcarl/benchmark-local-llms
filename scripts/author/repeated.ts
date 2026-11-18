@@ -86,7 +86,10 @@ function trps(matrix: PayoffMatrix): { T: number; R: number; P: number; S: numbe
 }
 
 /** Critical discount factor δ* = (T−R)/(T−P), rounded, plus the payoffs. */
-export function folkThreshold(matrix: PayoffMatrix): {
+export function folkThreshold(
+  matrix: PayoffMatrix,
+  rnd = round,
+): {
   deltaStar: number;
   T: number;
   R: number;
@@ -94,7 +97,7 @@ export function folkThreshold(matrix: PayoffMatrix): {
   S: number;
 } {
   const { T, R, P, S } = trps(matrix);
-  return { deltaStar: round((T - R) / (T - P)), T, R, P, S };
+  return { deltaStar: rnd((T - R) / (T - P)), T, R, P, S };
 }
 
 /** Is cooperation sustainable under grim trigger at discount factor δ? (δ ≥ δ*). */
@@ -127,8 +130,14 @@ export function shirksUnderFlat(c_H: number, c_L: number): boolean {
 }
 
 /** Minimum good-outcome bonus Δ* making high effort incentive-compatible, rounded. */
-export function minBonusIC(p_H: number, p_L: number, c_H: number, c_L: number): number {
-  return round((c_H - c_L) / (p_H - p_L));
+export function minBonusIC(
+  p_H: number,
+  p_L: number,
+  c_H: number,
+  c_L: number,
+  rnd = round,
+): number {
+  return rnd((c_H - c_L) / (p_H - p_L));
 }
 
 /**

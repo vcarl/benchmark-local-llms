@@ -8,8 +8,10 @@
  * without re-running any model. There is no stdout score table — only a
  * one-line summary.
  *
- * Clean break from the legacy format: a non-attempt / legacy file produces a
- * clear error, not a re-score (mirrors Phase 4). `score` never calls the LLM.
+ * Clean break from the legacy format: a non-attempt / legacy file is never
+ * re-scored. A single `--archive` of one fails with a clear error; in a batch
+ * (repeated `--archive`, or `--stale`) it is named, skipped, and tallied, and
+ * the batch continues. `score` never calls the LLM.
  *
  * Identity: the store path never touches identity. The corpus path RE-STAMPS
  * an attempt onto the current challenge identity (challengeHash, per-item
@@ -20,7 +22,8 @@
  * attemptId is kept in `restampedFrom`.
  *
  * `--stale` batch-processes every completed attempt in `--archive-dir` whose
- * challengeHash differs from its current challenge's (implies `--corpus`).
+ * challengeHash differs from its current challenge's, or that holds an
+ * echoed-reasoning output not yet dropped (erratum 0.6) (implies `--corpus`).
  */
 import { Command, Options } from "@effect/cli";
 import { type CommandExecutor, FileSystem, Path } from "@effect/platform";
@@ -28,15 +31,15 @@ import { Effect, Option } from "effect";
 import { rewriteAttempt } from "../../archive/attempt-writer.js";
 import { scorerHash, writeBlob } from "../../archive/content-store.js";
 import type { ResolvedChallenge } from "../../config/challenges.js";
-import { loadChallenge } from "../../config/challenges.js";
+import { loadChallenge, promptContent } from "../../config/challenges.js";
 import { stableStringify } from "../../config/hashing.js";
 import { aggregate } from "../../orchestration/run-challenge.js";
-import { loadAttemptArchive } from "../../report/load-attempts.js";
+import { currentItems, loadAttemptArchive } from "../../report/load-attempts.js";
 import { loadAttemptReconstruction } from "../../report/reconstruct.js";
 import type { AttemptAggregate, AttemptManifest, ItemResult } from "../../schema/attempt.js";
 import type { ScorerConfig } from "../../schema/scorer.js";
-import { scoreByConfig } from "../../scoring/dispatch.js";
-import type { PromptScore } from "../../scoring/score-result.js";
+import { scoreOrFold } from "../../scoring/dispatch.js";
+import { applyScore, dropEchoedReasoning } from "../../scoring/failure-kind.js";
 import { makeLoggerLayer } from "../logger.js";
 
 const printLine = (line: string): Effect.Effect<void> =>
@@ -52,7 +55,7 @@ const archiveOpt = Options.file("archive").pipe(
 const staleOpt = Options.boolean("stale").pipe(
   Options.withDefault(false),
   Options.withDescription(
-    "Re-score every completed attempt in --archive-dir whose challengeHash differs from its current challenge's (implies --corpus)",
+    "Re-score every completed attempt in --archive-dir whose challengeHash differs from its current challenge's, or that holds an output echoing truncated reasoning (implies --corpus)",
   ),
 );
 
@@ -93,21 +96,6 @@ const corpusOpt = Options.boolean("corpus").pipe(
   ),
 );
 
-/**
- * Rebuild an archived item with a fresh score and breakdown. The stale
- * `breakdown` from the archive is always dropped first; the new one is attached
- * only when present (constraint scorers), so a re-score that no longer yields a
- * breakdown (non-constraint scorer, or execution error) clears the old value.
- */
-const withBreakdown = (
-  archived: ItemResult,
-  score: number,
-  breakdown: PromptScore["breakdown"],
-): ItemResult => {
-  const { breakdown: _stale, ...rest } = archived;
-  return { ...rest, score, ...(breakdown !== undefined ? { breakdown } : {}) };
-};
-
 // ── Per-item re-score ladder ─────────────────────────────────────────────────
 
 export interface RescoreResult {
@@ -116,6 +104,10 @@ export interface RescoreResult {
   readonly rescored: number;
   /** Items kept at their stored score: promptHash drift + missing-prompt. */
   readonly drift: number;
+  /** promptNames of the `drift` items — their scores came from an earlier scorer. */
+  readonly kept: ReadonlyArray<string>;
+  /** promptNames of lines whose item is no longer in the challenge (kept verbatim, unscored). */
+  readonly retired: ReadonlyArray<string>;
   /** Per-item human-readable lines describing each non-trivial outcome. */
   readonly notes: ReadonlyArray<string>;
   /**
@@ -133,67 +125,80 @@ export interface RescoreResult {
  * challenge. The whole-archive (challenge-unresolvable) fallback is handled by
  * the caller BEFORE this runs; here the challenge is known-resolved.
  *
- * Per item:
- *   1. promptName missing in the challenge → keep stored score, +drift, warn.
+ * Per item (an output echoing truncated reasoning is first dropped, erratum 0.6):
+ *   1. promptName missing in the challenge → with `retire` (same challenge
+ *      version) the item is retired: line kept verbatim, listed in `retired`;
+ *      otherwise keep stored score, +drift, warn.
  *   2. resolved promptHash ≠ archived promptHash (prompt text drifted) → keep
  *      stored score, +drift, warn. Guard is promptHash, NOT itemHash: a
  *      scorer-only edit (same promptHash, different itemHash) MUST be applied.
  *   3. archived execution error (error !== null) → score 0, +rescored.
- *   4. otherwise → scoreByConfig(output, scorer); a scorer error folds to 0.
+ *   4. otherwise → scoreOrFold(output, scorer); a scorer error folds to 0.
+ *
+ * Re-scored items (3, 4) take the resolved item's `itemHash` and `scorerHash`,
+ * so each line names the scorer that produced its score.
  */
 export const rescoreItems = (
   items: ReadonlyArray<ItemResult>,
   challenge: ResolvedChallenge,
+  retire = true,
 ): Effect.Effect<RescoreResult, never, CommandExecutor.CommandExecutor> =>
   Effect.gen(function* () {
     const byName = new Map(challenge.items.map((i) => [i.itemId, i]));
     const updated: ItemResult[] = [];
     const notes: string[] = [];
     const warnings: string[] = [];
+    const kept: string[] = [];
+    const retired: string[] = [];
     let rescored = 0;
-    let drift = 0;
 
-    for (const archived of items) {
+    for (const stored of items) {
+      const archived = dropEchoedReasoning(stored);
       const resolvedItem = byName.get(archived.promptName);
+      if (resolvedItem === undefined && retire) {
+        retired.push(archived.promptName);
+        updated.push(stored);
+        continue;
+      }
       if (resolvedItem === undefined) {
-        drift += 1;
+        kept.push(archived.promptName);
         const note = `  warn ${archived.promptName}: not in challenge → kept stored score ${archived.score}`;
         notes.push(note);
         warnings.push(note);
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
       if (resolvedItem.promptHash !== archived.promptHash) {
-        drift += 1;
+        kept.push(archived.promptName);
         const note = `  warn ${archived.promptName}: promptHash drift (stored ${archived.promptHash} vs resolved ${resolvedItem.promptHash}) → kept stored score ${archived.score}`;
         notes.push(note);
         warnings.push(note);
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
-      if (archived.error !== null) {
-        rescored += 1;
-        notes.push(`  ${archived.promptName}: execution error → score 0 (was ${archived.score})`);
-        updated.push(withBreakdown(archived, 0, undefined));
-        continue;
-      }
-      const scoreResult = yield* scoreByConfig(archived.output, resolvedItem.scorer, {
-        promptName: archived.promptName,
-      }).pipe(
-        Effect.catchAll(() =>
-          Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
-        ),
-      );
+      const current = {
+        ...archived,
+        itemHash: resolvedItem.itemHash,
+        scorerHash: scorerHash(resolvedItem.scorer),
+      };
       rescored += 1;
+      if (archived.error !== null) {
+        notes.push(`  ${archived.promptName}: execution error → score 0 (was ${archived.score})`);
+        updated.push(applyScore(current, undefined));
+        continue;
+      }
+      const scoreResult = yield* scoreOrFold(archived.output, resolvedItem.scorer, {
+        promptName: archived.promptName,
+      });
       if (scoreResult.score !== archived.score) {
         notes.push(
           `  ${archived.promptName}: ${archived.score} → ${scoreResult.score} (${scoreResult.details})`,
         );
       }
-      updated.push(withBreakdown(archived, scoreResult.score, scoreResult.breakdown));
+      updated.push(applyScore(current, scoreResult));
     }
 
-    return { updated, rescored, drift, notes, warnings };
+    return { updated, rescored, drift: kept.length, kept, retired, notes, warnings };
   });
 
 /**
@@ -212,32 +217,47 @@ export const rescoreItemsFromStore = (
     const updated: ItemResult[] = [];
     const notes: string[] = [];
     let rescored = 0;
-    for (const archived of items) {
+    for (const stored of items) {
+      const archived = dropEchoedReasoning(stored);
       const scorer = byId.get(archived.itemId);
       if (scorer === undefined) {
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
-      if (archived.error !== null) {
-        rescored += 1;
-        updated.push(withBreakdown(archived, 0, undefined));
-        continue;
-      }
-      const r = yield* scoreByConfig(archived.output, scorer, {
-        promptName: archived.promptName,
-      }).pipe(
-        Effect.catchAll(() =>
-          Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
-        ),
-      );
       rescored += 1;
+      if (archived.error !== null) {
+        updated.push(applyScore(archived, undefined));
+        continue;
+      }
+      const r = yield* scoreOrFold(archived.output, scorer, { promptName: archived.promptName });
       if (r.score !== archived.score) {
         notes.push(`  ${archived.promptName}: ${archived.score} → ${r.score} (${r.details})`);
       }
-      updated.push(withBreakdown(archived, r.score, r.breakdown));
+      updated.push(applyScore(archived, r));
     }
-    return { updated, rescored, drift: 0, notes, warnings: [] };
+    return { updated, rescored, drift: 0, kept: [], retired: [], notes, warnings: [] };
   });
+
+/**
+ * Record on the manifest which items kept a score from an earlier scorer
+ * (prompt drift), or clear the record when every item was re-scored.
+ */
+export const withStaleScoreItems = (
+  manifest: AttemptManifest,
+  kept: ReadonlyArray<string>,
+): AttemptManifest => {
+  const { staleScoreItems: _prior, ...rest } = manifest;
+  return kept.length === 0 ? rest : { ...rest, staleScoreItems: [...new Set(kept)] };
+};
+
+/** Record on the manifest which lines belong to retired items, or clear the record. */
+const withRetiredItems = (
+  manifest: AttemptManifest,
+  retired: ReadonlyArray<string>,
+): AttemptManifest => {
+  const { retiredItems: _prior, ...rest } = manifest;
+  return retired.length === 0 ? rest : { ...rest, retiredItems: [...new Set(retired)] };
+};
 
 // ── Summary line ─────────────────────────────────────────────────────────────
 
@@ -264,10 +284,11 @@ export const formatSummary = (s: SummaryInput): string => {
 
 /**
  * Why `manifest` + `items` may NOT be re-stamped onto `challenge`'s identity,
- * or `null` when the change since the run was scorer-only: same challenge
- * id/version, a completed attempt whose attemptId embeds its challengeHash,
- * and archived items that map 1:1 (by name) onto the resolved items with an
- * identical promptHash each.
+ * or `null` when the change since the run was scorer-only or a retirement:
+ * same challenge id/version, a completed attempt whose attemptId embeds its
+ * challengeHash, unique item names, and every resolved item present in the
+ * archive with an identical promptHash. Archived items absent from the
+ * challenge are retired items and do not block.
  */
 export const restampBlocker = (
   manifest: AttemptManifest,
@@ -281,10 +302,11 @@ export const restampBlocker = (
   if (manifest.attemptId.split("-")[2] !== manifest.challengeHash) {
     return "attemptId does not embed challengeHash";
   }
-  const archived = new Map(items.map((i) => [i.promptName, i]));
-  if (archived.size !== items.length || items.length !== challenge.items.length) {
-    return `item set differs (archive ${items.length}, challenge ${challenge.items.length})`;
+  // A resampled item has one line per sample; a duplicated (item, sample) is the defect.
+  if (new Set(items.map((i) => `${i.promptName}#${i.sample ?? 0}`)).size !== items.length) {
+    return "duplicate item names in archive";
   }
+  const archived = new Map(items.map((i) => [i.promptName, i]));
   for (const r of challenge.items) {
     const a = archived.get(r.itemId);
     if (a === undefined) return `item ${r.itemId} missing from archive`;
@@ -339,8 +361,18 @@ const scoreFromCorpus = (
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const pathSvc = yield* Path.Path;
-    const { updated, rescored, drift, notes, warnings } = yield* rescoreItems(items, resolved);
-    const agg = aggregate(updated, resolved.passThreshold);
+    const { updated, rescored, drift, kept, retired, notes, warnings } = yield* rescoreItems(
+      items,
+      resolved,
+      manifest.challengeVersion === resolved.version,
+    );
+    const live = currentItems({ retiredItems: retired }, updated);
+    const agg = aggregate(live, resolved.passThreshold);
+    const scored = withRetiredItems(
+      withStaleScoreItems({ ...manifest, aggregate: agg }, kept),
+      retired,
+    );
+    const archiveDir = pathSvc.dirname(archive);
     const current = manifest.challengeHash === resolved.challengeHash;
     const blocker = current ? null : restampBlocker(manifest, items, resolved);
     const outcome: Outcome = !current && blocker === null ? "restamped" : "rescored";
@@ -348,19 +380,25 @@ const scoreFromCorpus = (
     // Dry-run shows every per-item note (incl. clean score changes); normal
     // mode surfaces only the drift/skip warnings.
     for (const note of dryRun ? notes : warnings) yield* printLine(note);
+    if (retired.length > 0) {
+      yield* printLine(`  retired (kept, unscored): ${retired.join(", ")}`);
+    }
+
+    // Re-scored items now name the current scorers; write their blobs first.
+    if (!dryRun) {
+      for (const r of resolved.items) {
+        yield* writeBlob(archiveDir, "prompts", r.promptHash, promptContent(r.prompt));
+        yield* writeBlob(archiveDir, "scorers", scorerHash(r.scorer), stableStringify(r.scorer));
+      }
+    }
 
     if (outcome === "restamped") {
-      const next = restamp({ ...manifest, aggregate: agg }, updated, resolved);
-      const archiveDir = pathSvc.dirname(archive);
+      const next = restamp(scored, updated, resolved);
       const nextPath = pathSvc.join(archiveDir, `${next.manifest.attemptId}.jsonl`);
       yield* printLine(
         `  ${dryRun ? "would restamp" : "restamp"} ${manifest.attemptId} → ${next.manifest.attemptId}`,
       );
       if (!dryRun) {
-        for (const r of resolved.items) {
-          yield* writeBlob(archiveDir, "prompts", r.promptHash, r.prompt.promptText);
-          yield* writeBlob(archiveDir, "scorers", scorerHash(r.scorer), stableStringify(r.scorer));
-        }
         yield* rewriteAttempt(nextPath, next.manifest, next.items);
         if (nextPath !== archive) yield* fs.remove(archive);
       }
@@ -368,7 +406,7 @@ const scoreFromCorpus = (
       if (blocker !== null) {
         yield* printLine(`  no restamp (${blocker}); challengeHash kept as-recorded`);
       }
-      if (!dryRun) yield* rewriteAttempt(archive, { ...manifest, aggregate: agg }, updated);
+      if (!dryRun) yield* rewriteAttempt(archive, scored, updated);
     }
 
     yield* printLine(
@@ -387,6 +425,12 @@ const scoreFromCorpus = (
     return outcome;
   });
 
+const NOT_AN_ATTEMPT = "not an attempt archive";
+const skippedNotAttempt = (file: string) =>
+  printLine(
+    `${file}: skipped — ${NOT_AN_ATTEMPT} (legacy run format; score reads attempt archives only)`,
+  );
+
 const scoreOne = (
   archive: string,
   opts: {
@@ -394,31 +438,45 @@ const scoreOne = (
     challenge: Option.Option<string>;
     dryRun: boolean;
     corpus: boolean;
+    /** Batch mode: record a skip reason instead of failing on a non-attempt file. */
+    noteSkip: ((reason: string) => void) | null;
   },
 ) =>
   Effect.gen(function* () {
     const { dryRun } = opts;
-    const loaded = yield* loadAttemptArchive(archive).pipe(
-      Effect.mapError(
-        () =>
-          new Error(`${archive}: not an attempt archive (score no longer reads the legacy format)`),
-      ),
-    );
-    const { manifest, items } = loaded;
+    const loadedE = yield* loadAttemptArchive(archive).pipe(Effect.either);
+    if (loadedE._tag === "Left") {
+      if (opts.noteSkip === null) {
+        return yield* Effect.fail(
+          new Error(`${archive}: ${NOT_AN_ATTEMPT} (score no longer reads the legacy format)`),
+        );
+      }
+      opts.noteSkip(NOT_AN_ATTEMPT);
+      yield* skippedNotAttempt(archive);
+      return "skipped" as Outcome;
+    }
+    const { manifest, items } = loadedE.right;
 
     // Store-primary path: v2 archive + no --corpus flag → re-score from content
     // store without needing corpus or challenge YAML on disk.
-    if (!opts.corpus && manifest.schemaVersion === 2) {
+    if (!opts.corpus && manifest.schemaVersion >= 2) {
       const recon = yield* loadAttemptReconstruction(archive).pipe(
         Effect.mapError((e) => new Error(`${archive}: ${e.reason}`)),
       );
       const passThreshold = manifest.passThreshold ?? 1;
-      const { updated, rescored, drift, notes } = yield* rescoreItemsFromStore(items, recon.items);
-      const agg = aggregate(updated, passThreshold);
+      const { updated, rescored, drift, kept, notes } = yield* rescoreItemsFromStore(
+        items,
+        recon.items,
+      );
+      const agg = aggregate(currentItems(manifest, updated), passThreshold);
       if (dryRun) {
         for (const note of notes) yield* printLine(note);
       } else {
-        yield* rewriteAttempt(archive, { ...manifest, aggregate: agg }, updated);
+        yield* rewriteAttempt(
+          archive,
+          withStaleScoreItems({ ...manifest, aggregate: agg }, kept),
+          updated,
+        );
       }
       yield* printLine(
         formatSummary({
@@ -453,9 +511,11 @@ const scoreOne = (
   });
 
 /**
- * `--stale`: every completed `att-*.jsonl` in `archiveDir` whose challengeHash
- * differs from its current challenge's, via the corpus path. Unloadable,
- * incomplete, and unresolvable attempts are tallied as skipped by reason.
+ * `--stale`: every completed attempt `.jsonl` in `archiveDir` whose
+ * challengeHash differs from its current challenge's, or that holds an
+ * echoed-reasoning output (erratum 0.6), via the corpus path.
+ * Non-attempt (legacy run) files are named and skipped; they and incomplete
+ * and unresolvable attempts are tallied as skipped by reason.
  */
 const scoreStale = (
   archiveDir: string,
@@ -471,15 +531,14 @@ const scoreStale = (
       tally.skipped += 1;
       skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1);
     };
-    const files = (yield* fs.readDirectory(archiveDir))
-      .filter((f) => f.startsWith("att-") && f.endsWith(".jsonl"))
-      .sort();
+    const files = (yield* fs.readDirectory(archiveDir)).filter((f) => f.endsWith(".jsonl")).sort();
     const challenges = new Map<string, ResolvedChallenge | null>();
     for (const f of files) {
       const archive = pathSvc.join(archiveDir, f);
       const loaded = yield* loadAttemptArchive(archive).pipe(Effect.either);
       if (loaded._tag === "Left") {
-        skip("not an attempt archive");
+        skip(NOT_AN_ATTEMPT);
+        yield* skippedNotAttempt(f);
         continue;
       }
       const { manifest, items } = loaded.right;
@@ -498,7 +557,12 @@ const scoreStale = (
         skip("challenge unresolvable");
         continue;
       }
-      if (manifest.challengeHash === resolved.challengeHash) {
+      // A current attempt is still stale while it holds an echoed-reasoning
+      // output scored as an answer (erratum 0.6).
+      if (
+        manifest.challengeHash === resolved.challengeHash &&
+        items.every((i) => dropEchoedReasoning(i) === i)
+      ) {
         tally.current += 1;
         continue;
       }
@@ -533,8 +597,12 @@ export const scoreCommand = Command.make(
         current: 0,
       };
       const skipReasons = new Map<string, number>();
+      const noteSkip =
+        archive.length > 1 || stale
+          ? (reason: string) => skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1)
+          : null;
       for (const a of archive) {
-        tally[yield* scoreOne(a, { challengesDir, challenge, dryRun, corpus })] += 1;
+        tally[yield* scoreOne(a, { challengesDir, challenge, dryRun, corpus, noteSkip })] += 1;
       }
       if (stale) yield* scoreStale(archiveDir, challengesDir, dryRun, tally, skipReasons);
       if (stale || archive.length > 1) {

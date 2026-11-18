@@ -125,10 +125,28 @@ describe("attempt schema v2 (additive)", () => {
     expect(m.passThreshold).toBe(0.8);
   });
 
-  it("rejects schemaVersion 3", () => {
+  it("rejects schemaVersion 4", () => {
     expect(() =>
-      Schema.decodeUnknownSync(AttemptManifest)({ ...baseManifest, schemaVersion: 3 }),
+      Schema.decodeUnknownSync(AttemptManifest)({ ...baseManifest, schemaVersion: 4 }),
     ).toThrow();
+  });
+
+  it("accepts a v3 header without hostname, with run provenance", () => {
+    const { hostname: _, ...env } = baseManifest.env;
+    const m = Schema.decodeUnknownSync(AttemptManifest)({
+      ...baseManifest,
+      schemaVersion: 3,
+      invocationId: "inv",
+      submitter: "local",
+      lines: { generated: 1, replayed: 2 },
+      env: {
+        ...env,
+        hardware: { cpu: "Apple M5 Max", cpuCores: 18, memoryGb: 128, os: "macOS 27" },
+        hardwareId: "abc",
+      },
+    });
+    expect(m.env.hostname).toBeUndefined();
+    expect(m.lines).toEqual({ generated: 1, replayed: 2 });
   });
 
   const baseItem = {

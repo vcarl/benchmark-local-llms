@@ -56,6 +56,8 @@ const makeChallenge = (): ResolvedChallenge => {
   const prompt = samplePromptExact();
   const item: ResolvedItem = {
     itemId: prompt.name,
+    family: prompt.name,
+    scope: "core",
     promptHash: prompt.promptHash,
     itemHash: "acceptance-ih",
     scorer: prompt.scorer,

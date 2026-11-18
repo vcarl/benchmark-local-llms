@@ -27,6 +27,7 @@ src/cli/                 process boundary — argv, exit codes, console, subproc
 src/orchestration/
   run-challenge.ts       attempt orchestrator: scope, server boot, per-item execute-or-cache, score, finalize; aggregate(); resume + ResumeMismatchError
   run-prompt.ts          one prompt → completion → output/reasoning split → result assembly
+  run-loop.ts, hardware.ts  run env: git sha, hardware profile + hardwareId (probed once per process)
 
 src/llm/
   chat-completion.ts     OpenAI-compatible HTTP client for both runtimes (port per runtime)
@@ -72,23 +73,24 @@ src/errors/              typed Data.TaggedError classes, re-exported from index.
 1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items directly, computing every identity hash. Build an `attemptId` of the form `att-<configHash>-<challengeHash>-<timestamp>`.
 2. **Open the archive.** Inside `Effect.scoped`, write line 1 — the `AttemptManifest` header — in its open state (`finishedAt: null`, `interrupted: true`, zeroed aggregate). Write the resolved system-prompt blob to the content store.
 3. **Boot the LLM server.** `run` boots the runtime's server **once per configuration** and reuses it across that configuration's challenges. A server that won't boot skips the whole configuration's row — every cell is recorded `SKIPPED` and the sweep continues to the next configuration. (The single-attempt `runChallenge` wrapper instead `orDie`s, having nothing to recover to.) The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller.
-4. **Run each item.** For every challenge item: write its prompt and scorer blobs to the content store, then either serve a cross-attempt cache hit (copied verbatim) or execute it freshly via `runPrompt`. Score the cleaned output with `scoreByConfig` — a scorer error folds to score 0, never a crashed attempt. An item whose execution carried an `error` scores 0. Append the resulting `ItemResult` as a new line.
-5. **Finalize.** Aggregate the items into `{ score, passed }` (`score` = fraction of items scoring exactly 1; `passed` = `score >= passThreshold`), then rewrite line 1 with `finishedAt`, `interrupted: false`, and the filled aggregate. Body lines are never touched once appended.
+4. **Run each item.** For every challenge item: write its prompt and scorer blobs to the content store, then for each of its samples (one unless `--samples`) either serve a cross-attempt cache hit (copied verbatim from an attempt on this machine, stamped with `cachedFrom`) or execute it freshly via `runPrompt` with a random seed. Score the cleaned output with `scoreByConfig` — a scorer error folds to score 0, never a crashed attempt. An item whose execution carried an `error` scores 0. Append each resulting `ItemResult` as a new line.
+5. **Finalize.** Aggregate the items into `{ score, passed }` (`score` = fraction of items scoring exactly 1; `passed` = `score >= passThreshold`), then rewrite line 1 with `finishedAt`, `interrupted: false`, the filled aggregate, and the generated/replayed line counts. Body lines are never touched once appended.
 
 The header→append→finalize order is what makes interruption safe: if the process dies before finalize, the archive keeps `interrupted: true` and `finishedAt: null`, and the report ignores it. An interrupted sweep is simply re-run: the cross-attempt item cache serves already-completed items verbatim, so re-invoking `run` only re-executes the gaps. (The lower-level `resumeChallenge` — re-resolve config and challenge, validate their hashes against the partial header, execute only the missing items, re-aggregate, finalize — remains in the orchestrator but is not exposed by the current CLI.)
 
 ## Report pipeline
 
-`report` turns attempt archives into the webapp's data, scored against the challenge set in `--challenges-dir`:
+`report` turns attempt archives into the webapp's data, one dataset at a time — the main archive against `--challenges-dir`, then the pilot (`<archive-dir>-next` against `<challenges-dir>-next`) when both exist and `--no-pilot` is not given:
 
 ```
-loadAttemptArchives → buildRows + detailSources → writeDataJs → writeDetails
+per dataset: loadAttemptArchives → buildRows + detailSources
+then:        writeDataJs → writeDetails
 ```
 
 1. **`loadAttemptArchives`** reads every `*.jsonl` under the archive directory, decoding line 1 as an `AttemptManifest` and lines 2+ as `ItemResult`s. A file that fails to parse becomes a collected load issue, not a failure.
 2. **`buildRows`** (`src/report/rows.ts`) selects the ranking: one row per `configHash × hardwareId` over the dataset's challenge set, with per-challenge cells, completeness, freshness, execution provenance, and the `modelKey` that groups builds of one model (`configs.yaml` `modelKey` overrides it). The rules are in [SCORING.md § Report rows](./SCORING.md#report-rows).
 3. **`detailSources`** keeps the **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicated by `attemptId` (first wins); incomplete and duplicate attempts are counted.
-4. **`writeDataJs`** writes `globalThis.__BENCHMARK_ROWS = [...]`, one entry per dataset, on one line to `webapp/src/data/data.js`. It is the webapp's only input.
+4. **`writeDataJs`** writes `globalThis.__BENCHMARK_ROWS = [...]`, one entry per dataset, main first, on one line to `webapp/src/data/data.js`. It is the webapp's only input.
 5. **`writeDetails`** writes one `webapp/public/details/<attemptId>.json` per completed, reconstructible attempt, joining the reconstructed prompt / scorer / system text with the in-memory output, reasoning, score, and error. A non-reconstructible attempt is skipped gracefully — its row still appears in `data.js`, only its drilldown is absent.
 
 `RowsDataset` (`src/report/rows.ts`) is the backend→webapp contract. `webapp/src/lib/rows.ts` mirrors the fields the webapp reads; there is no compile-time link between the two files, so a change to one must be mirrored in the other.
@@ -97,7 +99,7 @@ loadAttemptArchives → buildRows + detailSources → writeDataJs → writeDetai
 
 A completion's text is separated into `output` / `reasoning` / `rawOutput` / `error` **once**, at completion time, in `run-prompt.ts`:
 
-- If the runtime already split reasoning into a distinct API field (`reasoning_content` on llama.cpp, `reasoning` on mlx_lm.server), that body is trusted verbatim and no stripping occurs.
+- If the runtime already split reasoning into a distinct API field (`reasoning_content` on llama.cpp, `reasoning` on mlx_lm.server), that body is trusted verbatim and no stripping occurs — except that a `length`-stopped `output` identical to its `reasoning` (oMLX flushes unclosed thinking into `content` when the budget runs out) is no answer: `output` becomes `""` (`echoesTruncatedReasoning` in `src/scoring/failure-kind.ts`; `bench score` applies the same rule to archived lines).
 - Otherwise the model may have inlined thinking into the answer (`<think>…</think>` or Harmony channel markers). `stripThinkingTags` recovers it: cleaned answer → `output`, extracted thinking → `reasoning`, and `error: "thinking_truncated"` when an unclosed think block means no answer was produced.
 - `rawOutput` always preserves the original API content for audit.
 
@@ -111,7 +113,7 @@ Scorers consume the already-cleaned `output` and never re-strip. The split happe
 | Add a new runtime | `src/llm/servers/` (a spawner over `supervisor.ts`), the port map in `src/llm/chat-completion.ts`, the `Runtime` enum in `src/schema/enums.ts`, and the factory in `src/cli/deps.ts` |
 | Debug a shutdown that hangs | `src/llm/servers/supervisor.ts` — the SIGTERM→SIGKILL finalizer and its bounded, interruptible kill timeouts |
 | Add a new report field | `src/report/rows.ts` **and** `webapp/src/lib/rows.ts` together (the contract is hand-maintained) |
-| Know what counts as a pass | An item passes when its `score === 1`; the same definition drives the attempt aggregate and each cell's `passed` |
+| Know what counts as a pass | An item passes when its `score === 1`; the same definition (`passFraction`) drives the attempt aggregate and each cell's `passed` |
 
 ## Conventions
 

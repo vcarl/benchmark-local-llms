@@ -39,5 +39,8 @@ export const scoreSetMatch = (output: string, config: SetMatchConfig): Effect.Ef
       `F1=${score.toFixed(2)} precision=${precision.toFixed(2)} recall=${recall.toFixed(2)}` +
       ` matched [${matched.join(", ")}] missing [${missing.join(", ")}] extra [${extra.join(", ")}]`;
 
-    return { kind: "prompt", score, details };
+    // Nothing from the vocabulary named at all: an extraction miss, not a wrong set.
+    return predicted.size === 0 && expected.size > 0
+      ? { kind: "prompt", score, details, failure: "no_answer" }
+      : { kind: "prompt", score, details };
   });

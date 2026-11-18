@@ -2,15 +2,13 @@
 
 ## Problem
 
-The webapp ranks configurations it assembles itself from a flat attempt list: it guesses runs, picks a challenge universe, and groups by the raw artifact string. The report now selects evidence into rows (`__BENCHMARK_ROWS`, see [SCORING.md § Report rows](../../SCORING.md#report-rows)). The model list, the scatter and the drilldown read only those rows. The webapp sums cells and displays; it never chooses evidence.
+The webapp ranks configurations it assembles itself from a flat attempt list: it guesses runs, picks a challenge universe, and groups by the raw artifact string. The report now selects evidence into rows (`__BENCHMARK_ROWS`, see `2026-11-17-run-provenance-and-rows-design.md`). The model list, the scatter and the drilldown read only those rows. The webapp sums cells and displays; it never chooses evidence.
 
 ## Data contract
 
 `data.js` assigns one global: `globalThis.__BENCHMARK_ROWS = RowsDataset[]`, the main dataset first. `__BENCHMARK_DATA` and the per-attempt `WebappRecord` are gone; nothing reads them.
 
-`bench report` emits the dataset named by `--archive-dir` / `--challenges-dir`. The webapp handles several datasets (a Set control, a Pilot preset for a dataset labelled `pilot1`); both appear only when the data has more than one dataset.
-
-**Fields the archives cannot fill.** The report carries some row fields at fixed values until the archives record them: item scopes (empty), failure kinds (empty), near-miss credit (0), samples per item (1), hardware (`unknown`, no profile), submitter (`local`), release and errata (none). Every item is its own uncertainty family. The webapp hides what has no data: the Items control (core / stretch) when no challenge has scoped items, the scope split, near-miss credit and failure breakdown in the drilldown when empty, and the release and errata in the header.
+`bench report` emits the dataset named by `--archive-dir` / `--challenges-dir` and, when both `<archive-dir>-next` and `<challenges-dir>-next` exist, a second dataset labelled `pilot1` from them. `--no-pilot` emits the first only. Both datasets write item details to the same `details/` directory.
 
 Each row gains:
 

@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 
 /**
- * The 20 constraint check variants defined in requirements §2.2.
+ * The constraint check variants defined in requirements §2.2.
  *
  * Each variant is a tagged struct whose `check` literal matches one of the
  * 20 values in {@link ConstraintCheck} (see `./enums.ts`). The shape of each
@@ -122,6 +122,17 @@ export const JsonListItemHasConstraint = Schema.Struct({
 });
 export type JsonListItemHasConstraint = typeof JsonListItemHasConstraint.Type;
 
+/**
+ * The whole extracted JSON value deep-equals `value` (see docs/SCORING.md §
+ * json_matches for extraction and equality rules).
+ */
+export const JsonMatchesConstraint = Schema.Struct({
+  check: Schema.Literal("json_matches"),
+  ...name,
+  value: Schema.Unknown,
+});
+export type JsonMatchesConstraint = typeof JsonMatchesConstraint.Type;
+
 export const NumberedLinesConstraint = Schema.Struct({
   check: Schema.Literal("numbered_lines"),
   ...name,
@@ -168,7 +179,7 @@ export const AllLinesWordCountConstraint = Schema.Struct({
 export type AllLinesWordCountConstraint = typeof AllLinesWordCountConstraint.Type;
 
 /**
- * Discriminated union over all 20 constraint variants, dispatched on the
+ * Discriminated union over all constraint variants, dispatched on the
  * `check` literal. Decoders fail with a parse error if the discriminator
  * is unknown or if a variant's required fields are missing — this is how
  * {@link UnknownConstraintCheck} surfaces at YAML load time (requirements §3.1).
@@ -188,6 +199,7 @@ export const ConstraintDef = Schema.Union(
   JsonFieldEqualsConstraint,
   JsonFieldIsListConstraint,
   JsonListItemHasConstraint,
+  JsonMatchesConstraint,
   NumberedLinesConstraint,
   NoNumberedLineConstraint,
   NumberedLineExistsConstraint,

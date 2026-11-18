@@ -3,13 +3,36 @@ import { Runtime } from "./enums.js";
 import { PromptCorpusEntry } from "./prompt.js";
 import { ScenarioCorpusEntry } from "./scenario.js";
 
-/** Environment fingerprint captured at run start (§2.4). */
+/**
+ * Hardware the attempt ran on (see docs/ARCHIVE-FORMAT.md § Hardware profile).
+ * Every field but `os` feeds `hardwareId`. Holds no hostname, serial, or user.
+ */
+export const HardwareProfile = Schema.Struct({
+  cpu: Schema.String,
+  cpuCores: Schema.Number,
+  /** Physical cores per core type (macOS `hw.perflevelN.name`), e.g. `{ Performance: 12 }`. */
+  coreTypes: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Number })),
+  gpu: Schema.optional(Schema.String),
+  gpuCores: Schema.optional(Schema.Number),
+  gpuMemoryGb: Schema.optional(Schema.Number),
+  memoryGb: Schema.Number,
+  os: Schema.String,
+});
+export type HardwareProfile = typeof HardwareProfile.Type;
+
+/**
+ * Environment fingerprint captured at run start (§2.4). `hostname` is only on
+ * archives written before schemaVersion 3; newer ones carry `hardware` and
+ * `hardwareId` instead.
+ */
 export const RunEnv = Schema.Struct({
-  hostname: Schema.String,
+  hostname: Schema.optional(Schema.String),
   platform: Schema.String,
   runtimeVersion: Schema.String,
   nodeVersion: Schema.String,
   benchmarkGitSha: Schema.String,
+  hardware: Schema.optional(HardwareProfile),
+  hardwareId: Schema.optional(Schema.String),
 });
 export type RunEnv = typeof RunEnv.Type;
 

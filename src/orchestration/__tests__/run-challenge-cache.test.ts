@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
+import type { ItemResult } from "../../schema/attempt.js";
 import { executeOrCacheItem, runChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
@@ -40,6 +41,8 @@ const makeChallenge = (): ResolvedChallenge => {
   const prompt = samplePromptExact();
   const item: ResolvedItem = {
     itemId: prompt.name,
+    family: prompt.name,
+    scope: "core",
     promptHash: prompt.promptHash,
     itemHash: "ih-fixed",
     scorer: prompt.scorer,
@@ -323,6 +326,7 @@ describe("runChallenge cache", () => {
     const m = okStub();
     const row = await Effect.runPromise(
       executeOrCacheItem(input, item).pipe(
+        Effect.map(([r]) => r as ItemResult),
         Effect.provide(m.layer),
         Effect.provide(inertHttpClientLayer),
         Effect.provide(NodeContext.layer),
@@ -345,6 +349,239 @@ describe("runChallenge cache", () => {
       rawOutput: "4",
       error: null,
       score: 1,
+    });
+  });
+});
+
+describe("runChallenge repeated sampling", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const run = (attemptId: string, samplesOf: (item: ResolvedItem) => number) => {
+    const m = makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: {
+          output: SCORE_1,
+          reasoning: null,
+          promptTokens: 5,
+          generationTokens: 5,
+          promptTps: 0,
+          generationTps: 0,
+          finishReason: null,
+        },
+      },
+    );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runChallenge({
+          config,
+          challenge: makeChallenge(),
+          attemptId,
+          archiveDir: dir,
+          archivePath: `${dir}/${attemptId}.jsonl`,
+          env,
+          deps: fakeDeps(),
+          samplesOf,
+        });
+        const fs = yield* FileSystem.FileSystem;
+        const text = yield* fs.readFileString(`${dir}/${attemptId}.jsonl`);
+        return text
+          .split("\n")
+          .filter((l) => l.length > 0)
+          .slice(1)
+          .map(
+            (l) =>
+              JSON.parse(l) as {
+                sample?: number;
+                seed?: number;
+                executedAt: string;
+                cachedFrom?: unknown;
+              },
+          );
+      }).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    ).then((lines) => ({ lines, calls: m.log.calls }));
+  };
+
+  it("writes one line per sample, sample 0 unmarked, each fresh call seeded and the seed recorded", async () => {
+    const { lines, calls } = await run("att-1", () => 3);
+    expect(calls.length).toBe(3);
+    expect(lines.map((l) => l.sample)).toEqual([undefined, 1, 2]);
+    expect(lines.map((l) => l.seed)).toEqual(calls.map((c) => c.seed));
+    expect(lines.every((l) => Number.isInteger(l.seed))).toBe(true);
+  });
+
+  it("reuses cached samples and generates only the missing ones", async () => {
+    const first = await run("att-1", () => 2);
+    const { lines, calls } = await run("att-2", () => 5);
+    expect(calls.length).toBe(3);
+    expect(lines.map((l) => l.sample ?? 0)).toEqual([0, 1, 2, 3, 4]);
+    expect(lines.slice(0, 2).map(({ cachedFrom: _, ...l }) => l)).toEqual(first.lines);
+    expect(lines.slice(2).every((l) => l.cachedFrom === undefined)).toBe(true);
+  });
+
+  it("samples 1 is today's single cached generation", async () => {
+    await run("att-1", () => 1);
+    const { lines, calls } = await run("att-2", () => 1);
+    expect(calls.length).toBe(0);
+    expect(lines.length).toBe(1);
+  });
+});
+
+describe("executeOrCacheItem failureKind", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const execute = (
+    result: { output: string; reasoning: string | null; finishReason: string | null },
+    scorer?: ResolvedItem["scorer"],
+  ) => {
+    const base = makeChallenge();
+    const first = base.items[0] as ResolvedItem;
+    const item = scorer === undefined ? first : { ...first, scorer };
+    const m = makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: { ...result, promptTokens: 5, generationTokens: 5, promptTps: 0, generationTps: 0 },
+      },
+    );
+    return Effect.runPromise(
+      executeOrCacheItem(
+        {
+          config,
+          challenge: { ...base, items: [item] },
+          attemptId: "att-fk",
+          archiveDir: dir,
+          archivePath: `${dir}/att-fk.jsonl`,
+          env,
+          noCache: true,
+          deps: fakeDeps(),
+        },
+        item,
+      ).pipe(
+        Effect.map(([r]) => r as ItemResult),
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+  };
+
+  it("a split-reasoning run that spent its budget thinking is thinking_truncated, not wrong", async () => {
+    const row = await execute({ output: "", reasoning: "let me think…", finishReason: "length" });
+    expect(row).toMatchObject({ score: 0, error: null, failureKind: "thinking_truncated" });
+  });
+
+  it("a scorer crash is recorded as scorer_error with its cause", async () => {
+    const row = await execute({ output: SCORE_1, reasoning: null, finishReason: "stop" }, {
+      type: "game",
+      gameScorer: "nope",
+      scorerParams: {},
+    } as ResolvedItem["scorer"]);
+    expect(row).toMatchObject({ score: 0, failureKind: "scorer_error" });
+    expect(row.scoreDetails).toContain("ScorerNotFound");
+  });
+
+  it("a pass carries failureKind null", async () => {
+    const row = await execute({ output: SCORE_1, reasoning: null, finishReason: "stop" });
+    expect(row).toMatchObject({ score: 1, failureKind: null });
+  });
+});
+
+describe("runChallenge replay provenance", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const stub = () =>
+    makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: {
+          output: SCORE_1,
+          reasoning: null,
+          promptTokens: 5,
+          generationTokens: 5,
+          promptTps: 0,
+          generationTps: 0,
+          finishReason: null,
+        },
+      },
+    );
+
+  const runOnce = (attemptId: string) =>
+    Effect.runPromise(
+      runChallenge({
+        config,
+        challenge: makeChallenge(),
+        attemptId,
+        archiveDir: dir,
+        archivePath: `${dir}/${attemptId}.jsonl`,
+        env,
+        invocationId: `inv-${attemptId}`,
+        submitter: "tester",
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(stub().layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+  const read = async (attemptId: string) => {
+    const lines = (await import("node:fs"))
+      .readFileSync(`${dir}/${attemptId}.jsonl`, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    return { header: lines[0], items: lines.slice(1) as ItemResult[] };
+  };
+
+  it("stamps invocationId, submitter, schemaVersion 3, and generated/replayed counts", async () => {
+    await runOnce("att-1");
+    await runOnce("att-2");
+    const a1 = await read("att-1");
+    const a2 = await read("att-2");
+    expect(a1.header).toMatchObject({
+      schemaVersion: 3,
+      invocationId: "inv-att-1",
+      submitter: "tester",
+      lines: { generated: 1, replayed: 0 },
+    });
+    expect(a2.header.lines).toEqual({ generated: 0, replayed: 1 });
+    expect(a1.items[0]?.cachedFrom).toBeUndefined();
+  });
+
+  it("a replay of a replay still names the executing attempt", async () => {
+    await runOnce("att-1");
+    await runOnce("att-2");
+    await runOnce("att-3");
+    const a1 = await read("att-1");
+    const a3 = await read("att-3");
+    expect(a3.items[0]?.cachedFrom).toEqual({
+      attemptId: "att-1",
+      executedAt: a1.items[0]?.executedAt,
     });
   });
 });

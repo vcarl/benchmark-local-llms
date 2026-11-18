@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectChallengeStems, selectConfigs } from "./select.js";
+import { itemMatcher, selectChallengeStems, selectConfigs } from "./select.js";
 
 const cfgs = [
   { id: "qwen2.5-7b-mlx" },
@@ -51,5 +51,24 @@ describe("selectChallengeStems", () => {
   it("filters by glob with literal dash", () => {
     expect(selectChallengeStems(stems, "effect-ts")).toEqual(["effect-ts"]);
     expect(selectChallengeStems(stems, "{code,math}")).toEqual(["code", "math"]);
+  });
+});
+
+describe("itemMatcher", () => {
+  const m = itemMatcher([
+    "math/math_chain_noisy",
+    "economics/econ_tax_*",
+    "chains/chain_amortization",
+  ]);
+  it("matches challenge/item globs", () => {
+    expect(m("math", { itemId: "math_chain_noisy" })).toBe(true);
+    expect(m("economics", { itemId: "econ_tax_dwl" })).toBe(true);
+    expect(m("economics", { itemId: "econ_cournot_q1" })).toBe(false);
+    expect(m("logic", { itemId: "math_chain_noisy" })).toBe(false);
+  });
+  it("matches every turn of a multi-turn item by its parent name", () => {
+    expect(
+      m("chains", { itemId: "chain_amortization#3", parentItemId: "chain_amortization" }),
+    ).toBe(true);
   });
 });

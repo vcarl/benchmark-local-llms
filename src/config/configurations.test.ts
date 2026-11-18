@@ -5,7 +5,10 @@ import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { computeConfigHash, loadConfigurations } from "./configurations.js";
+import { shortSha256 } from "./hashing.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "./system-prompts.js";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 const registry = Layer.succeed(SystemPromptRegistry, {
   direct: "Be concise.",
@@ -33,6 +36,37 @@ describe("loadConfigurations", () => {
         expect(cfg?.configHash).toHaveLength(12);
       }),
     ).pipe(Effect.provide(Layer.mergeAll(NodeContext.layer, registry)), Effect.runPromise));
+
+  it("stamps chatTemplateSha from the template file's content, and only when set", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const base = `  artifact: a\n  runtime: llamacpp\n  temperature: 0.7\n  systemPrompt: direct\n  maxTokens: 100\n`;
+        const p = yield* writeTmp(
+          `- id: t\n${base}  chatTemplate: mistral-v7-tekken\n- id: n\n${base}`,
+        );
+        const [withT, without] = yield* loadConfigurations(p);
+        const content = yield* fs.readFileString(
+          path.join(repoRoot, "templates", "mistral-v7-tekken.jinja"),
+        );
+        expect(withT?.chatTemplateSha).toBe(shortSha256(content));
+        expect(without !== undefined && "chatTemplateSha" in without).toBe(false);
+        // The template's content joins configHash; its absence leaves the hash as-is.
+        expect(withT?.configHash).not.toBe(without?.configHash);
+
+        const bad = yield* writeTmp(`- id: b\n${base}  chatTemplate: no-such-template\n`);
+        const err = yield* Effect.flip(loadConfigurations(bad));
+        expect(err._tag).toBe("ConfigError");
+      }),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeContext.layer, registry)), Effect.runPromise));
+
+  it("chatTemplateSha joins the hash only when set, by content", () => {
+    const base = { artifact: "a", runtime: "llamacpp", temperature: 0.7, maxTokens: 100 };
+    const h = (extra: object) => computeConfigHash({ ...base, ...extra }, "Be concise.");
+    expect(h({ chatTemplateSha: undefined })).toBe(h({}));
+    expect(h({ chatTemplateSha: "aaaaaaaaaaaa" })).not.toBe(h({}));
+    expect(h({ chatTemplateSha: "aaaaaaaaaaaa" })).not.toBe(h({ chatTemplateSha: "bbbbbbbbbbbb" }));
+  });
 
   it("computeConfigHash is stable and order-insensitive to unrelated fields", () => {
     const h1 = computeConfigHash(
@@ -77,8 +111,6 @@ describe("loadConfigurations", () => {
     );
   });
 });
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 describe("configs.yaml catalog-only entries", () => {
   it("loads the inactive catalog entries and they resolve as inactive", async () => {

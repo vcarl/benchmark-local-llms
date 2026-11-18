@@ -13,6 +13,13 @@ export const SystemPrompt = Schema.Struct({
 });
 export type SystemPrompt = typeof SystemPrompt.Type;
 
+/** One prior conversation message sent ahead of a multi-turn item's current prompt. */
+export const ChatMessage = Schema.Struct({
+  role: Schema.Literal("user", "assistant"),
+  content: Schema.String,
+});
+export type ChatMessage = typeof ChatMessage.Type;
+
 /**
  * A frozen prompt definition at execution time. The prompt `name` is the sole
  * identity — variants of the same base prompt (e.g. direct vs cot) get
@@ -33,5 +40,11 @@ export const PromptCorpusEntry = Schema.Struct({
   // Capability cluster tags (e.g. `code-synthesis`, `instruction-following`).
   // `TODO` means auto-seeded, needs manual review.
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /**
+   * Gold conversation preceding `promptText` for turn k > 1 of a multi-turn
+   * item: earlier turn prompts and their gold answers, alternating user /
+   * assistant. Absent on single-shot items and turn 1.
+   */
+  history: Schema.optional(Schema.Array(ChatMessage)),
 });
 export type PromptCorpusEntry = typeof PromptCorpusEntry.Type;

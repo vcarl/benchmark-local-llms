@@ -314,6 +314,35 @@ describe("runPrompt", () => {
     expect(result.peakMemoryGb).toBeCloseTo(8);
   });
 
+  it("drops an answer that only echoes truncated reasoning (oMLX flushes unclosed thinking into content)", () => {
+    const input = {
+      archiveId: "archive-1",
+      runId: "run-1",
+      model: sampleModel({ runtime: "omlx" }),
+      prompt: samplePromptExact(),
+      systemPrompt: samplePromptExact().system.text,
+      temperature: 0.7,
+      maxTokens: 256,
+    };
+    const thinking = "We need to compute... the balance is 15230.33? Let's re";
+    const completion = {
+      output: thinking,
+      reasoning: thinking,
+      promptTokens: 40,
+      generationTokens: 256,
+      promptTps: null,
+      generationTps: null,
+      finishReason: "length",
+    };
+    const result = makeSuccessResult(input, completion, "2026-04-18T00:00:00.000Z", 4, 0);
+    expect(result.output).toBe("");
+    expect(result.reasoning).toBe(thinking);
+    expect(result.rawOutput).toBe(thinking);
+    // A finished answer that happens to equal its reasoning is left alone.
+    const done = makeSuccessResult(input, { ...completion, finishReason: "stop" }, "t", 4, 0);
+    expect(done.output).toBe(thinking);
+  });
+
   it("derives generationTps from wall time when the server omits `timings` (MLX case)", () => {
     // Regression guard: mlx_lm.server never emits a `timings` block, which
     // used to make every MLX row record promptTps=0, generationTps=0 in the

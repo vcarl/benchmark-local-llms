@@ -499,24 +499,35 @@ export interface AmortResult {
 
 /**
  * Level-payment amortization with an optional fixed `extra` principal per month.
- * Rounding convention (pinned): the arithmetic runs at full precision ("work to
- * exact cents") and only the reported figures are rounded to the cent. Each
- * month interest = balance·i, principal = payment − interest + extra clamped to
- * the remaining balance, so the final payment clears the balance to exactly 0.
+ * Rounding convention (pinned, matches the prompt's "work to exact cents"): the
+ * scheduled payment and each month's interest are rounded half-up to the cent
+ * before use, so every balance is a whole number of cents. Each month
+ * interest = round2(balance·i), principal = payment − interest + extra clamped
+ * to the remaining balance, so the final payment clears the balance to exactly 0.
  * The extra is applied in the same month, after interest accrues. i = 0 →
  * linear P/N.
+ *
+ * `roundPerStep = false` is the round-at-end slip: full precision throughout,
+ * only the reported figures rounded to the cent.
  */
-export function amortize(P: number, i: number, N: number, extra = 0): AmortResult {
-  const rawPayment = i === 0 ? P / N : (P * i) / (1 - (1 + i) ** -N);
+export function amortize(
+  P: number,
+  i: number,
+  N: number,
+  extra = 0,
+  roundPerStep = true,
+): AmortResult {
+  const step = roundPerStep ? round2 : (x: number) => x;
+  const rawPayment = step(i === 0 ? P / N : (P * i) / (1 - (1 + i) ** -N));
   const schedule: AmortRow[] = [];
   let balance = P;
   let totalInterest = 0;
   let payoffMonth = 0;
   for (let month = 1; month <= N && balance > 0; month++) {
-    const interest = balance * i;
+    const interest = step(balance * i);
     let principal = rawPayment - interest + extra;
     if (principal >= balance) principal = balance; // final stub clears the balance
-    balance -= principal;
+    balance = step(balance - principal);
     totalInterest += interest;
     schedule.push({
       month,

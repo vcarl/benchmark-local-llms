@@ -69,13 +69,28 @@ export interface HardwareProfile {
   os: string;
 }
 
+/** An `errata.yaml` entry (src/config/errata.ts). */
+export interface Erratum {
+  id: string;
+  date: string;
+  kind: "answer-key" | "scorer" | "prompt-ambiguity" | "retired" | "added";
+  items: string[];
+  description: string;
+  scorerChange: boolean;
+  releaseStatus: "none" | "next-release" | "released";
+  releasedIn?: string;
+}
+
 export interface RowsDataset {
   dataset: {
     label: string;
     archiveDir: string;
     challengesDir: string;
+    /** Baseline release: `0` (pre-release) or `YYYY.M`. */
     release: string | null;
-    errata: string[];
+    /** Eval version `<release>.<n>`: the baseline plus its errata 1..n. */
+    version: string | null;
+    errata: Erratum[];
     generatedAt: string;
   };
   challengeSet: { id: string; version: number; hash: string; items: number; scopes: Record<string, number> }[];

@@ -2,7 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { type CacheKey, findCachedItem } from "../cache.js";
+import { type CacheKey, findCachedItem, findCachedSamples } from "../cache.js";
 
 const header = (over: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -77,6 +77,23 @@ const run = <A>(
     }).pipe(Effect.provide(NodeContext.layer)),
   );
 
+describe("findCachedSamples", () => {
+  it("returns the newest line per sample index; an unmarked line is sample 0", async () => {
+    const dir = `/tmp/p4-cache-samples-${process.pid}`;
+    const res = await run(
+      findCachedSamples(dir, KEY),
+      {
+        "a.jsonl": `${header()}\n${item({ output: "s0" })}\n${item({ sample: 1, output: "s1-old" })}\n`,
+        "b.jsonl": `${header()}\n${item({ sample: 1, output: "s1-new", executedAt: "2026-02-01T00:00:00Z" })}\n${item({ sample: 2, itemHash: "other" })}\n`,
+      },
+      dir,
+    );
+    expect([...res.keys()].sort()).toEqual([0, 1]);
+    expect(res.get(0)?.output).toBe("s0");
+    expect(res.get(1)?.output).toBe("s1-new");
+  });
+});
+
 describe("findCachedItem", () => {
   it("returns the matching item from a completed attempt", async () => {
     const dir = `/tmp/p4-cache-hit-${process.pid}`;
@@ -140,5 +157,58 @@ describe("findCachedItem", () => {
     );
     expect(Option.isSome(res)).toBe(true);
     if (Option.isSome(res)) expect(res.value.output).toBe("new");
+  });
+});
+
+describe("findCachedSamples cachedFrom", () => {
+  it("stamps the executing attempt, preferring it over a verbatim replay found first", async () => {
+    const dir = `/tmp/p4-cache-origin-${process.pid}`;
+    const res = await run(
+      findCachedSamples(dir, KEY),
+      {
+        // Sorted first: a legacy replay (started after the line executed) holding the same line.
+        "a.jsonl": `${header({ attemptId: "att-replay", startedAt: "2026-03-01T00:00:00Z" })}\n${item()}\n`,
+        "b.jsonl": `${header({ attemptId: "att-orig" })}\n${item()}\n`,
+      },
+      dir,
+    );
+    expect(res.get(0)?.cachedFrom).toEqual({
+      attemptId: "att-orig",
+      executedAt: "2026-01-01T00:00:30Z",
+    });
+  });
+
+  it("keeps a line's existing cachedFrom", async () => {
+    const dir = `/tmp/p4-cache-origin-keep-${process.pid}`;
+    const origin = { attemptId: "att-first", executedAt: "2026-01-01T00:00:30Z" };
+    const res = await run(
+      findCachedSamples(dir, KEY),
+      { "a.jsonl": `${header({ attemptId: "att-replay" })}\n${item({ cachedFrom: origin })}\n` },
+      dir,
+    );
+    expect(res.get(0)?.cachedFrom).toEqual(origin);
+  });
+});
+
+describe("findCachedSamples hardware scope", () => {
+  const env = (hardwareId?: string) => ({
+    platform: "p",
+    runtimeVersion: "1",
+    nodeVersion: "1",
+    benchmarkGitSha: "s",
+    ...(hardwareId === undefined ? {} : { hardwareId }),
+  });
+
+  it("never serves a line from another machine; a legacy line (no hardwareId) is local", async () => {
+    const dir = `/tmp/p4-cache-hw-${process.pid}`;
+    const res = await run(
+      findCachedSamples(dir, { ...KEY, hardwareId: "mine" }),
+      {
+        "a.jsonl": `${header({ attemptId: "att-other", env: env("other") })}\n${item({ executedAt: "2026-09-01T00:00:00Z", output: "other" })}\n`,
+        "b.jsonl": `${header({ attemptId: "att-legacy", env: env() })}\n${item({ output: "legacy" })}\n`,
+      },
+      dir,
+    );
+    expect(res.get(0)?.output).toBe("legacy");
   });
 });

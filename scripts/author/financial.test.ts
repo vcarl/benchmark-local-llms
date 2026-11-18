@@ -169,12 +169,18 @@ describe("amortize", () => {
   it("scheduled monthly payment is 386.66", () => {
     expect(r.payment).toBeCloseTo(386.66, 2);
   });
-  it("balance after 12 months (with $100 extra) is 15230.38", () => {
+  it("balance after 12 months (with $100 extra) is 15230.33", () => {
     const after12 = r.schedule[11]?.balance ?? Number.NaN;
-    expect(after12).toBeCloseTo(15230.38, 2);
+    expect(after12).toBeCloseTo(15230.33, 2);
   });
-  it("total interest over the life of the loan is 2444.38", () => {
-    expect(r.totalInterest).toBeCloseTo(2444.38, 2);
+  it("total interest over the life of the loan is 2444.36", () => {
+    expect(r.totalInterest).toBeCloseTo(2444.36, 2);
+  });
+  it("the round-at-end slip gives 15230.38 and 2444.38", () => {
+    const slip = amortize(20000, 0.005, 60, 100, false);
+    expect(slip.schedule[11]?.balance).toBeCloseTo(15230.38, 2);
+    expect(slip.totalInterest).toBeCloseTo(2444.38, 2);
+    expect(slip.payment).toBeCloseTo(386.66, 2);
   });
   it("loan is paid off in month 47 (vs 60 scheduled)", () => {
     expect(r.payoffMonth).toBe(47);

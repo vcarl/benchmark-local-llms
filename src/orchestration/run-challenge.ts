@@ -3,7 +3,7 @@
  *
  * Boots the LLM server for the configuration (reusing the LlmServerFactory from
  * RunModelDeps), runs each challenge item through `runPrompt`, scores each item
- * via `scoreByConfig` (scorer errors yield score 0, not a crashed attempt),
+ * via `scoreOrFold` (scorer errors yield a classified score 0, not a crashed attempt),
  * aggregates to `{ score, passed }`, and writes the per-attempt archive
  * (header → item lines → finalize).
  *
@@ -13,21 +13,28 @@
  */
 
 import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
-import { Clock, Effect, Option } from "effect";
+import { Clock, Effect, Random } from "effect";
 import { appendItem, finalizeAttempt, writeAttemptHeader } from "../archive/attempt-writer.js";
-import { findCachedItem } from "../archive/cache.js";
+import { findCachedSamples } from "../archive/cache.js";
 import { scorerHash, writeBlob } from "../archive/content-store.js";
-import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
+import { promptContent, type ResolvedChallenge, type ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
 import { stableStringify } from "../config/hashing.js";
 import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
+import { LLAMACPP_FIXED_FLAGS } from "../llm/servers/llamacpp.js";
 import type { ServerHandle } from "../llm/servers/supervisor.js";
-import type { AttemptAggregate, AttemptManifest, ItemResult } from "../schema/attempt.js";
+import {
+  type AttemptAggregate,
+  type AttemptManifest,
+  groupSamples,
+  type ItemResult,
+  passFraction,
+} from "../schema/attempt.js";
 import type { ModelConfig } from "../schema/model.js";
 import type { RunEnv } from "../schema/run-manifest.js";
-import { scoreByConfig } from "../scoring/dispatch.js";
-import type { PromptScore } from "../scoring/score-result.js";
+import { scoreOrFold } from "../scoring/dispatch.js";
+import { applyScore } from "../scoring/failure-kind.js";
 import type { RunModelDeps } from "./run-model.js";
 import { runPrompt } from "./run-prompt.js";
 
@@ -35,17 +42,18 @@ import { runPrompt } from "./run-prompt.js";
 
 /**
  * Aggregate item results into a pass/fail score.
- * `score` = count of items with score === 1 divided by total items.
- * Partial credit (0 < score < 1) does NOT count as a passing item.
- * Empty items → `{ score: 0, passed: false }`.
+ * `score` = mean over items of each item's pass fraction (its samples scoring
+ * exactly 1, over its samples); with one sample per item that is the count of
+ * items with score === 1 divided by total items. Partial credit (0 < score < 1)
+ * does NOT count as a pass. Empty items → `{ score: 0, passed: false }`.
  */
 export const aggregate = (
-  items: ReadonlyArray<{ score: number }>,
+  lines: ReadonlyArray<{ itemId: string; score: number }>,
   passThreshold: number,
 ): AttemptAggregate => {
+  const items = groupSamples(lines);
   if (items.length === 0) return { score: 0, passed: false };
-  const perfect = items.filter((i) => i.score === 1).length;
-  const score = perfect / items.length;
+  const score = items.reduce((s, samples) => s + passFraction(samples), 0) / items.length;
   return { score, passed: score >= passThreshold };
 };
 
@@ -59,8 +67,14 @@ export interface RunChallengeInput {
   readonly archiveDir: string;
   readonly archivePath: string;
   readonly env: RunEnv;
+  /** Shared by every attempt of one `./bench run` invocation. */
+  readonly invocationId?: string;
+  /** Who produced the attempt (`BENCH_SUBMITTER`, default `local`). */
+  readonly submitter?: string;
   /** When true, bypass the cross-run cache and always execute. Default false (cache ON). */
   readonly noCache?: boolean;
+  /** Samples (generations) to hold per item; default 1. Samples already cached are reused. */
+  readonly samplesOf?: (item: ResolvedItem) => number;
   /** Same deps bundle submit.ts builds; only `.llmServer` is used here. */
   readonly deps: RunModelDeps;
 }
@@ -82,8 +96,32 @@ export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   ...(c.extraArgs !== undefined ? { extraArgs: c.extraArgs } : {}),
 });
 
-const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
-  schemaVersion: 2,
+/** Configuration fields copied verbatim onto the manifest as provenance, when set. */
+const PROVENANCE_FIELDS = [
+  "topP",
+  "topK",
+  "minP",
+  "presencePenalty",
+  "repetitionPenalty",
+  "repetitionContextSize",
+  "chatTemplateKwargs",
+  "ctxSize",
+  "chatTemplate",
+  "chatTemplateSha",
+] as const satisfies ReadonlyArray<keyof ResolvedConfiguration & keyof AttemptManifest>;
+
+const provenance = (c: ResolvedConfiguration): Partial<AttemptManifest> => ({
+  ...Object.fromEntries(PROVENANCE_FIELDS.flatMap((k) => (c[k] === undefined ? [] : [[k, c[k]]]))),
+  // extraArgs reaches only the mlx/omlx servers (see cli/deps.ts); record it where it applied.
+  ...(c.runtime === "llamacpp"
+    ? { serverFlags: LLAMACPP_FIXED_FLAGS }
+    : c.extraArgs === undefined
+      ? {}
+      : { extraArgs: c.extraArgs }),
+});
+
+export const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
+  schemaVersion: 3,
   attemptId: input.attemptId,
   startedAt,
   finishedAt: null,
@@ -99,34 +137,40 @@ const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifes
   challengeVersion: input.challenge.version,
   challengeHash: input.challenge.challengeHash,
   passThreshold: input.challenge.passThreshold,
+  ...(input.invocationId === undefined ? {} : { invocationId: input.invocationId }),
+  ...(input.submitter === undefined ? {} : { submitter: input.submitter }),
   env: input.env,
   aggregate: { score: 0, passed: false },
   ...(input.config.quant !== undefined ? { quant: input.config.quant } : {}),
+  ...provenance(input.config),
 });
 
 // ── Per-item helper ────────────────────────────────────────────────────────
 
 /**
- * Resolve one challenge item to an `ItemResult`: cross-run cache hit (copied
+ * Resolve one challenge item to its `ItemResult` lines, one per sample
+ * `0..samplesOf(item)-1`: each sample is a cross-run cache hit (copied
  * verbatim — original executedAt/tokens/wallTime preserved so efficiency still
  * reflects true measured cost) or a fresh model execution stamped with
- * `itemHash`. Does NOT append or aggregate — the caller owns archive writes.
+ * `itemHash`, its `sample` index (omitted for sample 0, so a one-sample line is
+ * today's line), and the random `seed` sent with the request. Does NOT append
+ * or aggregate — the caller owns archive writes.
  *
  * Before the cache lookup, writes the per-item prompt and scorer blobs to the
  * content store so the store is complete regardless of cache hit or miss.
  *
- * Cache-hit scorerHash stamp: on a hit whose cached row has no `scorerHash`
- * (v1 archive), the returned row has `scorerHash` set. This is an intentional,
- * spec-sanctioned narrow exception to the "cache hit = verbatim copy" invariant:
- * only the denormalized `scorerHash` field is set; measured-cost fields
- * (executedAt, tokens, tps, peakMemory, wallTime) are preserved verbatim.
+ * Cache-hit stamps: a hit carries `cachedFrom` (the executing attempt, set by
+ * the cache lookup), and a hit whose cached row has no `scorerHash` (v1 archive)
+ * has it set. These are the two sanctioned exceptions to the "cache hit =
+ * verbatim copy" invariant; measured-cost fields (executedAt, tokens, tps,
+ * peakMemory, wallTime) are preserved verbatim.
  */
 export const executeOrCacheItem = (
   input: RunChallengeInput,
   item: ResolvedItem,
   peakRssKb?: Effect.Effect<number>,
 ): Effect.Effect<
-  ItemResult,
+  ItemResult[],
   FileIOError | JsonlCorruptLine,
   | FileSystem.FileSystem
   | Path.Path
@@ -136,22 +180,42 @@ export const executeOrCacheItem = (
 > =>
   Effect.gen(function* () {
     const sh = scorerHash(item.scorer);
-    yield* writeBlob(input.archiveDir, "prompts", item.promptHash, item.prompt.promptText);
+    yield* writeBlob(input.archiveDir, "prompts", item.promptHash, promptContent(item.prompt));
     yield* writeBlob(input.archiveDir, "scorers", sh, stableStringify(item.scorer));
 
-    if (input.noCache !== true) {
-      const cached = yield* findCachedItem(input.archiveDir, {
-        configHash: input.config.configHash,
-        challengeId: input.challenge.id,
-        challengeVersion: input.challenge.version,
-        itemHash: item.itemHash,
-      });
-      if (Option.isSome(cached)) {
-        const row = cached.value;
-        return row.scorerHash === undefined ? { ...row, scorerHash: sh } : row;
-      }
-    }
+    const cached =
+      input.noCache === true
+        ? new Map<number, ItemResult>()
+        : yield* findCachedSamples(input.archiveDir, {
+            configHash: input.config.configHash,
+            challengeId: input.challenge.id,
+            challengeVersion: input.challenge.version,
+            itemHash: item.itemHash,
+            ...(input.env.hardwareId === undefined ? {} : { hardwareId: input.env.hardwareId }),
+          });
 
+    const rows: ItemResult[] = [];
+    const samples = input.samplesOf?.(item) ?? 1;
+    for (let sample = 0; sample < samples; sample++) {
+      const hit = cached.get(sample);
+      if (hit !== undefined) {
+        rows.push(hit.scorerHash === undefined ? { ...hit, scorerHash: sh } : hit);
+        continue;
+      }
+      rows.push(yield* executeSample(input, item, sh, sample, peakRssKb));
+    }
+    return rows;
+  });
+
+const executeSample = (
+  input: RunChallengeInput,
+  item: ResolvedItem,
+  sh: string,
+  sample: number,
+  peakRssKb: Effect.Effect<number> | undefined,
+) =>
+  Effect.gen(function* () {
+    const seed = yield* Random.nextIntBetween(0, 2 ** 31 - 1);
     const exec = yield* runPrompt({
       archiveId: input.attemptId,
       runId: input.attemptId,
@@ -160,6 +224,7 @@ export const executeOrCacheItem = (
       systemPrompt: input.config.systemPromptText,
       temperature: input.config.temperature,
       maxTokens: input.config.maxTokens,
+      seed,
       ...(input.config.repetitionPenalty === undefined
         ? {}
         : { repetitionPenalty: input.config.repetitionPenalty }),
@@ -178,20 +243,16 @@ export const executeOrCacheItem = (
       ...(peakRssKb !== undefined ? { peakRssKb } : {}),
     });
 
-    const scoreResult = yield* scoreByConfig(exec.output, item.scorer, {
-      promptName: item.itemId,
-    }).pipe(
-      Effect.catchAll(() =>
-        Effect.succeed<PromptScore>({ kind: "prompt", score: 0, details: "scorer error" }),
-      ),
-    );
-
-    return {
+    const row: ItemResult = {
       itemId: item.itemId,
       promptName: item.itemId,
       promptHash: item.promptHash,
       itemHash: item.itemHash,
       scorerHash: sh,
+      ...(item.parentItemId === undefined ? {} : { parentItemId: item.parentItemId }),
+      ...(item.turn === undefined ? {} : { turn: item.turn }),
+      ...(sample === 0 ? {} : { sample }),
+      seed,
       executedAt: exec.executedAt,
       promptTokens: exec.promptTokens,
       generationTokens: exec.generationTokens,
@@ -204,14 +265,14 @@ export const executeOrCacheItem = (
       rawOutput: exec.rawOutput,
       error: exec.error,
       ...(exec.stopReason === undefined ? {} : { stopReason: exec.stopReason }),
-      score: exec.error === null ? scoreResult.score : 0,
-      // An errored execution scored 0 and must not carry a (stale) breakdown.
-      // Only the constraint scorer sets `breakdown`; others leave it undefined,
-      // and the conditional spread omits the key entirely in that case.
-      ...(exec.error === null && scoreResult.breakdown !== undefined
-        ? { breakdown: scoreResult.breakdown }
-        : {}),
-    } satisfies ItemResult;
+      score: 0,
+    };
+    // An errored execution is not scored: it records score 0 and its failureKind.
+    const scored =
+      exec.error === null
+        ? yield* scoreOrFold(exec.output, item.scorer, { promptName: item.itemId })
+        : undefined;
+    return applyScore(row, scored);
   });
 
 // ── Main entry ─────────────────────────────────────────────────────────────
@@ -245,15 +306,18 @@ export const runChallengeWithServer = (
     );
     const scored: ItemResult[] = [];
     for (const item of input.challenge.items) {
-      const row = yield* executeOrCacheItem(input, item, server.peakRssKb);
-      yield* appendItem(input.archivePath, row);
-      scored.push(row);
+      for (const row of yield* executeOrCacheItem(input, item, server.peakRssKb)) {
+        yield* appendItem(input.archivePath, row);
+        scored.push(row);
+      }
     }
     const agg = aggregate(scored, input.challenge.passThreshold);
+    const replayed = scored.filter((r) => r.cachedFrom !== undefined).length;
+    const lines = { generated: scored.length - replayed, replayed };
     const finishedMs = yield* Clock.currentTimeMillis;
     const finishedAt = new Date(finishedMs).toISOString();
-    yield* finalizeAttempt(input.archivePath, finishedAt, agg);
-    return { ...header, finishedAt, interrupted: false, aggregate: agg };
+    yield* finalizeAttempt(input.archivePath, finishedAt, agg, { lines });
+    return { ...header, finishedAt, interrupted: false, aggregate: agg, lines };
   });
 
 /**

@@ -1,0 +1,159 @@
+# Errata registry: every change to an item since the last prompt release.
+# `npm test` (src/config/errata.test.ts) fails when an item differs from
+# release-baseline.json without an entry here. See docs/ERRATA.md.
+#
+#   id:            <release>.<n>, n = 1, 2, … within the baseline release (0 = pre-release)
+#   kind:          answer-key | scorer | prompt-ambiguity | retired | added
+#   items:         challengeId/itemName of every affected item
+#   description:   public, plain language: what was wrong and what changed
+#   notes:         optional, internal technical detail (not published)
+#   scorerChange:  true when the entry changed how stored outputs score
+#   releaseStatus: none | next-release | released (+ releasedIn: <release>)
+errata:
+  - id: "0.1"
+    date: 2026-11-16
+    kind: answer-key
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+    description: >-
+      The answer keys for two amortization items kept full precision, but the
+      prompt asks for exact cents. The keys now round to the cent at each step:
+      balance after 12 months 15230.33 (was 15230.38), total interest 2444.36
+      (was 2444.38).
+    notes: >-
+      The amortization solver carried full precision through the schedule; it
+      now rounds the payment and each month's interest to the cent before use.
+    scorerChange: true
+    releaseStatus: none
+  - id: "0.2"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+    description: >-
+      Answers of 1000 or more may now use comma thousands separators (15,230.33
+      for 15230.33). Smaller values are unchanged.
+    notes: >-
+      Applies to generated decimal answer patterns only.
+    scorerChange: true
+    releaseStatus: none
+  - id: "0.3"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_decay_flat_vale
+      - trust/trust_decay_vale_score
+      - trust/trust_folk_delta_star
+      - trust/trust_hazard_min_bonus
+    description: >-
+      Answers with a rounding slip now earn half credit: on the amortization
+      items, rounding only the final figure (15230.38, 2444.38); on the
+      six-decimal trust items, truncating instead of rounding (0.571428 for
+      0.571429). An item still passes only at full credit.
+    notes: >-
+      Declared near misses computed by the solvers: round-at-end on the
+      amortization items, truncate-to-6-dp on the 6-dp trust items.
+    scorerChange: true
+    releaseStatus: none
+  - id: "0.4"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - economics/econ_mixed_receiver_prob_left
+      - economics/econ_mixed_server_prob_left
+      - economics/econ_tax_buyer_share
+      - financial/financial_covenant_min_growth_no_breach
+      - financial/financial_npv_crossover_rate
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_bayes_posterior
+      - trust/trust_decay_flat_vale
+    description: >-
+      A probability, share, or rate asked for as a decimal but given as a
+      percent (5.08% for 0.0508) now earns half credit. The % sign is required.
+    notes: >-
+      Declared percent-for-decimal near miss.
+    scorerChange: true
+    releaseStatus: none
+  - id: "0.5"
+    date: 2026-11-16
+    kind: retired
+    items:
+      - factual/fact_gold_direct
+      - factual/fact_gold_noisy
+    description: >-
+      Two factual items were removed because every tested model answered them
+      correctly, so they no longer separate models. Results already recorded
+      for them are kept but no longer counted.
+    notes: >-
+      Zero failures across every tested config's latest result (99 configs
+      each), found with `./bench audit --flag zero-failure` on the archive
+      re-scored under the current scorers. Archived lines are kept and listed
+      as retiredItems.
+    scorerChange: false
+    releaseStatus: next-release
+  - id: "0.6"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - economics/econ_entry_threat_credible
+      - economics/econ_mixed_has_pure_ne
+      - economics/econ_mixed_receiver_prob_left
+      - economics/econ_mixed_server_prob_left
+      - economics/econ_mixed_server_value
+      - effect-ts/effect_constructors_structured
+      - effect-ts/effect_error_class
+      - effect-ts/effect_fiber_fork
+      - effect-ts/effect_parallel
+      - effect-ts/effect_queue_bounded
+      - effect-ts/effect_resource_management
+      - effect-ts/effect_service_3_parts_structured
+      - effect-ts/effect_service_pattern
+      - effect-ts/effect_sink
+      - effect-ts/effect_stream_pipeline_structured
+      - effect-ts/effect_try_promise
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_monthly_payment
+      - financial/financial_amort_payoff_month
+      - financial/financial_bailout_amount
+      - financial/financial_bailout_target
+      - financial/financial_breakeven_liquidity_cascade
+      - financial/financial_contagion_best_bailout
+      - financial/financial_contagion_firm_c_survives
+      - financial/financial_covenant_min_growth_no_breach
+      - financial/financial_covenant_state
+      - financial/financial_npv_crossover_rate
+      - financial/financial_npv_payback_a
+      - financial/financial_npv_project_a
+      - financial/financial_npv_project_b
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_bayes_crosses_half
+      - trust/trust_bayes_posterior
+      - trust/trust_decay_flat_vs_decay_gap
+      - trust/trust_decay_most_trustworthy
+      - trust/trust_decay_vale_score
+      - trust/trust_folk_delta_star
+      - trust/trust_hazard_min_bonus
+      - trust/trust_hazard_principal_profit
+      - trust/trust_hazard_worth_incentivizing
+    description: >-
+      When a model ran out of tokens while still reasoning, one model server
+      returned the unfinished reasoning as the answer, and the scorer could
+      pass it on an intermediate figure. Such a response now scores as no
+      answer. This rule applies to every item; the items listed are the ones
+      whose recorded passes it changed.
+    notes: >-
+      oMLX, when thinking hits maxTokens, returns the unfinished reasoning as
+      both reasoning and content. A line stopped by "length" whose output
+      equals its reasoning now scores as no output (score 0, failureKind
+      thinking_truncated); rawOutput keeps the content. The rule is
+      harness-wide and changes no scorerHash, so the coverage check neither
+      requires nor tests this entry; the items listed are those with archived
+      passes it flipped (121 lines across 13 omlx configs). `./bench score
+      --stale` treats an attempt holding such a line as stale and re-scores it.
+    scorerChange: true
+    releaseStatus: none

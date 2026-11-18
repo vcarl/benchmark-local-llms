@@ -1,0 +1,31 @@
+name: Report a suspected erratum
+description: A wrong answer key, a scorer that misgraded a correct answer, or an ambiguous prompt.
+title: "[Erratum] "
+labels: ["erratum"]
+body:
+  - type: input
+    id: item
+    attributes:
+      label: Challenge and item
+      description: As shown in the report drilldown, `challengeId/itemName`.
+      placeholder: financial/financial_amort_total_interest
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What looks wrong?
+      options:
+        - The answer key
+        - The scorer graded a correct answer as wrong
+        - The prompt can be read another way
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What you expected, and a model output (and model/config) that shows the problem.
+    validations:
+      required: true

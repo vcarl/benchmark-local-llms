@@ -16,6 +16,7 @@
 import { Command } from "@effect/cli";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
 import { Effect } from "effect";
+import { auditCommand } from "./commands/audit.js";
 import { exportCommand } from "./commands/export.js";
 import { listModelsCommand, listPromptsCommand } from "./commands/list.js";
 import { reportCommand } from "./commands/report.js";
@@ -28,6 +29,7 @@ const root = Command.make("llm-bench").pipe(
   Command.withSubcommands([
     reportCommand,
     scoreCommand,
+    auditCommand,
     exportCommand,
     listModelsCommand,
     listPromptsCommand,

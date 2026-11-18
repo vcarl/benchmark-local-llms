@@ -114,7 +114,7 @@ export const findCachedResult = (
  * identity matches `key`, so `runChallenge` can copy it verbatim instead of
  * re-running the model.
  *
- * Key shape: `(configHash, challengeId, challengeVersion, itemHash)`. The
+ * Key shape: `(configHash, challengeId, challengeVersion, itemHash)`, plus the machine (`hardwareId`). The
  * header pins config + challenge identity; `itemHash` (scorer-inclusive) pins
  * the per-item content + scoring rules, so an edited scorer invalidates the
  * cache even without a `challengeVersion` bump.
@@ -127,12 +127,26 @@ export const findCachedResult = (
  * Tie-break: if multiple archives hold a matching item, return the one with
  * the most recent matched-item `executedAt` (not file mtime — a re-run keeps
  * the old file, and the item's own timestamp is what the operator cares about).
+ *
+ * Repeated samples: the sample index (`sample`, absent = 0) joins the key, so
+ * {@link findCachedSamples} returns the best line per sample index in one scan.
+ *
+ * Origin: each returned line carries `cachedFrom` — its own when it already has
+ * one, else the attempt it was found in. Among identical lines (a verbatim
+ * replay shares `executedAt`), the attempt that started before the line
+ * executed — its executor — wins over a replay.
  */
 export interface CacheKey {
   readonly configHash: string;
   readonly challengeId: string;
   readonly challengeVersion: number;
   readonly itemHash: string;
+  /**
+   * The running machine's `env.hardwareId`. When set, a line is served only
+   * from an attempt on the same machine; an attempt without a hardwareId
+   * (written before schemaVersion 3) is the operator's own and stays eligible.
+   */
+  readonly hardwareId?: string;
 }
 
 const decodeManifest = Schema.decodeUnknown(AttemptManifest);
@@ -145,22 +159,26 @@ const isCompleted = (m: AttemptManifest): boolean =>
 const headerMatches = (m: AttemptManifest, key: CacheKey): boolean =>
   m.configHash === key.configHash &&
   m.challengeId === key.challengeId &&
-  m.challengeVersion === key.challengeVersion;
+  m.challengeVersion === key.challengeVersion &&
+  (key.hardwareId === undefined ||
+    m.env.hardwareId === undefined ||
+    m.env.hardwareId === key.hardwareId);
 
 /**
- * Scan every `*.jsonl` under `archiveDir` (non-recursive) for a cached
- * `ItemResult` matching `key` in a completed attempt. Returns the most recent
- * match by the matched item's `executedAt`, or `None` if nothing matches.
+ * Scan every `*.jsonl` under `archiveDir` (non-recursive) for cached
+ * `ItemResult`s matching `key` in completed attempts. Returns, per sample
+ * index, the most recent match by the matched item's `executedAt` (an empty
+ * map if nothing matches).
  *
  * A directory-read failure surfaces as `FileIOError`. A header or body line
  * that fails to parse for a given file causes that file to be skipped (it is
  * never a cache hit); the file-read itself surfaces as `FileIOError`.
  */
-export const findCachedItem = (
+export const findCachedSamples = (
   archiveDir: string,
   key: CacheKey,
 ): Effect.Effect<
-  Option.Option<ItemResult>,
+  Map<number, ItemResult>,
   FileIOError | JsonlCorruptLine,
   FileSystem.FileSystem | Path.Path
 > =>
@@ -178,7 +196,7 @@ export const findCachedItem = (
       );
     const archives = entries.filter((e) => e.endsWith(".jsonl")).sort();
 
-    let best: ItemResult | null = null;
+    const best = new Map<number, { item: ItemResult; executor: boolean; attemptId: string }>();
     for (const entry of archives) {
       const filePath = pathMod.join(archiveDir, entry);
       const source = yield* fs.readFileString(filePath).pipe(
@@ -216,9 +234,31 @@ export const findCachedItem = (
         if (Option.isNone(itemOpt)) continue;
         const item = itemOpt.value;
         if (item.itemHash !== key.itemHash) continue;
-        if (best === null || item.executedAt > best.executedAt) best = item;
+        const s = item.sample ?? 0;
+        // An attempt that started after the line executed holds a replay of it.
+        const executor = Date.parse(manifest.startedAt) <= Date.parse(item.executedAt);
+        const cur = best.get(s);
+        if (
+          cur === undefined ||
+          item.executedAt > cur.item.executedAt ||
+          (item.executedAt === cur.item.executedAt && executor && !cur.executor)
+        ) {
+          best.set(s, { item, executor, attemptId: manifest.attemptId });
+        }
       }
     }
 
-    return best === null ? Option.none() : Option.some(best);
+    return new Map(
+      [...best].map(([s, { item, attemptId }]) => [
+        s,
+        {
+          ...item,
+          cachedFrom: item.cachedFrom ?? { attemptId, executedAt: item.executedAt },
+        },
+      ]),
+    );
   });
+
+/** Sample 0 of {@link findCachedSamples}: the single-generation cache lookup. */
+export const findCachedItem = (archiveDir: string, key: CacheKey) =>
+  findCachedSamples(archiveDir, key).pipe(Effect.map((m) => Option.fromNullable(m.get(0))));

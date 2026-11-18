@@ -6,7 +6,7 @@
 
 `scoreExecution(result, entry)` picks a scorer by whether the corpus entry is a prompt or a scenario. Prompt entries carry a `ScorerConfig` discriminated union (`type`); scenario entries carry a bare `scorer` name resolved against the game scorer registry at scoring time.
 
-Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit.
+Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit. One rule is re-applied on re-score: an archived line with `stopReason: "length"` whose `output` equals its `reasoning` (oMLX echoing unfinished thinking as content) is scored as no output, `thinking_truncated` ([erratum 0.6](../errata.yaml)).
 
 Why the split lives in orchestration, not scoring:
 
@@ -31,10 +31,12 @@ Ref: `src/scoring/score-result.ts`.
 ## Score shape
 
 ```ts
-interface Score {
+interface PromptScore {
   readonly score: number;
   readonly details: string;
   readonly breakdown?: ConstraintBreakdown;
+  readonly failure?: "no_answer" | "scorer_error";
+  readonly nearMiss?: string;
 }
 
 interface ConstraintBreakdown {
@@ -44,13 +46,19 @@ interface ConstraintBreakdown {
 }
 ```
 
-`score` is in `[0, 1]` for every scorer. `details` is a short human-readable string the report layer renders verbatim. `breakdown` is populated only by the constraint scorer so the report can render per-check pass/fail/error lists without re-running scoring.
+`score` is in `[0, 1]` for every scorer. `details` is a short human-readable string the report layer renders verbatim. `breakdown` is populated only by the constraint scorer so the report can render per-check pass/fail/error lists without re-running scoring. `failure` is the scorer's structured reason a zero is not an ordinary wrong answer: `no_answer` when extraction found nothing to grade (`exact_match` with no regex match; `set_match` / `ordered_match` naming no vocabulary token while some are expected), `scorer_error` when the scorer itself failed (see [Failure handling](#failure-handling)). `nearMiss` is the `slip` of the declared near miss that set the score (see [Near misses](#near-misses)).
 
 Ref: `src/schema/scorer.ts`, `src/scoring/score-result.ts`.
 
 ## Per-execution score vs pass rate
 
-The `[0, 1]` values above are **per-item** scores. The report and the webapp turn them into one pass rate per row. An item passes only when its score is exactly 1. Partial credit and execution errors both count as fails. `./bench report` selects each row's evidence ([Report rows](#report-rows)); the webapp sums the row's cells and never chooses evidence.
+The `[0, 1]` values above are **per-item** scores. The report and the webapp turn them into one pass rate per row. An item passes only when its score is exactly 1 (`passFraction` in `src/schema/attempt.ts`). Partial credit and execution errors both count as fails. `./bench report` selects each row's evidence ([Report rows](#report-rows)); the webapp sums the row's cells and never chooses evidence.
+
+### Repeated samples
+
+An item can hold several generations (samples) for one config — `./bench run --samples k`, optionally limited to some items with `--items` (see [ARCHIVE-FORMAT.md § Cache and resume](./ARCHIVE-FORMAT.md#cache-and-resume)). A resampled item counts **once**, at its **pass fraction**: the share of its samples scoring exactly 1. A cell's passed count and each family's passed count add that fraction, so the pass rate is the mean over items of the per-item mean — unbiased, and lower-variance than one draw. An item with one sample contributes 0 or 1, exactly as a single-run item. Cost (generation tokens, wall time) and near-miss credit likewise add the per-item mean over samples, so cost stays that of one pass over the challenge; failure kinds count sample lines. In the clustered SE below, a resampled item enters its family's `y_f` as its fraction; family clustering is unchanged.
+
+The drilldown shows a resampled item once (its first sample) with `k/n samples` beside its score; the summary counts (`passed/items`) print to one decimal when fractional.
 
 ### The pass-rate formula
 
@@ -66,11 +74,13 @@ A challenge the row never ran, ran only at a stale content hash, or only interru
 
 The webapp ranks by this score. An incomplete row also shows its **running score**, passed over the items of the challenges it ran, muted and with its completeness (`86% · 5/11`), so a higher displayed figure can sit below a lower one.
 
-**Scope.** The webapp's scoring controls recompute every row from its cells: the dataset (when the report emits more than one), core or stretch items only (shown only when the challenge set tags items with a scope; it does not, so the control is hidden), or a subset of challenges. The formula is the same over the selected cells and items; a challenge with no items in scope drops out. When the plotted points change, the scatter slides each point (matched across datasets by model, runtime and quant) and the axes to their new positions; points without a match fade in.
+**Scope.** The webapp's scoring controls recompute every row from its cells: the dataset (main or pilot), core or stretch items only, or a subset of challenges. The formula is the same over the selected cells and items; a challenge with no items in scope drops out. When the plotted points change, the scatter slides each point (matched across datasets by model, runtime and quant) and the axes to their new positions; points without a match fade in.
 
 ### Uncertainty and statistical ties
 
-The webapp's uncertainty is computed over **families**: clusters of items whose outcomes may be correlated. The report gives each cell `families`, the `[items, passed]` count per family. Every item is its own family (`challengeId/itemId`), so the clustered variance below reduces to the ordinary item-level one.
+Items that share a scenario — one story, one set of numbers, one game — have correlated outcomes, so they are not independent draws; the sampling unit is the item **family** (Miller 2024, "Adding Error Bars to Evals": cluster only on a shared context). An item's family is its YAML `family`, or else its own `challengeId/name`; a multi-turn item's turns share the item's family. The generated batteries in `scripts/author/draft.ts` give every item of one scenario the same family. Hand-written items stand alone unless their YAML declares one.
+
+`family` is metadata: it enters no hash, so changing it never re-identifies an item, needs no erratum, and needs no re-score. The report reads families from the current challenge directory (`./bench report --challenges-dir`); each cell carries `families`, the `[items, passed]` count per family, and `scopeFamilies`, the same split by scope (detail items carry `family`). An archived item the current challenges do not name stands alone.
 
 `webapp/src/lib/stats.ts` treats each family `f` of the selected cells as a cluster with `n_f` items and `y_f` passed (0 in a non-scored cell), so `p = Σy / Σn` is exactly the score. Its standard error is the cluster-robust (CR1) variance of that ratio:
 
@@ -82,7 +92,7 @@ Two rows are compared **paired** over the families they share with the same item
 
 The webapp surfaces these in three places:
 
-- **List**: when sorted by score, the list is cut into **tiers**. A tier runs from its first entry (the head) until an entry whose paired 95% interval against the head excludes 0 — the head is significantly better — and that entry heads the next tier. A thin rule marks each boundary (`Tier 2 · below #1 at 95%`). Adjacent entries are almost never resolved from each other at this set's size (171 items), so marking every unresolved neighbour would mark nearly every rank; a boundary is drawn only where the data does separate entries. Hovering a score shows `± 1.96·SE`.
+- **List**: when sorted by score, the list is cut into **tiers**. A tier runs from its first entry (the head) until an entry whose paired 95% interval against the head excludes 0 — the head is significantly better — and that entry heads the next tier. A thin rule marks each boundary (`Tier 2 · below #1 at 95%`). Adjacent entries are almost never resolved from each other at this set's size (182 items, 10–20-point paired intervals), so marking every unresolved neighbour would mark nearly every rank; a boundary is drawn only where the data does separate entries. Hovering a score shows `± 1.96·SE`.
 - **Scatter**: hovering a row (in the plot or the list) draws a vertical whisker over `p ± 1.96·SE`, clamped to the plotted range; the tooltip repeats it.
 - **Drilldown**: the score carries `± 1.96·SE`; an entry's rank shows its tier and the paired difference (this − other, with its 95% interval) against the entry above and against the head it was tested against.
 
@@ -95,18 +105,28 @@ E = S^1.70 · g_wall^0.50 · g_tps^0.60 · g_tokens^0.70 · g_mem^0.10
 ```
 
 - `S` is the coverage-adjusted score above, under the current scope, so running fewer challenges never raises it.
-- Inputs, per row over its scored cells with cost: `wall` is wall seconds per item, `tps` the generation tokens per second (unweighted mean over those cells), `tokens` the generation tokens per item, `mem` the peak memory in GB (maximum over those cells). Per-item figures divide by all items of those cells.
+- Inputs, per row over its scored cells with cost: `wall` is wall seconds per item, `tps` the generation tokens per second (unweighted mean over those cells), `tokens` the generation tokens per item, `mem` the peak memory in GB (maximum over those cells). Per-item figures divide by all items of those cells; cost is not split by core/stretch.
 - Each `g = ε + (1 − ε)·u` with `ε = 0.05`. `u` is the input's log-min–max position over the pool, `(ln x − ln min) / (ln max − ln min)`, and is flipped to `1 − u` for the lower-is-better inputs (wall, tokens, mem); `tps` is higher-is-better. The floor keeps a worst-in-pool input from zeroing the product. When every row in the pool has the same value of an input, that input can't discriminate and is neutral (`g = 1`).
 - The pool is the in-scope rows of the selected dataset (rows with a scored challenge under the current scope), before the row filters. Filtering never changes a row's efficiency; changing the scope or the dataset does, because min and max move.
 - A row missing any cost input has no efficiency: it is not in the pool, shows `—`, and sorts last.
 
-The webapp shows `E × 100` (`eff`) and sorts by it (the **Efficient** preset).
+The webapp shows `E × 100` (`eff`) and sorts by it (the **Efficient** preset). On the main set the top of the ranking is gpt-oss-20b, gemma-4-26b-a4b-it and Cyber-Tiel-Coder-35B-A3B.
 
 **Hardware.** Wall time and generation speed belong to the machine and runtime, not the model. The current data comes from one machine, so they are comparable. Once rows from several machines sit side by side, wall and tok/s rank hardware as much as models; whether to normalize them per machine, drop them, or pool by `hardwareId` is the main open question. Tokens per item and the score are machine-independent, and memory is nearly so.
 
 **Re-tuning.** The exponents and `ε` were chosen with `scripts/efficiency-lab/`, an interactive page over the report rows (several formula families, sensitivity readouts, presets) plus its reference implementation `core.cjs`. Regenerate its data from `./bench report` and re-tune there as dependable data accumulates; see its README.
 
 Ref: `withEfficiency` in `webapp/src/lib/model.ts`; `scripts/efficiency-lab/core.cjs`.
+
+### Scope
+
+Each item is `core` (short, practical work close to how local models are used) or `stretch` (solver-backed multi-step reasoning). An item's scope is its YAML `scope`, else `stretch` for the `economics`, `financial` and `trust` challenges and `core` for every other challenge. Like `family` it is metadata: it enters no hash, and the report reads it from the current challenges (`./bench report --challenges-dir`). Each cell carries `scopes`, the `[items, passed]` count per scope.
+
+The default score counts both scopes; the Items control scores one. The drilldown shows `core X% · stretch Y%` over the selected cells.
+
+### Failure kinds
+
+Each cell carries `failureKinds`, the count of its sample lines per `failureKind` (see [Failure kind](#failure-kind)); passes are not counted. The drilldown sums them over the selected cells into a one-line "Failures" breakdown, most frequent first.
 
 ### Why binary `score === 1`
 
@@ -116,13 +136,13 @@ Ref: `src/report/rows.ts`, `webapp/src/lib/model.ts`, `webapp/src/lib/stats.ts`.
 
 ## Report rows
 
-`./bench report` writes `globalThis.__BENCHMARK_ROWS` (`src/report/rows.ts`) to `data.js`: the rows selected in the report step, one entry per **dataset**, so a consumer only sums and displays. A dataset is an archive directory scored against a challenge directory, labelled `main` for `challenges/`, else by the directory name. The report emits one dataset; its `release` is `null` and its `errata` empty (no release baseline or errata exist). Rows never mix datasets.
+`./bench report` writes `globalThis.__BENCHMARK_ROWS` (`src/report/rows.ts`) to `data.js`: the rows selected in the report step, one entry per **dataset**, so a consumer only sums and displays. A dataset is an archive directory scored against a challenge directory. `--dataset-label` names it (default `main` for `challenges/`, else the directory name). The dataset carries the `release-baseline.json` label when the baseline names an item of the set, and the ids of the `errata.yaml` entries that name an item of the set. The pilot is its own dataset, `pilot1`: `<archive-dir>-next` scored against `<challenges-dir>-next`, emitted after the main dataset when both directories exist (`--no-pilot` leaves it out). Rows never mix datasets.
 
 **Challenge set.** The set is every challenge loadable from `--challenges-dir` at report time, with its current version, hash, and items. It is never inferred from the records.
 
-**Rows.** A row is one `configHash` on one machine (`hardwareId`). Attempt archives do not record the machine, so every row's `hardwareId` is `unknown` and the dataset's `hardware` map is empty.
+**Rows.** A row is one `configHash` on one machine (`hardwareId`). An item line belongs to the machine of the attempt that executed it. Attempts without a hardware profile (before schemaVersion 3) belong to `--legacy-hardware`: `local` (default — this machine's `hardwareId`), `unknown`, or an explicit id.
 
-**Selection.** For each row and set challenge, the report pools the item lines of every completed attempt with the same `(configHash, challengeId, challengeVersion)` whose `itemHash` equals the set item's current hash. Per item it keeps the line with the latest `executedAt`. This is the cache's rule, so a row is what `./bench run` would serve: a replay collapses into its original. A line's **executor** is the earliest-started attempt holding the identical line that started no later than the line's `executedAt`; the executor's header supplies its runtime version and git sha (`unknown` when no executor is found).
+**Selection.** For each row and set challenge, the report pools the item lines of every completed attempt with the same `(configHash, challengeId, challengeVersion)` whose `itemHash` equals the set item's current hash, dropping retired lines. Per `(item, sample)` it keeps the line with the latest `executedAt`. This is the cache's rule, so a row is what `./bench run` would serve: a replay collapses into its original and a later single-sample replay cannot drop resamples. A line's **executor** is `cachedFrom.attemptId` when set, else the earliest-started attempt holding the identical line that started no later than the line's `executedAt`; the executor's header supplies its runtime version, git sha, and submitter (`unknown` when the header has none).
 
 **Cells.** Each set challenge gets a cell with a status:
 
@@ -133,22 +153,77 @@ Ref: `src/report/rows.ts`, `webapp/src/lib/model.ts`, `webapp/src/lib/stats.ts`.
 | `interrupted` | Only interrupted attempts exist |
 | `not_run` | No attempt exists |
 
-A cell carries its items, passed, `families` counts, its cost (generation tokens and wall time summed over items, peak memory, mean generation speed; scored cells only), its execution date range, runtime versions, git shas, executing attempts, and whether any executor was re-stamped. A non-`scored` cell counts 0 passed, and its items stay in every denominator. The contract also carries fields the archives cannot fill yet, at fixed values: `scopes` and `scopeFamilies` are empty, `failureKinds` is empty, `nearMissCredit` is 0, and `samples` is `[1, 1]` on a scored cell (one line per item).
+A cell carries its items, passed (pass fractions), `families`, `scopes` and `scopeFamilies` counts, its cost (item-mean generation tokens and wall time summed, peak memory, mean generation speed; scored cells only), near-miss credit, failure kinds (per sample line), min/max samples per item, execution date range, runtime versions, git shas, executing attempts, and whether any executor was re-stamped. A non-`scored` cell counts 0 passed, and its items stay in every denominator.
 
-**Row figures.** `passRate = Σ passed / Σ set items` — the formula above, so a missing or stale challenge counts as failed. `se` is the CR1 standard error over the row's families (`null` below 5). `completeness` counts scored challenges and their items; `freshness` is the execution date range of the counted lines; `provenance` lists runtime versions, git shas, submitters (always `local`), samples per item, and re-stamped cells, and sets `mixed` when the counted lines span more than one runtime version, more than one git sha (`unknown` counts), or more than 7 days. `variant` holds only the fields that differ among rows of the same `artifact` — runtime, quant, temperature, max tokens, system prompt — and `variantLabel` joins them (`t0.7 · quant 8bit`). Sampler knobs are not in the attempt header, so configs of one artifact that differ only there share a label. `modelKey` groups the builds of one model: the artifact's last path segment, lower-cased, without an uploader's `org_` prefix or packaging tokens (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`…); a `configs.yaml` entry's `modelKey` overrides it for that artifact. `modelName` is the same name with case kept.
+**Row figures.** `passRate = Σ passed / Σ set items` — the formula above, so a missing or stale challenge counts as failed. `se` is the CR1 standard error over the row's families (`null` below 5); `scopes` gives the core/stretch split over the same denominator. `completeness` counts scored challenges and their items; `freshness` is the execution date range of the counted lines; `provenance` lists runtime versions, git shas, submitters, samples per item, and re-stamped cells, and sets `mixed` when the counted lines span more than one runtime version, more than one git sha (`unknown` counts), or more than 7 days. `variant` holds only the fields that differ among rows of the same `artifact` — runtime, quant, temperature, max tokens, system prompt, sampler knobs, template kwargs, chat template, machine — and `variantLabel` joins them (`t0.7 · topK 20`). `modelKey` groups the builds of one model: the artifact's last path segment, lower-cased, without an uploader's `org_` prefix or packaging tokens (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`…); a `configs.yaml` entry's `modelKey` overrides it for that artifact. `modelName` is the same name with case kept.
+
+## Item audit
+
+`./bench audit` is a read-only check on the items themselves, not the models. It loads completed attempts from `--archive-dir`, keeps each config's latest attempt (by `startedAt`) per challenge, and scores each config's observation of an item as its pass fraction over that config's samples (0 or 1 with one sample; a sample passes when its score is exactly 1). Per item it prints the number of configs `n`, pass rate `p` (the mean of those fractions), Bernoulli spread `p(1-p)`, discrimination, flags, and the most common wrong answers over all failed samples. `--json` adds `samples` (sample lines across configs) and `passAllK` (pass^k: the fraction of configs with two or more samples that passed every one; `null` when no config resampled the item).
+
+- **Discrimination** is the point-biserial correlation between the item's pass (or pass fraction) and each config's pass rate on all other items. High values mark items that separate strong configs from weak ones.
+- **`suspect-key`**: `p <= 0.05` with `n >= --min-n` (default 8). A cluster of identical wrong answers is the signature of a wrong answer key. Wrong answers are normalized to the last number in the output (commas stripped), else the lowercased first 40 characters; empty output shows as `(empty)`.
+- **`edge`**: the `--edge-top` (default 20) items with the highest discrimination among items with `n >= --min-n`. These are the candidates for targeted multi-sample re-runs; spending samples only on them keeps compute bounded: `./bench audit --flag edge --json` lists them, and `./bench run --samples k --items FILE` resamples just those.
+- **`saturated`**: `p >= 0.95` among configs whose overall pass rate is above the median.
+- **`zero-failure`**: `p = 1` — every config's latest result passed. Pruning removes these items (except the `smoke` challenge, which tests harness plumbing) and records a `retired` erratum ([ERRATA.md](./ERRATA.md)).
+
+Lines of retired items (`retiredItems` on the manifest) are not observed.
+
+Rows are sorted by discrimination, then spread. `--challenge` restricts to one challenge id, `--flag` to rows carrying a flag, and `--json` emits the rows as JSON. The pure statistics are in `src/audit/stats.ts`.
+
+Ref: `src/cli/commands/audit.ts`, `src/audit/stats.ts`.
+
+## Near misses
+
+A near miss is a specific wrong answer that earns partial credit. Each is declared per item as an alternative accepted value with a `credit` in `(0, 1)` and a named `slip` — never a numeric tolerance window. `exact_match` declares `{ slip, credit, expected }`, `constraint` declares `{ slip, credit, pattern }` (see [CONFIG.md](./CONFIG.md#challengesyaml)).
+
+| Answer | Credit |
+|---|---|
+| Pure formatting: comma grouping, `$`, trailing zeros, the sign of a payment whose magnitude is right | Full — the primary pattern normalizes it |
+| Rounding or precision slip on multi-step math: unrounded vs cent-rounded, rounding at the end vs per step, truncating instead of rounding | `0.5` |
+| Right value in the wrong unit or form: a percent where a decimal was asked, cents for dollars | `0.5` |
+| A conceptual error (e.g. a monthly rate where an annual one was asked) | `0` |
+
+For generated challenges the solvers in `scripts/author/` compute each near-miss value from the same inputs as the key, and the generator refuses a near-miss pattern that matches the prompt text itself. Hand-written challenges declare them directly in YAML. A near miss changes scores, so adding one is a scorer change and needs an erratum ([ERRATA.md](./ERRATA.md)).
+
+The headline pass rate stays binary — a near miss is not a pass (`score === 1` only). Partial credit is reported separately: the item line carries `failureKind: "near_miss"` and the `slip` in `nearMiss`, and each cell carries `nearMissCredit`, the sum of near-miss credit over its items. The drilldown shows the total over the selected cells; the list does not show it.
+
+Ref: `src/schema/scorer.ts` (`ExactNearMiss`, `PatternNearMiss`), `src/scoring/exact-match.ts`, `src/scoring/constraint.ts`.
+
+## Multi-turn items
+
+A challenge item with `turns:` is a conversation of incremental questions. Each turn has its own prompt, scorer (`exact_match` or `constraint`), and `answer` — the gold assistant message. A turn may declare `nearMisses` exactly like a single-shot item. The loader expands the item into one scored unit per turn, `name#k`, and every unit is scored, cached, audited, and counted toward the pass rate exactly like a single-shot item.
+
+Turn `k` is sent with turns `1..k-1` and their **gold** answers as conversation history, never the model's own answers, so each turn measures one step and an early miss does not cascade. Loading fails if any gold answer does not score 1 under its own turn's scorer. The report detail file marks each turn with `prior_turn_passed` — whether the model's own answer to the previous turn passed in the same attempt — so recovery after a miss is visible.
+
+Design: `docs/superpowers/specs/2026-11-16-multiturn-challenges-design.md`.
 
 ## Failure handling
 
-Scorers return `Effect<Score, ScorerNotFound | CodeExecTimeout | CodeExecFailed, CommandExecutor>`. Errors do **not** become `Score` values inside the scorer — they propagate on the error channel. The layer above catches them and collapses them to a sentinel score:
-
-- `src/report/aggregate.ts` wraps `scoreExecution` in `safeScore`, catching every tag and emitting `{ score: 0, details: "scorer error: <tag>" }`.
-- `src/cli/commands/score.ts` uses `Effect.either` and prints `error: <string>` for the failing row.
+Scorers return `Effect<PromptScore, ScorerNotFound | CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed, CommandExecutor>`. Errors do **not** become scores inside the scorer — they propagate on the error channel. Every caller that records a score goes through `scoreOrFold` (`src/scoring/dispatch.ts`), which folds an error into `{ score: 0, details: "scorer error: <tagged error>", failure: "scorer_error" }`: the run (`run-challenge.ts`) and re-scoring (`bench score`) both use it.
 
 Per-constraint evaluator errors are caught one level deeper: `scoreConstraints` wraps `evaluateConstraint` with `Effect.either` and routes thrown `ConstraintEvalError` into the `errored` bucket of the breakdown. The constraint scorer itself never fails on the error channel.
 
-Execution-level errors (LLM failures, cutoffs with no output) are detected upstream by the report layer reading `result.error`; those rows skip scoring entirely and get `{ score: 0, details: "execution error: ..." }`.
+An item whose execution recorded an `error` is not scored; it records `score: 0`.
 
-Ref: `src/errors/scorer.ts`, `src/report/aggregate.ts`, `src/cli/commands/score.ts`.
+### Failure kind
+
+Every scored item records a `failureKind` alongside its `score` — `null` on a full pass, otherwise why it fell short. `classifyFailure` (`src/scoring/failure-kind.ts`) derives it from the item's stored `error`, `stopReason`, `output`, and `reasoning` plus the scorer's `failure`; first matching rule wins:
+
+| `failureKind` | Detected by |
+|---|---|
+| `thinking_truncated` | `error: "thinking_truncated"` (an inline `<think>` never closed), or `stopReason: "length"` with empty `output` and non-null `reasoning` (a split-reasoning runtime spent the budget thinking) |
+| `execution_error` | any other non-null `error` — transport failure, timeout, malformed or empty response |
+| `near_miss` | a declared near miss set the score (`nearMiss`), however generation ended; the item line records the `slip` in `nearMiss` |
+| `loop` | `stopReason: "loop"` — the repetition detector cancelled the stream |
+| `length_cutoff` | `stopReason: "length"` otherwise — the answer was cut off by `maxTokens` |
+| `scorer_error` | the scorer failed (`failure: "scorer_error"`) |
+| `no_answer` | empty `output`, or the scorer found nothing to extract (`failure: "no_answer"`) |
+| `wrong` | everything else, including partial credit |
+
+The score is unaffected — every kind scores 0 (or its partial credit; `near_miss` scores its declared credit); `failureKind` records only why. Because the inputs are all on the stored line, `bench score` recomputes `failureKind` (and `scoreDetails`) for any archive it re-scores. Archives that predate `stopReason` classify a cutoff with empty output as `no_answer`.
+
+Ref: `src/errors/scorer.ts`, `src/scoring/dispatch.ts`, `src/scoring/failure-kind.ts`.
 
 ## `exact_match`
 
@@ -157,7 +232,8 @@ Operates on `result.output` (already cleaned of `<think>` and Harmony control to
 1. Compile `config.extract` as a global regex and collect every match against the output.
 2. Take the **last** match (models commonly show work before the final answer). Prefer capture group 1; fall back to the whole match if the pattern has no group.
 3. Strip commas from the extracted string (for `2,395,912`-style numerics).
-4. Compare to `config.expected` with case-sensitive string equality. `1` on match, `0` otherwise.
+4. Compare to `config.expected` with case-sensitive string equality. `1` on match.
+5. Otherwise, the first `config.nearMisses` entry whose `expected` equals the extracted string scores its `credit` and names its `slip`; no entry matching scores `0`.
 
 No match and no-capture-group patterns both degrade to `score: 0` with a descriptive `details`; the scorer is total and has no failure channel.
 
@@ -169,11 +245,13 @@ Ref: `src/scoring/exact-match.ts`. Reasoning extraction (the upstream pre-proces
 
 Iterate over `config.constraints`. For each, dispatch on the `check` discriminator to a pure predicate over `result.output` (already cleaned upstream — see [Dispatch](#dispatch)). Predicate → `true` adds the constraint's `name` to `passed`; `false` adds it to `failed`; a thrown exception (wrapped as `ConstraintEvalError`) adds it to `errored`. Final score is `passed.length / total`; an empty constraint list scores `0`.
 
+When that score is below 1, each `config.nearMisses` entry is tried in order: the first whose `pattern` matches the output (same semantics as the `regex` check) and whose `credit` exceeds the score sets the score to `credit` and names its `slip`. The breakdown still lists the constraints as evaluated.
+
 `errored` is kept distinct from `failed` — an evaluator that throws (e.g. malformed regex pattern) is not the same signal as a predicate returning false. The distinction surfaces via `breakdown`.
 
 ### Check catalog
 
-20 check variants, ordered as declared in the `ConstraintDef` union.
+21 check variants, ordered as declared in the `ConstraintDef` union.
 
 | `check` | Semantics |
 |---|---|
@@ -191,6 +269,7 @@ Iterate over `config.constraints`. For each, dispatch on the `check` discriminat
 | `json_field_equals` | Parsed JSON is an object and `obj[key]` deep-equals `value`. |
 | `json_field_is_list` | Parsed JSON is an object and `obj[key]` is an array. |
 | `json_list_item_has` | Parsed JSON has a `listKey` array containing some item whose `matchField` deep-equals `matchValue` and whose `checkField` deep-equals `checkValue`. |
+| `json_matches` | The answer JSON deep-equals `value` (see [`json_matches`](#json_matches)). |
 | `numbered_lines` | Output has a line starting with `from` **and** a line starting with `to` (followed by `.`, `)`, `:`, or whitespace), in multiline mode. |
 | `no_numbered_line` | Output has **no** line starting with `line` followed by `.`, `)`, `:`, or whitespace. |
 | `numbered_line_exists` | Output **has** a line starting with `line` followed by `.`, `)`, `:`, or whitespace. |
@@ -198,7 +277,22 @@ Iterate over `config.constraints`. For each, dispatch on the `check` discriminat
 | `word_count_exact` | Case-insensitive `\b<word>\b` match count equals `count`. |
 | `all_lines_word_count` | Every non-empty trimmed line has between `min` and `max` whitespace-separated words (inclusive). |
 
-JSON-reading checks all use the same fallback parser: try `JSON.parse(text.trim())`; on failure, extract the first `{[^{}]*}` block and try that; return `null` otherwise. A `null` parse causes every JSON check to return `false` (not errored).
+JSON-reading checks other than `json_matches` all use the same fallback parser: try `JSON.parse(text.trim())`; on failure, the first fenced block; on failure, the first balanced `{...}` or `[...]` block (string-literal aware) that parses; return `null` otherwise. A `null` parse causes every JSON check to return `false` (not errored).
+
+### `json_matches`
+
+Grades a whole structured answer against a key (`value`), for extraction and reshaping items.
+
+1. **Extract** the answer: the whole trimmed output if it parses; else the **last** fenced block (any language tag) that parses; else the **last** top-level balanced `{...}` or `[...]` block that parses (a parsed block's inner blocks are skipped). Last, like `exact_match`'s last match: a model that drafts or echoes a schema first states its answer at the end.
+2. **Compare** by JSON deep equality:
+   - Object key order is ignored; the key sets must be equal — a missing or extra key fails.
+   - Array order matters.
+   - Numbers compare by value after `JSON.parse`, so `12.5`, `12.50` and `1.25e1` are equal.
+   - No type coercion: `"5"` ≠ `5`, `"true"` ≠ `true`, `null` ≠ `""`, and `null` ≠ a missing key.
+   - Strings compare exactly — case, whitespace and Unicode form all count. Prompts state any canonical form (ISO dates, upper-case codes) the key uses.
+3. A parsed JSON `null` is treated as no answer, so `value: null` is never a valid key.
+
+It declares no near misses: a partial record is a wrong record. A pattern near miss on the item still applies as for any constraint item.
 
 Ref: schema `src/schema/constraints.ts`, handlers `src/scoring/constraint-checks.ts`, dispatcher `src/scoring/constraint.ts`.
 
@@ -215,6 +309,10 @@ Ref: schema `src/schema/constraints.ts`, handlers `src/scoring/constraint-checks
    - Non-zero exit, no marker → `{ score: 0.0, details: "<classified failure>" }`, where the classifier inspects stderr for `AssertionError` / `SyntaxError` / `NameError` and reports the last stderr line (truncated to 120 chars), or falls back to a stdout snippet.
 
 The scorer is the only one with a `R` requirement (`CommandExecutor.CommandExecutor`), propagated through `scoreExecution`'s signature.
+
+### Submission mode
+
+An item with `submission: <lang>` (e.g. `sql`, `regex`) grades a non-Python answer. Step 1 becomes: take the first ```` ```<lang> ```` fenced block, else the first unlabeled ```` ``` ```` fence, else the whole trimmed output, and bind it verbatim (trimmed) as the Python string `SUBMISSION`. The program is `SUBMISSION = "<answer>"` followed by the test code and the marker; the answer is never executed as Python. The test code decides pass or fail with assertions over `SUBMISSION` — for SQL it builds an in-memory `sqlite3` database and compares the submission's result set with the reference query's; for regex it runs `re.fullmatch` over held-out cases. Steps 2–5 are unchanged: same subprocess, timeout, and classification. A catastrophically backtracking regex times out, which is a scorer error scored 0.
 
 Ref: `src/scoring/code-exec.ts`, `src/scoring/extract-code.ts`.
 

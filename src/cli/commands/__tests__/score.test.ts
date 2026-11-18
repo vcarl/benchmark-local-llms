@@ -16,7 +16,14 @@ import {
 } from "../../../schema/attempt.js";
 import type { PromptCorpusEntry } from "../../../schema/prompt.js";
 import type { ScorerConfig } from "../../../schema/scorer.js";
-import { formatSummary, rescoreItems, rescoreItemsFromStore, scoreCommand } from "../score.js";
+import {
+  formatSummary,
+  rescoreItems,
+  rescoreItemsFromStore,
+  restampBlocker,
+  scoreCommand,
+  withStaleScoreItems,
+} from "../score.js";
 
 const exactMatch: ScorerConfig = { type: "exact_match", expected: "42", extract: "(\\d+)" };
 
@@ -37,6 +44,8 @@ const resolvedItem = (
   scorer: ScorerConfig = exactMatch,
 ): ResolvedItem => ({
   itemId,
+  family: itemId,
+  scope: "core",
   promptHash,
   itemHash: `${promptHash}-ih`,
   scorer,
@@ -101,12 +110,22 @@ describe("rescoreItems", () => {
     expect(res.drift).toBe(1);
   });
 
-  it("keeps the stored score and counts drift when prompt is missing from the challenge", async () => {
+  it("keeps the stored score and counts drift when prompt is missing from another version", async () => {
     const items = [item({ itemId: "ghost", promptName: "ghost", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")]), false));
     expect(res.updated[0]?.score).toBe(1);
     expect(res.rescored).toBe(0);
     expect(res.drift).toBe(1);
+    expect(res.retired).toEqual([]);
+  });
+
+  it("retires an item missing from the same challenge version: line kept verbatim, not drift", async () => {
+    const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
+    const res = await run(rescoreItems([ghost], resolved([resolvedItem("p1", "ph1")]), true));
+    expect(res.updated[0]).toEqual(ghost);
+    expect(res.retired).toEqual(["ghost"]);
+    expect(res.drift).toBe(0);
+    expect(res.kept).toEqual([]);
   });
 
   it("forces score 0 for an item that recorded an execution error", async () => {
@@ -179,7 +198,102 @@ describe("rescoreItems", () => {
     const items = [item({ promptHash: "ph1", score: 1 })];
     const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", gameScorer)])));
     expect(res.updated[0]?.score).toBe(0);
+    expect(res.updated[0]?.failureKind).toBe("scorer_error");
     expect(res.rescored).toBe(1);
+  });
+
+  it("re-scored items name the scorer that produced their score", async () => {
+    const newScorer: ScorerConfig = { type: "exact_match", expected: "42", extract: "is (\\d+)" };
+    const items = [item({ promptHash: "ph1", itemHash: "stale", scorerHash: "stale" })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", newScorer)])));
+    expect(res.updated[0]?.itemHash).toBe("ph1-ih");
+    expect(res.updated[0]?.scorerHash).toBe(scorerHash(newScorer));
+  });
+
+  it("records failureKind and scoreDetails on every re-scored item", async () => {
+    const items = [
+      item({ itemId: "p1", promptName: "p1", output: "the answer is 42" }),
+      item({ itemId: "p2", promptName: "p2", output: "the answer is 41" }),
+      item({ itemId: "p3", promptName: "p3", output: "no digits here" }),
+      item({ itemId: "p4", promptName: "p4", output: "", stopReason: "length", reasoning: "hmm" }),
+    ];
+    const res = await run(
+      rescoreItems(
+        items,
+        resolved([
+          resolvedItem("p1", "ph1"),
+          resolvedItem("p2", "ph1"),
+          resolvedItem("p3", "ph1"),
+          resolvedItem("p4", "ph1"),
+        ]),
+      ),
+    );
+    expect(res.updated.map((u) => u.failureKind)).toEqual([
+      null,
+      "wrong",
+      "no_answer",
+      "thinking_truncated",
+    ]);
+    expect(res.updated[1]?.scoreDetails).toBe("expected 42, got 41");
+  });
+
+  it("scores an answer that only echoes truncated reasoning as no output (erratum 0.6)", async () => {
+    const thinking = "We need 6*7... the answer is 42? Let's re";
+    const items = [
+      item({
+        itemId: "p1",
+        promptName: "p1",
+        output: thinking,
+        reasoning: thinking,
+        rawOutput: thinking,
+        stopReason: "length",
+        score: 1,
+      }),
+      item({
+        itemId: "p2",
+        promptName: "p2",
+        output: thinking,
+        reasoning: thinking,
+        rawOutput: thinking,
+        stopReason: "stop",
+      }),
+    ];
+    const scored = resolved([resolvedItem("p1", "ph1"), resolvedItem("p2", "ph1")]);
+    const res = await run(rescoreItems(items, scored));
+    expect(res.updated[0]).toMatchObject({
+      output: "",
+      rawOutput: thinking,
+      score: 0,
+      failureKind: "thinking_truncated",
+    });
+    expect(res.updated[1]).toMatchObject({ output: thinking, score: 1 });
+    const fromStore = await run(
+      rescoreItemsFromStore(
+        items,
+        items.map((i) => ({ item: i, scorer: exactMatch })),
+      ),
+    );
+    expect(fromStore.updated[0]).toMatchObject({
+      output: "",
+      score: 0,
+      failureKind: "thinking_truncated",
+    });
+  });
+
+  it("lists the items that kept a stored score", async () => {
+    const items = [item({ promptHash: "OLD", score: 1 })];
+    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "NEW")])));
+    expect(res.kept).toEqual(["p1"]);
+  });
+});
+
+describe("withStaleScoreItems", () => {
+  it("records kept items and clears a prior record when none were kept", () => {
+    const m = baseManifest();
+    expect(withStaleScoreItems(m, ["a"]).staleScoreItems).toEqual(["a"]);
+    expect("staleScoreItems" in withStaleScoreItems({ ...m, staleScoreItems: ["a"] }, [])).toBe(
+      false,
+    );
   });
 });
 
@@ -238,7 +352,7 @@ const PASSING_OUTPUT =
   "The rocket climbed steadily until it reached a stable orbit, where gravity gently held it in place.";
 
 const runHandler = (args: {
-  archive?: string;
+  archive?: string | string[];
   stale?: string;
   challenge?: string;
   dryRun?: boolean;
@@ -247,7 +361,7 @@ const runHandler = (args: {
   Effect.runPromise(
     scoreCommand
       .handler({
-        archive: args.archive === undefined ? [] : [args.archive],
+        archive: args.archive === undefined ? [] : [args.archive].flat(),
         stale: args.stale !== undefined,
         archiveDir: args.stale ?? "unused",
         challengesDir: REAL_CHALLENGES,
@@ -495,9 +609,9 @@ describe("scoreCommand.handler (boundary)", () => {
       rawOutput: PASSING_OUTPUT,
       score: 0,
     });
-    // A drifted ghost item not present in the challenge → kept, warned, counts as drift.
+    // An item absent from another version of the challenge → kept, warned, counts as drift.
     const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
-    const contents = await encodeArchive(baseManifest(), [realItem, ghost]);
+    const contents = await encodeArchive(baseManifest({ challengeVersion: 0 }), [realItem, ghost]);
     const file = path.join(dir, "att.jsonl");
     writeFileSync(file, contents, "utf-8");
 
@@ -634,7 +748,9 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
   });
 
   /** A complete v2 smoke attempt recorded under an older (scorer-differing) identity. */
-  const writeStaleSmoke = async (opts: { driftItem?: string; id?: string } = {}) => {
+  const writeStaleSmoke = async (
+    opts: { driftItem?: string; id?: string; retiredItem?: string } = {},
+  ) => {
     const smoke = await resolveSmoke();
     const oldScorer: ScorerConfig = { type: "exact_match", expected: "nope", extract: "(x)" };
     const configHash = "cfgrestamp00";
@@ -656,6 +772,24 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
         rawOutput: PASSING_OUTPUT,
       }),
     );
+    if (opts.retiredItem !== undefined) {
+      items.push(
+        item({
+          itemId: opts.retiredItem,
+          promptName: opts.retiredItem,
+          promptHash: "retired00000",
+          itemHash: "oldih0000000",
+          scorerHash: scorerHash(oldScorer),
+          score: 1,
+          failureKind: null,
+        }),
+      );
+      await Effect.runPromise(
+        writeBlob(dir, "prompts", "retired00000", "a retired prompt").pipe(
+          Effect.provide(NodeContext.layer),
+        ),
+      );
+    }
     const manifest = baseManifest({
       schemaVersion: 2,
       attemptId,
@@ -698,6 +832,27 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
     }
   });
 
+  it("re-stamps an attempt holding a retired item, keeps its line, and scores the current items", async () => {
+    const { smoke, file, newId } = await writeStaleSmoke({ retiredItem: "gone_item" });
+    const retiredLine = readFileSync(file, "utf-8").trim().split("\n").at(-1);
+    await runHandler({ archive: file, corpus: true });
+
+    const newFile = path.join(dir, `${newId}.jsonl`);
+    const h = header(newFile);
+    expect(h.retiredItems).toEqual(["gone_item"]);
+    expect(h.staleScoreItems).toBeUndefined();
+    const lines = readFileSync(newFile, "utf-8").trim().split("\n").slice(1);
+    expect(lines).toContain(retiredLine);
+    const current = lines
+      .map((l) => JSON.parse(l) as ItemResult)
+      .filter((r) => r.promptName !== "gone_item");
+    expect(current).toHaveLength(smoke.items.length);
+    expect(h.aggregate.score).toBe(current.filter((r) => r.score === 1).length / current.length);
+    await Effect.runPromise(
+      loadAttemptReconstruction(newFile).pipe(Effect.provide(NodeContext.layer)),
+    );
+  });
+
   it("does not re-stamp when a promptHash drifted", async () => {
     const { file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
     await runHandler({ archive: file, corpus: true });
@@ -708,6 +863,20 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
     expect(logged.join("\n")).toContain(
       `no restamp (promptHash drift on ${SMOKE_CONSTRAINT_ITEM})`,
     );
+  });
+
+  it("on a partial-drift re-score, flags the kept items and names the current scorers", async () => {
+    const { smoke, file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
+    await runHandler({ archive: file, corpus: true });
+
+    expect(header(file).staleScoreItems).toEqual([SMOKE_CONSTRAINT_ITEM]);
+    const lines = readFileSync(file, "utf-8").trim().split("\n").slice(1);
+    const rows = lines.map((l) => JSON.parse(l) as ItemResult);
+    for (const r of smoke.items.filter((i) => i.itemId !== SMOKE_CONSTRAINT_ITEM)) {
+      const sh = scorerHash(r.scorer);
+      expect(rows.find((x) => x.itemId === r.itemId)?.scorerHash).toBe(sh);
+      expect(existsSync(path.join(dir, "content", "scorers", `${sh}.json`))).toBe(true);
+    }
   });
 
   it("--dry-run reports the would-restamp and writes nothing", async () => {
@@ -738,5 +907,77 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
       "score: 1 restamped, 1 rescored-only, 1 skipped (incomplete 1), 0 already current",
     );
     expect(existsSync(path.join(dir, `${open.newId.replace(/-3$/, "-1")}.jsonl`))).toBe(true);
+  });
+
+  it("--stale names and skips legacy run files instead of passing over them silently", async () => {
+    await writeStaleSmoke({ id: "1" });
+    writeFileSync(path.join(dir, "2026-05-06_old-run.jsonl"), '{"schemaVersion":1,"runId":"r"}\n');
+    await runHandler({ stale: dir });
+
+    const out = logged.join("\n");
+    expect(out).toContain("2026-05-06_old-run.jsonl: skipped — not an attempt archive");
+    expect(out).toContain(
+      "score: 1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1), 0 already current",
+    );
+  });
+
+  it("--stale re-scores a current attempt holding an echoed-reasoning answer, then leaves it be", async () => {
+    const { file, newId } = await writeStaleSmoke({ id: "1" });
+    await runHandler({ archive: file, corpus: true });
+    const current = path.join(dir, `${newId}.jsonl`);
+    const [head, ...rows] = readFileSync(current, "utf-8").trim().split("\n");
+    const echoed = rows.map((l) => {
+      const r = JSON.parse(l) as ItemResult;
+      return r.itemId === SMOKE_CONSTRAINT_ITEM
+        ? JSON.stringify({ ...r, reasoning: r.output, stopReason: "length", score: 1 })
+        : l;
+    });
+    writeFileSync(current, `${[head, ...echoed].join("\n")}\n`);
+
+    await runHandler({ stale: dir });
+    const fixed = readFileSync(current, "utf-8")
+      .trim()
+      .split("\n")
+      .slice(1)
+      .map((l) => JSON.parse(l) as ItemResult);
+    expect(fixed.find((r) => r.itemId === SMOKE_CONSTRAINT_ITEM)).toMatchObject({
+      output: "",
+      score: 0,
+      failureKind: "thinking_truncated",
+    });
+    expect(logged.join("\n")).toContain("1 rescored-only, 0 skipped, 0 already current");
+
+    const after = readFileSync(current);
+    await runHandler({ stale: dir });
+    expect(readFileSync(current).equals(after)).toBe(true);
+    expect(logged.at(-1)).toContain("0 rescored-only, 0 skipped, 1 already current");
+  });
+
+  it("a batch of --archive files skips a legacy file and scores the rest", async () => {
+    const legacy = path.join(dir, "legacy.jsonl");
+    writeFileSync(legacy, '{"schemaVersion":1,"runId":"r"}\n');
+    const stale = await writeStaleSmoke({ id: "1" });
+    await runHandler({ archive: [legacy, stale.file], corpus: true });
+
+    const out = logged.join("\n");
+    expect(out).toContain("legacy.jsonl: skipped — not an attempt archive");
+    expect(out).toContain("1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1)");
+    expect(existsSync(path.join(dir, `${stale.newId}.jsonl`))).toBe(true);
+  });
+});
+
+describe("restampBlocker with repeated samples", () => {
+  const m = {
+    challengeId: "smoke",
+    challengeVersion: 1,
+    finishedAt: "t",
+    interrupted: false,
+    attemptId: "att-cfg-old-1",
+    challengeHash: "old",
+  } as unknown as AttemptManifest;
+  it("allows several samples of an item but still blocks a duplicated sample", () => {
+    const ch = resolved([resolvedItem("p1", "ph1")]);
+    expect(restampBlocker(m, [item(), item({ sample: 1 }), item({ sample: 2 })], ch)).toBeNull();
+    expect(restampBlocker(m, [item(), item()], ch)).toBe("duplicate item names in archive");
   });
 });

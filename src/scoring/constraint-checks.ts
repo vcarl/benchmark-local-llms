@@ -114,6 +114,39 @@ const tryParseJson = (text: string): unknown | null => {
   return extractBalancedJson(text);
 };
 
+const JSON_FENCES_RE = /```[a-zA-Z0-9_-]*[ \t]*\r?\n([\s\S]*?)```/g;
+
+/**
+ * The answer JSON for `json_matches`: the whole trimmed output, else the
+ * **last** fenced block that parses, else the **last** top-level balanced
+ * `{...}`/`[...]` block that parses. Last, like `exact_match`'s last match:
+ * a model that drafts or echoes a schema first states its answer at the end.
+ * A parsed block's nested blocks are skipped, so the result is top-level.
+ */
+const extractAnswerJson = (text: string): unknown | null => {
+  const whole = parseOrNull(text.trim());
+  if (whole !== null) return whole;
+
+  const fenced = Array.from(text.matchAll(JSON_FENCES_RE), (m) => parseOrNull((m[1] ?? "").trim()))
+    .filter((v) => v !== null)
+    .at(-1);
+  if (fenced !== undefined) return fenced;
+
+  let last: unknown | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charAt(i);
+    if (c !== "{" && c !== "[") continue;
+    const end = findBalancedEnd(text, i);
+    if (end === -1) break;
+    const parsed = parseOrNull(text.slice(i, end + 1));
+    if (parsed !== null) {
+      last = parsed;
+      i = end;
+    }
+  }
+  return last;
+};
+
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -233,6 +266,12 @@ export const evaluateConstraint = (
               deepEqual(item[def.matchField], def.matchValue) &&
               deepEqual(item[def.checkField], def.checkValue),
           );
+        }
+
+        case "json_matches": {
+          // A JSON `null` answer is indistinguishable from "nothing parsed" — never a valid key.
+          const answer = extractAnswerJson(output);
+          return answer !== null && deepEqual(answer, def.value);
         }
 
         case "numbered_lines": {
