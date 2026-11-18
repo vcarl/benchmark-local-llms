@@ -127,6 +127,9 @@ export const findCachedResult = (
  * Tie-break: if multiple archives hold a matching item, return the one with
  * the most recent matched-item `executedAt` (not file mtime — a re-run keeps
  * the old file, and the item's own timestamp is what the operator cares about).
+ *
+ * Repeated samples: the sample index (`sample`, absent = 0) joins the key, so
+ * {@link findCachedSamples} returns the best line per sample index in one scan.
  */
 export interface CacheKey {
   readonly configHash: string;
@@ -148,19 +151,20 @@ const headerMatches = (m: AttemptManifest, key: CacheKey): boolean =>
   m.challengeVersion === key.challengeVersion;
 
 /**
- * Scan every `*.jsonl` under `archiveDir` (non-recursive) for a cached
- * `ItemResult` matching `key` in a completed attempt. Returns the most recent
- * match by the matched item's `executedAt`, or `None` if nothing matches.
+ * Scan every `*.jsonl` under `archiveDir` (non-recursive) for cached
+ * `ItemResult`s matching `key` in completed attempts. Returns, per sample
+ * index, the most recent match by the matched item's `executedAt` (an empty
+ * map if nothing matches).
  *
  * A directory-read failure surfaces as `FileIOError`. A header or body line
  * that fails to parse for a given file causes that file to be skipped (it is
  * never a cache hit); the file-read itself surfaces as `FileIOError`.
  */
-export const findCachedItem = (
+export const findCachedSamples = (
   archiveDir: string,
   key: CacheKey,
 ): Effect.Effect<
-  Option.Option<ItemResult>,
+  Map<number, ItemResult>,
   FileIOError | JsonlCorruptLine,
   FileSystem.FileSystem | Path.Path
 > =>
@@ -178,7 +182,7 @@ export const findCachedItem = (
       );
     const archives = entries.filter((e) => e.endsWith(".jsonl")).sort();
 
-    let best: ItemResult | null = null;
+    const best = new Map<number, ItemResult>();
     for (const entry of archives) {
       const filePath = pathMod.join(archiveDir, entry);
       const source = yield* fs.readFileString(filePath).pipe(
@@ -216,9 +220,15 @@ export const findCachedItem = (
         if (Option.isNone(itemOpt)) continue;
         const item = itemOpt.value;
         if (item.itemHash !== key.itemHash) continue;
-        if (best === null || item.executedAt > best.executedAt) best = item;
+        const s = item.sample ?? 0;
+        const cur = best.get(s);
+        if (cur === undefined || item.executedAt > cur.executedAt) best.set(s, item);
       }
     }
 
-    return best === null ? Option.none() : Option.some(best);
+    return best;
   });
+
+/** Sample 0 of {@link findCachedSamples}: the single-generation cache lookup. */
+export const findCachedItem = (archiveDir: string, key: CacheKey) =>
+  findCachedSamples(archiveDir, key).pipe(Effect.map((m) => Option.fromNullable(m.get(0))));

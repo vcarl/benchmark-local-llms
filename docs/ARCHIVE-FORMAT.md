@@ -13,7 +13,7 @@ This grain is the organizing fact of the whole format. An attempt does not span 
 Each attempt is `<attemptId>.jsonl` under the archive directory (default `benchmark-archive/`), where `attemptId` has the form `att-<configHash>-<challengeHash>-<timestamp>`.
 
 - **Line 1** — the `AttemptManifest` header. Written once when the attempt starts (in an open state), then rewritten exactly once when the attempt finishes.
-- **Lines 2+** — one `ItemResult` per challenge item, appended as each item is scored.
+- **Lines 2+** — one `ItemResult` per challenge item and sample, appended as each is scored. An item run once has one line; a resampled item has one line per sample, consecutive, sample 0 first.
 
 Alongside the `.jsonl` files, the archive directory holds a single shared `content/` directory — the **content store** (see [below](#content-store)). Together, an attempt's `.jsonl` plus the blobs it references are everything needed to reconstruct, re-score, or export that attempt without any other input.
 
@@ -68,6 +68,8 @@ One line per challenge item — the item's execution metrics, the model's output
 | `scorerHash` | `string?` | 12-hex hash of the scorer config; key into the content store's `scorers/`. |
 | `parentItemId` | `string?` | For a turn of a multi-turn item, the item's `name` (`itemId` is `name#k`). Absent on single-shot items. |
 | `turn` | `number?` | 1-based turn index within `parentItemId`. Absent on single-shot items. |
+| `sample` | `number?` | 0-based sample index of a repeated generation of the item. Absent on sample 0, so a single-run line carries no sample field. |
+| `seed` | `number?` | Sampler seed sent with the request (a random 31-bit integer per fresh execution; llama-server, mlx_lm.server, and oMLX all accept `seed`). Absent on lines executed before seeds were sent. |
 | `executedAt` | `string` | ISO timestamp at execution start. Cache tie-breaker — most recent wins. |
 | `promptTokens` | `number` | Tokens in the prompt. |
 | `generationTokens` | `number` | Tokens generated. |
@@ -88,7 +90,7 @@ One line per challenge item — the item's execution metrics, the model's output
 
 ## Aggregate
 
-The attempt's headline score is **pooled over items**: `score = (items scoring exactly 1) / (total items)`, where retired items are not counted. Partial credit on an item (`0 < score < 1`) does not count toward the passing count. The attempt `passed` when `score >= passThreshold`. An attempt with no items scores `{ score: 0, passed: false }`.
+The attempt's headline score is **pooled over items**: `score = (items scoring exactly 1) / (total items)`, where retired items are not counted. A resampled item counts once, at the fraction of its samples scoring exactly 1 (see [SCORING.md § Repeated samples](./SCORING.md#repeated-samples)). Partial credit on an item (`0 < score < 1`) does not count toward the passing count. The attempt `passed` when `score >= passThreshold`. An attempt with no items scores `{ score: 0, passed: false }`.
 
 The same definition drives the report: a "pass" anywhere downstream means an item scored exactly `1`.
 
@@ -147,7 +149,9 @@ Removing an item from a challenge (see [ERRATA.md](./ERRATA.md)) keeps the chall
 
 ## Cache and resume
 
-**Cross-attempt cache.** When executing an item, the harness first looks for a completed attempt in the same directory whose header matches `(configHash, challengeId, challengeVersion)` and that contains an item with the same `itemHash`; the most recent `executedAt` wins. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so efficiency metrics always reflect real measured cost, never a cache artifact. `--no-cache` forces fresh execution of every item.
+**Cross-attempt cache.** When executing an item, the harness first looks for a completed attempt in the same directory whose header matches `(configHash, challengeId, challengeVersion)` and that contains an item with the same `itemHash` and sample index (`sample`, absent = 0); the most recent `executedAt` wins per sample. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so efficiency metrics always reflect real measured cost, never a cache artifact. `--no-cache` forces fresh execution of every item.
+
+**Repeated samples.** `./bench run --samples k` holds samples `0..k-1` of every item (or, with `--items`, of the matching items; the rest hold sample 0 only). Each sample is served from the cache when present and generated otherwise, so asking for `k = 5` on an item with sample 0 cached generates four. Sample 0 is the single-run result, so existing archives need no re-keying. The new attempt carries every held sample's line, which is what the report and audit aggregate.
 
 **Resume.** An interrupted attempt (`interrupted: true`) can be resumed by its `attemptId`. The harness re-resolves the configuration and challenge, validates that their hashes match the partial archive's header (a mismatch fails loudly and leaves the archive untouched), executes only the items not already present, re-aggregates over the union, and finalizes. The partial archive's own `interrupted: true` state keeps it out of the cache scan, so resume reads its existing items explicitly.
 

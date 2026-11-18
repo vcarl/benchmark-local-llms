@@ -83,6 +83,7 @@ items:
       - financial-model
       - cascade
       - bailout
+    family: financial-bailout
   # Source nets −$10/month and pays $30/month = −$40/month effective; over 18 months that is −$720 against a $50 start, so it needs $670 more to never dip below zero.
   - name: financial_bailout_amount
     category: financial
@@ -117,6 +118,7 @@ items:
       - financial-model
       - cascade
       - bailout
+    family: financial-bailout
   # Senior is paid first and its $520 claim is fully covered by the $640 pool, so it receives $520.
   - name: financial_waterfall_senior_payout
     category: financial
@@ -139,6 +141,7 @@ items:
       - financial-model
       - waterfall
       - tranche-priority
+    family: financial-waterfall
   # After Senior takes $520, only $120 of the pool remains, so Mezzanine is partially filled at $120 against its $310 claim — the discriminating partial-fill figure.
   - name: financial_waterfall_mezz_payout
     category: financial
@@ -161,6 +164,7 @@ items:
       - financial-model
       - waterfall
       - tranche-priority
+    family: financial-waterfall
   # The pool is exhausted partway through Mezzanine, so Junior and Equity both receive $0; Equity gets $0.
   - name: financial_waterfall_equity_residual
     category: financial
@@ -183,6 +187,7 @@ items:
       - financial-model
       - waterfall
       - residual
+    family: financial-waterfall
   # Senior is paid in full; Mezzanine is the first tranche underpaid ($120 of $310), so Mezzanine is the first to take a loss.
   - name: financial_waterfall_first_loss
     category: financial
@@ -207,6 +212,7 @@ items:
       - financial-model
       - waterfall
       - first-loss
+    family: financial-waterfall
   # Equity gets a positive residual only once every senior claim is fully paid, i.e. above the sum of all non-equity claims 520+310+185 = $1015. At or below $1015, equity gets $0.
   - name: financial_waterfall_pool_equity_zero
     category: financial
@@ -231,6 +237,7 @@ items:
       - waterfall
       - capstone
       - breakpoint
+    family: financial-waterfall
   # B defaults and passes $120 to C, exceeding C's $60 buffer, so C defaults — answer: no.
   - name: financial_contagion_firm_c_survives
     category: financial
@@ -258,6 +265,7 @@ items:
       - financial-model
       - contagion
       - default-cascade
+    family: financial-contagion
   # Strict chain: A (120>50) → B (100>80) → C (120>60) → E (70>45); D's incoming $40 < $300 survives. Order A, B, C, E.
   - name: financial_contagion_default_order
     category: financial
@@ -294,6 +302,7 @@ items:
       - contagion
       - ordered
       - default-order
+    family: financial-contagion
   # A, B, C and E default; D survives — 4 failures.
   - name: financial_contagion_total_failed
     category: financial
@@ -320,6 +329,7 @@ items:
       - financial-model
       - contagion
       - count
+    family: financial-contagion
   # B's incoming loss is exactly $100; raising its buffer from $80 to $100 (a +$20 bump) stops B defaulting, so the cascade halts after A — only 1 failure instead of 4.
   - name: financial_contagion_buffer_bump_halts
     category: financial
@@ -348,6 +358,7 @@ items:
       - contagion
       - capstone
       - buffer
+    family: financial-contagion
   # Shoring up bank A (the shock's entry point) absorbs the original loss and stops the cascade entirely (0 failures); any other single top-up leaves more banks failing.
   - name: financial_contagion_best_bailout
     category: financial
@@ -376,6 +387,7 @@ items:
       - financial-model
       - contagion
       - bailout
+    family: financial-contagion
   # Month 1: NOI $130 ÷ debt service $80 = 1.625.
   - name: financial_covenant_dscr_month_1
     category: financial
@@ -402,6 +414,7 @@ items:
       - financial-model
       - covenant
       - dscr
+    family: financial-covenant
   # Months 1–6 clear their tiers (month 4: 130·1.02³/110 ≈ 1.25+); the month-7 step-up to $140 binds: NOI₇ = 130·1.02⁶ ≈ 146.4, /140 ≈ 1.046 < 1.25. First breach = month 7.
   - name: financial_covenant_first_breach_month
     category: financial
@@ -428,6 +441,7 @@ items:
       - covenant
       - capstone
       - breach-timing
+    family: financial-covenant
   # The DSCR dips below 1.25 from month 7 but its minimum over the horizon stays above 1.0, so the borrower is in breach, not insolvent.
   - name: financial_covenant_state
     category: financial
@@ -456,6 +470,7 @@ items:
       - financial-model
       - covenant
       - classification
+    family: financial-covenant
   # The month-7 step-up binds: 130·(1+g)⁶ ≥ 1.25·140 ⇒ g ≥ (175/130)^(1/6) − 1 ≈ 0.0508.
   - name: financial_covenant_min_growth_no_breach
     category: financial
@@ -488,6 +503,7 @@ items:
       - financial-model
       - covenant
       - min-growth
+    family: financial-covenant
   # NPV(A) = −1000 + 600/1.08 + 500/1.08² + 200/1.08³ = 142.99.
   - name: financial_npv_project_a
     category: financial
@@ -512,6 +528,7 @@ items:
       - financial-model
       - npv
       - discounting
+    family: financial-npv
   # NPV(B) = −1000 + 200/1.08 + 400/1.08² + 800/1.08³ = 163.19.
   - name: financial_npv_project_b
     category: financial
@@ -536,6 +553,7 @@ items:
       - financial-model
       - npv
       - discounting
+    family: financial-npv
   # At 8% (below the crossover rate), NPV(B) 163.19 > NPV(A) 142.99, so pick B.
   - name: financial_npv_which_project
     category: financial
@@ -560,6 +578,7 @@ items:
       - financial-model
       - npv
       - project-choice
+    family: financial-npv
   # The difference stream A−B = [0, 400, 100, −600] has one sign change, so a unique crossover exists where NPV(A)=NPV(B): r ≈ 0.1061 (both ≈ $98.90).
   - name: financial_npv_crossover_rate
     category: financial
@@ -589,6 +608,7 @@ items:
       - npv
       - capstone
       - crossover
+    family: financial-npv
   # Project A recovers $600 by end of year 1, needing $400 more of year 2's $500 inflow: 1 + 400/500 = 1.8 years.
   - name: financial_npv_payback_a
     category: financial
@@ -614,6 +634,7 @@ items:
       - financial-model
       - npv
       - payback
+    family: financial-npv
   # A = P·i / (1 − (1+i)^−N) = 20000·0.005 / (1 − 1.005^−60) = $386.66.
   - name: financial_amort_monthly_payment
     category: financial
@@ -640,6 +661,7 @@ items:
       - financial-model
       - amortization
       - payment
+    family: financial-amortization
   # Simulating 12 months with the $100 extra principal each month leaves a balance of $15230.33 (vs $16,463.94 with no extra).
   - name: financial_amort_balance_after_12
     category: financial
@@ -671,6 +693,7 @@ items:
       - financial-model
       - amortization
       - balance
+    family: financial-amortization
   # Summing the interest portion of every payment until the balance clears gives $2444.36 (vs $3,199.36 on the scheduled 60-month plan).
   - name: financial_amort_total_interest
     category: financial
@@ -702,6 +725,7 @@ items:
       - financial-model
       - amortization
       - interest
+    family: financial-amortization
   # The extra principal accelerates payoff: the balance reaches zero in month 47 (vs the scheduled 60).
   - name: financial_amort_payoff_month
     category: financial
@@ -727,3 +751,4 @@ items:
       - amortization
       - capstone
       - payoff
+    family: financial-amortization

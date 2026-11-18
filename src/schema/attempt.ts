@@ -30,6 +30,10 @@ export const ItemResult = Schema.Struct({
   parentItemId: Schema.optional(Schema.String),
   /** 1-based turn index within `parentItemId`; absent on single-shot items. */
   turn: Schema.optional(Schema.Number),
+  /** 0-based sample index of a repeated generation of this item; absent = sample 0. */
+  sample: Schema.optional(Schema.Number),
+  /** Sampler seed sent with the request; absent when none was sent. */
+  seed: Schema.optional(Schema.Number),
   executedAt: Schema.String,
   promptTokens: Schema.Number,
   generationTokens: Schema.Number,
@@ -75,6 +79,26 @@ export const ItemResult = Schema.Struct({
   ),
 });
 export type ItemResult = typeof ItemResult.Type;
+
+/**
+ * An attempt's lines grouped per item (by `itemId`), in first-seen order:
+ * one group per item, one entry per sample. A single-sample item is a group of one.
+ */
+export const groupSamples = <T extends { readonly itemId: string }>(
+  lines: ReadonlyArray<T>,
+): T[][] => {
+  const groups = new Map<string, T[]>();
+  for (const l of lines) {
+    const g = groups.get(l.itemId);
+    if (g === undefined) groups.set(l.itemId, [l]);
+    else g.push(l);
+  }
+  return [...groups.values()];
+};
+
+/** Fraction of an item's samples that scored exactly 1 (a pass). */
+export const passFraction = (samples: ReadonlyArray<{ readonly score: number }>): number =>
+  samples.filter((s) => s.score === 1).length / samples.length;
 
 export const AttemptAggregate = Schema.Struct({
   score: Schema.Number,

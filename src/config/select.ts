@@ -29,3 +29,20 @@ export const selectChallengeStems = (stems: readonly string[], pattern?: string)
   const isMatch = picomatch(pattern);
   return stems.filter((s) => isMatch(s));
 };
+
+/**
+ * Item matcher over `challengeId/itemName` globs (same engine as above). A turn
+ * of a multi-turn item also matches by its parent's name, so `chains/chain_x`
+ * selects every turn of `chain_x`.
+ */
+export const itemMatcher = (
+  patterns: readonly string[],
+): ((
+  challengeId: string,
+  item: { itemId: string; parentItemId?: string | undefined },
+) => boolean) => {
+  const isMatch = picomatch([...patterns]);
+  return (challengeId, item) =>
+    isMatch(`${challengeId}/${item.itemId}`) ||
+    (item.parentItemId !== undefined && isMatch(`${challengeId}/${item.parentItemId}`));
+};

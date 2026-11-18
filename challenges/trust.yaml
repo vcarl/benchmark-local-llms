@@ -68,6 +68,7 @@ items:
       - TODO
       - trust
       - reputation
+    family: trust-town
   # Bex broke both promises he made (0 of 2 kept) — a track record of zero reliability, so: no.
   - name: trust_can_bex_be_trusted
     category: social
@@ -134,6 +135,7 @@ items:
       - TODO
       - trust
       - reputation
+    family: trust-town
   # Tarl and Orin take the same side on all 3 issues (levy, pact, militia). Mira matches 2/3, Bex 0/3 (opposite on every one) — Orin is the exact match.
   - name: alignment_tarl_closest
     category: social
@@ -200,6 +202,7 @@ items:
       - TODO
       - alignment
       - revealed-preference
+    family: trust-town
   # Rell cooperated all 5 rounds; Vane 4, Sten 1 — Rell is most cooperative.
   - name: repeated_most_cooperative
     category: social
@@ -225,6 +228,7 @@ items:
       - TODO
       - repeated-game
       - reputation
+    family: repeated-traders
   # Tit-for-tat copies the opponent's last move; their round-5 move was D, so you defect in round 6.
   - name: repeated_tit_for_tat_next
     category: social
@@ -265,6 +269,7 @@ items:
       - TODO
       - repeated-game
       - exploitation
+    family: repeated-traders
   # Posterior odds = (0.4/0.6)·(0.8/0.3)^4·(0.2/0.7)^2 = 32768/11907 ≈ 2.751994; P(H|data) = 32768/44675 ≈ 0.733475.
   - name: trust_bayes_posterior
     category: social
@@ -295,6 +300,7 @@ items:
       - TODO
       - trust
       - bayesian
+    family: trust-bayes
   # Multiply the odds by the bad-signal factor (1−s)/t = 2/7: P = 65536/148885 ≈ 0.440179.
   - name: trust_bayes_after_extra_bad
     category: social
@@ -328,6 +334,7 @@ items:
       - TODO
       - trust
       - bayesian
+    family: trust-bayes
   # 0.733475 falls to 0.440179 after the extra bad signal, crossing below 0.5 — yes.
   - name: trust_bayes_crosses_half
     category: social
@@ -354,6 +361,7 @@ items:
       - TODO
       - trust
       - bayesian
+    family: trust-bayes
   # Each good report multiplies the odds by s/(1−t) = 8/3. From 2.751994: 1 → 7.339 (P 0.880); 2 → 19.570 (P 0.951 ≥ 0.9). Answer 2.
   - name: trust_bayes_signals_to_ninety
     category: social
@@ -379,6 +387,7 @@ items:
       - TODO
       - trust
       - bayesian
+    family: trust-bayes
   # Temptation minus reward, T − R = 9 − 5 = 4.
   - name: trust_folk_temptation_gain
     category: social
@@ -404,6 +413,7 @@ items:
       - TODO
       - trust
       - folk-theorem
+    family: trust-folk
   # δ* = (T − R)/(T − P) = (9 − 5)/(9 − 2) = 4/7 ≈ 0.571429.
   - name: trust_folk_delta_star
     category: social
@@ -435,6 +445,7 @@ items:
       - TODO
       - trust
       - folk-theorem
+    family: trust-folk
   # 0.6 ≥ δ* = 0.571429, so cooperation is sustainable — yes.
   - name: trust_folk_sustainable_at_delta
     category: social
@@ -461,6 +472,7 @@ items:
       - TODO
       - trust
       - folk-theorem
+    family: trust-folk
   # Mutual cooperation pays the reward R = 5 each per season.
   - name: trust_folk_coop_payoff
     category: social
@@ -485,6 +497,7 @@ items:
       - TODO
       - trust
       - folk-theorem
+    family: trust-folk
   # With Δ = 0, U(low) − U(high) = c_H − c_L = 10 − 2 = 8 > 0, so the artisan shirks — yes.
   - name: trust_hazard_shirk_flat_wage
     category: social
@@ -511,6 +524,7 @@ items:
       - TODO
       - trust
       - moral-hazard
+    family: trust-moral-hazard
   # Δ* = (c_H − c_L)/(p_H − p_L) = (10 − 2)/(0.8 − 0.5) = 8/0.3 ≈ 26.666667.
   - name: trust_hazard_min_bonus
     category: social
@@ -541,6 +555,7 @@ items:
       - TODO
       - trust
       - moral-hazard
+    family: trust-moral-hazard
   # With participation binding the expected wage equals c_H = 10, so profit = p_H·V_good + (1−p_H)·V_bad − c_H = 0.8·100 − 10 = 70.
   - name: trust_hazard_principal_profit
     category: social
@@ -566,6 +581,7 @@ items:
       - TODO
       - trust
       - moral-hazard
+    family: trust-moral-hazard
   # Profit under high effort = 0.8·100 − 10 = 70; under low effort with a flat wage = 0.5·100 − 2 = 48. 70 > 48 — yes.
   - name: trust_hazard_worth_incentivizing
     category: social
@@ -592,6 +608,7 @@ items:
       - TODO
       - trust
       - moral-hazard
+    family: trust-moral-hazard
   # Chains S→T: S→A→T = 0.63, S→A→C→T = 0.648, S→B→T = 0.475, S→B→C→T = 0.27. Strongest = 0.648 via S→A→C→T.
   - name: trust_web_best_path_value
     category: social
@@ -615,6 +632,7 @@ items:
       - TODO
       - trust
       - web-of-trust
+    family: trust-web
   # Strongest chain is S → A → C → T (product 0.648), strictly unique (no tie at the max).
   - name: trust_web_best_path_sequence
     category: social
@@ -644,6 +662,7 @@ items:
       - TODO
       - trust
       - web-of-trust
+    family: trust-web
   # Strongest-chain trust 0.648 > 0.6 — yes.
   - name: trust_web_reachable_above
     category: social
@@ -667,6 +686,7 @@ items:
       - TODO
       - trust
       - web-of-trust
+    family: trust-web
   # Products 0.648, 0.63, 0.475 exceed 0.4; 0.27 does not — 3 chains.
   - name: trust_web_paths_above
     category: social
@@ -688,6 +708,7 @@ items:
       - TODO
       - trust
       - web-of-trust
+    family: trust-web
   # Vale kept 4 of 6 marks: 4/6 ≈ 0.666667.
   - name: trust_decay_flat_vale
     category: social
@@ -723,6 +744,7 @@ items:
       - TODO
       - trust
       - decayed-reputation
+    family: trust-decay
   # P = λ²+λ³+λ⁴+λ⁵ = 0.78336, N = λ⁰+λ¹ = 1.6; reputation = 1.78336/4.38336 ≈ 0.406848.
   - name: trust_decay_vale_score
     category: social
@@ -755,6 +777,7 @@ items:
       - TODO
       - trust
       - decayed-reputation
+    family: trust-decay
   # Decayed reputations: Vale 0.406848, Pell 0.675281. Pell's recent record wins, reversing the flat ranking (Vale leads on raw counts).
   - name: trust_decay_most_trustworthy
     category: social
@@ -783,6 +806,7 @@ items:
       - TODO
       - trust
       - decayed-reputation
+    family: trust-decay
   # 0.666667 − 0.406848 = 0.259819.
   - name: trust_decay_flat_vs_decay_gap
     category: social
@@ -811,3 +835,4 @@ items:
       - TODO
       - trust
       - decayed-reputation
+    family: trust-decay

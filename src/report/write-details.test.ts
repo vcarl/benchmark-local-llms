@@ -141,6 +141,58 @@ describe("writeDetails", () => {
     expect(detail.items.map((i: { item_id: string }) => i.item_id)).toEqual(["kept"]);
   });
 
+  it("shows one entry per resampled item, its first sample, with the sample pass count", async () => {
+    const sh = scorerHash(SCORER as never);
+    const line = (promptName: string, score: number, extra: Record<string, unknown> = {}) => ({
+      itemId: promptName,
+      promptName,
+      promptHash: "ph",
+      itemHash: "ih",
+      scorerHash: sh,
+      executedAt: "t",
+      promptTokens: 1,
+      generationTokens: 1,
+      promptTps: 1,
+      generationTps: 1,
+      peakMemoryGb: 0,
+      wallTimeSec: 0,
+      output: String(score),
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      score,
+      ...extra,
+    });
+    const file = join(dir, "att-x.jsonl");
+    const out = join(dir, "out");
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
+          yield* writeBlob(dir, "prompts", "ph", "What is 2+2?");
+          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
+          yield* writeBlob(dir, "system", "cfg", "Be concise.");
+          const body = [
+            v2Header,
+            line("a", 1),
+            line("a", 0, { sample: 1 }),
+            line("a", 1, { sample: 2 }),
+            line("b", 1),
+          ]
+            .map((l) => JSON.stringify(l))
+            .join("\n");
+          yield* Effect.promise(() => writeFile(file, `${body}\n`));
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+        }),
+        NodeContext.layer,
+      ),
+    );
+    const detail = JSON.parse(await readFile(join(out, "att-x.json"), "utf8"));
+    expect(detail.items.map((i: { item_id: string }) => i.item_id)).toEqual(["a", "b"]);
+    expect(detail.items[0].samples).toEqual([2, 3]);
+    expect(detail.items[1].samples).toBeUndefined();
+  });
+
   it("marks turn units with parent, turn and whether the model's own previous turn passed", async () => {
     const sh = scorerHash(SCORER as never);
     const row = (itemId: string, extra: Record<string, unknown>, score: number) => ({

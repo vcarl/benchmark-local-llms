@@ -114,6 +114,7 @@ Each entry in `items` is a complete item:
 | `prompt` | `string` | yes | The user-message text sent to the model. |
 | `scorer` | enum | yes | Scorer discriminator (see below); the matching per-scorer fields are siblings of `scorer`. |
 | `tags` | `string[]` | no | Free-form labels. |
+| `family` | `string` | no | Uncertainty cluster: items sharing a scenario share a family. Default: the item stands alone. Metadata only — enters no hash. See [SCORING.md § Uncertainty](./SCORING.md#uncertainty-and-statistical-ties). |
 
 The `scorer` field selects one variant, each with its own required sibling fields:
 

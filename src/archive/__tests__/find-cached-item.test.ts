@@ -2,7 +2,7 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { type CacheKey, findCachedItem } from "../cache.js";
+import { type CacheKey, findCachedItem, findCachedSamples } from "../cache.js";
 
 const header = (over: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -76,6 +76,23 @@ const run = <A>(
       return yield* eff;
     }).pipe(Effect.provide(NodeContext.layer)),
   );
+
+describe("findCachedSamples", () => {
+  it("returns the newest line per sample index; an unmarked line is sample 0", async () => {
+    const dir = `/tmp/p4-cache-samples-${process.pid}`;
+    const res = await run(
+      findCachedSamples(dir, KEY),
+      {
+        "a.jsonl": `${header()}\n${item({ output: "s0" })}\n${item({ sample: 1, output: "s1-old" })}\n`,
+        "b.jsonl": `${header()}\n${item({ sample: 1, output: "s1-new", executedAt: "2026-02-01T00:00:00Z" })}\n${item({ sample: 2, itemHash: "other" })}\n`,
+      },
+      dir,
+    );
+    expect([...res.keys()].sort()).toEqual([0, 1]);
+    expect(res.get(0)?.output).toBe("s0");
+    expect(res.get(1)?.output).toBe("s1-new");
+  });
+});
 
 describe("findCachedItem", () => {
   it("returns the matching item from a completed attempt", async () => {

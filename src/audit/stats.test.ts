@@ -47,8 +47,9 @@ const obs = (configId: string, itemId: string, pass: boolean, output = ""): Obs 
   challengeId: "c",
   itemId,
   configId,
-  pass,
-  output,
+  pass: pass ? 1 : 0,
+  samples: 1,
+  wrong: pass ? [] : [output],
 });
 
 describe("auditItems", () => {
@@ -88,6 +89,40 @@ describe("auditItems", () => {
     expect(by("good")?.flags).toContain("edge");
     expect(by("good2")?.flags).toContain("edge");
     expect(by("noise")?.flags).not.toContain("edge");
+  });
+});
+
+describe("toObservations with repeated samples", () => {
+  it("gives one observation per config and item: pass fraction, sample count, all-k pass, failed outputs", () => {
+    const line = (promptName: string, score: number, output = "") => ({
+      itemId: promptName,
+      promptName,
+      score,
+      output,
+    });
+    const a = {
+      sourcePath: "x",
+      manifest: { configId: "a", challengeId: "c" },
+      items: [line("x", 1), line("x", 0, "7"), line("x", 1), line("x", 1), line("y", 1)],
+    } as unknown as LoadedAttempt;
+    expect(toObservations([a])).toEqual([
+      { challengeId: "c", itemId: "x", configId: "a", pass: 0.75, samples: 4, wrong: ["7"] },
+      { challengeId: "c", itemId: "y", configId: "a", pass: 1, samples: 1, wrong: [] },
+    ]);
+  });
+  it("audits the per-item mean and reports samples and pass^k", () => {
+    const o = (configId: string, pass: number, samples: number): Obs => ({
+      challengeId: "c",
+      itemId: "x",
+      configId,
+      pass,
+      samples,
+      wrong: [],
+    });
+    const [row] = auditItems([o("a", 0.75, 4), o("b", 1, 4), o("c", 1, 1)]);
+    expect(row?.p).toBeCloseTo(2.75 / 3);
+    expect(row?.samples).toBe(9);
+    expect(row?.passAllK).toBe(0.5);
   });
 });
 

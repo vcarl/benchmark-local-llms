@@ -80,3 +80,60 @@ errata:
       current scorers. Archived lines are kept and listed as retiredItems.
     scorerChange: false
     promptFix: pending-next-release
+  - id: E-0007
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - economics/econ_entry_threat_credible
+      - economics/econ_mixed_has_pure_ne
+      - economics/econ_mixed_receiver_prob_left
+      - economics/econ_mixed_server_prob_left
+      - economics/econ_mixed_server_value
+      - effect-ts/effect_constructors_structured
+      - effect-ts/effect_error_class
+      - effect-ts/effect_fiber_fork
+      - effect-ts/effect_parallel
+      - effect-ts/effect_queue_bounded
+      - effect-ts/effect_resource_management
+      - effect-ts/effect_service_3_parts_structured
+      - effect-ts/effect_service_pattern
+      - effect-ts/effect_sink
+      - effect-ts/effect_stream_pipeline_structured
+      - effect-ts/effect_try_promise
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_monthly_payment
+      - financial/financial_amort_payoff_month
+      - financial/financial_bailout_amount
+      - financial/financial_bailout_target
+      - financial/financial_breakeven_liquidity_cascade
+      - financial/financial_contagion_best_bailout
+      - financial/financial_contagion_firm_c_survives
+      - financial/financial_covenant_min_growth_no_breach
+      - financial/financial_covenant_state
+      - financial/financial_npv_crossover_rate
+      - financial/financial_npv_payback_a
+      - financial/financial_npv_project_a
+      - financial/financial_npv_project_b
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_bayes_crosses_half
+      - trust/trust_bayes_posterior
+      - trust/trust_decay_flat_vs_decay_gap
+      - trust/trust_decay_most_trustworthy
+      - trust/trust_decay_vale_score
+      - trust/trust_folk_delta_star
+      - trust/trust_hazard_min_bonus
+      - trust/trust_hazard_principal_profit
+      - trust/trust_hazard_worth_incentivizing
+    description: >-
+      oMLX, when thinking hits maxTokens, returns the unfinished reasoning as
+      both reasoning and content, so the scorer graded the chain of thought and
+      could pass on an intermediate figure. A line stopped by "length" whose
+      output equals its reasoning now scores as no output (score 0,
+      failureKind thinking_truncated); rawOutput keeps the content. The rule is
+      harness-wide, not per-item, and changes no scorerHash, so the coverage
+      check neither requires nor tests this entry; the items listed are those
+      with archived passes it flipped (121 lines across 13 omlx configs).
+      `./bench score --stale` treats an attempt holding such a line as stale
+      and re-scores it.
+    scorerChange: true
+    promptFix: none

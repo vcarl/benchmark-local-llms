@@ -196,6 +196,28 @@ describe("ChatCompletion", () => {
     expect(capturedBody.max_tokens).toBe(2048);
   });
 
+  it("sends seed when set and omits it otherwise", async () => {
+    const bodies: Array<{ seed?: number }> = [];
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient((req) => {
+          const body = req.body;
+          if (body._tag === "Uint8Array")
+            bodies.push(JSON.parse(new TextDecoder().decode(body.body)));
+          return sseResponse({ content: "ok", usage: { prompt_tokens: 1, completion_tokens: 1 } });
+        }),
+      ),
+    );
+    const program = Effect.gen(function* () {
+      const chat = yield* ChatCompletion;
+      yield* chat.complete(baseParams({ seed: 1234 }));
+      yield* chat.complete(baseParams());
+    });
+    await Effect.runPromise(Effect.provide(program, layer));
+    expect(bodies[0]?.seed).toBe(1234);
+    expect(bodies[1] && "seed" in bodies[1]).toBe(false);
+  });
+
   it("captures reasoning_content as result.reasoning when content is empty", async () => {
     // Some llama-server builds (`--reasoning-format deepseek`) split
     // reasoning into `message.reasoning_content` and leave `content` empty.

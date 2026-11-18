@@ -22,7 +22,8 @@
  * attemptId is kept in `restampedFrom`.
  *
  * `--stale` batch-processes every completed attempt in `--archive-dir` whose
- * challengeHash differs from its current challenge's (implies `--corpus`).
+ * challengeHash differs from its current challenge's, or that holds an
+ * echoed-reasoning output not yet dropped (E-0007) (implies `--corpus`).
  */
 import { Command, Options } from "@effect/cli";
 import { type CommandExecutor, FileSystem, Path } from "@effect/platform";
@@ -38,7 +39,7 @@ import { loadAttemptReconstruction } from "../../report/reconstruct.js";
 import type { AttemptAggregate, AttemptManifest, ItemResult } from "../../schema/attempt.js";
 import type { ScorerConfig } from "../../schema/scorer.js";
 import { scoreOrFold } from "../../scoring/dispatch.js";
-import { applyScore } from "../../scoring/failure-kind.js";
+import { applyScore, dropEchoedReasoning } from "../../scoring/failure-kind.js";
 import { makeLoggerLayer } from "../logger.js";
 
 const printLine = (line: string): Effect.Effect<void> =>
@@ -54,7 +55,7 @@ const archiveOpt = Options.file("archive").pipe(
 const staleOpt = Options.boolean("stale").pipe(
   Options.withDefault(false),
   Options.withDescription(
-    "Re-score every completed attempt in --archive-dir whose challengeHash differs from its current challenge's (implies --corpus)",
+    "Re-score every completed attempt in --archive-dir whose challengeHash differs from its current challenge's, or that holds an output echoing truncated reasoning (implies --corpus)",
   ),
 );
 
@@ -124,7 +125,7 @@ export interface RescoreResult {
  * challenge. The whole-archive (challenge-unresolvable) fallback is handled by
  * the caller BEFORE this runs; here the challenge is known-resolved.
  *
- * Per item:
+ * Per item (an output echoing truncated reasoning is first dropped, E-0007):
  *   1. promptName missing in the challenge → with `retire` (same challenge
  *      version) the item is retired: line kept verbatim, listed in `retired`;
  *      otherwise keep stored score, +drift, warn.
@@ -151,11 +152,12 @@ export const rescoreItems = (
     const retired: string[] = [];
     let rescored = 0;
 
-    for (const archived of items) {
+    for (const stored of items) {
+      const archived = dropEchoedReasoning(stored);
       const resolvedItem = byName.get(archived.promptName);
       if (resolvedItem === undefined && retire) {
         retired.push(archived.promptName);
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
       if (resolvedItem === undefined) {
@@ -163,7 +165,7 @@ export const rescoreItems = (
         const note = `  warn ${archived.promptName}: not in challenge → kept stored score ${archived.score}`;
         notes.push(note);
         warnings.push(note);
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
       if (resolvedItem.promptHash !== archived.promptHash) {
@@ -171,7 +173,7 @@ export const rescoreItems = (
         const note = `  warn ${archived.promptName}: promptHash drift (stored ${archived.promptHash} vs resolved ${resolvedItem.promptHash}) → kept stored score ${archived.score}`;
         notes.push(note);
         warnings.push(note);
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
       const current = {
@@ -215,10 +217,11 @@ export const rescoreItemsFromStore = (
     const updated: ItemResult[] = [];
     const notes: string[] = [];
     let rescored = 0;
-    for (const archived of items) {
+    for (const stored of items) {
+      const archived = dropEchoedReasoning(stored);
       const scorer = byId.get(archived.itemId);
       if (scorer === undefined) {
-        updated.push(archived);
+        updated.push(stored);
         continue;
       }
       rescored += 1;
@@ -244,7 +247,7 @@ export const withStaleScoreItems = (
   kept: ReadonlyArray<string>,
 ): AttemptManifest => {
   const { staleScoreItems: _prior, ...rest } = manifest;
-  return kept.length === 0 ? rest : { ...rest, staleScoreItems: kept };
+  return kept.length === 0 ? rest : { ...rest, staleScoreItems: [...new Set(kept)] };
 };
 
 /** Record on the manifest which lines belong to retired items, or clear the record. */
@@ -253,7 +256,7 @@ const withRetiredItems = (
   retired: ReadonlyArray<string>,
 ): AttemptManifest => {
   const { retiredItems: _prior, ...rest } = manifest;
-  return retired.length === 0 ? rest : { ...rest, retiredItems: retired };
+  return retired.length === 0 ? rest : { ...rest, retiredItems: [...new Set(retired)] };
 };
 
 // ── Summary line ─────────────────────────────────────────────────────────────
@@ -299,8 +302,11 @@ export const restampBlocker = (
   if (manifest.attemptId.split("-")[2] !== manifest.challengeHash) {
     return "attemptId does not embed challengeHash";
   }
+  // A resampled item has one line per sample; a duplicated (item, sample) is the defect.
+  if (new Set(items.map((i) => `${i.promptName}#${i.sample ?? 0}`)).size !== items.length) {
+    return "duplicate item names in archive";
+  }
   const archived = new Map(items.map((i) => [i.promptName, i]));
-  if (archived.size !== items.length) return "duplicate item names in archive";
   for (const r of challenge.items) {
     const a = archived.get(r.itemId);
     if (a === undefined) return `item ${r.itemId} missing from archive`;
@@ -506,7 +512,8 @@ const scoreOne = (
 
 /**
  * `--stale`: every completed attempt `.jsonl` in `archiveDir` whose
- * challengeHash differs from its current challenge's, via the corpus path.
+ * challengeHash differs from its current challenge's, or that holds an
+ * echoed-reasoning output (E-0007), via the corpus path.
  * Non-attempt (legacy run) files are named and skipped; they and incomplete
  * and unresolvable attempts are tallied as skipped by reason.
  */
@@ -550,7 +557,12 @@ const scoreStale = (
         skip("challenge unresolvable");
         continue;
       }
-      if (manifest.challengeHash === resolved.challengeHash) {
+      // A current attempt is still stale while it holds an echoed-reasoning
+      // output scored as an answer (E-0007).
+      if (
+        manifest.challengeHash === resolved.challengeHash &&
+        items.every((i) => dropEchoedReasoning(i) === i)
+      ) {
         tally.current += 1;
         continue;
       }

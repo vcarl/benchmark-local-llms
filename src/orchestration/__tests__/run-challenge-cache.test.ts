@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
+import type { ItemResult } from "../../schema/attempt.js";
 import { executeOrCacheItem, runChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
@@ -40,6 +41,7 @@ const makeChallenge = (): ResolvedChallenge => {
   const prompt = samplePromptExact();
   const item: ResolvedItem = {
     itemId: prompt.name,
+    family: prompt.name,
     promptHash: prompt.promptHash,
     itemHash: "ih-fixed",
     scorer: prompt.scorer,
@@ -323,6 +325,7 @@ describe("runChallenge cache", () => {
     const m = okStub();
     const row = await Effect.runPromise(
       executeOrCacheItem(input, item).pipe(
+        Effect.map(([r]) => r as ItemResult),
         Effect.provide(m.layer),
         Effect.provide(inertHttpClientLayer),
         Effect.provide(NodeContext.layer),
@@ -346,6 +349,82 @@ describe("runChallenge cache", () => {
       error: null,
       score: 1,
     });
+  });
+});
+
+describe("runChallenge repeated sampling", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const run = (attemptId: string, samplesOf: (item: ResolvedItem) => number) => {
+    const m = makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: {
+          output: SCORE_1,
+          reasoning: null,
+          promptTokens: 5,
+          generationTokens: 5,
+          promptTps: 0,
+          generationTps: 0,
+          finishReason: null,
+        },
+      },
+    );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runChallenge({
+          config,
+          challenge: makeChallenge(),
+          attemptId,
+          archiveDir: dir,
+          archivePath: `${dir}/${attemptId}.jsonl`,
+          env,
+          deps: fakeDeps(),
+          samplesOf,
+        });
+        const fs = yield* FileSystem.FileSystem;
+        const text = yield* fs.readFileString(`${dir}/${attemptId}.jsonl`);
+        return text
+          .split("\n")
+          .filter((l) => l.length > 0)
+          .slice(1)
+          .map((l) => JSON.parse(l) as { sample?: number; seed?: number; executedAt: string });
+      }).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    ).then((lines) => ({ lines, calls: m.log.calls }));
+  };
+
+  it("writes one line per sample, sample 0 unmarked, each fresh call seeded and the seed recorded", async () => {
+    const { lines, calls } = await run("att-1", () => 3);
+    expect(calls.length).toBe(3);
+    expect(lines.map((l) => l.sample)).toEqual([undefined, 1, 2]);
+    expect(lines.map((l) => l.seed)).toEqual(calls.map((c) => c.seed));
+    expect(lines.every((l) => Number.isInteger(l.seed))).toBe(true);
+  });
+
+  it("reuses cached samples and generates only the missing ones", async () => {
+    const first = await run("att-1", () => 2);
+    const { lines, calls } = await run("att-2", () => 5);
+    expect(calls.length).toBe(3);
+    expect(lines.map((l) => l.sample ?? 0)).toEqual([0, 1, 2, 3, 4]);
+    expect(lines.slice(0, 2)).toEqual(first.lines);
+  });
+
+  it("samples 1 is today's single cached generation", async () => {
+    await run("att-1", () => 1);
+    const { lines, calls } = await run("att-2", () => 1);
+    expect(calls.length).toBe(0);
+    expect(lines.length).toBe(1);
   });
 });
 
@@ -386,6 +465,7 @@ describe("executeOrCacheItem failureKind", () => {
         },
         item,
       ).pipe(
+        Effect.map(([r]) => r as ItemResult),
         Effect.provide(m.layer),
         Effect.provide(inertHttpClientLayer),
         Effect.provide(NodeContext.layer),

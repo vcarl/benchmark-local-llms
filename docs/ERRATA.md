@@ -35,6 +35,8 @@ Both live at the repo root; `challenges/` holds only challenge suites.
 | item removed | an erratum naming the item of kind `retired` |
 | item added | an erratum naming the item of kind `added` |
 
+An erratum for a harness-wide scoring rule that changes no `scorerHash` (E-0007) is neither required nor tested by the check; it lists the items whose archived scores it changed, and `./bench score --stale` finds the affected attempts by content.
+
 It also fails on a duplicate `id` and a `release` field out of step with `promptFix`. An erratum may name an item that exists in neither snapshot — a retired item leaves both at the next release, and the erratum stays as history.
 
 ## Workflow

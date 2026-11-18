@@ -260,6 +260,40 @@ describe("resolveChallenge hashing", () => {
     ]);
     expect(h1.challengeHash).not.toBe(h2.challengeHash);
   });
+
+  it("family is metadata: defaults to a singleton (turns share the parent's) and changes no hash", async () => {
+    const turn = {
+      prompt: "p",
+      answer: "1",
+      scorer: "exact_match",
+      expected: "1",
+      extract: "(\\d)",
+    };
+    const chain = { name: "c", category: "x", tier: 1, turns: [turn, turn] };
+    const base = {
+      id: "g",
+      version: 1,
+      passThreshold: 0.8,
+      items: [exactItem("a", "q-a"), chain],
+    } as unknown as Challenge;
+    const tagged = {
+      ...base,
+      items: [
+        { ...exactItem("a", "q-a"), family: "f" },
+        { ...chain, family: "f" },
+      ],
+    } as unknown as Challenge;
+    const [u, t] = await Promise.all([
+      Effect.runPromise(provide(resolveChallenge(base, challengesDir))),
+      Effect.runPromise(provide(resolveChallenge(tagged, challengesDir))),
+    ]);
+    expect(u.items.map((i) => i.family)).toEqual(["g/a", "g/c", "g/c"]);
+    expect(t.items.map((i) => i.family)).toEqual(["f", "f", "f"]);
+    expect(t.challengeHash).toBe(u.challengeHash);
+    expect(t.items.map((i) => [i.itemHash, i.promptHash])).toEqual(
+      u.items.map((i) => [i.itemHash, i.promptHash]),
+    );
+  });
 });
 
 describe("resolveChallenge multi-turn items", () => {

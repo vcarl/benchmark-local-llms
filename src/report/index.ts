@@ -21,7 +21,12 @@ import { type AttemptLoadIssue, loadAttemptArchives } from "./load-attempts.js";
 import { modelKeyOverrides } from "./model-key.js";
 import { buildRows, type RowsDataset } from "./rows.js";
 import { writeDataJs } from "./write-data-js.js";
-import { type DetailWriteResult, writeDetails } from "./write-details.js";
+import {
+  type DetailWriteResult,
+  type FamilyOf,
+  singletonFamily,
+  writeDetails,
+} from "./write-details.js";
 
 export interface ReportOptions {
   /** Directory containing `*.jsonl` archives to report on. */
@@ -63,18 +68,34 @@ const defaultDetailsDir = (outputPath: string): string => {
   return path.join(webappRoot, "public", "details");
 };
 
-/** The challenge set: every challenge loadable from the directory. An unloadable file is left out. */
+/**
+ * The challenge set (every challenge loadable from the directory), and item
+ * families read from it — metadata, so archives need no re-score. An
+ * unloadable file is left out of the set; an item it does not name falls back
+ * to a singleton family.
+ */
 const loadChallengeSet = (
   challengesDir: string,
-): Effect.Effect<ResolvedChallenge[], never, FileSystem.FileSystem> =>
+): Effect.Effect<
+  { challenges: ResolvedChallenge[]; familyOf: FamilyOf },
+  never,
+  FileSystem.FileSystem
+> =>
   Effect.gen(function* () {
+    const byItem = new Map<string, string>();
     const challenges: ResolvedChallenge[] = [];
     const files = yield* listChallengeFiles(challengesDir).pipe(Effect.orElseSucceed(() => []));
     for (const f of files) {
       const c = yield* loadChallenge(f.path).pipe(Effect.option);
-      if (Option.isSome(c)) challenges.push(c.value);
+      if (Option.isNone(c)) continue;
+      challenges.push(c.value);
+      for (const i of c.value.items) byItem.set(`${c.value.id}/${i.itemId}`, i.family);
     }
-    return challenges;
+    return {
+      challenges,
+      familyOf: (challengeId, item) =>
+        byItem.get(`${challengeId}/${item.promptName}`) ?? singletonFamily(challengeId, item),
+    };
   });
 
 /** `challenges` → `main`; any other challenges directory names its own dataset. */
@@ -108,7 +129,7 @@ export const runReport = (
     const challengesDir = options.challengesDir ?? "challenges";
 
     const loaded = yield* loadAttemptArchives(archiveDir);
-    const challenges = yield* loadChallengeSet(challengesDir);
+    const { challenges, familyOf } = yield* loadChallengeSet(challengesDir);
     const selection = detailSources(loaded.attempts);
     const datasets = [
       buildRows({
@@ -130,7 +151,11 @@ export const runReport = (
     let details: DetailWriteResult = { written: 0, skipped: 0 };
     if (!dryRun) {
       yield* writeDataJs(outputPath, datasets);
-      details = yield* writeDetails(defaultDetailsDir(outputPath), selection.detailSources);
+      details = yield* writeDetails(
+        defaultDetailsDir(outputPath),
+        selection.detailSources,
+        familyOf,
+      );
     }
 
     return {

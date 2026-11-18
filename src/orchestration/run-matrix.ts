@@ -11,7 +11,7 @@
  */
 import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
 import { Clock, Effect } from "effect";
-import type { ResolvedChallenge } from "../config/challenges.js";
+import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
 import type { Runtime } from "../schema/enums.js";
@@ -43,6 +43,8 @@ export interface RunMatrixInput {
   readonly env: RunEnv;
   readonly deps: RunModelDeps;
   readonly noCache?: boolean;
+  /** Samples per item of a challenge (see `RunChallengeInput.samplesOf`); default 1. */
+  readonly samplesOf?: (challengeId: string, item: ResolvedItem) => number;
   readonly onCell?: (
     cell: MatrixCell,
     configIndex: number,
@@ -95,6 +97,12 @@ export const runMatrix = (
                 env,
                 deps: input.deps,
                 ...(input.noCache !== undefined ? { noCache: input.noCache } : {}),
+                ...(input.samplesOf === undefined
+                  ? {}
+                  : {
+                      samplesOf: (item: ResolvedItem) =>
+                        input.samplesOf?.(ch.resolved.id, item) ?? 1,
+                    }),
               },
               server,
             ).pipe(Effect.either);

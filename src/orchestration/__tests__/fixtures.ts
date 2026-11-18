@@ -130,6 +130,7 @@ export const makeChallenge = (): ResolvedChallenge => {
   const prompt = samplePromptExact();
   const item: ResolvedItem = {
     itemId: prompt.name,
+    family: prompt.name,
     promptHash: prompt.promptHash,
     itemHash: "ih-fixed",
     scorer: prompt.scorer,

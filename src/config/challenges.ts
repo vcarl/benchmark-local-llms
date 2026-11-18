@@ -30,6 +30,12 @@ export interface ResolvedItem {
   readonly parentItemId?: string;
   /** 1-based turn index; absent on single-shot items. */
   readonly turn?: number;
+  /**
+   * Cluster id for the report's uncertainty: the YAML `family`, else the item's
+   * own `challengeId/name` (a turn defaults to its parent's). Metadata only —
+   * it enters no hash, so changing it never re-identifies an item.
+   */
+  readonly family: string;
 }
 export interface ResolvedChallenge {
   readonly id: string;
@@ -274,6 +280,7 @@ const expandItem = (item: ChallengeItem): ReadonlyArray<Unit> => {
         category: item.category,
         tier: item.tier,
         tags: item.tags,
+        family: item.family,
       },
       answer,
       ...(history.length === 0 ? {} : { history: [...history] }),
@@ -335,6 +342,7 @@ export const resolveChallenge = (
           scorer: prompt.scorer,
           prompt,
           ...turn,
+          family: item.family ?? `${challenge.id}/${turn.parentItemId ?? item.name}`,
         } satisfies ResolvedItem;
       }),
     );

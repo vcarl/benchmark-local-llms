@@ -18,14 +18,33 @@ import {
 
 describe("aggregate", () => {
   it("passes when perfect-score fraction meets threshold", () => {
-    expect(aggregate([{ score: 1 }, { score: 1 }, { score: 0 }], 0.6)).toEqual({
+    expect(
+      aggregate(
+        [
+          { itemId: "a", score: 1 },
+          { itemId: "b", score: 1 },
+          { itemId: "c", score: 0 },
+        ],
+        0.6,
+      ),
+    ).toEqual({
       score: 2 / 3,
       passed: true,
     });
   });
   it("fails below threshold and handles empty", () => {
-    expect(aggregate([{ score: 0.9 }], 0.8)).toEqual({ score: 0, passed: false }); // partial credit is not a pass
+    expect(aggregate([{ itemId: "a", score: 0.9 }], 0.8)).toEqual({ score: 0, passed: false }); // partial credit is not a pass
     expect(aggregate([], 0.5)).toEqual({ score: 0, passed: false });
+  });
+  it("averages an item's samples before averaging over items", () => {
+    const lines = [
+      { itemId: "a", score: 1 },
+      { itemId: "a", score: 0, sample: 1 },
+      { itemId: "a", score: 1, sample: 2 },
+      { itemId: "a", score: 1, sample: 3 },
+      { itemId: "b", score: 1 },
+    ];
+    expect(aggregate(lines, 0.8)).toEqual({ score: (0.75 + 1) / 2, passed: true });
   });
 });
 
@@ -61,6 +80,7 @@ describe("runChallenge v2 + content store", () => {
     const prompt = samplePromptExact();
     const item: ResolvedItem = {
       itemId: prompt.name,
+      family: prompt.name,
       promptHash: prompt.promptHash,
       itemHash: "ih-fixed",
       scorer: prompt.scorer,

@@ -20,6 +20,7 @@ import {
   formatSummary,
   rescoreItems,
   rescoreItemsFromStore,
+  restampBlocker,
   scoreCommand,
   withStaleScoreItems,
 } from "../score.js";
@@ -43,6 +44,7 @@ const resolvedItem = (
   scorer: ScorerConfig = exactMatch,
 ): ResolvedItem => ({
   itemId,
+  family: itemId,
   promptHash,
   itemHash: `${promptHash}-ih`,
   scorer,
@@ -232,6 +234,49 @@ describe("rescoreItems", () => {
       "thinking_truncated",
     ]);
     expect(res.updated[1]?.scoreDetails).toBe("expected 42, got 41");
+  });
+
+  it("scores an answer that only echoes truncated reasoning as no output (E-0007)", async () => {
+    const thinking = "We need 6*7... the answer is 42? Let's re";
+    const items = [
+      item({
+        itemId: "p1",
+        promptName: "p1",
+        output: thinking,
+        reasoning: thinking,
+        rawOutput: thinking,
+        stopReason: "length",
+        score: 1,
+      }),
+      item({
+        itemId: "p2",
+        promptName: "p2",
+        output: thinking,
+        reasoning: thinking,
+        rawOutput: thinking,
+        stopReason: "stop",
+      }),
+    ];
+    const scored = resolved([resolvedItem("p1", "ph1"), resolvedItem("p2", "ph1")]);
+    const res = await run(rescoreItems(items, scored));
+    expect(res.updated[0]).toMatchObject({
+      output: "",
+      rawOutput: thinking,
+      score: 0,
+      failureKind: "thinking_truncated",
+    });
+    expect(res.updated[1]).toMatchObject({ output: thinking, score: 1 });
+    const fromStore = await run(
+      rescoreItemsFromStore(
+        items,
+        items.map((i) => ({ item: i, scorer: exactMatch })),
+      ),
+    );
+    expect(fromStore.updated[0]).toMatchObject({
+      output: "",
+      score: 0,
+      failureKind: "thinking_truncated",
+    });
   });
 
   it("lists the items that kept a stored score", async () => {
@@ -875,6 +920,38 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
     );
   });
 
+  it("--stale re-scores a current attempt holding an echoed-reasoning answer, then leaves it be", async () => {
+    const { file, newId } = await writeStaleSmoke({ id: "1" });
+    await runHandler({ archive: file, corpus: true });
+    const current = path.join(dir, `${newId}.jsonl`);
+    const [head, ...rows] = readFileSync(current, "utf-8").trim().split("\n");
+    const echoed = rows.map((l) => {
+      const r = JSON.parse(l) as ItemResult;
+      return r.itemId === SMOKE_CONSTRAINT_ITEM
+        ? JSON.stringify({ ...r, reasoning: r.output, stopReason: "length", score: 1 })
+        : l;
+    });
+    writeFileSync(current, `${[head, ...echoed].join("\n")}\n`);
+
+    await runHandler({ stale: dir });
+    const fixed = readFileSync(current, "utf-8")
+      .trim()
+      .split("\n")
+      .slice(1)
+      .map((l) => JSON.parse(l) as ItemResult);
+    expect(fixed.find((r) => r.itemId === SMOKE_CONSTRAINT_ITEM)).toMatchObject({
+      output: "",
+      score: 0,
+      failureKind: "thinking_truncated",
+    });
+    expect(logged.join("\n")).toContain("1 rescored-only, 0 skipped, 0 already current");
+
+    const after = readFileSync(current);
+    await runHandler({ stale: dir });
+    expect(readFileSync(current).equals(after)).toBe(true);
+    expect(logged.at(-1)).toContain("0 rescored-only, 0 skipped, 1 already current");
+  });
+
   it("a batch of --archive files skips a legacy file and scores the rest", async () => {
     const legacy = path.join(dir, "legacy.jsonl");
     writeFileSync(legacy, '{"schemaVersion":1,"runId":"r"}\n');
@@ -885,5 +962,21 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
     expect(out).toContain("legacy.jsonl: skipped — not an attempt archive");
     expect(out).toContain("1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1)");
     expect(existsSync(path.join(dir, `${stale.newId}.jsonl`))).toBe(true);
+  });
+});
+
+describe("restampBlocker with repeated samples", () => {
+  const m = {
+    challengeId: "smoke",
+    challengeVersion: 1,
+    finishedAt: "t",
+    interrupted: false,
+    attemptId: "att-cfg-old-1",
+    challengeHash: "old",
+  } as unknown as AttemptManifest;
+  it("allows several samples of an item but still blocks a duplicated sample", () => {
+    const ch = resolved([resolvedItem("p1", "ph1")]);
+    expect(restampBlocker(m, [item(), item({ sample: 1 }), item({ sample: 2 })], ch)).toBeNull();
+    expect(restampBlocker(m, [item(), item()], ch)).toBe("duplicate item names in archive");
   });
 });

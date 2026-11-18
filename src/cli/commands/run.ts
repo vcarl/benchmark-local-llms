@@ -8,13 +8,14 @@
  * unless `--no-report`. Lives under `src/cli/`, so `console.*` and `Date.now()`
  * are allowed here.
  */
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Command, Options } from "@effect/cli";
 import { NodeHttpClient } from "@effect/platform-node";
 import { Effect, Layer, Option } from "effect";
 import { loadSelectedChallenges } from "../../config/challenges.js";
 import { loadConfigurations } from "../../config/configurations.js";
-import { selectConfigs } from "../../config/select.js";
+import { itemMatcher, selectConfigs } from "../../config/select.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "../../config/system-prompts.js";
 import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { defaultRunEnv } from "../../orchestration/run-loop.js";
@@ -42,7 +43,17 @@ export interface SweepArgs {
   readonly output: string;
   readonly noCache: boolean;
   readonly noReport: boolean;
+  /** Samples per item (default 1); with `items`, only matching items get more than one. */
+  readonly samples?: number;
+  /** `challengeId/itemName` globs selecting the items `samples` applies to. */
+  readonly items?: ReadonlyArray<string> | undefined;
 }
+
+/** `--items` value: a file of patterns (one per line, `#` comments) or a comma list. */
+export const parseItemsArg = (value: string): string[] =>
+  (existsSync(value) ? readFileSync(value, "utf8").split("\n") : value.split(","))
+    .map((l) => l.replace(/#.*/, "").trim())
+    .filter((l) => l.length > 0);
 
 /** Core sweep: select → load → runMatrix (live lines) → grid → report. Returns the grid. */
 export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
@@ -73,6 +84,22 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
     }
     const challenges: MatrixChallenge[] = [...selected.challenges];
 
+    const samples = args.samples ?? 1;
+    if (!Number.isInteger(samples) || samples < 1) {
+      return yield* Effect.dieMessage(`--samples must be a positive integer (got ${samples})`);
+    }
+    const items = args.items;
+    const unmatched = (items ?? []).filter((p) => {
+      const m = itemMatcher([p]);
+      return !challenges.some((c) => c.resolved.items.some((i) => m(c.resolved.id, i)));
+    });
+    if (unmatched.length > 0) {
+      return yield* Effect.dieMessage(
+        `--items matched no item in the selected challenges: ${unmatched.join(", ")}`,
+      );
+    }
+    const selectedItem = items === undefined ? () => true : itemMatcher(items);
+
     const env = yield* defaultRunEnv();
     const cells = yield* runMatrix({
       configs,
@@ -81,6 +108,7 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
       env,
       deps,
       noCache: args.noCache,
+      samplesOf: (challengeId, item) => (selectedItem(challengeId, item) ? samples : 1),
       onCell: (cell, i, total) => printLine(formatCellLine(cell, i, total)),
     });
 
@@ -137,6 +165,18 @@ const noCacheOpt = Options.boolean("no-cache").pipe(
   Options.withDefault(false),
   Options.withDescription("Bypass the cross-attempt item cache"),
 );
+const samplesOpt = Options.integer("samples").pipe(
+  Options.withDefault(1),
+  Options.withDescription(
+    "Generations per item (cached samples are reused; sample 0 is the single-run result)",
+  ),
+);
+const itemsOpt = Options.text("items").pipe(
+  Options.optional,
+  Options.withDescription(
+    "Items --samples applies to: a file of challengeId/itemName globs (one per line) or a comma list; others run once",
+  ),
+);
 const noReportOpt = Options.boolean("no-report").pipe(
   Options.withDefault(false),
   Options.withDescription("Skip the end-of-sweep report regeneration"),
@@ -155,6 +195,8 @@ export const runCommand = Command.make(
     verbose: verboseOpt,
     noCache: noCacheOpt,
     noReport: noReportOpt,
+    samples: samplesOpt,
+    items: itemsOpt,
   },
   (o) =>
     runSweep(
@@ -168,6 +210,8 @@ export const runCommand = Command.make(
         output: o.output,
         noCache: o.noCache,
         noReport: o.noReport,
+        samples: o.samples,
+        items: Option.getOrUndefined(Option.map(o.items, parseItemsArg)),
       },
       makeRunDeps({}),
     ).pipe(

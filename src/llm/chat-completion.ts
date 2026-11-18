@@ -79,6 +79,8 @@ export interface CompletionParams {
   readonly presencePenalty?: number;
   /** Extra chat-template variables (`chat_template_kwargs`). Omitted from the body when undefined. */
   readonly chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>>;
+  /** Sampler seed (`seed`, accepted by all three runtimes). Omitted from the body when undefined. */
+  readonly seed?: number;
 }
 
 /** Decoded response body from a successful completion. */
@@ -189,6 +191,7 @@ const buildBody = (p: CompletionParams) => ({
   ...penaltyFields(p),
   ...samplerFields(p),
   ...(p.chatTemplateKwargs === undefined ? {} : { chat_template_kwargs: p.chatTemplateKwargs }),
+  ...(p.seed === undefined ? {} : { seed: p.seed }),
 });
 
 /**

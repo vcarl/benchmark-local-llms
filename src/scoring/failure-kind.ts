@@ -6,6 +6,26 @@ type Scored = Pick<PromptScore, "failure" | "nearMiss">;
 type Classifiable = Pick<ItemResult, "score" | "error" | "output" | "reasoning" | "stopReason">;
 
 /**
+ * oMLX, when the budget runs out mid-thinking, streams the unclosed reasoning
+ * as `content` too. Such an output is no answer: scoring it would grep the
+ * chain of thought. Shared by the runner (new results) and `bench score`
+ * (archived ones), so both drop it the same way (erratum E-0007).
+ */
+export const echoesTruncatedReasoning = (r: {
+  output: string;
+  reasoning: string | null;
+  stopReason?: string | null | undefined;
+}): boolean => r.stopReason === "length" && r.output === r.reasoning;
+
+/**
+ * An archived item with its echoed-reasoning output dropped (see
+ * {@link echoesTruncatedReasoning}); `rawOutput` keeps the content. Returns
+ * `item` itself when there is nothing to drop.
+ */
+export const dropEchoedReasoning = (item: ItemResult): ItemResult =>
+  item.output !== "" && echoesTruncatedReasoning(item) ? { ...item, output: "" } : item;
+
+/**
  * Why an item fell short of a full pass, or `null` when it scored 1. A pure
  * function of the stored item fields plus the scorer's outcome (`undefined`
  * when the item was not scored), so re-scoring an archive reproduces it.

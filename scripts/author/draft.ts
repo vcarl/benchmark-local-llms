@@ -1318,7 +1318,11 @@ const bayesItems: AuthoredItem[] = [
     pattern: decimalPattern(b1Posterior),
     label: `equals ${b1Posterior}`,
     nearMisses: [
-      ...slipNearMiss("truncated", b1Posterior, posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b, truncate6)),
+      ...slipNearMiss(
+        "truncated",
+        b1Posterior,
+        posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b, truncate6),
+      ),
       percentNearMiss(b1Posterior),
     ],
     why:
@@ -1337,7 +1341,11 @@ const bayesItems: AuthoredItem[] = [
     pattern: decimalPattern(b1PostExtraBad),
     label: `equals ${b1PostExtraBad}`,
     nearMisses: [
-      ...slipNearMiss("truncated", b1PostExtraBad, posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b + 1, truncate6)),
+      ...slipNearMiss(
+        "truncated",
+        b1PostExtraBad,
+        posteriorMean(B1.pi, B1.s, B1.t, B1.g, B1.b + 1, truncate6),
+      ),
       percentNearMiss(b1PostExtraBad),
     ],
     why: `Multiply the odds by the bad-signal factor (1−s)/t = 2/7: P = 65536/148885 ≈ ${b1PostExtraBad}.`,
@@ -1482,7 +1490,11 @@ const moralHazardItems: AuthoredItem[] = [
       `Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b3Bonus),
     label: `equals ${b3Bonus}`,
-    nearMisses: slipNearMiss("truncated", b3Bonus, minBonusIC(B3.pH, B3.pL, B3.cH, B3.cL, truncate6)),
+    nearMisses: slipNearMiss(
+      "truncated",
+      b3Bonus,
+      minBonusIC(B3.pH, B3.pL, B3.cH, B3.cL, truncate6),
+    ),
     why: `Δ* = (c_H − c_L)/(p_H − p_L) = (10 − 2)/(0.8 − 0.5) = 8/0.3 ≈ ${b3Bonus}.`,
     tags: ["TODO", "trust", "moral-hazard"],
   }),
@@ -1556,9 +1568,7 @@ const webOfTrustItems: AuthoredItem[] = [
     name: "trust_web_best_path_sequence",
     category: "social",
     tier: 3,
-    prompt:
-      `${b4Scenario}\n\n` +
-      `List the nodes of that strongest chain, in order from S to T.`,
+    prompt: `${b4Scenario}\n\n` + `List the nodes of that strongest chain, in order from S to T.`,
     vocabulary: ["S", "A", "B", "C", "T"],
     expected: b4Best.path,
     why: `Strongest chain is S → A → C → T (product 0.648), strictly unique (no tie at the max).`,
@@ -1638,7 +1648,10 @@ const decayedItems: AuthoredItem[] = [
       `Ignoring timing entirely, what fraction of Vale's marks were kept? Answer as a decimal to 6 places.`,
     pattern: decimalPattern(b5ValeFlat),
     label: `equals ${b5ValeFlat}`,
-    nearMisses: [...slipNearMiss("truncated", b5ValeFlat, flatScore(vale, truncate6)), percentNearMiss(b5ValeFlat)],
+    nearMisses: [
+      ...slipNearMiss("truncated", b5ValeFlat, flatScore(vale, truncate6)),
+      percentNearMiss(b5ValeFlat),
+    ],
     why: `Vale kept 4 of 6 marks: 4/6 ≈ ${b5ValeFlat}.`,
     tags: ["TODO", "trust", "decayed-reputation"],
   }),
@@ -1652,8 +1665,7 @@ const decayedItems: AuthoredItem[] = [
     pattern: decimalPattern(b5ValeDecayed),
     label: `equals ${b5ValeDecayed}`,
     nearMisses: slipNearMiss("truncated", b5ValeDecayed, decayedScore(vale, B5_LAMBDA, truncate6)),
-    why:
-      `P = λ²+λ³+λ⁴+λ⁵ = 0.78336, N = λ⁰+λ¹ = 1.6; reputation = 1.78336/4.38336 ≈ ${b5ValeDecayed}.`,
+    why: `P = λ²+λ³+λ⁴+λ⁵ = 0.78336, N = λ⁰+λ¹ = 1.6; reputation = 1.78336/4.38336 ≈ ${b5ValeDecayed}.`,
     tags: ["TODO", "trust", "decayed-reputation"],
   }),
   wordItem({
@@ -1776,11 +1788,60 @@ console.log(
 );
 
 console.log("\n=== TRUST BATTERIES (deeper reasoning) ===");
-console.log("[1] Bayesian: P(H|hist) =", b1Posterior, "| +bad =", b1PostExtraBad, "| crosses<0.5 =", b1Crosses, "| to90% =", b1ToNinety);
-console.log("[2] Folk:     δ* =", b2.deltaStar, "| temptation =", b2Temptation, `| sustainable@${b2DeltaAt} =`, b2Sustainable, "| coop/period =", b2Coop);
-console.log("[3] Hazard:   Δ* =", b3Bonus, "| shirk(flat) =", b3Shirks, "| profit =", b3Profit, "| worth =", b3Worth);
-console.log("[4] Web:      best =", b4Best.value, "path", b4Best.path.join("→"), b4Best.tie ? "⚠️ TIE" : "(unique)", "| reach>0.6 =", b4ReachAbove, "| paths>0.4 =", b4PathsAbove);
-console.log("[5] Decay:    Vale flat =", b5ValeFlat, "decayed =", b5ValeDecayed, "| Pell decayed =", b5PellDecayed, "| top =", b5Top.answer, b5Top.tie ? "⚠️ TIE" : "(unique)", "| gap =", b5Gap);
+console.log(
+  "[1] Bayesian: P(H|hist) =",
+  b1Posterior,
+  "| +bad =",
+  b1PostExtraBad,
+  "| crosses<0.5 =",
+  b1Crosses,
+  "| to90% =",
+  b1ToNinety,
+);
+console.log(
+  "[2] Folk:     δ* =",
+  b2.deltaStar,
+  "| temptation =",
+  b2Temptation,
+  `| sustainable@${b2DeltaAt} =`,
+  b2Sustainable,
+  "| coop/period =",
+  b2Coop,
+);
+console.log(
+  "[3] Hazard:   Δ* =",
+  b3Bonus,
+  "| shirk(flat) =",
+  b3Shirks,
+  "| profit =",
+  b3Profit,
+  "| worth =",
+  b3Worth,
+);
+console.log(
+  "[4] Web:      best =",
+  b4Best.value,
+  "path",
+  b4Best.path.join("→"),
+  b4Best.tie ? "⚠️ TIE" : "(unique)",
+  "| reach>0.6 =",
+  b4ReachAbove,
+  "| paths>0.4 =",
+  b4PathsAbove,
+);
+console.log(
+  "[5] Decay:    Vale flat =",
+  b5ValeFlat,
+  "decayed =",
+  b5ValeDecayed,
+  "| Pell decayed =",
+  b5PellDecayed,
+  "| top =",
+  b5Top.answer,
+  b5Top.tie ? "⚠️ TIE" : "(unique)",
+  "| gap =",
+  b5Gap,
+);
 if (b4Best.tie) console.log("⚠️ web-of-trust strongest PATH is NOT unique — fix edge weights");
 if (b5Top.tie) console.log("⚠️ decayed argmax is NOT unique — widen the score gap");
 
@@ -1854,6 +1915,48 @@ console.log(
   `| Q<Qc? ${mQ < mQc}`,
 );
 
+// ── Families ─────────────────────────────────────────────────────────────────
+// Items that share a scenario (the same story, numbers, or game) share a
+// `family`: the report clusters its uncertainty by family, since such items'
+// outcomes are correlated (docs/SCORING.md § Uncertainty). Items listed
+// nowhere stand alone. Metadata only — it changes no hash.
+const named = (items: AuthoredItem[], ...names: string[]) =>
+  items.filter((a) => names.includes(String(a.item["name"])));
+const FAMILIES: Record<string, AuthoredItem[]> = {
+  "trust-town": trustItems,
+  "repeated-traders": named(repeatedItems, "repeated_most_cooperative", "repeated_payoff_winner"),
+  "trust-bayes": bayesItems,
+  "trust-folk": folkItems,
+  "trust-moral-hazard": moralHazardItems,
+  "trust-web": webOfTrustItems,
+  "trust-decay": decayedItems,
+  "econ-prisoners": named(econItems, "econ_dominant_strategy", "econ_nash_equilibrium"),
+  "econ-elasticity": named(econMoreItems, "econ_elasticity_value", "econ_elasticity_classify"),
+  "econ-mixed": mixedItems,
+  "econ-entry": entryItems,
+  "econ-cournot": cournotItems,
+  "econ-tax": taxItems,
+  "econ-monopoly": monopolyItems,
+  "financial-bailout": named(
+    financialMoreItems,
+    "financial_bailout_target",
+    "financial_bailout_amount",
+  ),
+  "financial-waterfall": waterfallItems,
+  "financial-contagion": contagionItems,
+  "financial-covenant": covenantItems,
+  "financial-npv": npvItems,
+  "financial-amortization": amortItems,
+};
+const familyOf = new Map(
+  Object.entries(FAMILIES).flatMap(([family, items]) => items.map((a) => [a, family] as const)),
+);
+const withFamilies = (items: readonly AuthoredItem[]): AuthoredItem[] =>
+  items.map((a) => {
+    const family = familyOf.get(a);
+    return family === undefined ? a : { ...a, item: { ...a.item, family } };
+  });
+
 console.log("\n=== writing suites ===");
 for (const [id, items] of [
   ["trust", [...trustItems, ...repeatedItems, ...trustBatteryItems]],
@@ -1871,5 +1974,5 @@ for (const [id, items] of [
   ],
   ["financial", [...financialItems, ...financialMoreItems, ...financialBatteryItems]],
 ] as const) {
-  console.log("wrote", writeSuiteFile(CHALLENGES_DIR, id, items));
+  console.log("wrote", writeSuiteFile(CHALLENGES_DIR, id, withFamilies(items)));
 }

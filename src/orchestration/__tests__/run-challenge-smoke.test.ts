@@ -48,6 +48,7 @@ describe("runChallenge smoke", () => {
 
     const resolvedItem: ResolvedItem = {
       itemId: prompt.name,
+      family: prompt.name,
       promptHash: prompt.promptHash,
       itemHash: "smoke-item-hash",
       scorer: prompt.scorer,

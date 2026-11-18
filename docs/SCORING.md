@@ -6,7 +6,7 @@
 
 `scoreExecution(result, entry)` picks a scorer by whether the corpus entry is a prompt or a scenario. Prompt entries carry a `ScorerConfig` discriminated union (`type`); scenario entries carry a bare `scorer` name resolved against the game scorer registry at scoring time.
 
-Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit.
+Scorers read `result.output` directly — **the cleaning has already happened upstream** in `src/orchestration/run-prompt.ts::resolveOutputFields`, called immediately after the LLM response. By the time the result lands in the archive (and again when `./bench score` re-reads it), `output` is the final answer, `reasoning` carries the separated thinking body, and `rawOutput` preserves the original API content for audit. One rule is re-applied on re-score: an archived line with `stopReason: "length"` whose `output` equals its `reasoning` (oMLX echoing unfinished thinking as content) is scored as no output, `thinking_truncated` ([E-0007](../errata.yaml)).
 
 Why the split lives in orchestration, not scoring:
 
@@ -141,11 +141,11 @@ A cell carries its items, passed, `families` counts, its cost (generation tokens
 
 ## Item audit
 
-`./bench audit` is a read-only check on the items themselves, not the models. It loads completed attempts from `--archive-dir`, keeps each config's latest attempt (by `startedAt`) per challenge, and treats an item as passed when its score is exactly 1. Per item it prints the number of configs `n`, pass rate `p`, Bernoulli spread `p(1-p)`, discrimination, flags, and the most common wrong answers.
+`./bench audit` is a read-only check on the items themselves, not the models. It loads completed attempts from `--archive-dir`, keeps each config's latest attempt (by `startedAt`) per challenge, and scores each config's observation of an item as its pass fraction over that config's samples (0 or 1 with one sample; a sample passes when its score is exactly 1). Per item it prints the number of configs `n`, pass rate `p` (the mean of those fractions), Bernoulli spread `p(1-p)`, discrimination, flags, and the most common wrong answers over all failed samples. `--json` adds `samples` (sample lines across configs) and `passAllK` (pass^k: the fraction of configs with two or more samples that passed every one; `null` when no config resampled the item).
 
-- **Discrimination** is the point-biserial correlation between the item's pass/fail and each config's pass rate on all other items. High values mark items that separate strong configs from weak ones.
+- **Discrimination** is the point-biserial correlation between the item's pass (or pass fraction) and each config's pass rate on all other items. High values mark items that separate strong configs from weak ones.
 - **`suspect-key`**: `p <= 0.05` with `n >= --min-n` (default 8). A cluster of identical wrong answers is the signature of a wrong answer key. Wrong answers are normalized to the last number in the output (commas stripped), else the lowercased first 40 characters; empty output shows as `(empty)`.
-- **`edge`**: the `--edge-top` (default 20) items with the highest discrimination among items with `n >= --min-n`. These are the candidates for targeted multi-sample re-runs; spending samples only on them keeps compute bounded.
+- **`edge`**: the `--edge-top` (default 20) items with the highest discrimination among items with `n >= --min-n`. These are the candidates for targeted multi-sample re-runs; spending samples only on them keeps compute bounded: `./bench audit --flag edge --json` lists them, and `./bench run --samples k --items FILE` resamples just those.
 - **`saturated`**: `p >= 0.95` among configs whose overall pass rate is above the median.
 - **`zero-failure`**: `p = 1` — every config's latest result passed. Pruning removes these items (except the `smoke` challenge, which tests harness plumbing) and records a `retired` erratum ([ERRATA.md](./ERRATA.md)).
 
@@ -168,7 +168,7 @@ A near miss is a specific wrong answer that earns partial credit. Each is declar
 
 For generated challenges the solvers in `scripts/author/` compute each near-miss value from the same inputs as the key, and the generator refuses a near-miss pattern that matches the prompt text itself. Hand-written challenges declare them directly in YAML. A near miss changes scores, so adding one is a scorer change and needs an erratum ([ERRATA.md](./ERRATA.md)).
 
-The headline pass rate stays binary — a near miss is not a pass (`score === 1` only). Partial credit is reported separately: the item line carries `failureKind: "near_miss"` and the `slip` in `nearMiss`, and each report record carries `near_miss_credit`, the sum of near-miss credit over its items.
+The headline pass rate stays binary — a near miss is not a pass (`score === 1` only). Partial credit is reported separately: the item line carries `failureKind: "near_miss"` and the `slip` in `nearMiss`, and each report record carries `near_miss_credit`, the sum of near-miss credit over its items. The config drilldown shows the latest invocation's total beside the pass rate as `+N near miss`; the ranking table does not show it.
 
 Ref: `src/schema/scorer.ts` (`ExactNearMiss`, `PatternNearMiss`), `src/scoring/exact-match.ts`, `src/scoring/constraint.ts`.
 

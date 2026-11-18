@@ -28,6 +28,8 @@ const ExactMatchItem = Schema.Struct({
   extract: Schema.String,
   nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 
 const ConstraintItem = Schema.Struct({
@@ -39,6 +41,8 @@ const ConstraintItem = Schema.Struct({
   constraints: Schema.Array(ConstraintDef),
   nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 
 const CodeExecItem = Schema.Struct({
@@ -50,6 +54,8 @@ const CodeExecItem = Schema.Struct({
   /** Path to companion test file, resolved relative to the challenge file's dir. */
   testFile: Schema.String,
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 
 const GameItem = Schema.Struct({
@@ -61,6 +67,8 @@ const GameItem = Schema.Struct({
   gameScorer: Schema.String,
   scorerParams: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 
 const SetMatchItem = Schema.Struct({
@@ -73,6 +81,8 @@ const SetMatchItem = Schema.Struct({
   expected: Schema.Array(Schema.String),
   caseSensitive: Schema.optional(Schema.Boolean),
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 
 const OrderedMatchItem = Schema.Struct({
@@ -85,6 +95,8 @@ const OrderedMatchItem = Schema.Struct({
   expected: Schema.Array(Schema.String),
   caseSensitive: Schema.optional(Schema.Boolean),
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 
 /**
@@ -121,6 +133,8 @@ const MultiTurnItem = Schema.Struct({
   tier: Schema.Number,
   turns: Schema.Array(Turn).pipe(Schema.minItems(2)),
   tags: Schema.optional(Schema.Array(Schema.String)),
+  /** Cluster id for uncertainty: items sharing a scenario share a family. Metadata only — never hashed. */
+  family: Schema.optional(Schema.String),
 });
 export type MultiTurnItem = typeof MultiTurnItem.Type;
 

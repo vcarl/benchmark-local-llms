@@ -2,16 +2,21 @@
  * Pure item-quality statistics over completed attempts. No I/O: the `audit`
  * command loads archives and feeds {@link latestPerConfig} output in here.
  *
- * An item passes when its score is exactly 1 (same rule as `aggregate`).
+ * A sample passes when its score is exactly 1 (same rule as `aggregate`); a
+ * config's observation of an item is the pass fraction over its samples.
  */
 import { currentItems, type LoadedAttempt } from "../report/load-attempts.js";
+import { groupSamples, passFraction } from "../schema/attempt.js";
 
 export interface Obs {
   readonly challengeId: string;
   readonly itemId: string;
   readonly configId: string;
-  readonly pass: boolean;
-  readonly output: string;
+  /** Pass fraction over the config's samples of the item (0/1 with one sample). */
+  readonly pass: number;
+  readonly samples: number;
+  /** Outputs of the failed samples. */
+  readonly wrong: ReadonlyArray<string>;
 }
 
 export interface WrongAnswer {
@@ -23,7 +28,12 @@ export interface ItemAudit {
   readonly challengeId: string;
   readonly itemId: string;
   readonly n: number;
+  /** Mean over configs of each config's pass fraction on the item. */
   readonly p: number;
+  /** Sample lines across configs (= n when no config resampled the item). */
+  readonly samples: number;
+  /** pass^k: fraction of resampled configs (≥2 samples) that passed every sample; null when none. */
+  readonly passAllK: number | null;
   /** Bernoulli variance p(1-p); 0.25 = maximally uncertain. */
   readonly spread: number;
   /** Point-biserial r between item pass and the config's pass rate on all OTHER items; null if undefined. */
@@ -63,12 +73,13 @@ export const latestPerConfig = (attempts: ReadonlyArray<LoadedAttempt>): LoadedA
 
 export const toObservations = (attempts: ReadonlyArray<LoadedAttempt>): Obs[] =>
   attempts.flatMap((a) =>
-    currentItems(a.manifest, a.items).map((i) => ({
+    groupSamples(currentItems(a.manifest, a.items)).map((xs) => ({
       challengeId: a.manifest.challengeId,
-      itemId: i.itemId,
+      itemId: (xs[0] as (typeof xs)[number]).itemId,
       configId: a.manifest.configId,
-      pass: i.score === 1,
-      output: i.output,
+      pass: passFraction(xs),
+      samples: xs.length,
+      wrong: xs.filter((x) => x.score !== 1).map((x) => x.output),
     })),
   );
 
@@ -94,14 +105,17 @@ export const modalWrong = (wrong: ReadonlyArray<string>, top: number): WrongAnsw
     .slice(0, top);
 };
 
-/** Pearson correlation of a 0/1 variable with a continuous one; null when either has no variance. */
+/**
+ * Pearson correlation of item pass (0/1, or a pass fraction for resampled
+ * items) with a continuous score; null when either has no variance.
+ */
 export const pointBiserial = (
-  pass: ReadonlyArray<boolean>,
+  pass: ReadonlyArray<boolean | number>,
   score: ReadonlyArray<number>,
 ): number | null => {
   const n = pass.length;
   if (n < 2) return null;
-  const x = pass.map((b) => (b ? 1 : 0) as number);
+  const x = pass.map((b) => Number(b));
   const mx = x.reduce((s, v) => s + v, 0) / n;
   const my = score.reduce((s, v) => s + v, 0) / n;
   let sxy = 0;
@@ -133,7 +147,7 @@ export const auditItems = (
   for (const o of obs) {
     const t = total.get(o.configId) ?? { pass: 0, n: 0 };
     t.n++;
-    if (o.pass) t.pass++;
+    t.pass += o.pass;
     total.set(o.configId, t);
   }
   const overall = new Map([...total].map(([k, t]) => [k, t.pass / t.n]));
@@ -147,23 +161,29 @@ export const auditItems = (
 
   const rows = [...byItem.values()].map((rs): Omit<ItemAudit, "flags"> => {
     const n = rs.length;
-    const p = rs.filter((r) => r.pass).length / n;
+    const p = rs.reduce((s, r) => s + r.pass, 0) / n;
     const rest = rs.map((r) => {
       const t = total.get(r.configId) as { pass: number; n: number };
-      return t.n > 1 ? (t.pass - (r.pass ? 1 : 0)) / (t.n - 1) : 0;
+      return t.n > 1 ? (t.pass - r.pass) / (t.n - 1) : 0;
     });
+    const resampled = rs.filter((r) => r.samples > 1);
     return {
       challengeId: (rs[0] as Obs).challengeId,
       itemId: (rs[0] as Obs).itemId,
       n,
       p,
+      samples: rs.reduce((s, r) => s + r.samples, 0),
+      passAllK:
+        resampled.length === 0
+          ? null
+          : resampled.filter((r) => r.pass === 1).length / resampled.length,
       spread: p * (1 - p),
       discrimination: pointBiserial(
         rs.map((r) => r.pass),
         rest,
       ),
       modalWrong: modalWrong(
-        rs.filter((r) => !r.pass).map((r) => r.output),
+        rs.flatMap((r) => r.wrong),
         opts.modalTop,
       ),
     };
@@ -186,7 +206,7 @@ export const auditItems = (
     );
     if (
       strong.length >= Math.min(opts.minN, 2) &&
-      strong.filter((o) => o.pass).length / strong.length >= opts.saturatedP
+      strong.reduce((s, o) => s + o.pass, 0) / strong.length >= opts.saturatedP
     )
       flags.push("saturated");
     if (edgeKeys.has(`${r.challengeId}\u0000${r.itemId}`)) flags.push("edge");
