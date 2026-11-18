@@ -68,6 +68,31 @@ export const clampViewport = (vp: Viewport, full: Viewport): Viewport | undefine
   return fx && fy ? undefined : { x0: 10 ** lx0, x1: 10 ** lx1, y0, y1 };
 };
 
+/** (x, y) as a fraction of `full`: u from the left in log space, v from the bottom. */
+export const toUnit = (full: Viewport, x: number, y: number): { u: number; v: number } => ({
+  u: Math.log10(x / full.x0) / Math.log10(full.x1 / full.x0),
+  v: (y - full.y0) / (full.y1 - full.y0),
+});
+
+/** Zoom past which the minimap shows: the view spans under 1/MINIMAP_ZOOM of the extent on an axis. */
+export const MINIMAP_ZOOM = 1.2;
+
+export const minimapShown = (vp: Viewport | undefined, full: Viewport): boolean => {
+  if (vp === undefined) return false;
+  const a = toUnit(full, vp.x0, vp.y0);
+  const b = toUnit(full, vp.x1, vp.y1);
+  return Math.min(b.u - a.u, b.v - a.v) < 1 / MINIMAP_ZOOM;
+};
+
+/** The view moved, spans kept, so its center sits at the fraction (u, v) of `full`. */
+export const centerViewport = (vp: Viewport, full: Viewport, u: number, v: number): Viewport => {
+  const half = Math.sqrt(vp.x1 / vp.x0);
+  const cx = full.x0 * (full.x1 / full.x0) ** u;
+  const cy = full.y0 + v * (full.y1 - full.y0);
+  const hy = (vp.y1 - vp.y0) / 2;
+  return { x0: cx / half, x1: cx * half, y0: cy - hy, y1: cy + hy };
+};
+
 /** A point at (x, y) is inside the view, edges included. Comparing raw x is the log-axis test: log10 is monotone. */
 export const inView = (vp: Viewport, x: number, y: number): boolean => x >= vp.x0 && x <= vp.x1 && y >= vp.y0 && y <= vp.y1;
 

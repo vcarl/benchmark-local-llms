@@ -9,7 +9,7 @@ import { Z95 } from "../lib/stats";
 import { fitXDomain, fitYDomain, paretoFrontier, placeLabels, pointLabels, type AxisDomain } from "../lib/scatter-layout";
 import { type Action, type GestureEvent, type GestureState, IDLE, type Rect, step } from "../lib/gesture";
 import { type Frame, useTweenedFrame } from "../lib/tween";
-import { clampViewport, formatViewport, linTicks, logTicks, panViewport, subViewport, type Viewport, zoomViewport } from "../lib/viewport";
+import { centerViewport, clampViewport, formatViewport, minimapShown, toUnit, linTicks, logTicks, panViewport, subViewport, type Viewport, zoomViewport } from "../lib/viewport";
 
 interface Props {
   points: ScatterPoint[];
@@ -30,6 +30,10 @@ interface Props {
 const COMMIT_MS = 250;
 
 const HINT = "Pinch or ⌘/Ctrl-scroll to zoom · scroll or drag to pan · ⇧-drag to box-zoom · double-click to zoom in";
+
+/** Minimap size in px; hidden when the plot is narrower than MINIMAP_MIN_W (phone layout). */
+const MM = { w: 120, h: 80 };
+const MINIMAP_MIN_W = 420;
 
 const M = { top: 20, right: 24, bottom: 50, left: 60 };
 
@@ -188,6 +192,34 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
     [onTap, commit, resetZoom],
   );
 
+  // ── Minimap: click recenters there, dragging the view rectangle pans ──
+  const mmDrag = useRef<{ u: number; v: number } | null>(null);
+  const minimap = (type: "down" | "move" | "up") => (e: React.PointerEvent<HTMLDivElement>) => {
+    const f = geom.current.full;
+    const cur = liveRef.current === undefined ? undefined : clampViewport(liveRef.current, f);
+    if (cur === undefined) return;
+    if (type === "up") {
+      mmDrag.current = null;
+      return;
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    const u = (e.clientX - r.left) / r.width;
+    const v = 1 - (e.clientY - r.top) / r.height;
+    if (type === "down") {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const a = toUnit(f, cur.x0, cur.y0);
+      const b = toUnit(f, cur.x1, cur.y1);
+      const c = { u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 };
+      // Grabbing the rectangle keeps the grab point under the pointer; elsewhere the view jumps there.
+      mmDrag.current = u >= a.u && u <= b.u && v >= a.v && v <= b.v ? { u: u - c.u, v: v - c.v } : { u: 0, v: 0 };
+    }
+    const off = mmDrag.current;
+    if (off === null) return;
+    liveRef.current = clampViewport(centerViewport(cur, f, u - off.u, v - off.v), f);
+    setLive(liveRef.current);
+    commit();
+  };
+
   const feed = useCallback(
     (e: GestureEvent): Action[] => {
       const [next, actions] = step(gesture.current, e);
@@ -205,7 +237,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
 
   const pointer = (type: "down" | "move" | "up" | "cancel") => (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0 && type === "down") return;
-    if ((e.target as Element).closest("button") !== null) return;
+    if ((e.target as Element).closest("button, [data-minimap]") !== null) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (type === "down") {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -478,6 +510,36 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
           style={{ left: box.x0, top: box.y0, width: box.x1 - box.x0, height: box.y1 - box.y0 }}
         />
       )}
+
+      {minimapShown(vp, full) && vp !== undefined && W >= MINIMAP_MIN_W && (() => {
+        const a = toUnit(full, vp.x0, vp.y0);
+        const b = toUnit(full, vp.x1, vp.y1);
+        return (
+          <div
+            className={styles.scatterMinimap}
+            data-minimap=""
+            style={{ right: M.right + 6, bottom: M.bottom + 6, width: MM.w, height: MM.h }}
+            onPointerDown={minimap("down")}
+            onPointerMove={minimap("move")}
+            onPointerUp={minimap("up")}
+            onPointerCancel={minimap("up")}
+          >
+            <svg width={MM.w} height={MM.h} aria-hidden="true">
+              {shown.points.map((d) => {
+                const p = toUnit(full, d.x, d.y);
+                return <circle key={d.id} cx={p.u * MM.w} cy={(1 - p.v) * MM.h} r={1.5} fill={familyColor(d.family)} />;
+              })}
+              <rect
+                className={styles.scatterMinimapView}
+                x={a.u * MM.w}
+                y={(1 - b.v) * MM.h}
+                width={(b.u - a.u) * MM.w}
+                height={(b.v - a.v) * MM.h}
+              />
+            </svg>
+          </div>
+        );
+      })()}
 
       <div className={styles.scatterControls}>
         <button type="button" onClick={() => key("+")} title={`Zoom in (+) · ${HINT}`} aria-label="Zoom in">

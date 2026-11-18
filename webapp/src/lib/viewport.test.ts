@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampViewport, inView, formatViewport, linTicks, logTicks, panViewport, parseViewport, subViewport, zoomViewport, type Viewport } from "./viewport";
+import { clampViewport, inView, formatViewport, linTicks, logTicks, centerViewport, minimapShown, panViewport, parseViewport, subViewport, toUnit, zoomViewport, type Viewport } from "./viewport";
 
 const FULL: Viewport = { x0: 1000, x1: 1_000_000, y0: 0, y1: 1 };
 
@@ -75,5 +75,29 @@ describe("inView", () => {
     expect(inView(vp, 100_001, 0.6)).toBe(false);
     expect(inView(vp, 50_000, 0.49)).toBe(false);
     expect(inView(vp, 50_000, 0.81)).toBe(false);
+  });
+});
+
+describe("minimap", () => {
+  it("maps data to the full extent's unit square: x in log space, y linear", () => {
+    expect(toUnit(FULL, 1000, 0)).toEqual({ u: 0, v: 0 });
+    const c = toUnit(FULL, 10 ** 4.5, 0.25);
+    expect(c.u).toBeCloseTo(0.5);
+    expect(c.v).toBeCloseTo(0.25);
+  });
+
+  it("shows once the view spans under 1/1.2 of the extent on either axis", () => {
+    expect(minimapShown(undefined, FULL)).toBe(false);
+    expect(minimapShown({ x0: 1000, x1: 1_000_000, y0: 0, y1: 0.9 }, FULL)).toBe(false);
+    expect(minimapShown({ x0: 1000, x1: 1_000_000, y0: 0, y1: 0.8 }, FULL)).toBe(true);
+    expect(minimapShown({ x0: 1000, x1: 10 ** 5.4, y0: 0, y1: 1 }, FULL)).toBe(true);
+  });
+
+  it("recenters the view on a unit-square point, keeping its spans", () => {
+    const v = centerViewport({ x0: 1000, x1: 10_000, y0: 0, y1: 0.2 }, FULL, 0.5, 0.5);
+    expect(v.x0).toBeCloseTo(10 ** 4);
+    expect(v.x1).toBeCloseTo(10 ** 5);
+    expect(v.y0).toBeCloseTo(0.4);
+    expect(v.y1).toBeCloseTo(0.6);
   });
 });

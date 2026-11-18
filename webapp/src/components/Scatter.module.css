@@ -99,3 +99,16 @@
 .scatterControls button:hover:not(:disabled) { color: var(--text-primary); background: var(--surface-2); }
 .scatterControls button:disabled { color: var(--text-faint); cursor: default; }
 .scatterControls button:focus-visible { outline: 2px solid var(--accent-300); outline-offset: -2px; }
+/* Minimap: the full extent with the current view, shown while zoomed in. */
+.scatterMinimap {
+  position: absolute;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-4);
+  background: color-mix(in srgb, var(--gray-960) 75%, transparent);
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.scatterMinimap:hover { opacity: 1; }
+.scatterMinimap svg { display: block; }
+.scatterMinimapView { fill: color-mix(in srgb, var(--accent-300) 12%, transparent); stroke: var(--accent-300); stroke-width: 1; cursor: grab; }
