@@ -1521,3 +1521,135 @@
     reasoning_effort: high
   systemPrompt: default
   maxTokens: 32768
+
+
+# ── Liquid AI LFM models — vendor sampling, load-probed ───────────────────────
+# Cards give one general-purpose sampler per model; every one sets repetition_penalty,
+# which the harness sends as repeat_penalty (llamacpp) / repetition_penalty (mlx, omlx).
+#
+# LFM3-1.7B. Card (huggingface.co/LiquidAI/LFM3-1.7B), General (chat, tool use,
+# agents, coding): "temperature=0.1,top_k=50, repetition_penalty=1.1" (Math & STEM
+# is a different set, temperature 1.0 / top_p 0.95 / top_k 20; not used). Thinking is
+# on by default (template ends with <think>); 256K context, capped at 64K here for
+# the 32768-token budget. Needs LFM3-aware llama.cpp (>= b11960).
+- id: lfm3-1.7b-q4km-llamacpp
+  artifact: LiquidAI/LFM3-1.7B-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.1
+  systemPrompt: default
+  maxTokens: 32768
+  ctxSize: 65536
+
+- id: lfm3-1.7b-bf16-llamacpp
+  artifact: LiquidAI/LFM3-1.7B-GGUF
+  runtime: llamacpp
+  quant: BF16
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.1
+  systemPrompt: default
+  maxTokens: 32768
+  ctxSize: 65536
+
+# LFM2.5-1.2B-Instruct. Card (huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct):
+# "temperature: 0.1, top_k: 50, repetition_penalty: 1.05". Non-reasoning.
+- id: lfm2.5-1.2b-instruct-q4km-llamacpp
+  artifact: LiquidAI/LFM2.5-1.2B-Instruct-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 2048
+
+- id: lfm2.5-1.2b-instruct-bf16-llamacpp
+  artifact: LiquidAI/LFM2.5-1.2B-Instruct-GGUF
+  runtime: llamacpp
+  quant: BF16
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 2048
+
+- id: lfm2.5-1.2b-instruct-4bit-mlx
+  artifact: LiquidAI/LFM2.5-1.2B-Instruct-MLX-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 2048
+
+- id: lfm2.5-1.2b-instruct-bf16-mlx
+  artifact: LiquidAI/LFM2.5-1.2B-Instruct-MLX-bf16
+  runtime: mlx
+  quant: bf16
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 2048
+
+# LFM2.5-1.2B-Thinking. Card (huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking):
+# "temperature: 0.05, top_k: 50, repetition_penalty: 1.05" (the card's benchmark
+# table used temperature 0.6). Context is only 32,768, so a 16384-token budget.
+- id: lfm2.5-1.2b-thinking-q4km-llamacpp
+  artifact: LiquidAI/LFM2.5-1.2B-Thinking-GGUF
+  runtime: llamacpp
+  quant: Q4_K_M
+  temperature: 0.05
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 16384
+  ctxSize: 32768
+
+- id: lfm2.5-1.2b-thinking-bf16-llamacpp
+  artifact: LiquidAI/LFM2.5-1.2B-Thinking-GGUF
+  runtime: llamacpp
+  quant: BF16
+  temperature: 0.05
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 16384
+  ctxSize: 32768
+
+- id: lfm2.5-1.2b-thinking-4bit-mlx
+  artifact: LiquidAI/LFM2.5-1.2B-Thinking-MLX-4bit
+  runtime: mlx
+  quant: 4bit
+  temperature: 0.05
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 16384
+
+- id: lfm2.5-1.2b-thinking-bf16-mlx
+  artifact: LiquidAI/LFM2.5-1.2B-Thinking-MLX-bf16
+  runtime: mlx
+  quant: bf16
+  temperature: 0.05
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 16384
+
+# LFM2.5-24B-A2B (MoE, 2B active). Card (huggingface.co/LiquidAI/LFM2.5-24B-A2B):
+# "temperature: 0.1, top_k: 50, repetition_penalty: 1.05". Always thinks (the
+# template adds <think>); 131K context.
+- id: lfm2.5-24b-a2b-4bit-omlx
+  artifact: LiquidAI/LFM2.5-24B-A2B-MLX-4bit
+  runtime: omlx
+  quant: 4bit
+  temperature: 0.1
+  topK: 50
+  repetitionPenalty: 1.05
+  systemPrompt: default
+  maxTokens: 32768
