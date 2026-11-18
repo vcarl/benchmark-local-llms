@@ -22,13 +22,12 @@ export interface ScatterPoint {
 
 // ─── Scatter visual-encoding helpers ─────────────────────────────────────────
 
-// Wall-time (seconds) → star-point count. Log-scaled across the typical
-// per-config total range (~30s to many hours); clamped to [4, 15] so the
-// shape stays legible at both ends.
+// Wall-time (seconds) → star-point count. Power curve fit to 30s→2, 5m→4,
+// 30m→6, 2h→10, 10h→16 bumps; clamped to [2, 24] so the shape stays legible
+// at both ends.
 export const starPointsForWallTime = (seconds: number): number => {
-  const s = Math.max(seconds, 1);
-  const n = Math.floor(Math.log2(s) * 1.08) - 1;
-  return Math.max(4, Math.min(15, n));
+  const n = Math.round(0.4 + 0.55 * Math.max(seconds, 1) ** 0.32);
+  return Math.max(2, Math.min(24, n));
 };
 
 export interface TpsDomain {
