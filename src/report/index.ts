@@ -130,9 +130,10 @@ export const defaultDatasetLabel = (challengesDir: string): string => {
 };
 
 /**
- * Release label and errata ids that apply to the set: the `release-baseline.json`
+ * Release label and errata that apply to the set: the `release-baseline.json`
  * and `errata.yaml` beside the challenges directory, when they name a set item.
- * A missing or unreadable file contributes nothing.
+ * An erratum also applies when it names an item of an applicable baseline, so a
+ * retired item's erratum stays listed. A missing or unreadable file contributes nothing.
  */
 const loadReleaseContext = (challengesDir: string, challenges: ReadonlyArray<ResolvedChallenge>) =>
   Effect.gen(function* () {
@@ -158,14 +159,16 @@ const loadReleaseContext = (challengesDir: string, challenges: ReadonlyArray<Res
           Effect.flatMap(Schema.decodeUnknown(ErrataFile)),
           Effect.option,
         );
+    const applied = Option.filter(baseline, (b) => Object.keys(b.items).some((k) => keys.has(k)));
+    const named = new Set([
+      ...keys,
+      ...Option.match(applied, { onNone: () => [], onSome: (b) => Object.keys(b.items) }),
+    ]);
     return {
-      release: Option.match(baseline, {
-        onNone: () => null,
-        onSome: (b) => (Object.keys(b.items).some((k) => keys.has(k)) ? b.release : null),
-      }),
+      release: Option.match(applied, { onNone: () => null, onSome: (b) => b.release }),
       errata: Option.match(errata, {
         onNone: () => [],
-        onSome: (e) => e.errata.filter((x) => x.items.some((k) => keys.has(k))).map((x) => x.id),
+        onSome: (e) => e.errata.filter((x) => x.items.some((k) => named.has(k))),
       }),
     };
   });

@@ -1,6 +1,6 @@
 # Errata and Releases
 
-Challenge prompts change only at a **prompt release** (at most twice a year). Between releases, scorers are patched as needed, and every item change — scorer or prompt — is documented by an **erratum**. `npm test` enforces full coverage.
+Challenge prompts change only at a **prompt release** (at most twice a year). Between releases, scorers are patched as needed, and every item change — scorer or prompt — is documented by an **erratum**. `npm test` enforces full coverage. The public summary of these commitments is [ERRATA-PROCESS.md](./ERRATA-PROCESS.md), which the report webapp renders at `/errata` beside the live registry; keep it in step with this file.
 
 ## Files
 

@@ -196,7 +196,11 @@ describe("runReport", () => {
     const main = await report("challenges");
     expect(main.dataset).toMatchObject({ label: "main", challengesDir: "challenges" });
     expect(main.dataset.release).toBe("initial-main-5fa9760");
-    expect(main.dataset.errata).toContain("E-0001");
+    const e1 = main.dataset.errata.find((e) => e.id === "E-0001");
+    expect(e1).toMatchObject({ kind: "answer-key", scorerChange: true, promptFix: "none" });
+    expect(e1?.items).toContain("financial/financial_amort_total_interest");
+    // A retired item is in the baseline, not the set; its erratum still applies.
+    expect(main.dataset.errata.map((e) => e.id)).toContain("E-0005");
     expect(main.challengeSet.map((c) => c.id)).toContain("code");
     // The fixture's stale "code" attempt forms a row, with the cell marked stale.
     expect(main.rows[0]?.cells["code"]?.status).toBe("stale_hash");

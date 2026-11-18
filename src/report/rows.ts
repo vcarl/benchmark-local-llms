@@ -4,6 +4,7 @@
  * scored against one challenge set. See docs/SCORING.md § Report rows for the
  * rules this module implements; the webapp only sums and displays.
  */
+import type { Erratum } from "../config/errata.js";
 import { stableStringify } from "../config/hashing.js";
 import { type AttemptManifest, type ItemResult, passFraction } from "../schema/attempt.js";
 import type { Scope } from "../schema/challenge.js";
@@ -29,7 +30,8 @@ export interface Dataset {
   readonly archiveDir: string;
   readonly challengesDir: string;
   readonly release: string | null;
-  readonly errata: ReadonlyArray<string>;
+  /** Every `errata.yaml` entry naming an item of the set or of its release baseline. */
+  readonly errata: ReadonlyArray<Erratum>;
 }
 
 export interface RowsInput {

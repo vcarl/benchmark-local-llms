@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, useNavigate, useSearch } from "@tanstack/react-router";
+import { createRootRoute, Link, Outlet, useMatchRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { ControlColumn, PresetChips } from "../components/ControlColumn";
 import { DrilldownPanel } from "../components/DrilldownPanel";
@@ -41,6 +41,8 @@ function RootComponent() {
       }),
     [navigate],
   );
+
+  const onErrata = useMatchRoute()({ to: "/errata" }) !== false;
 
   // Ephemeral cross-component hover keyed on rowId: one scatter point ⇄ one list row.
   const [hovered, setHovered] = useState<string | null>(null);
@@ -118,7 +120,15 @@ function RootComponent() {
           <div className={styles.appSubtitle}>
             {ds.label}
             {ds.release !== null && ` · release ${ds.release}`}
-            {ds.errata.length > 0 && ` + ${ds.errata.length} errata`} · {dataset.challengeSet.length} challenges · {items} items
+            {ds.errata.length > 0 && (
+              <>
+                {" + "}
+                <Link to="/errata" className={styles.subtitleLink}>
+                  {ds.errata.length} errata
+                </Link>
+              </>
+            )}{" "}
+            · {dataset.challengeSet.length} challenges · {items} items
           </div>
         </div>
         <div className={styles.appHeaderActions}>
@@ -128,6 +138,9 @@ function RootComponent() {
           <a className={styles.requestLink} href={issueTemplateUrl("request-challenge-set.yml")} target="_blank" rel="noreferrer">
             Request a challenge
           </a>
+          <Link to="/errata" className={styles.requestLink}>
+            Errata
+          </Link>
           {selected !== undefined && (
             <button type="button" className={styles.overviewButton} onClick={closeDetails} aria-label="Back to overview">
               ← Overview
@@ -135,70 +148,74 @@ function RootComponent() {
           )}
         </div>
       </header>
-      <ShiftFrame
-        shifted={selected !== undefined}
-        railOpen={view.open}
-        onClose={closeDetails}
-        scatter={
-          <div className={styles.scatterLane}>
-            <div className={styles.scatterPlotRegion}>
-              <Scatter
-                points={points}
-                hovered={hovered}
-                onHover={setHovered}
-                selected={view.sel}
-                onTap={tap}
-                viewport={view.vp}
-                onViewport={setViewport}
-              />
+      {onErrata ? (
+        <Outlet />
+      ) : (
+        <ShiftFrame
+          shifted={selected !== undefined}
+          railOpen={view.open}
+          onClose={closeDetails}
+          scatter={
+            <div className={styles.scatterLane}>
+              <div className={styles.scatterPlotRegion}>
+                <Scatter
+                  points={points}
+                  hovered={hovered}
+                  onHover={setHovered}
+                  selected={view.sel}
+                  onTap={tap}
+                  viewport={view.vp}
+                  onViewport={setViewport}
+                />
+              </div>
+              <div className={styles.scatterBottomPane}>
+                <ScatterLegend families={legendFamilies} tpsDomain={tpsDomain} />
+              </div>
             </div>
-            <div className={styles.scatterBottomPane}>
-              <ScatterLegend families={legendFamilies} tpsDomain={tpsDomain} />
-            </div>
-          </div>
-        }
-        rail={
-          <ControlColumn
-            view={view}
-            defaultSet={DEFAULT_SET}
-            datasets={DATASETS}
-            dataset={dataset}
-            scoped={scopedIn}
-            funnel={counts}
-            onChange={setView}
-          />
-        }
-        list={
-          <div className={styles.listLane}>
-            <PresetChips view={view} defaultSet={DEFAULT_SET} datasets={DATASETS} onChange={setView} />
-            <div className={styles.listScroll}>
-              <ModelList
-                groups={groups}
-                dataset={dataset}
-                tpsDomain={tpsDomain}
-                hovered={hovered}
-                selected={view.sel}
-                onHover={setHovered}
-                onSelect={select}
-              />
-            </div>
-          </div>
-        }
-        details={
-          selected !== undefined ? (
-            <DrilldownPanel
-              r={selected}
+          }
+          rail={
+            <ControlColumn
+              view={view}
+              defaultSet={DEFAULT_SET}
+              datasets={DATASETS}
               dataset={dataset}
-              scope={view.scope}
-              rank={selectedIndex < 0 ? undefined : { position: selectedIndex + 1, tier: groups[selectedIndex]?.tier }}
-              attemptId={view.attempt}
-              onSelectAttempt={(a) => setView({ ...view, attempt: a })}
+              scoped={scopedIn}
+              funnel={counts}
+              onChange={setView}
             />
-          ) : (
-            <Outlet />
-          )
-        }
-      />
+          }
+          list={
+            <div className={styles.listLane}>
+              <PresetChips view={view} defaultSet={DEFAULT_SET} datasets={DATASETS} onChange={setView} />
+              <div className={styles.listScroll}>
+                <ModelList
+                  groups={groups}
+                  dataset={dataset}
+                  tpsDomain={tpsDomain}
+                  hovered={hovered}
+                  selected={view.sel}
+                  onHover={setHovered}
+                  onSelect={select}
+                />
+              </div>
+            </div>
+          }
+          details={
+            selected !== undefined ? (
+              <DrilldownPanel
+                r={selected}
+                dataset={dataset}
+                scope={view.scope}
+                rank={selectedIndex < 0 ? undefined : { position: selectedIndex + 1, tier: groups[selectedIndex]?.tier }}
+                attemptId={view.attempt}
+                onSelectAttempt={(a) => setView({ ...view, attempt: a })}
+              />
+            ) : (
+              <Outlet />
+            )
+          }
+        />
+      )}
     </div>
   );
 }

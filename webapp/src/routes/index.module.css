@@ -29,6 +29,8 @@
   text-decoration: none;
   white-space: nowrap;
 }
+.subtitleLink { color: inherit; }
+.subtitleLink:hover { color: var(--text-primary); }
 .requestLink:hover { color: var(--text-primary); text-decoration: underline; }
 
 .overviewButton {
