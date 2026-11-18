@@ -40,6 +40,7 @@ import {
   LlmTimeoutError,
 } from "../errors/llm.js";
 import type { Runtime } from "../schema/enums.js";
+import type { ChatMessage } from "../schema/prompt.js";
 import { LOOP_WINDOW_WORDS, makeLoopDetector } from "./loop-detector.js";
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -54,6 +55,8 @@ export interface CompletionParams {
   readonly promptName: string;
   readonly systemPrompt: string;
   readonly userPrompt: string;
+  /** Prior conversation sent between the system and user messages (multi-turn items). */
+  readonly history?: ReadonlyArray<ChatMessage>;
   readonly temperature: number;
   readonly maxTokens: number;
   /** Optional per-request timeout in seconds. Omit to rely on HTTP defaults. */
@@ -173,6 +176,7 @@ const buildBody = (p: CompletionParams) => ({
   model: p.model,
   messages: [
     { role: "system", content: p.systemPrompt },
+    ...(p.history ?? []),
     { role: "user", content: p.userPrompt },
   ],
   temperature: p.temperature,

@@ -306,7 +306,7 @@ const PASSING_OUTPUT =
   "The rocket climbed steadily until it reached a stable orbit, where gravity gently held it in place.";
 
 const runHandler = (args: {
-  archive?: string;
+  archive?: string | string[];
   stale?: string;
   challenge?: string;
   dryRun?: boolean;
@@ -315,7 +315,7 @@ const runHandler = (args: {
   Effect.runPromise(
     scoreCommand
       .handler({
-        archive: args.archive === undefined ? [] : [args.archive],
+        archive: args.archive === undefined ? [] : [args.archive].flat(),
         stale: args.stale !== undefined,
         archiveDir: args.stale ?? "unused",
         challengesDir: REAL_CHALLENGES,
@@ -861,5 +861,29 @@ describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
       "score: 1 restamped, 1 rescored-only, 1 skipped (incomplete 1), 0 already current",
     );
     expect(existsSync(path.join(dir, `${open.newId.replace(/-3$/, "-1")}.jsonl`))).toBe(true);
+  });
+
+  it("--stale names and skips legacy run files instead of passing over them silently", async () => {
+    await writeStaleSmoke({ id: "1" });
+    writeFileSync(path.join(dir, "2026-05-06_old-run.jsonl"), '{"schemaVersion":1,"runId":"r"}\n');
+    await runHandler({ stale: dir });
+
+    const out = logged.join("\n");
+    expect(out).toContain("2026-05-06_old-run.jsonl: skipped — not an attempt archive");
+    expect(out).toContain(
+      "score: 1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1), 0 already current",
+    );
+  });
+
+  it("a batch of --archive files skips a legacy file and scores the rest", async () => {
+    const legacy = path.join(dir, "legacy.jsonl");
+    writeFileSync(legacy, '{"schemaVersion":1,"runId":"r"}\n');
+    const stale = await writeStaleSmoke({ id: "1" });
+    await runHandler({ archive: [legacy, stale.file], corpus: true });
+
+    const out = logged.join("\n");
+    expect(out).toContain("legacy.jsonl: skipped — not an attempt archive");
+    expect(out).toContain("1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1)");
+    expect(existsSync(path.join(dir, `${stale.newId}.jsonl`))).toBe(true);
   });
 });

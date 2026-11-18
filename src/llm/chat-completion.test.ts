@@ -597,6 +597,19 @@ describe("ChatCompletion", () => {
     expect(captured).toMatchObject({ chat_template_kwargs: { reasoning_effort: "high" } });
   });
 
+  it("sends prior conversation turns between the system and the user message", async () => {
+    const history = [
+      { role: "user" as const, content: "t1?" },
+      { role: "assistant" as const, content: "42" },
+    ];
+    const { captured } = await Effect.runPromise(captureBody(baseParams({ history })));
+    expect(captured["messages"]).toEqual([
+      { role: "system", content: baseParams().systemPrompt },
+      ...history,
+      { role: "user", content: baseParams().userPrompt },
+    ]);
+  });
+
   it("reports the server's finish_reason so a budget-exhausted answer is distinguishable", async () => {
     const { result } = await Effect.runPromise(captureBody(baseParams()));
     expect(result.finishReason).toBe("length");

@@ -66,6 +66,8 @@ One line per challenge item — the item's execution metrics, the model's output
 | `promptHash` | `string` | 12-hex hash of the prompt text (with empty system text); key into the content store's `prompts/`. |
 | `itemHash` | `string` | 12-hex hash of `promptHash` + scorer; the per-item cache key. |
 | `scorerHash` | `string?` | 12-hex hash of the scorer config; key into the content store's `scorers/`. |
+| `parentItemId` | `string?` | For a turn of a multi-turn item, the item's `name` (`itemId` is `name#k`). Absent on single-shot items. |
+| `turn` | `number?` | 1-based turn index within `parentItemId`. Absent on single-shot items. |
 | `executedAt` | `string` | ISO timestamp at execution start. Cache tie-breaker — most recent wins. |
 | `promptTokens` | `number` | Tokens in the prompt. |
 | `generationTokens` | `number` | Tokens generated. |
@@ -97,7 +99,7 @@ The `content/` directory is content-addressed sidecar storage holding the full t
 ```
 content/
   system/<configHash>.txt     the resolved system-prompt text
-  prompts/<promptHash>.txt     each item's full prompt text
+  prompts/<promptHash>.txt     each item's full prompt text (for turn k > 1, the conversation JSON)
   scorers/<scorerHash>.json    each item's scorer config
 ```
 
@@ -118,7 +120,7 @@ Five 12-hex hashes (SHA-256 prefixes over canonical, key-sorted JSON) give the f
 | Hash | Preimage | Meaning |
 |---|---|---|
 | `configHash` | `artifact \| runtime \| quant \| temperature \| maxTokens \| systemPromptText`, then each of `repetitionPenalty`, `repetitionContextSize`, `topP`, `topK`, `minP`, `presencePenalty`, `chatTemplateKwargs`, and the chat-template file's content hash (`chatTemplateSha`) only when set | Identity of the configuration — the knobs a user sets. Code version (`env.benchmarkGitSha`), `ctxSize`, `extraArgs`, and `serverFlags` are excluded; the manifest records them as provenance. |
-| `promptHash` | `promptText \| resolvedSystemText` | What the model sees; changes when either the prompt or the system prompt changes. |
+| `promptHash` | `promptText \| resolvedSystemText`; for turn `k > 1` of a multi-turn item, `promptText` is replaced by the conversation JSON (gold history + the turn's prompt) | What the model sees; changes when the prompt, the system prompt, or any earlier turn's prompt or gold answer changes. |
 | `scorerHash` | the scorer config | Identity of the scorer. Kept **separate** — it is never folded into `itemHash`, `configHash`, `challengeHash`, or `attemptId`. |
 | `itemHash` | `promptHash \| scorer` | Per-item identity; the cross-attempt cache key. A scorer-only edit changes `itemHash` (so re-scoring applies) but leaves `promptHash` untouched. |
 | `challengeHash` | the ordered list of each item's `promptHash : scorer` | Identity of the whole challenge's resolved items. |

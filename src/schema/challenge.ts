@@ -87,7 +87,44 @@ const OrderedMatchItem = Schema.Struct({
   tags: Schema.optional(Schema.Array(Schema.String)),
 });
 
-export const ChallengeItem = Schema.Union(
+/**
+ * One turn of a multi-turn item: a prompt, its scorer (exact_match or
+ * constraint, same fields as the single-shot items), and `answer` — the gold
+ * assistant message injected as history before every later turn.
+ */
+const turnFields = { prompt: Schema.String, answer: Schema.String };
+export const Turn = Schema.Union(
+  Schema.Struct({
+    ...turnFields,
+    scorer: Schema.Literal("exact_match"),
+    expected: Schema.String,
+    extract: Schema.String,
+    nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
+  }),
+  Schema.Struct({
+    ...turnFields,
+    scorer: Schema.Literal("constraint"),
+    constraints: Schema.Array(ConstraintDef),
+    nearMisses: Schema.optional(Schema.Array(PatternNearMiss)),
+  }),
+);
+export type Turn = typeof Turn.Type;
+
+/**
+ * A conversational item: an ordered list of turns, each scored independently.
+ * The loader expands it into one scored unit per turn (see
+ * docs/superpowers/specs/2026-11-16-multiturn-challenges-design.md).
+ */
+const MultiTurnItem = Schema.Struct({
+  name: Schema.String,
+  category: Schema.String,
+  tier: Schema.Number,
+  turns: Schema.Array(Turn).pipe(Schema.minItems(2)),
+  tags: Schema.optional(Schema.Array(Schema.String)),
+});
+export type MultiTurnItem = typeof MultiTurnItem.Type;
+
+export const SingleItem = Schema.Union(
   ExactMatchItem,
   ConstraintItem,
   CodeExecItem,
@@ -95,6 +132,9 @@ export const ChallengeItem = Schema.Union(
   SetMatchItem,
   OrderedMatchItem,
 );
+export type SingleItem = typeof SingleItem.Type;
+
+export const ChallengeItem = Schema.Union(SingleItem, MultiTurnItem);
 export type ChallengeItem = typeof ChallengeItem.Type;
 
 /**

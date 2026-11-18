@@ -3,7 +3,9 @@ import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readBlob, scorerHash } from "../../archive/content-store.js";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
+import { resolveChallenge } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
+import { loadAttemptArchive } from "../../report/load-attempts.js";
 import { aggregate, baseHeader, runChallenge } from "../run-challenge.js";
 import {
   fakeDeps,
@@ -127,6 +129,142 @@ describe("runChallenge v2 + content store", () => {
       Effect.provide(readBlob(dir, "system", config.configHash), NodeContext.layer),
     );
     expect(system).toBe(config.systemPromptText);
+  });
+});
+
+describe("runChallenge multi-turn items", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const config: ResolvedConfiguration = {
+    id: "mt-config",
+    artifact: "fake-artifact",
+    runtime: "mlx",
+    temperature: 0,
+    systemPrompt: "direct",
+    maxTokens: 128,
+    systemPromptText: "Be concise.",
+    configHash: "cfg-mt",
+  };
+  const env = {
+    hostname: "test",
+    platform: "test",
+    runtimeVersion: "test",
+    nodeVersion: "test",
+    benchmarkGitSha: "test",
+  };
+  const turn = (prompt: string, answer: string) => ({
+    prompt,
+    answer,
+    scorer: "exact_match" as const,
+    expected: answer,
+    extract: "(\\d+)",
+  });
+
+  it("sends gold history, archives one line per turn with parent + turn, stores the conversation", async () => {
+    const challenge = await Effect.runPromise(
+      resolveChallenge(
+        {
+          id: "mt",
+          version: 1,
+          passThreshold: 0.5,
+          items: [
+            { name: "ch", category: "x", tier: 1, turns: [turn("p1", "1"), turn("p2", "2")] },
+          ],
+        } as never,
+        dir,
+      ).pipe(Effect.provide(NodeContext.layer)),
+    );
+    // The model gets turn 1 wrong ("4"); turn 2 must still see the gold "1".
+    const m = makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: {
+          output: "4",
+          reasoning: null,
+          promptTokens: 1,
+          generationTokens: 1,
+          promptTps: 0,
+          generationTps: 0,
+          finishReason: null,
+        },
+      },
+    );
+    const archivePath = `${dir}/att-mt.jsonl`;
+    await Effect.runPromise(
+      runChallenge({
+        config,
+        challenge,
+        attemptId: "att-mt",
+        archiveDir: dir,
+        archivePath,
+        env,
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(m.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+    expect(m.log.calls.map((c) => c.history)).toEqual([
+      undefined,
+      [
+        { role: "user", content: "p1" },
+        { role: "assistant", content: "1" },
+      ],
+    ]);
+    expect(m.log.calls.map((c) => c.userPrompt)).toEqual(["p1", "p2"]);
+
+    const { items: rows } = await Effect.runPromise(
+      loadAttemptArchive(archivePath).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(rows.map((r) => [r.itemId, r.parentItemId, r.turn])).toEqual([
+      ["ch#1", "ch", 1],
+      ["ch#2", "ch", 2],
+    ]);
+
+    const t2 = challenge.items[1] as ResolvedItem;
+    const blob = await Effect.runPromise(
+      Effect.provide(readBlob(dir, "prompts", t2.promptHash), NodeContext.layer),
+    );
+    expect(JSON.parse(blob)).toEqual([
+      { role: "user", content: "p1" },
+      { role: "assistant", content: "1" },
+      { role: "user", content: "p2" },
+    ]);
+
+    // A second attempt serves every turn from the cache, parent + turn intact.
+    const again = makeChatCompletionMock({});
+    await Effect.runPromise(
+      runChallenge({
+        config,
+        challenge,
+        attemptId: "att-mt2",
+        archiveDir: dir,
+        archivePath: `${dir}/att-mt2.jsonl`,
+        env,
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(again.layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+    expect(again.log.calls).toHaveLength(0);
+    const { items: cached } = await Effect.runPromise(
+      loadAttemptArchive(`${dir}/att-mt2.jsonl`).pipe(Effect.provide(NodeContext.layer)),
+    );
+    expect(cached.map((r) => [r.itemId, r.parentItemId, r.turn])).toEqual([
+      ["ch#1", "ch", 1],
+      ["ch#2", "ch", 2],
+    ]);
   });
 });
 

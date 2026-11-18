@@ -8,8 +8,10 @@
  * without re-running any model. There is no stdout score table — only a
  * one-line summary.
  *
- * Clean break from the legacy format: a non-attempt / legacy file produces a
- * clear error, not a re-score (mirrors Phase 4). `score` never calls the LLM.
+ * Clean break from the legacy format: a non-attempt / legacy file is never
+ * re-scored. A single `--archive` of one fails with a clear error; in a batch
+ * (repeated `--archive`, or `--stale`) it is named, skipped, and tallied, and
+ * the batch continues. `score` never calls the LLM.
  *
  * Identity: the store path never touches identity. The corpus path RE-STAMPS
  * an attempt onto the current challenge identity (challengeHash, per-item
@@ -28,7 +30,7 @@ import { Effect, Option } from "effect";
 import { rewriteAttempt } from "../../archive/attempt-writer.js";
 import { scorerHash, writeBlob } from "../../archive/content-store.js";
 import type { ResolvedChallenge } from "../../config/challenges.js";
-import { loadChallenge } from "../../config/challenges.js";
+import { loadChallenge, promptContent } from "../../config/challenges.js";
 import { stableStringify } from "../../config/hashing.js";
 import { aggregate } from "../../orchestration/run-challenge.js";
 import { currentItems, loadAttemptArchive } from "../../report/load-attempts.js";
@@ -379,7 +381,7 @@ const scoreFromCorpus = (
     // Re-scored items now name the current scorers; write their blobs first.
     if (!dryRun) {
       for (const r of resolved.items) {
-        yield* writeBlob(archiveDir, "prompts", r.promptHash, r.prompt.promptText);
+        yield* writeBlob(archiveDir, "prompts", r.promptHash, promptContent(r.prompt));
         yield* writeBlob(archiveDir, "scorers", scorerHash(r.scorer), stableStringify(r.scorer));
       }
     }
@@ -417,6 +419,12 @@ const scoreFromCorpus = (
     return outcome;
   });
 
+const NOT_AN_ATTEMPT = "not an attempt archive";
+const skippedNotAttempt = (file: string) =>
+  printLine(
+    `${file}: skipped — ${NOT_AN_ATTEMPT} (legacy run format; score reads attempt archives only)`,
+  );
+
 const scoreOne = (
   archive: string,
   opts: {
@@ -424,17 +432,24 @@ const scoreOne = (
     challenge: Option.Option<string>;
     dryRun: boolean;
     corpus: boolean;
+    /** Batch mode: record a skip reason instead of failing on a non-attempt file. */
+    noteSkip: ((reason: string) => void) | null;
   },
 ) =>
   Effect.gen(function* () {
     const { dryRun } = opts;
-    const loaded = yield* loadAttemptArchive(archive).pipe(
-      Effect.mapError(
-        () =>
-          new Error(`${archive}: not an attempt archive (score no longer reads the legacy format)`),
-      ),
-    );
-    const { manifest, items } = loaded;
+    const loadedE = yield* loadAttemptArchive(archive).pipe(Effect.either);
+    if (loadedE._tag === "Left") {
+      if (opts.noteSkip === null) {
+        return yield* Effect.fail(
+          new Error(`${archive}: ${NOT_AN_ATTEMPT} (score no longer reads the legacy format)`),
+        );
+      }
+      opts.noteSkip(NOT_AN_ATTEMPT);
+      yield* skippedNotAttempt(archive);
+      return "skipped" as Outcome;
+    }
+    const { manifest, items } = loadedE.right;
 
     // Store-primary path: v2 archive + no --corpus flag → re-score from content
     // store without needing corpus or challenge YAML on disk.
@@ -490,9 +505,10 @@ const scoreOne = (
   });
 
 /**
- * `--stale`: every completed `att-*.jsonl` in `archiveDir` whose challengeHash
- * differs from its current challenge's, via the corpus path. Unloadable,
- * incomplete, and unresolvable attempts are tallied as skipped by reason.
+ * `--stale`: every completed attempt `.jsonl` in `archiveDir` whose
+ * challengeHash differs from its current challenge's, via the corpus path.
+ * Non-attempt (legacy run) files are named and skipped; they and incomplete
+ * and unresolvable attempts are tallied as skipped by reason.
  */
 const scoreStale = (
   archiveDir: string,
@@ -508,15 +524,14 @@ const scoreStale = (
       tally.skipped += 1;
       skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1);
     };
-    const files = (yield* fs.readDirectory(archiveDir))
-      .filter((f) => f.startsWith("att-") && f.endsWith(".jsonl"))
-      .sort();
+    const files = (yield* fs.readDirectory(archiveDir)).filter((f) => f.endsWith(".jsonl")).sort();
     const challenges = new Map<string, ResolvedChallenge | null>();
     for (const f of files) {
       const archive = pathSvc.join(archiveDir, f);
       const loaded = yield* loadAttemptArchive(archive).pipe(Effect.either);
       if (loaded._tag === "Left") {
-        skip("not an attempt archive");
+        skip(NOT_AN_ATTEMPT);
+        yield* skippedNotAttempt(f);
         continue;
       }
       const { manifest, items } = loaded.right;
@@ -570,8 +585,12 @@ export const scoreCommand = Command.make(
         current: 0,
       };
       const skipReasons = new Map<string, number>();
+      const noteSkip =
+        archive.length > 1 || stale
+          ? (reason: string) => skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1)
+          : null;
       for (const a of archive) {
-        tally[yield* scoreOne(a, { challengesDir, challenge, dryRun, corpus })] += 1;
+        tally[yield* scoreOne(a, { challengesDir, challenge, dryRun, corpus, noteSkip })] += 1;
       }
       if (stale) yield* scoreStale(archiveDir, challengesDir, dryRun, tally, skipReasons);
       if (stale || archive.length > 1) {

@@ -2,10 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FileSystem } from "@effect/platform";
 import { NodeFileSystem } from "@effect/platform-node";
-import { Effect } from "effect";
+import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import type { Challenge } from "../schema/challenge.js";
+import { type Challenge, Challenge as ChallengeSchema } from "../schema/challenge.js";
 import { loadChallenge, resolveChallenge } from "./challenges.js";
+import { computePromptHash, stableStringify } from "./hashing.js";
 
 // Absolute path to the repo root (two levels up from src/config/)
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -258,6 +259,140 @@ describe("resolveChallenge hashing", () => {
       Effect.runPromise(provide(resolveChallenge(drifted, challengesDir))),
     ]);
     expect(h1.challengeHash).not.toBe(h2.challengeHash);
+  });
+});
+
+describe("resolveChallenge multi-turn items", () => {
+  const turn = (prompt: string, answer: string) => ({
+    prompt,
+    answer,
+    scorer: "exact_match" as const,
+    expected: answer,
+    extract: "(\\d+)",
+  });
+  const chain = (answers: [string, string, string]) =>
+    ({
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [
+        {
+          name: "chain",
+          category: "x",
+          tier: 2,
+          tags: ["t"],
+          turns: [turn("p1", answers[0]), turn("p2", answers[1]), turn("p3", answers[2])],
+        },
+      ],
+    }) as unknown as Challenge;
+
+  const resolve = async (c: Challenge) => {
+    const exit = await run(provide(resolveChallenge(c, challengesDir)));
+    if (exit._tag !== "Success") throw new Error(`resolve failed: ${String(exit.cause)}`);
+    return exit.value;
+  };
+
+  it("expands into one scored unit per turn with parent id, turn index and gold history", async () => {
+    const r = await resolve(chain(["1", "2", "3"]));
+    expect(r.items.map((i) => i.itemId)).toEqual(["chain#1", "chain#2", "chain#3"]);
+    expect(r.items.map((i) => i.parentItemId)).toEqual(["chain", "chain", "chain"]);
+    expect(r.items.map((i) => i.turn)).toEqual([1, 2, 3]);
+    const t3 = r.items[2];
+    expect(t3?.prompt.name).toBe("chain#3");
+    expect(t3?.prompt.promptText).toBe("p3");
+    expect(t3?.prompt.tier).toBe(2);
+    expect(t3?.prompt.history).toEqual([
+      { role: "user", content: "p1" },
+      { role: "assistant", content: "1" },
+      { role: "user", content: "p2" },
+      { role: "assistant", content: "2" },
+    ]);
+    expect(r.items[0]?.prompt.history).toBeUndefined();
+  });
+
+  it("hashes turn 1 like a single-shot prompt and later turns over the full conversation", async () => {
+    const r = await resolve(chain(["1", "2", "3"]));
+    expect(r.items[0]?.promptHash).toBe(computePromptHash("p1", ""));
+    const convo = stableStringify([
+      { role: "user", content: "p1" },
+      { role: "assistant", content: "1" },
+      { role: "user", content: "p2" },
+    ]);
+    expect(r.items[1]?.promptHash).toBe(computePromptHash(convo, ""));
+  });
+
+  it("changing an earlier gold answer changes every later turn's identity", async () => {
+    const a = await resolve(chain(["1", "2", "3"]));
+    const b = await resolve(chain(["7", "2", "3"]));
+    expect(b.items[0]?.promptHash).toBe(a.items[0]?.promptHash);
+    expect(b.items[1]?.itemHash).not.toBe(a.items[1]?.itemHash);
+    expect(b.items[2]?.itemHash).not.toBe(a.items[2]?.itemHash);
+    expect(b.challengeHash).not.toBe(a.challengeHash);
+  });
+
+  it("fails when a turn's gold answer does not pass its own scorer", async () => {
+    const c = chain(["1", "2", "3"]);
+    const bad = {
+      ...c,
+      items: [
+        {
+          ...(c.items[0] as object),
+          turns: [turn("p1", "1"), { ...turn("p2", "2"), expected: "9" }],
+        },
+      ],
+    } as unknown as Challenge;
+    const exit = await run(provide(resolveChallenge(bad, challengesDir)));
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("carries a turn's near misses into its scorer; a gold answer that is only a near miss fails", async () => {
+    const c = chain(["1", "2", "3"]);
+    const withNear = (answer: string) =>
+      Effect.runSync(
+        Schema.decodeUnknown(ChallengeSchema)({
+          ...c,
+          items: [
+            {
+              ...(c.items[0] as object),
+              turns: [
+                turn("p1", "1"),
+                {
+                  ...turn("p2", answer),
+                  expected: "2",
+                  nearMisses: [{ slip: "off-by-one", credit: 0.5, expected: "3" }],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+    const r = await resolve(withNear("2"));
+    expect(r.items[1]?.scorer).toMatchObject({
+      nearMisses: [{ slip: "off-by-one", credit: 0.5, expected: "3" }],
+    });
+    const exit = await run(provide(resolveChallenge(withNear("3"), challengesDir)));
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("rejects a multi-turn item with fewer than two turns", () => {
+    const c = chain(["1", "2", "3"]);
+    const one = {
+      ...c,
+      items: [{ ...(c.items[0] as object), turns: [turn("p1", "1")] }],
+    };
+    expect(Exit.isFailure(Effect.runSyncExit(Schema.decodeUnknown(ChallengeSchema)(one)))).toBe(
+      true,
+    );
+  });
+
+  it("fails when a turn id collides with another item name", async () => {
+    const c = chain(["1", "2", "3"]);
+    const clash = {
+      ...c,
+      items: [...c.items, exactItem("chain#2", "q")],
+    } as unknown as Challenge;
+    const exit = await run(provide(resolveChallenge(clash, challengesDir)));
+    expect(exit._tag).toBe("Failure");
   });
 });
 

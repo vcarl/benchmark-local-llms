@@ -26,6 +26,10 @@ export const ItemResult = Schema.Struct({
   promptHash: Schema.String,
   itemHash: Schema.String,
   scorerHash: Schema.optional(Schema.String),
+  /** Multi-turn item `name` this line is a turn of; absent on single-shot items. */
+  parentItemId: Schema.optional(Schema.String),
+  /** 1-based turn index within `parentItemId`; absent on single-shot items. */
+  turn: Schema.optional(Schema.Number),
   executedAt: Schema.String,
   promptTokens: Schema.Number,
   generationTokens: Schema.Number,

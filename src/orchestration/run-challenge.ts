@@ -17,7 +17,7 @@ import { Clock, Effect, Option } from "effect";
 import { appendItem, finalizeAttempt, writeAttemptHeader } from "../archive/attempt-writer.js";
 import { findCachedItem } from "../archive/cache.js";
 import { scorerHash, writeBlob } from "../archive/content-store.js";
-import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
+import { promptContent, type ResolvedChallenge, type ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
 import { stableStringify } from "../config/hashing.js";
 import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
@@ -162,7 +162,7 @@ export const executeOrCacheItem = (
 > =>
   Effect.gen(function* () {
     const sh = scorerHash(item.scorer);
-    yield* writeBlob(input.archiveDir, "prompts", item.promptHash, item.prompt.promptText);
+    yield* writeBlob(input.archiveDir, "prompts", item.promptHash, promptContent(item.prompt));
     yield* writeBlob(input.archiveDir, "scorers", sh, stableStringify(item.scorer));
 
     if (input.noCache !== true) {
@@ -210,6 +210,8 @@ export const executeOrCacheItem = (
       promptHash: item.promptHash,
       itemHash: item.itemHash,
       scorerHash: sh,
+      ...(item.parentItemId === undefined ? {} : { parentItemId: item.parentItemId }),
+      ...(item.turn === undefined ? {} : { turn: item.turn }),
       executedAt: exec.executedAt,
       promptTokens: exec.promptTokens,
       generationTokens: exec.generationTokens,

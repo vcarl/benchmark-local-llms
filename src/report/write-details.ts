@@ -43,6 +43,18 @@ export const writeDetails = (
       const { manifest, systemPromptText } = recon.right;
       const retired = new Set(manifest.retiredItems ?? []);
       const items = recon.right.items.filter(({ item }) => !retired.has(item.promptName));
+      // Derived, not stored, so it always agrees with the current (re-)scores.
+      const passedTurn = new Set(
+        items.flatMap(({ item }) =>
+          item.parentItemId !== undefined && item.score === 1
+            ? [`${item.parentItemId}#${item.turn}`]
+            : [],
+        ),
+      );
+      const priorTurnPassed = (item: (typeof items)[number]["item"]): boolean | null =>
+        item.parentItemId === undefined || item.turn === undefined || item.turn === 1
+          ? null
+          : passedTurn.has(`${item.parentItemId}#${item.turn - 1}`);
       const payload = {
         attempt_id: manifest.attemptId,
         config_id: manifest.configId,
@@ -54,6 +66,10 @@ export const writeDetails = (
         items: items.map(({ item, promptText, scorer }) => ({
           item_id: item.itemId,
           prompt_name: item.promptName,
+          // Turn units only (undefined → key dropped on single-shot items).
+          parent_item_id: item.parentItemId,
+          turn: item.turn,
+          prior_turn_passed: priorTurnPassed(item),
           prompt_text: promptText,
           output: item.output,
           reasoning: item.reasoning,

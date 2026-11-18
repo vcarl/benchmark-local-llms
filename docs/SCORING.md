@@ -172,6 +172,14 @@ The headline pass rate stays binary — a near miss is not a pass (`score === 1`
 
 Ref: `src/schema/scorer.ts` (`ExactNearMiss`, `PatternNearMiss`), `src/scoring/exact-match.ts`, `src/scoring/constraint.ts`.
 
+## Multi-turn items
+
+A challenge item with `turns:` is a conversation of incremental questions. Each turn has its own prompt, scorer (`exact_match` or `constraint`), and `answer` — the gold assistant message. A turn may declare `nearMisses` exactly like a single-shot item. The loader expands the item into one scored unit per turn, `name#k`, and every unit is scored, cached, audited, and counted toward the pass rate exactly like a single-shot item.
+
+Turn `k` is sent with turns `1..k-1` and their **gold** answers as conversation history, never the model's own answers, so each turn measures one step and an early miss does not cascade. Loading fails if any gold answer does not score 1 under its own turn's scorer. The report detail file marks each turn with `prior_turn_passed` — whether the model's own answer to the previous turn passed in the same attempt — so recovery after a miss is visible.
+
+Design: `docs/superpowers/specs/2026-11-16-multiturn-challenges-design.md`.
+
 ## Failure handling
 
 Scorers return `Effect<PromptScore, ScorerNotFound | CodeExecTimeout | CodeExecFailed | ScorerSpawnFailed, CommandExecutor>`. Errors do **not** become scores inside the scorer — they propagate on the error channel. Every caller that records a score goes through `scoreOrFold` (`src/scoring/dispatch.ts`), which folds an error into `{ score: 0, details: "scorer error: <tagged error>", failure: "scorer_error" }`: the run (`run-challenge.ts`) and re-scoring (`bench score`) both use it.

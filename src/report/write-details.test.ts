@@ -141,6 +141,66 @@ describe("writeDetails", () => {
     expect(detail.items.map((i: { item_id: string }) => i.item_id)).toEqual(["kept"]);
   });
 
+  it("marks turn units with parent, turn and whether the model's own previous turn passed", async () => {
+    const sh = scorerHash(SCORER as never);
+    const row = (itemId: string, extra: Record<string, unknown>, score: number) => ({
+      itemId,
+      promptName: itemId,
+      promptHash: "ph",
+      itemHash: "ih",
+      scorerHash: sh,
+      executedAt: "t",
+      promptTokens: 1,
+      generationTokens: 1,
+      promptTps: 1,
+      generationTps: 1,
+      peakMemoryGb: 0,
+      wallTimeSec: 0,
+      output: "4",
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      score,
+      ...extra,
+    });
+    const rows = [
+      row("single", {}, 1),
+      row("ch#1", { parentItemId: "ch", turn: 1 }, 0),
+      row("ch#2", { parentItemId: "ch", turn: 2 }, 1),
+      row("ch#3", { parentItemId: "ch", turn: 3 }, 1),
+    ];
+    const file = join(dir, "att-x.jsonl");
+    const out = join(dir, "out");
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
+          yield* writeBlob(dir, "prompts", "ph", "q");
+          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
+          yield* writeBlob(dir, "system", "cfg", "s");
+          yield* Effect.promise(() =>
+            writeFile(file, [v2Header, ...rows].map((r) => JSON.stringify(r)).join("\n")),
+          );
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+        }),
+        NodeContext.layer,
+      ),
+    );
+    const detail = JSON.parse(await readFile(join(out, "att-x.json"), "utf8"));
+    const pick = (i: Record<string, unknown>) => [
+      i["item_id"],
+      i["parent_item_id"],
+      i["turn"],
+      i["prior_turn_passed"],
+    ];
+    expect(detail.items.map(pick)).toEqual([
+      ["single", undefined, undefined, null],
+      ["ch#1", "ch", 1, null],
+      ["ch#2", "ch", 2, false],
+      ["ch#3", "ch", 3, true],
+    ]);
+  });
+
   it("skips a v1 attempt gracefully (no file, counted as skipped)", async () => {
     const file = join(dir, "att-v1.jsonl");
     const out = join(dir, "out");

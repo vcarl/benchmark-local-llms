@@ -265,6 +265,7 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   promptName: input.prompt.name,
   systemPrompt: input.systemPrompt,
   userPrompt: input.prompt.promptText,
+  ...(input.prompt.history === undefined ? {} : { history: input.prompt.history }),
   temperature: input.temperature,
   maxTokens: input.maxTokens,
   timeoutSec: input.timeoutSec ?? DEFAULT_PROMPT_TIMEOUT_SEC,
