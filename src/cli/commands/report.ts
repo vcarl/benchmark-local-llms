@@ -17,7 +17,7 @@ import { makeLoggerLayer } from "../logger.js";
  *
  * Line 1: how many attempts were loaded
  * Line 2: how many results were dropped (and why)
- * Line 3: how many cells were written and where
+ * Line 3: where data.js was written, then one line per dataset
  */
 export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
   Effect.gen(function* () {
@@ -25,7 +25,11 @@ export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
     yield* Effect.logInfo(
       `report: dropped ${summary.dropped.incomplete} (incomplete), ${summary.dropped.duplicate} (duplicate)`,
     );
-    yield* Effect.logInfo(`report: wrote ${summary.recordCount} cells → ${summary.outputPath}`);
+    yield* Effect.logInfo(`report: wrote ${summary.outputPath}`);
+    for (const d of summary.datasets)
+      yield* Effect.logInfo(
+        `report: dataset ${d.dataset.label}: ${d.rows.length} rows over ${d.challengeSet.length} challenges`,
+      );
     yield* Effect.logInfo(
       `report: details ${summary.detailsWritten} written, ${summary.detailsSkipped} skipped (v1/no-store)`,
     );
@@ -54,30 +58,39 @@ const output = Options.directory("output").pipe(
   Options.withDefault("./webapp/src/data"),
 );
 
+const challengesDir = Options.directory("challenges-dir").pipe(
+  Options.withDescription("Challenge YAML directory the challenge set is read from"),
+  Options.withDefault("challenges"),
+);
+
 const verbose = Options.boolean("verbose").pipe(
   Options.withAlias("v"),
   Options.withDefault(false),
   Options.withDescription("Enable debug-level log output (intra-call detail)"),
 );
 
-export const reportCommand = Command.make("report", { archiveDir, output, verbose }, (args) =>
-  Effect.gen(function* () {
-    const outputPath = path.join(args.output, "data.js");
+export const reportCommand = Command.make(
+  "report",
+  { archiveDir, output, challengesDir, verbose },
+  (args) =>
+    Effect.gen(function* () {
+      const outputPath = path.join(args.output, "data.js");
 
-    const summary = yield* runReport({
-      archiveDir: args.archiveDir,
-      outputPath,
-    }).pipe(
-      Effect.tapError((err) =>
-        err instanceof FileIOError && isMissingArchiveDirError(err)
-          ? Effect.logError(missingArchiveDirHint(args.archiveDir))
-          : Effect.void,
-      ),
-    );
+      const summary = yield* runReport({
+        archiveDir: args.archiveDir,
+        outputPath,
+        challengesDir: args.challengesDir,
+      }).pipe(
+        Effect.tapError((err) =>
+          err instanceof FileIOError && isMissingArchiveDirError(err)
+            ? Effect.logError(missingArchiveDirHint(args.archiveDir))
+            : Effect.void,
+        ),
+      );
 
-    if (summary.loadIssues.length > 0) {
-      yield* Effect.logWarning(`report: ${summary.loadIssues.length} archive load issue(s)`);
-    }
-    yield* logAuditBlock(summary);
-  }).pipe(Effect.provide(makeLoggerLayer(args.verbose))),
+      if (summary.loadIssues.length > 0) {
+        yield* Effect.logWarning(`report: ${summary.loadIssues.length} archive load issue(s)`);
+      }
+      yield* logAuditBlock(summary);
+    }).pipe(Effect.provide(makeLoggerLayer(args.verbose))),
 ).pipe(Command.withDescription("Generate webapp report data from archive files"));

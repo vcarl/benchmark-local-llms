@@ -312,6 +312,7 @@
 # re-run once oMLX handles quantized MTP heads.
 - id: qwen3.8-27b-omlx-mtp
   artifact: ~/.omlx/models/Qwen3.8-27B-4bit-MTP
+  modelKey: qwen3.8-27b  # same weights as the hub builds; groups with them in the report
   runtime: omlx
   quant: 4bit
   temperature: 1.0

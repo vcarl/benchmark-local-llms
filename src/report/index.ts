@@ -1,22 +1,25 @@
 /**
  * Report generator entry point. Wires the attempt-archive pipeline:
  *
- *   loadAttemptArchives → aggregateAttempts → writeDataJs → writeDetails
+ *   loadAttemptArchives → buildRows + detailSources → writeDataJs → writeDetails
  *
  * The CLI (D1) calls {@link runReport} and formats the returned
  * {@link ReportSummary} for the operator.
  *
- * Error surface: discovery (directory ENOENT, etc.) and the final write
- * propagate as `FileIOError`. Individual archive failures are collected in
+ * Errors are typed: only `FileIOError` from `writeDataJs` / directory listing
+ * propagates. Per-file or per-line archive problems are collected in
  * `summary.loadIssues`, not raised.
  */
 import path from "node:path";
-import type { FileSystem, Path } from "@effect/platform";
-import { Effect } from "effect";
+import { FileSystem, type Path } from "@effect/platform";
+import { Clock, Effect, Option } from "effect";
+import { listChallengeFiles, loadChallenge, type ResolvedChallenge } from "../config/challenges.js";
+import { parseYaml } from "../config/yaml.js";
 import type { FileIOError } from "../errors/index.js";
-import { aggregateAttempts } from "./aggregate.js";
+import { detailSources } from "./aggregate.js";
 import { type AttemptLoadIssue, loadAttemptArchives } from "./load-attempts.js";
-import type { WebappRecord } from "./webapp-contract.js";
+import { modelKeyOverrides } from "./model-key.js";
+import { buildRows, type RowsDataset } from "./rows.js";
 import { writeDataJs } from "./write-data-js.js";
 import { type DetailWriteResult, writeDetails } from "./write-details.js";
 
@@ -24,26 +27,29 @@ export interface ReportOptions {
   /** Directory containing `*.jsonl` archives to report on. */
   readonly archiveDir: string;
   /**
-   * Output path for the webapp data file. Defaults to
-   * `webapp/src/data/data.js` relative to the archive dir's parent.
+   * Output path for `data.js`. Defaults to `<repo>/webapp/src/data/data.js`
+   * relative to the archive directory's parent.
    */
   readonly outputPath?: string;
   /** If true, skip the write step (useful for tests / dry-run). */
   readonly dryRun?: boolean;
+  /** Challenge YAML directory the challenge set is read from (default `challenges`). */
+  readonly challengesDir?: string;
+  /** `configs.yaml` whose `modelKey` overrides apply (default `configs.yaml`; missing = none). */
+  readonly configsPath?: string;
 }
 
 export interface ReportSummary {
   readonly archiveDir: string;
   readonly outputPath: string;
   readonly attemptsLoaded: number;
-  readonly recordCount: number;
   readonly loadIssues: ReadonlyArray<AttemptLoadIssue>;
   readonly dropped: { readonly incomplete: number; readonly duplicate: number };
   readonly dryRun: boolean;
-  /** Records returned for caller inspection (tests, CLI preview). */
-  readonly records: ReadonlyArray<WebappRecord>;
   readonly detailsWritten: number;
   readonly detailsSkipped: number;
+  /** The selected rows per dataset (`globalThis.__BENCHMARK_ROWS`). */
+  readonly datasets: ReadonlyArray<RowsDataset>;
 }
 
 const defaultOutputPath = (archiveDir: string): string => {
@@ -57,9 +63,40 @@ const defaultDetailsDir = (outputPath: string): string => {
   return path.join(webappRoot, "public", "details");
 };
 
+/** The challenge set: every challenge loadable from the directory. An unloadable file is left out. */
+const loadChallengeSet = (
+  challengesDir: string,
+): Effect.Effect<ResolvedChallenge[], never, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const challenges: ResolvedChallenge[] = [];
+    const files = yield* listChallengeFiles(challengesDir).pipe(Effect.orElseSucceed(() => []));
+    for (const f of files) {
+      const c = yield* loadChallenge(f.path).pipe(Effect.option);
+      if (Option.isSome(c)) challenges.push(c.value);
+    }
+    return challenges;
+  });
+
+/** `challenges` → `main`; any other challenges directory names its own dataset. */
+export const defaultDatasetLabel = (challengesDir: string): string => {
+  const base = path.basename(path.resolve(challengesDir));
+  return base === "challenges" ? "main" : base;
+};
+
+/** `artifact → modelKey` from a `configs.yaml`; a missing or unparseable file gives none. */
+const loadModelKeys = (configsPath: string) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const src = yield* fs.readFileString(configsPath).pipe(Effect.option);
+    if (Option.isNone(src)) return new Map<string, string>();
+    const parsed = yield* parseYaml(configsPath, src.value).pipe(Effect.option);
+    return modelKeyOverrides(Option.getOrUndefined(parsed));
+  });
+
 /**
- * Top-level report command. Loads attempt archives, aggregates results,
- * writes `data.js`. Returns a {@link ReportSummary} for CLI formatting.
+ * Top-level report command. Loads the attempt archives, selects rows, writes
+ * `data.js` and the item details. Returns a {@link ReportSummary} for CLI
+ * formatting.
  */
 export const runReport = (
   options: ReportOptions,
@@ -68,29 +105,45 @@ export const runReport = (
     const archiveDir = options.archiveDir;
     const outputPath = options.outputPath ?? defaultOutputPath(archiveDir);
     const dryRun = options.dryRun ?? false;
+    const challengesDir = options.challengesDir ?? "challenges";
 
     const loaded = yield* loadAttemptArchives(archiveDir);
-    const { records, dropped, detailSources } = aggregateAttempts(loaded.attempts);
+    const challenges = yield* loadChallengeSet(challengesDir);
+    const selection = detailSources(loaded.attempts);
+    const datasets = [
+      buildRows({
+        attempts: loaded.attempts,
+        challengeSet: challenges,
+        dataset: {
+          label: defaultDatasetLabel(challengesDir),
+          // Base names only: an absolute path would leak the operator's home directory.
+          archiveDir: path.basename(path.resolve(archiveDir)),
+          challengesDir: path.basename(path.resolve(challengesDir)),
+          release: null,
+          errata: [],
+        },
+        generatedAt: new Date(yield* Clock.currentTimeMillis).toISOString(),
+        modelKeys: yield* loadModelKeys(options.configsPath ?? "configs.yaml"),
+      }),
+    ];
 
     let details: DetailWriteResult = { written: 0, skipped: 0 };
     if (!dryRun) {
-      yield* writeDataJs(outputPath, records);
-      details = yield* writeDetails(defaultDetailsDir(outputPath), detailSources);
+      yield* writeDataJs(outputPath, datasets);
+      details = yield* writeDetails(defaultDetailsDir(outputPath), selection.detailSources);
     }
 
     return {
       archiveDir,
       outputPath,
       attemptsLoaded: loaded.attempts.length,
-      recordCount: records.length,
       loadIssues: loaded.issues,
-      dropped,
+      dropped: selection.dropped,
       dryRun,
-      records,
       detailsWritten: details.written,
       detailsSkipped: details.skipped,
+      datasets,
     };
   });
 
-export type { WebappRecord } from "./webapp-contract.js";
 export { formatDataJs } from "./write-data-js.js";

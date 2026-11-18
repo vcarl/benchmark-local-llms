@@ -17,6 +17,12 @@ const ConfigurationFields = Schema.Struct({
   ctxSize: Schema.optional(Schema.Number),
   active: Schema.optional(Schema.Boolean),
   /**
+   * Model identity the report groups this artifact under, overriding the
+   * name-derived key (src/report/model-key.ts). Report metadata only: never
+   * hashed, never sent to a runtime.
+   */
+  modelKey: Schema.optional(Schema.String),
+  /**
    * Optional vendored chat-template name. When set, resolves to
    * `templates/<chatTemplate>.jinja` and is passed to llama-server as
    * `--jinja --chat-template-file`. Needed for official `mistralai/*-GGUF`

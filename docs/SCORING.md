@@ -98,7 +98,30 @@ Per-execution scores in `[0, 1)` still flow into the archive — the webapp just
 
 Capability tags (`computeCapability` in `pipeline.ts`) are a display filter, not a pass-rate denominator — they show "of the records carrying tag T, what fraction passed?" and intentionally do not anchor to a per-tag run challenge count.
 
-Ref: `webapp/src/lib/constants.ts`, `webapp/src/lib/pipeline.ts`, `src/report/webapp-contract.ts`.
+Ref: `webapp/src/lib/constants.ts`, `webapp/src/lib/pipeline.ts`.
+
+## Report rows
+
+`./bench report` writes `globalThis.__BENCHMARK_ROWS` (`src/report/rows.ts`) to `data.js`: the rows selected in the report step, one entry per **dataset**, so a consumer only sums and displays. A dataset is an archive directory scored against a challenge directory, labelled `main` for `challenges/`, else by the directory name. The report emits one dataset; its `release` is `null` and its `errata` empty (no release baseline or errata exist). Rows never mix datasets.
+
+**Challenge set.** The set is every challenge loadable from `--challenges-dir` at report time, with its current version, hash, and items. It is never inferred from the records.
+
+**Rows.** A row is one `configHash` on one machine (`hardwareId`). Attempt archives do not record the machine, so every row's `hardwareId` is `unknown` and the dataset's `hardware` map is empty.
+
+**Selection.** For each row and set challenge, the report pools the item lines of every completed attempt with the same `(configHash, challengeId, challengeVersion)` whose `itemHash` equals the set item's current hash. Per item it keeps the line with the latest `executedAt`. This is the cache's rule, so a row is what `./bench run` would serve: a replay collapses into its original. A line's **executor** is the earliest-started attempt holding the identical line that started no later than the line's `executedAt`; the executor's header supplies its runtime version and git sha (`unknown` when no executor is found).
+
+**Cells.** Each set challenge gets a cell with a status:
+
+| Status | Meaning |
+|---|---|
+| `scored` | Every set item has a counted line |
+| `stale_hash` | No full coverage at the current item hashes, but a completed attempt of the challenge exists |
+| `interrupted` | Only interrupted attempts exist |
+| `not_run` | No attempt exists |
+
+A cell carries its items, passed, `families` counts, its cost (generation tokens and wall time summed over items, peak memory, mean generation speed; scored cells only), its execution date range, runtime versions, git shas, executing attempts, and whether any executor was re-stamped. A non-`scored` cell counts 0 passed, and its items stay in every denominator. The contract also carries fields the archives cannot fill yet, at fixed values: `scopes` and `scopeFamilies` are empty, `failureKinds` is empty, `nearMissCredit` is 0, and `samples` is `[1, 1]` on a scored cell (one line per item).
+
+**Row figures.** `passRate = Σ passed / Σ set items` — the [pass-rate formula](#per-execution-score-vs-webapp-pass-rate), so a missing or stale challenge counts as failed. `se` is the CR1 standard error over the row's families (`null` below 5). `completeness` counts scored challenges and their items; `freshness` is the execution date range of the counted lines; `provenance` lists runtime versions, git shas, submitters (always `local`), samples per item, and re-stamped cells, and sets `mixed` when the counted lines span more than one runtime version, more than one git sha (`unknown` counts), or more than 7 days. `variant` holds only the fields that differ among rows of the same `artifact` — runtime, quant, temperature, max tokens, system prompt — and `variantLabel` joins them (`t0.7 · quant 8bit`). Sampler knobs are not in the attempt header, so configs of one artifact that differ only there share a label. `modelKey` groups the builds of one model: the artifact's last path segment, lower-cased, without an uploader's `org_` prefix or packaging tokens (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`…); a `configs.yaml` entry's `modelKey` overrides it for that artifact. `modelName` is the same name with case kept.
 
 ## Failure handling
 
