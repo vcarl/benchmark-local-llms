@@ -1,0 +1,30 @@
+.spread { display: flex; flex-direction: column; gap: var(--space-8); margin-bottom: var(--space-8); }
+.caption { color: var(--text-muted); font-size: var(--fz-11); }
+.empty { color: var(--text-faint); padding: var(--space-6) 0; }
+.section { display: flex; flex-direction: column; gap: var(--space-3); }
+.heading {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fz-10);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-6); font-size: var(--fz-11); color: var(--text-secondary); }
+.legendItem { display: inline-flex; align-items: center; gap: var(--space-3); }
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.line { width: 12px; height: 3px; }
+.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.grid { stroke: var(--gray-700); stroke-width: 1; }
+.tick { fill: var(--text-muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.label { fill: var(--text-secondary); font-size: 11px; }
+.axisZero { fill: var(--text-muted); font-size: 11px; }
+.whisker { stroke: var(--text-muted); stroke-width: 1; }
+.box { fill: color-mix(in srgb, var(--band) 20%, transparent); stroke: var(--band); stroke-width: 1; }
+.median { stroke: var(--band); stroke-width: 2; }
+.table { border-collapse: collapse; font-size: var(--fz-11); font-variant-numeric: tabular-nums; }
+.table th, .table td { padding: var(--space-1) var(--space-4); text-align: right; }
+.table th:first-child, .table td:first-child { text-align: left; padding-left: 0; color: var(--text-secondary); }
+.table th { font-weight: 400; font-size: var(--fz-10); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+.runs { color: var(--text-muted); }
+.note { margin: 0; color: var(--text-muted); font-size: var(--fz-11); line-height: 1.5; }

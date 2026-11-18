@@ -206,6 +206,7 @@ function RootComponent() {
             selected !== undefined ? (
               <DrilldownPanel
                 r={selected}
+                runs={visible.filter((v) => v.row.modelKey === selected.row.modelKey)}
                 dataset={dataset}
                 scope={view.scope}
                 rank={selectedIndex < 0 ? undefined : { position: selectedIndex + 1, tier: groups[selectedIndex]?.tier }}
