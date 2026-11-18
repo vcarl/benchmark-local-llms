@@ -39,7 +39,7 @@ export const loadAttemptReconstruction = (
     const { manifest, items } = yield* loadAttemptArchive(file).pipe(
       Effect.mapError((i) => new NotReconstructible({ path: file, reason: i.reason })),
     );
-    if (manifest.schemaVersion !== 2) {
+    if (manifest.schemaVersion < 2) {
       return yield* Effect.fail(
         new NotReconstructible({ path: file, reason: "v1 archive has no content store" }),
       );

@@ -459,7 +459,7 @@ const scoreOne = (
 
     // Store-primary path: v2 archive + no --corpus flag → re-score from content
     // store without needing corpus or challenge YAML on disk.
-    if (!opts.corpus && manifest.schemaVersion === 2) {
+    if (!opts.corpus && manifest.schemaVersion >= 2) {
       const recon = yield* loadAttemptReconstruction(archive).pipe(
         Effect.mapError((e) => new Error(`${archive}: ${e.reason}`)),
       );

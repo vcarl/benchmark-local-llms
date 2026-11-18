@@ -11,7 +11,7 @@
  * The bundle is self-sufficient: `loadAttemptReconstruction` can read it
  * without any access to the original archive directory.
  *
- * Requires a v2 archive (schemaVersion === 2). v1 archives have no content
+ * Requires a v2+ archive (schemaVersion >= 2). v1 archives have no content
  * store and cannot be exported.
  */
 import { Args, Command, Options } from "@effect/cli";
@@ -37,7 +37,7 @@ const printLine = (line: string): Effect.Effect<void> =>
  * Copy an attempt jsonl and all its referenced content blobs from the archive
  * directory into `outDir`. Returns the list of paths written into `outDir`.
  *
- * Fails with `Error` if the archive is not a v2 archive (schemaVersion !== 2).
+ * Fails with `Error` if the archive is not a v2+ archive (schemaVersion < 2).
  */
 export const exportBundle = (
   archiveFile: string,
@@ -52,7 +52,7 @@ export const exportBundle = (
     );
     const { manifest, items } = loaded;
 
-    if (manifest.schemaVersion !== 2) {
+    if (manifest.schemaVersion < 2) {
       return yield* Effect.fail(
         new Error(`${archiveFile}: v1 archive has no content store; export requires a v2 archive`),
       );

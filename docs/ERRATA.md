@@ -39,6 +39,10 @@ An erratum for a harness-wide scoring rule that changes no `scorerHash` (E-0007)
 
 It also fails on a duplicate `id` and a `release` field out of step with `promptFix`. An erratum may name an item that exists in neither snapshot — a retired item leaves both at the next release, and the erratum stays as history.
 
+A new grader (a constraint check, a scorer mode) that no item in `challenges/` uses changes no `scorerHash` and needs no erratum of its own; the `added` erratum for the first released items that use it describes it.
+
+Only `challenges/` is checked. A challenge set in another directory is outside the baseline; run it into its own archive directory (`--challenges-dir <dir> --archive-dir <archive>`) so it never enters the default report.
+
 ## Workflow
 
 - **Scorer defect or wrong key.** Patch the scorer or the author script, regenerate, and add an erratum with `scorerChange: true` and `promptFix: none`. Then re-score archives: `./bench score --stale`.

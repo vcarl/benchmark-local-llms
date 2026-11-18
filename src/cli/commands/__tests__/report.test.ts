@@ -8,7 +8,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FileIOError } from "../../../errors/index.js";
 import { runReport } from "../../../report/index.js";
 import { captureLogs } from "../../__tests__/log-capture.js";
-import { isMissingArchiveDirError, logAuditBlock, missingArchiveDirHint } from "../report.js";
+import {
+  isMissingArchiveDirError,
+  logAuditBlock,
+  missingArchiveDirHint,
+  pilotSource,
+} from "../report.js";
 
 const makeAttemptArchive = (overrides: {
   attemptId: string;
@@ -150,5 +155,22 @@ describe("logAuditBlock", () => {
     expect(sink.some((l) => l.includes("loaded 2 attempts"))).toBe(true);
     expect(sink.some((l) => l.includes("dropped 1 (incomplete), 0 (duplicate)"))).toBe(true);
     expect(sink.some((l) => l.includes("dataset main: 1 rows"))).toBe(true);
+  });
+
+  it("adds the pilot dataset only when both -next directories exist", async () => {
+    const archiveDir = path.join(dir, "archive");
+    const challengesDir = path.join(dir, "challenges");
+    const run = () =>
+      Effect.runPromise(
+        pilotSource(archiveDir, `${challengesDir}/`).pipe(Effect.provide(NodeContext.layer)),
+      );
+    mkdirSync(`${archiveDir}-next`, { recursive: true });
+    expect(await run()).toBeUndefined();
+    mkdirSync(`${challengesDir}-next`, { recursive: true });
+    expect(await run()).toEqual({
+      archiveDir: `${archiveDir}-next`,
+      challengesDir: `${challengesDir}-next`,
+      label: "pilot1",
+    });
   });
 });

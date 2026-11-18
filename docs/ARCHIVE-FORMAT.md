@@ -25,7 +25,7 @@ The header carries the attempt's full identity and provenance. Configuration and
 
 | Field | Type | Description |
 |---|---|---|
-| `schemaVersion` | `1 \| 2` | Format marker. Archives the harness writes carry `2` and include the content store; readers accept either, and gate reconstruction-dependent features (drilldown, export, store re-scoring) on `2`. |
+| `schemaVersion` | `1 \| 2 \| 3` | Format marker. Archives the harness writes carry `3`: the content store (from `2`) plus run provenance (`invocationId`, `submitter`, `lines`, `env.hardware`, `cachedFrom`). Readers accept all three and gate reconstruction-dependent features (drilldown, export, store re-scoring) on `2` or higher. |
 | `attemptId` | `string` | Unique identity; matches the `.jsonl` filename stem. |
 | `startedAt` | `string` | ISO timestamp written when the header is first flushed. |
 | `finishedAt` | `string \| null` | ISO timestamp; `null` until the attempt finalizes. |
@@ -52,7 +52,10 @@ The header carries the attempt's full identity and provenance. Configuration and
 | `passThreshold` | `number?` | Fraction of items that must score perfect for the attempt to pass. |
 | `staleScoreItems` | `string[]?` | `promptName`s of items whose score `bench score` kept from an earlier scorer because their prompt drifted from the current challenge — the attempt's scores come from mixed scorers. Absent when every line's score came from the scorer its `scorerHash` names. |
 | `retiredItems` | `string[]?` | `promptName`s of lines whose item has since been removed from this challenge version. The lines stay in the file; the aggregate, report, and audit count only the remaining items. Absent when none. See [Retired items](#retired-items). |
-| `env` | `RunEnv` | Provenance: `{ hostname, platform, runtimeVersion, nodeVersion, benchmarkGitSha }`. Recorded for audit; **not** part of any identity hash. |
+| `invocationId` | `string?` | Random UUID shared by every attempt one `./bench run` writes. Absent before schemaVersion 3. |
+| `submitter` | `string?` | Who produced the attempt: `BENCH_SUBMITTER`, default `local`. A public handle; a value containing `@` is refused at run start. Absent before schemaVersion 3. |
+| `lines` | `{ generated, replayed }?` | Item lines this attempt executed vs copied from the cache (`cachedFrom` set); filled at finalize. Absent before schemaVersion 3. |
+| `env` | `RunEnv` | Provenance: `{ platform, runtimeVersion, nodeVersion, benchmarkGitSha, hardware, hardwareId }` (see [Hardware profile](#hardware-profile)). Archives before schemaVersion 3 carry `hostname` instead of `hardware`/`hardwareId`. Recorded for audit; **not** part of any identity hash. |
 | `aggregate` | `{ score, passed }` | Zeroed at header-write, filled at finalize. See [Aggregate](#aggregate). |
 
 ## ItemResult (lines 2+)
@@ -71,6 +74,7 @@ One line per challenge item — the item's execution metrics, the model's output
 | `sample` | `number?` | 0-based sample index of a repeated generation of the item. Absent on sample 0, so a single-run line carries no sample field. |
 | `seed` | `number?` | Sampler seed sent with the request (a random 31-bit integer per fresh execution; llama-server, mlx_lm.server, and oMLX all accept `seed`). Absent on lines executed before seeds were sent. |
 | `executedAt` | `string` | ISO timestamp at execution start. Cache tie-breaker — most recent wins. |
+| `cachedFrom` | `{ attemptId, executedAt }?` | Present iff the line was copied from the cross-attempt cache: the attempt that **executed** it. A replay of a replay keeps the original. Absent on lines this attempt generated and on lines written before schemaVersion 3. |
 | `promptTokens` | `number` | Tokens in the prompt. |
 | `generationTokens` | `number` | Tokens generated. |
 | `promptTps` | `number` | Prompt-eval throughput (tokens/sec). |
@@ -87,6 +91,23 @@ One line per challenge item — the item's execution metrics, the model's output
 | `scoreDetails` | `string`? | The scorer's human-readable verdict (e.g. `expected 42, got 41`, or the scorer error). Absent when the item was not scored. |
 | `nearMiss` | `string`? | The `slip` of the declared near miss that set `score`; present iff `failureKind` is `near_miss`. |
 | `breakdown` | `{ passed, failed, errored }`? | Constraint-scorer per-check names; absent for other scorers. |
+
+## Hardware profile
+
+`env.hardware` describes the machine that ran the attempt; `env.hardwareId` is the 12-hex `shortSha256` of its canonical JSON with `os` left out, so an OS update keeps a machine's identity.
+
+| Field | Type | Source (macOS / Linux) |
+|---|---|---|
+| `cpu` | `string` | CPU model (`os.cpus()`), e.g. `Apple M5 Max` |
+| `cpuCores` | `number` | Logical CPU count |
+| `coreTypes` | `Record<string, number>?` | Physical cores per `hw.perflevelN.name` (`{ Super: 6, Performance: 12 }`); macOS only |
+| `gpu` | `string?` | `system_profiler SPDisplaysDataType` model / `nvidia-smi` name (`2× …` for several) |
+| `gpuCores` | `number?` | Apple GPU core count |
+| `gpuMemoryGb` | `number?` | Total NVIDIA GPU memory |
+| `memoryGb` | `number` | System (unified) RAM, rounded to whole GB |
+| `os` | `string` | `macOS <sw_vers>` / `/etc/os-release` `PRETTY_NAME`; falls back to kernel type and release |
+
+The profile is probed once per process; any probe that fails leaves its field absent and never fails the run. It holds no hostname, serial number, username, or email.
 
 ## Aggregate
 
@@ -135,7 +156,7 @@ An attempt is written in three phases:
 
 1. **Header** — line 1 is written in the open state (`finishedAt: null`, `interrupted: true`, zeroed aggregate). The system-prompt blob is written to the content store.
 2. **Append** — for each challenge item, the prompt and scorer blobs are written to the store, the item is executed or served from cache, and its `ItemResult` is appended as a new line.
-3. **Finalize** — line 1 is rewritten with `finishedAt`, `interrupted: false`, and the filled aggregate. The body lines are left byte-for-byte untouched.
+3. **Finalize** — line 1 is rewritten with `finishedAt`, `interrupted: false`, the filled aggregate, and the `lines` counts. The body lines are left byte-for-byte untouched.
 
 Finalize overwrites only the header line; appended `ItemResult` records are never modified once written. An attempt that is interrupted before finalize keeps `interrupted: true` and `finishedAt: null` — and the report ignores it (see [Reporting](#reporting)).
 
@@ -149,7 +170,7 @@ Removing an item from a challenge (see [ERRATA.md](./ERRATA.md)) keeps the chall
 
 ## Cache and resume
 
-**Cross-attempt cache.** When executing an item, the harness first looks for a completed attempt in the same directory whose header matches `(configHash, challengeId, challengeVersion)` and that contains an item with the same `itemHash` and sample index (`sample`, absent = 0); the most recent `executedAt` wins per sample. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so efficiency metrics always reflect real measured cost, never a cache artifact. `--no-cache` forces fresh execution of every item.
+**Cross-attempt cache.** When executing an item, the harness first looks for a completed attempt in the same directory whose header matches `(configHash, challengeId, challengeVersion)`, that ran on this machine (same `env.hardwareId`; an attempt without one predates hardware profiles and counts as local), and that contains an item with the same `itemHash` and sample index (`sample`, absent = 0); the most recent `executedAt` wins per sample. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so efficiency metrics always reflect real measured cost, never a cache artifact. The copy gains `cachedFrom`, naming the executing attempt: the line's own `cachedFrom` if it has one, else the attempt it was found in, preferring among identical lines one whose attempt started before the line executed (the executor, not an earlier replay). `--no-cache` forces fresh execution of every item.
 
 **Repeated samples.** `./bench run --samples k` holds samples `0..k-1` of every item (or, with `--items`, of the matching items; the rest hold sample 0 only). Each sample is served from the cache when present and generated otherwise, so asking for `k = 5` on an item with sample 0 cached generates four. Sample 0 is the single-run result, so existing archives need no re-keying. The new attempt carries every held sample's line, which is what the report and audit aggregate.
 
@@ -157,7 +178,11 @@ Removing an item from a challenge (see [ERRATA.md](./ERRATA.md)) keeps the chall
 
 ## Reporting
 
-The report consumes attempt archives, keeps only **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicates by `attemptId` (first wins), and flattens each to a per-attempt record for the webapp. Incomplete and duplicate attempts are counted and dropped, not failed. Each completed, reconstructible attempt also yields a per-attempt detail file for the drilldown. See [ARCHITECTURE.md](./ARCHITECTURE.md#report-pipeline) for the full pipeline.
+The report consumes attempt archives, keeps only **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicates by `attemptId` (first wins), and flattens each to a per-attempt record for the webapp. Incomplete and duplicate attempts are counted and dropped, not failed. Each completed, reconstructible attempt also yields a per-attempt detail file for the drilldown. From the same attempts it selects one row per configuration × machine against the challenge set ([SCORING.md § Report rows](./SCORING.md#report-rows)). See [ARCHITECTURE.md](./ARCHITECTURE.md#report-pipeline) for the full pipeline.
+
+## Ingesting a contributor's archive
+
+A contributor sets `BENCH_SUBMITTER` to a public handle, runs `./bench run` into a fresh archive directory with the dataset's challenge directory, and bundles each attempt with `./bench export`. The maintainer unpacks the bundles into the dataset's archive directory and re-runs `./bench report`. Each submitted attempt carries its own `hardwareId` and `submitter`, so it forms its own rows and never merges into another machine's; the hardware-scoped cache never replays it into a local run. Submissions are accepted only at schemaVersion 3: an older archive has no hardware profile and the report would attribute it to `--legacy-hardware`.
 
 ## Memory
 
@@ -172,4 +197,6 @@ The report consumes attempt archives, keeps only **completed** attempts (`finish
 | Content store (blob read/write, `scorerHash`) | `src/archive/content-store.ts` |
 | Reconstruction from `.jsonl` + store | `src/report/reconstruct.ts` |
 | Cross-attempt item cache | `src/archive/cache.ts` |
+| Hardware profile + `hardwareId` | `src/orchestration/hardware.ts` |
+| Report rows (selection) | `src/report/rows.ts` |
 | Challenge resolution + hashing | `src/config/challenges.ts`, `src/config/hashing.ts` |

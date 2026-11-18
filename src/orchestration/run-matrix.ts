@@ -41,6 +41,9 @@ export interface RunMatrixInput {
   readonly challenges: ReadonlyArray<MatrixChallenge>;
   readonly archiveDir: string;
   readonly env: RunEnv;
+  /** Stamped on every attempt this sweep writes. */
+  readonly invocationId?: string;
+  readonly submitter?: string;
   readonly deps: RunModelDeps;
   readonly noCache?: boolean;
   /** Samples per item of a challenge (see `RunChallengeInput.samplesOf`); default 1. */
@@ -95,6 +98,8 @@ export const runMatrix = (
                 archiveDir: input.archiveDir,
                 archivePath: `${input.archiveDir}/${attemptId}.jsonl`,
                 env,
+                ...(input.invocationId === undefined ? {} : { invocationId: input.invocationId }),
+                ...(input.submitter === undefined ? {} : { submitter: input.submitter }),
                 deps: input.deps,
                 ...(input.noCache !== undefined ? { noCache: input.noCache } : {}),
                 ...(input.samplesOf === undefined

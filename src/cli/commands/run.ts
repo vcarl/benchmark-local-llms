@@ -8,6 +8,7 @@
  * unless `--no-report`. Lives under `src/cli/`, so `console.*` and `Date.now()`
  * are allowed here.
  */
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Command, Options } from "@effect/cli";
@@ -100,12 +101,20 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
     }
     const selectedItem = items === undefined ? () => true : itemMatcher(items);
 
+    const submitter = process.env["BENCH_SUBMITTER"]?.trim() || "local";
+    if (submitter.includes("@")) {
+      return yield* Effect.dieMessage(
+        `BENCH_SUBMITTER must be a public handle, not an email address (got '${submitter}')`,
+      );
+    }
     const env = yield* defaultRunEnv();
     const cells = yield* runMatrix({
       configs,
       challenges,
       archiveDir: args.archiveDir,
       env,
+      invocationId: randomUUID(),
+      submitter,
       deps,
       noCache: args.noCache,
       samplesOf: (challengeId, item) => (selectedItem(challengeId, item) ? samples : 1),
@@ -126,6 +135,9 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
         archiveDir: args.archiveDir,
         outputPath,
         challengesDir: args.challengesDir,
+        ...(env.hardwareId === undefined || env.hardware === undefined
+          ? {}
+          : { legacyHardware: { id: env.hardwareId, profile: env.hardware } }),
       });
       yield* logAuditBlock(summary);
     }

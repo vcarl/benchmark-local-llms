@@ -4,8 +4,11 @@
  * scored against one challenge set. See docs/SCORING.md § Report rows for the
  * rules this module implements; the webapp only sums and displays.
  */
-import type { AttemptManifest, ItemResult } from "../schema/attempt.js";
-import type { LoadedAttempt } from "./load-attempts.js";
+import { stableStringify } from "../config/hashing.js";
+import { type AttemptManifest, type ItemResult, passFraction } from "../schema/attempt.js";
+import type { Scope } from "../schema/challenge.js";
+import type { HardwareProfile } from "../schema/run-manifest.js";
+import { currentItems, type LoadedAttempt } from "./load-attempts.js";
 import { modelKeyOf, modelNameOf } from "./model-key.js";
 
 /** The slice of a resolved challenge the rows need (a `ResolvedChallenge` satisfies it). */
@@ -13,16 +16,19 @@ export interface SetChallenge {
   readonly id: string;
   readonly version: number;
   readonly challengeHash: string;
-  readonly items: ReadonlyArray<{ readonly itemId: string; readonly itemHash: string }>;
+  readonly items: ReadonlyArray<{
+    readonly itemId: string;
+    readonly itemHash: string;
+    readonly family: string;
+    readonly scope: Scope;
+  }>;
 }
 
 export interface Dataset {
   readonly label: string;
   readonly archiveDir: string;
   readonly challengesDir: string;
-  /** Release label of the set; `null`: no release baseline exists. */
   readonly release: string | null;
-  /** Errata ids that apply to the set; empty: no errata exist. */
   readonly errata: ReadonlyArray<string>;
 }
 
@@ -31,13 +37,12 @@ export interface RowsInput {
   readonly attempts: ReadonlyArray<LoadedAttempt>;
   readonly challengeSet: ReadonlyArray<SetChallenge>;
   readonly dataset: Dataset;
+  /** Machine that attempts without `env.hardwareId` (pre-schemaVersion 3) are attributed to. */
+  readonly legacyHardware: { readonly id: string; readonly profile?: HardwareProfile };
   readonly generatedAt: string;
   /** `artifact → modelKey` overrides from `configs.yaml`. */
   readonly modelKeys?: ReadonlyMap<string, string>;
 }
-
-/** The `hardwareId` of every row: attempt archives do not record the machine. */
-export const UNKNOWN_HARDWARE = "unknown";
 
 export type CellStatus = "scored" | "stale_hash" | "interrupted" | "not_run";
 type Counts = Record<string, [number, number]>;
@@ -47,18 +52,15 @@ export interface Cell {
   readonly status: CellStatus;
   readonly items: number;
   readonly passed: number;
-  /** Always 0: archives carry no near-miss verdicts. */
   readonly nearMissCredit: number;
-  /** Uncertainty clusters: every item is its own family (`challengeId/itemId`). */
   readonly families: Counts;
-  /** Always empty: items carry no core/stretch scope. */
   readonly scopes: Counts;
+  /** `families` split by scope, so a scoped score has its own clusters. */
   readonly scopeFamilies: Record<string, Counts>;
-  /** Always empty: archives carry no failure kinds. */
   readonly failureKinds: Record<string, number>;
   /** Cost of one pass over the counted lines; null unless scored. */
   readonly cost: CellCost | null;
-  /** Min / max samples per item — one line per item, so `[1, 1]`; null unless scored. */
+  /** Min / max samples per item; null unless scored. */
   readonly samples: Span | null;
   readonly executedFrom: string | null;
   readonly executedTo: string | null;
@@ -69,7 +71,7 @@ export interface Cell {
   readonly restamped: boolean;
 }
 
-/** Tokens and wall time summed over items, peak memory max, generation speed mean over lines. */
+/** Item-mean tokens and wall time summed, peak memory max, generation speed mean over lines. */
 export interface CellCost {
   readonly tokens: number;
   readonly wallSec: number;
@@ -97,7 +99,7 @@ export interface Row {
   readonly passed: number;
   readonly items: number;
   readonly passRate: number;
-  /** Standard error of `passRate` over the row's families; null below 5 families. */
+  /** Family-clustered CR1 standard error of `passRate`; null below 5 families. */
   readonly se: number | null;
   readonly scopes: Counts;
   readonly families: Counts;
@@ -112,7 +114,6 @@ export interface Row {
   readonly provenance: {
     readonly runtimeVersions: string[];
     readonly gitShas: string[];
-    /** Always `["local"]`: attempts do not record a submitter. */
     readonly submitters: string[];
     readonly samples: Span | null;
     /** Scored cells whose executing attempts include a re-stamped one. */
@@ -128,11 +129,9 @@ export interface RowsDataset {
     version: number;
     hash: string;
     items: number;
-    /** Always empty: items carry no core/stretch scope. */
     scopes: Record<string, number>;
   }>;
-  /** `hardwareId → profile`; empty: attempt archives do not record the machine. */
-  readonly hardware: Record<string, never>;
+  readonly hardware: Record<string, HardwareProfile>;
   readonly rows: ReadonlyArray<Row>;
 }
 
@@ -144,6 +143,7 @@ const MIN_CLUSTERS = 5;
 interface Execution {
   readonly line: ItemResult;
   readonly executor: LoadedAttempt | undefined;
+  readonly hardwareId: string;
 }
 
 const isCompleted = (m: AttemptManifest) => m.finishedAt !== null && !m.interrupted;
@@ -152,8 +152,16 @@ const bump = (o: Counts, k: string, n: number, y: number) => {
   const [a, b] = o[k] ?? [0, 0];
   o[k] = [a + n, b + y];
 };
+const bumpIn = (o: Record<string, Counts>, k: string, f: string, n: number, y: number) => {
+  const c = o[k] ?? {};
+  o[k] = c;
+  bump(c, f, n, y);
+};
 const addCounts = (into: Counts, from: Counts) => {
   for (const [k, [n, y]] of Object.entries(from)) bump(into, k, n, y);
+};
+const addNums = (into: Record<string, number>, from: Record<string, number>) => {
+  for (const [k, n] of Object.entries(from)) into[k] = (into[k] ?? 0) + n;
 };
 
 /** CR1 standard error of Σy / Σn over clusters (docs/SCORING.md § Uncertainty). */
@@ -168,26 +176,37 @@ const ratioSE = (clusters: ReadonlyArray<readonly [number, number]>): number | n
 
 /**
  * Every distinct execution among completed attempts, attributed to its
- * executor: the earliest-started holder of the identical line that started no
- * later than it executed.
+ * executor: `cachedFrom.attemptId` when set, else the earliest-started holder
+ * of the identical line that started no later than it executed.
  */
-const executions = (attempts: ReadonlyArray<LoadedAttempt>) => {
+const executions = (attempts: ReadonlyArray<LoadedAttempt>, hwOf: (a: LoadedAttempt) => string) => {
+  const byId = new Map<string, LoadedAttempt>();
+  for (const a of attempts) {
+    byId.set(a.manifest.attemptId, a);
+    if (a.manifest.restampedFrom !== undefined) byId.set(a.manifest.restampedFrom, a);
+  }
   const copies = new Map<string, { line: ItemResult; holders: LoadedAttempt[] }>();
   for (const a of attempts) {
     if (!isCompleted(a.manifest)) continue;
     const m = a.manifest;
-    for (const l of a.items) {
+    for (const l of currentItems(m, a.items)) {
+      // Replays never cross machines (the cache is hardware-scoped), so the holder's machine joins the key.
       const k = [
+        hwOf(a),
         m.configHash,
         m.challengeId,
         m.challengeVersion,
         l.itemId,
         l.itemHash,
+        l.sample ?? 0,
         l.executedAt,
       ].join("|");
       const c = copies.get(k);
       if (c === undefined) copies.set(k, { line: l, holders: [a] });
-      else c.holders.push(a);
+      else {
+        c.holders.push(a);
+        if (c.line.cachedFrom === undefined && l.cachedFrom !== undefined) c.line = l;
+      }
     }
   }
   const out: { key: string; exec: Execution }[] = [];
@@ -195,13 +214,17 @@ const executions = (attempts: ReadonlyArray<LoadedAttempt>) => {
     const started = [...holders].sort((x, y) =>
       x.manifest.startedAt.localeCompare(y.manifest.startedAt),
     );
-    const executor = started.find(
-      (h) => Date.parse(h.manifest.startedAt) <= Date.parse(line.executedAt),
-    );
+    const executor =
+      (line.cachedFrom === undefined ? undefined : byId.get(line.cachedFrom.attemptId)) ??
+      started.find((h) => Date.parse(h.manifest.startedAt) <= Date.parse(line.executedAt));
     const m = (holders[0] as LoadedAttempt).manifest;
     out.push({
       key: [m.configHash, m.challengeId, m.challengeVersion, line.itemId, line.itemHash].join("|"),
-      exec: { line, executor },
+      exec: {
+        line,
+        executor,
+        hardwareId: hwOf(executor ?? (started[0] as LoadedAttempt)),
+      },
     });
   }
   return out;
@@ -211,19 +234,25 @@ const envOf = (e: Execution) => e.executor?.manifest.env;
 
 const buildCell = (
   ch: SetChallenge,
-  byItem: (Execution | undefined)[],
+  byItemSample: Map<string, Execution>[],
   attempted: { completed: boolean; interrupted: boolean },
 ): Cell => {
   const families: Counts = {};
-  for (const it of ch.items) bump(families, `${ch.id}/${it.itemId}`, 1, 0);
+  const scopes: Counts = {};
+  const scopeFamilies: Record<string, Counts> = {};
+  for (const it of ch.items) {
+    bump(families, it.family, 1, 0);
+    bump(scopes, it.scope, 1, 0);
+    bumpIn(scopeFamilies, it.scope, it.family, 1, 0);
+  }
   const empty: Cell = {
     status: attempted.completed ? "stale_hash" : attempted.interrupted ? "interrupted" : "not_run",
     items: ch.items.length,
     passed: 0,
     nearMissCredit: 0,
     families,
-    scopes: {},
-    scopeFamilies: {},
+    scopes,
+    scopeFamilies,
     failureKinds: {},
     cost: null,
     samples: null,
@@ -234,34 +263,53 @@ const buildCell = (
     sourceAttempts: [],
     restamped: false,
   };
-  if (byItem.some((e) => e === undefined)) return empty;
+  if (byItemSample.some((m) => m.size === 0)) return empty;
 
-  const all = byItem as Execution[];
   const fam: Counts = {};
+  const sc: Counts = {};
+  const scFam: Record<string, Counts> = {};
+  const failureKinds: Record<string, number> = {};
   let passed = 0;
+  let nearMissCredit = 0;
+  const all: Execution[] = [];
   ch.items.forEach((it, i) => {
-    const p = (all[i] as Execution).line.score === 1 ? 1 : 0;
+    const samples = [...(byItemSample[i] as Map<string, Execution>).values()];
+    all.push(...samples);
+    const lines = samples.map((e) => e.line);
+    const p = passFraction(lines);
     passed += p;
-    bump(fam, `${ch.id}/${it.itemId}`, 1, p);
+    nearMissCredit +=
+      lines.reduce((s, l) => s + (l.failureKind === "near_miss" ? l.score : 0), 0) / lines.length;
+    bump(fam, it.family, 1, p);
+    bump(sc, it.scope, 1, p);
+    bumpIn(scFam, it.scope, it.family, 1, p);
+    for (const l of lines)
+      if (l.failureKind != null)
+        failureKinds[l.failureKind] = (failureKinds[l.failureKind] ?? 0) + 1;
   });
-  const sum = (f: (l: ItemResult) => number) => all.reduce((s, e) => s + f(e.line), 0);
+  const counts = byItemSample.map((m) => m.size);
+  const itemMean = (f: (l: ItemResult) => number) =>
+    byItemSample.reduce((s, m) => {
+      const ls = [...m.values()];
+      return s + ls.reduce((t, e) => t + f(e.line), 0) / ls.length;
+    }, 0);
   const dates = all.map((e) => e.line.executedAt).sort();
   return {
     status: "scored",
     items: ch.items.length,
     passed,
-    nearMissCredit: 0,
+    nearMissCredit,
     families: fam,
-    scopes: {},
-    scopeFamilies: {},
-    failureKinds: {},
+    scopes: sc,
+    scopeFamilies: scFam,
+    failureKinds,
     cost: {
-      tokens: Math.round(sum((l) => l.generationTokens)),
-      wallSec: sum((l) => l.wallTimeSec),
+      tokens: Math.round(itemMean((l) => l.generationTokens)),
+      wallSec: itemMean((l) => l.wallTimeSec),
       peakMemoryGb: Math.max(...all.map((e) => e.line.peakMemoryGb)),
-      genTps: sum((l) => l.generationTps) / all.length,
+      genTps: all.reduce((s, e) => s + e.line.generationTps, 0) / all.length,
     },
-    samples: [1, 1],
+    samples: [Math.min(...counts), Math.max(...counts)],
     executedFrom: dates[0] ?? null,
     executedTo: dates[dates.length - 1] ?? null,
     runtimeVersions: uniq(all.map((e) => envOf(e)?.runtimeVersion ?? "unknown")),
@@ -272,30 +320,52 @@ const buildCell = (
 };
 
 /** Fields compared across rows of one artifact for the variant label. */
-const VARIANT_FIELDS = ["runtime", "quant", "temperature", "maxTokens", "systemPrompt"] as const;
+const VARIANT_FIELDS = [
+  "runtime",
+  "quant",
+  "temperature",
+  "maxTokens",
+  "systemPrompt",
+  "topP",
+  "topK",
+  "minP",
+  "presencePenalty",
+  "repetitionPenalty",
+  "repetitionContextSize",
+  "chatTemplateKwargs",
+  "chatTemplate",
+] as const;
 
-const variantValue = (m: AttemptManifest, f: (typeof VARIANT_FIELDS)[number]): string =>
-  String(m[f] ?? "default");
+const variantValue = (m: AttemptManifest, f: (typeof VARIANT_FIELDS)[number]): string => {
+  const v = m[f];
+  if (v === undefined) return "default";
+  return typeof v === "object" ? stableStringify(v) : String(v);
+};
 
 const variantLabel = (variant: Record<string, string>): string =>
   Object.entries(variant)
-    .map(([k, v]) => (k === "temperature" ? `t${v}` : `${k} ${v}`))
+    .map(([k, v]) => (k === "temperature" ? `t${v}` : k === "hardware" ? `hw ${v}` : `${k} ${v}`))
     .join(" · ");
 
 export const buildRows = (input: RowsInput): RowsDataset => {
+  const legacy = input.legacyHardware;
+  const hwOf = (a: LoadedAttempt) => a.manifest.env.hardwareId ?? legacy.id;
   const setIds = new Set(input.challengeSet.map((c) => c.id));
 
   // Group: row key → its attempts (for status + metadata); line key → executions.
   const rowAttempts = new Map<string, LoadedAttempt[]>();
   for (const a of input.attempts) {
     if (!setIds.has(a.manifest.challengeId)) continue;
-    const k = `${a.manifest.configHash}@${UNKNOWN_HARDWARE}`;
+    const k = `${a.manifest.configHash}@${hwOf(a)}`;
     rowAttempts.set(k, [...(rowAttempts.get(k) ?? []), a]);
   }
   const execs = new Map<string, Execution[]>();
-  for (const { key, exec } of executions(input.attempts))
-    execs.set(key, [...(execs.get(key) ?? []), exec]);
+  for (const { key, exec } of executions(input.attempts, hwOf)) {
+    const k = `${key}@${exec.hardwareId}`;
+    execs.set(k, [...(execs.get(k) ?? []), exec]);
+  }
 
+  const hardware: Record<string, HardwareProfile> = {};
   const modelKeys = input.modelKeys ?? new Map<string, string>();
   const rows: Omit<Row, "variant" | "variantLabel">[] = [];
   const meta = new Map<string, AttemptManifest>();
@@ -303,20 +373,23 @@ export const buildRows = (input: RowsInput): RowsDataset => {
     const latest = [...attempts].sort((x, y) =>
       y.manifest.startedAt.localeCompare(x.manifest.startedAt),
     )[0]?.manifest as AttemptManifest;
+    const hardwareId = hwOf(attempts[0] as LoadedAttempt);
     meta.set(rowId, latest);
 
     const cells: Record<string, Cell> = {};
     for (const ch of input.challengeSet) {
       const mine = attempts.filter((a) => a.manifest.challengeId === ch.id);
-      // Per item: the line with the latest `executedAt` at the current item hash.
-      const byItem = ch.items.map((it) => {
-        const k = `${latest.configHash}|${ch.id}|${ch.version}|${it.itemId}|${it.itemHash}`;
-        let best: Execution | undefined;
-        for (const e of execs.get(k) ?? [])
-          if (best === undefined || e.line.executedAt > best.line.executedAt) best = e;
+      const byItemSample = ch.items.map((it) => {
+        const best = new Map<string, Execution>();
+        const k = `${latest.configHash}|${ch.id}|${ch.version}|${it.itemId}|${it.itemHash}@${hardwareId}`;
+        for (const e of execs.get(k) ?? []) {
+          const s = String(e.line.sample ?? 0);
+          const cur = best.get(s);
+          if (cur === undefined || e.line.executedAt > cur.line.executedAt) best.set(s, e);
+        }
         return best;
       });
-      cells[ch.id] = buildCell(ch, byItem, {
+      cells[ch.id] = buildCell(ch, byItemSample, {
         completed: mine.some((a) => isCompleted(a.manifest)),
         interrupted: mine.length > 0,
       });
@@ -324,7 +397,13 @@ export const buildRows = (input: RowsInput): RowsDataset => {
 
     const scored = Object.values(cells).filter((c) => c.status === "scored");
     const families: Counts = {};
-    for (const c of Object.values(cells)) addCounts(families, c.families);
+    const scopes: Counts = {};
+    const failureKinds: Record<string, number> = {};
+    for (const c of Object.values(cells)) {
+      addCounts(families, c.families);
+      addCounts(scopes, c.scopes);
+      addNums(failureKinds, c.failureKinds);
+    }
     const sum = (f: (c: Cell) => number, cs: Cell[] = Object.values(cells)) =>
       cs.reduce((s, c) => s + f(c), 0);
     const items = sum((c) => c.items);
@@ -337,8 +416,20 @@ export const buildRows = (input: RowsInput): RowsDataset => {
         .at(-1) ?? null;
     const runtimeVersions = uniq(scored.flatMap((c) => c.runtimeVersions));
     const gitShas = uniq(scored.flatMap((c) => c.gitShas));
+    const executors = new Set(scored.flatMap((c) => c.sourceAttempts));
     const spanDays =
       from === null || to === null ? 0 : (Date.parse(to) - Date.parse(from)) / 86_400_000;
+    const samples = scored.map((c) => c.samples as Span);
+
+    for (const a of attempts)
+      if (a.manifest.env.hardware) hardware[hardwareId] = a.manifest.env.hardware;
+    if (
+      hardwareId === legacy.id &&
+      legacy.profile !== undefined &&
+      hardware[hardwareId] === undefined
+    ) {
+      hardware[hardwareId] = legacy.profile;
+    }
 
     rows.push({
       rowId,
@@ -346,7 +437,7 @@ export const buildRows = (input: RowsInput): RowsDataset => {
       modelName: modelNameOf(latest.artifact),
       configHash: latest.configHash,
       configId: latest.configId,
-      hardwareId: UNKNOWN_HARDWARE,
+      hardwareId,
       artifact: latest.artifact,
       runtime: latest.runtime,
       quant: latest.quant ?? null,
@@ -356,10 +447,10 @@ export const buildRows = (input: RowsInput): RowsDataset => {
       items,
       passRate: items === 0 ? 0 : passed / items,
       se: ratioSE(Object.values(families)),
-      scopes: {},
+      scopes,
       families,
-      nearMissCredit: 0,
-      failureKinds: {},
+      nearMissCredit: sum((c) => c.nearMissCredit),
+      failureKinds,
       completeness: {
         state: scored.length === input.challengeSet.length ? "complete" : "partial",
         challenges: [scored.length, input.challengeSet.length],
@@ -369,15 +460,26 @@ export const buildRows = (input: RowsInput): RowsDataset => {
       provenance: {
         runtimeVersions,
         gitShas,
-        submitters: ["local"],
-        samples: scored.length === 0 ? null : [1, 1],
+        submitters: uniq(
+          attempts
+            .filter((a) => executors.has(a.manifest.attemptId))
+            .map((a) => a.manifest.submitter ?? "local"),
+        ),
+        samples:
+          samples.length === 0
+            ? null
+            : [Math.min(...samples.map((s) => s[0])), Math.max(...samples.map((s) => s[1]))],
         restamped: scored.filter((c) => c.restamped).length,
         mixed: runtimeVersions.length > 1 || gitShas.length > 1 || spanDays > MIXED_SPAN_DAYS,
       },
     });
   }
 
-  // Variant: the fields that differ among rows of one artifact.
+  // Variant: the fields (and machine) that differ among rows of one artifact.
+  const hwLabel = (id: string) => {
+    const p = hardware[id];
+    return p === undefined ? id : `${p.cpu} ${p.memoryGb}GB`;
+  };
   const byArtifact = new Map<string, typeof rows>();
   for (const r of rows) byArtifact.set(r.artifact, [...(byArtifact.get(r.artifact) ?? []), r]);
   const withVariants: Row[] = rows.map((r) => {
@@ -389,19 +491,19 @@ export const buildRows = (input: RowsInput): RowsDataset => {
       );
       if (vals.size > 1) variant[f] = variantValue(meta.get(r.rowId) as AttemptManifest, f);
     }
+    if (new Set(siblings.map((s) => s.hardwareId)).size > 1)
+      variant["hardware"] = hwLabel(r.hardwareId);
     return { ...r, variant, variantLabel: variantLabel(variant) };
   });
 
   return {
     dataset: { ...input.dataset, generatedAt: input.generatedAt },
-    challengeSet: input.challengeSet.map((c) => ({
-      id: c.id,
-      version: c.version,
-      hash: c.challengeHash,
-      items: c.items.length,
-      scopes: {},
-    })),
-    hardware: {},
+    challengeSet: input.challengeSet.map((c) => {
+      const scopes: Record<string, number> = {};
+      for (const it of c.items) scopes[it.scope] = (scopes[it.scope] ?? 0) + 1;
+      return { id: c.id, version: c.version, hash: c.challengeHash, items: c.items.length, scopes };
+    }),
+    hardware,
     rows: withVariants.sort((a, b) => b.passRate - a.passRate || a.rowId.localeCompare(b.rowId)),
   };
 };

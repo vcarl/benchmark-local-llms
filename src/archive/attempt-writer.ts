@@ -61,7 +61,7 @@ export const appendItem = (
 
 /**
  * Finalize the manifest: rewrite line 1 with `finishedAt`, `interrupted: false`,
- * and the filled `aggregate`, leaving all ItemResult lines after it untouched.
+ * the filled `aggregate`, and `extra` header fields known only at the end (`lines`), leaving all ItemResult lines after it untouched.
  *
  * Implementation mirrors `writeManifestTrailer` in `writer.ts`: read the whole
  * file, decode line 1, merge updated fields, re-encode, rewrite.
@@ -70,6 +70,7 @@ export const finalizeAttempt = (
   path: string,
   finishedAt: string,
   aggregate: AttemptAggregate,
+  extra: Pick<Partial<AttemptManifest>, "lines"> = {},
 ): Effect.Effect<void, FileIOError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -97,7 +98,13 @@ export const finalizeAttempt = (
     const existing = yield* Schema.decodeUnknown(AttemptManifest)(parsed).pipe(
       Effect.mapError(toFileIOError(path, "finalize-decode-header")),
     );
-    const finalized: AttemptManifest = { ...existing, finishedAt, interrupted: false, aggregate };
+    const finalized: AttemptManifest = {
+      ...existing,
+      ...extra,
+      finishedAt,
+      interrupted: false,
+      aggregate,
+    };
     const encoded = yield* encodeManifest(finalized).pipe(
       Effect.mapError(toFileIOError(path, "finalize-encode")),
     );

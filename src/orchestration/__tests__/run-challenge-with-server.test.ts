@@ -50,7 +50,7 @@ it("runs every item against the provided server and finalizes the archive", asyn
     ),
   );
 
-  expect(manifest.schemaVersion).toBe(2);
+  expect(manifest.schemaVersion).toBe(3);
   expect(manifest.interrupted).toBe(false);
   expect(manifest.aggregate.score).toBeGreaterThanOrEqual(0);
 });

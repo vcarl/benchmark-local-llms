@@ -161,18 +161,16 @@ export function ControlColumn({ view, defaultSet, datasets, dataset, scoped, fun
             }
           />
         )}
-        {dataset.challengeSet.some((c) => Object.keys(c.scopes).length > 0) && (
-          <Segmented<ItemScope>
-            label="Items"
-            value={view.scope.items}
-            options={[
-              { value: "all", label: "all" },
-              { value: "core", label: "core" },
-              { value: "stretch", label: "stretch" },
-            ]}
-            onPick={(i) => set((v) => (v.scope.items = i))}
-          />
-        )}
+        <Segmented<ItemScope>
+          label="Items"
+          value={view.scope.items}
+          options={[
+            { value: "all", label: "all" },
+            { value: "core", label: "core" },
+            { value: "stretch", label: "stretch" },
+          ]}
+          onPick={(i) => set((v) => (v.scope.items = i))}
+        />
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Challenges</span>
           <div className={styles.checks}>

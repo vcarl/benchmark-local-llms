@@ -159,3 +159,56 @@ describe("findCachedItem", () => {
     if (Option.isSome(res)) expect(res.value.output).toBe("new");
   });
 });
+
+describe("findCachedSamples cachedFrom", () => {
+  it("stamps the executing attempt, preferring it over a verbatim replay found first", async () => {
+    const dir = `/tmp/p4-cache-origin-${process.pid}`;
+    const res = await run(
+      findCachedSamples(dir, KEY),
+      {
+        // Sorted first: a legacy replay (started after the line executed) holding the same line.
+        "a.jsonl": `${header({ attemptId: "att-replay", startedAt: "2026-03-01T00:00:00Z" })}\n${item()}\n`,
+        "b.jsonl": `${header({ attemptId: "att-orig" })}\n${item()}\n`,
+      },
+      dir,
+    );
+    expect(res.get(0)?.cachedFrom).toEqual({
+      attemptId: "att-orig",
+      executedAt: "2026-01-01T00:00:30Z",
+    });
+  });
+
+  it("keeps a line's existing cachedFrom", async () => {
+    const dir = `/tmp/p4-cache-origin-keep-${process.pid}`;
+    const origin = { attemptId: "att-first", executedAt: "2026-01-01T00:00:30Z" };
+    const res = await run(
+      findCachedSamples(dir, KEY),
+      { "a.jsonl": `${header({ attemptId: "att-replay" })}\n${item({ cachedFrom: origin })}\n` },
+      dir,
+    );
+    expect(res.get(0)?.cachedFrom).toEqual(origin);
+  });
+});
+
+describe("findCachedSamples hardware scope", () => {
+  const env = (hardwareId?: string) => ({
+    platform: "p",
+    runtimeVersion: "1",
+    nodeVersion: "1",
+    benchmarkGitSha: "s",
+    ...(hardwareId === undefined ? {} : { hardwareId }),
+  });
+
+  it("never serves a line from another machine; a legacy line (no hardwareId) is local", async () => {
+    const dir = `/tmp/p4-cache-hw-${process.pid}`;
+    const res = await run(
+      findCachedSamples(dir, { ...KEY, hardwareId: "mine" }),
+      {
+        "a.jsonl": `${header({ attemptId: "att-other", env: env("other") })}\n${item({ executedAt: "2026-09-01T00:00:00Z", output: "other" })}\n`,
+        "b.jsonl": `${header({ attemptId: "att-legacy", env: env() })}\n${item({ output: "legacy" })}\n`,
+      },
+      dir,
+    );
+    expect(res.get(0)?.output).toBe("legacy");
+  });
+});

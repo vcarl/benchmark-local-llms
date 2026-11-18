@@ -113,7 +113,7 @@ describe("runChallenge v2 + content store", () => {
       },
     );
 
-  it("writes a v2 archive and populates the content store", async () => {
+  it("writes a v3 archive and populates the content store", async () => {
     const challenge = makeChallenge();
     const m = okStub();
     const manifest = await Effect.runPromise(
@@ -132,7 +132,7 @@ describe("runChallenge v2 + content store", () => {
       ),
     );
 
-    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.schemaVersion).toBe(3);
     expect(manifest.passThreshold).toBe(challenge.passThreshold);
 
     const item = challenge.items[0] as ResolvedItem;

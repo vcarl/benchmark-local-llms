@@ -114,7 +114,7 @@ export const findCachedResult = (
  * identity matches `key`, so `runChallenge` can copy it verbatim instead of
  * re-running the model.
  *
- * Key shape: `(configHash, challengeId, challengeVersion, itemHash)`. The
+ * Key shape: `(configHash, challengeId, challengeVersion, itemHash)`, plus the machine (`hardwareId`). The
  * header pins config + challenge identity; `itemHash` (scorer-inclusive) pins
  * the per-item content + scoring rules, so an edited scorer invalidates the
  * cache even without a `challengeVersion` bump.
@@ -130,12 +130,23 @@ export const findCachedResult = (
  *
  * Repeated samples: the sample index (`sample`, absent = 0) joins the key, so
  * {@link findCachedSamples} returns the best line per sample index in one scan.
+ *
+ * Origin: each returned line carries `cachedFrom` — its own when it already has
+ * one, else the attempt it was found in. Among identical lines (a verbatim
+ * replay shares `executedAt`), the attempt that started before the line
+ * executed — its executor — wins over a replay.
  */
 export interface CacheKey {
   readonly configHash: string;
   readonly challengeId: string;
   readonly challengeVersion: number;
   readonly itemHash: string;
+  /**
+   * The running machine's `env.hardwareId`. When set, a line is served only
+   * from an attempt on the same machine; an attempt without a hardwareId
+   * (written before schemaVersion 3) is the operator's own and stays eligible.
+   */
+  readonly hardwareId?: string;
 }
 
 const decodeManifest = Schema.decodeUnknown(AttemptManifest);
@@ -148,7 +159,10 @@ const isCompleted = (m: AttemptManifest): boolean =>
 const headerMatches = (m: AttemptManifest, key: CacheKey): boolean =>
   m.configHash === key.configHash &&
   m.challengeId === key.challengeId &&
-  m.challengeVersion === key.challengeVersion;
+  m.challengeVersion === key.challengeVersion &&
+  (key.hardwareId === undefined ||
+    m.env.hardwareId === undefined ||
+    m.env.hardwareId === key.hardwareId);
 
 /**
  * Scan every `*.jsonl` under `archiveDir` (non-recursive) for cached
@@ -182,7 +196,7 @@ export const findCachedSamples = (
       );
     const archives = entries.filter((e) => e.endsWith(".jsonl")).sort();
 
-    const best = new Map<number, ItemResult>();
+    const best = new Map<number, { item: ItemResult; executor: boolean; attemptId: string }>();
     for (const entry of archives) {
       const filePath = pathMod.join(archiveDir, entry);
       const source = yield* fs.readFileString(filePath).pipe(
@@ -221,12 +235,28 @@ export const findCachedSamples = (
         const item = itemOpt.value;
         if (item.itemHash !== key.itemHash) continue;
         const s = item.sample ?? 0;
+        // An attempt that started after the line executed holds a replay of it.
+        const executor = Date.parse(manifest.startedAt) <= Date.parse(item.executedAt);
         const cur = best.get(s);
-        if (cur === undefined || item.executedAt > cur.executedAt) best.set(s, item);
+        if (
+          cur === undefined ||
+          item.executedAt > cur.item.executedAt ||
+          (item.executedAt === cur.item.executedAt && executor && !cur.executor)
+        ) {
+          best.set(s, { item, executor, attemptId: manifest.attemptId });
+        }
       }
     }
 
-    return best;
+    return new Map(
+      [...best].map(([s, { item, attemptId }]) => [
+        s,
+        {
+          ...item,
+          cachedFrom: item.cachedFrom ?? { attemptId, executedAt: item.executedAt },
+        },
+      ]),
+    );
   });
 
 /** Sample 0 of {@link findCachedSamples}: the single-generation cache lookup. */

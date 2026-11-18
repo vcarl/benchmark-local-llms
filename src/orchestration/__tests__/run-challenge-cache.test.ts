@@ -396,7 +396,15 @@ describe("runChallenge repeated sampling", () => {
           .split("\n")
           .filter((l) => l.length > 0)
           .slice(1)
-          .map((l) => JSON.parse(l) as { sample?: number; seed?: number; executedAt: string });
+          .map(
+            (l) =>
+              JSON.parse(l) as {
+                sample?: number;
+                seed?: number;
+                executedAt: string;
+                cachedFrom?: unknown;
+              },
+          );
       }).pipe(
         Effect.provide(m.layer),
         Effect.provide(inertHttpClientLayer),
@@ -418,7 +426,8 @@ describe("runChallenge repeated sampling", () => {
     const { lines, calls } = await run("att-2", () => 5);
     expect(calls.length).toBe(3);
     expect(lines.map((l) => l.sample ?? 0)).toEqual([0, 1, 2, 3, 4]);
-    expect(lines.slice(0, 2)).toEqual(first.lines);
+    expect(lines.slice(0, 2).map(({ cachedFrom: _, ...l }) => l)).toEqual(first.lines);
+    expect(lines.slice(2).every((l) => l.cachedFrom === undefined)).toBe(true);
   });
 
   it("samples 1 is today's single cached generation", async () => {
@@ -492,5 +501,87 @@ describe("executeOrCacheItem failureKind", () => {
   it("a pass carries failureKind null", async () => {
     const row = await execute({ output: SCORE_1, reasoning: null, finishReason: "stop" });
     expect(row).toMatchObject({ score: 1, failureKind: null });
+  });
+});
+
+describe("runChallenge replay provenance", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTempDir();
+  });
+  afterEach(async () => {
+    await removeDir(dir);
+  });
+
+  const stub = () =>
+    makeChatCompletionMock(
+      {},
+      {
+        kind: "ok",
+        result: {
+          output: SCORE_1,
+          reasoning: null,
+          promptTokens: 5,
+          generationTokens: 5,
+          promptTps: 0,
+          generationTps: 0,
+          finishReason: null,
+        },
+      },
+    );
+
+  const runOnce = (attemptId: string) =>
+    Effect.runPromise(
+      runChallenge({
+        config,
+        challenge: makeChallenge(),
+        attemptId,
+        archiveDir: dir,
+        archivePath: `${dir}/${attemptId}.jsonl`,
+        env,
+        invocationId: `inv-${attemptId}`,
+        submitter: "tester",
+        deps: fakeDeps(),
+      }).pipe(
+        Effect.provide(stub().layer),
+        Effect.provide(inertHttpClientLayer),
+        Effect.provide(NodeContext.layer),
+      ),
+    );
+
+  const read = async (attemptId: string) => {
+    const lines = (await import("node:fs"))
+      .readFileSync(`${dir}/${attemptId}.jsonl`, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    return { header: lines[0], items: lines.slice(1) as ItemResult[] };
+  };
+
+  it("stamps invocationId, submitter, schemaVersion 3, and generated/replayed counts", async () => {
+    await runOnce("att-1");
+    await runOnce("att-2");
+    const a1 = await read("att-1");
+    const a2 = await read("att-2");
+    expect(a1.header).toMatchObject({
+      schemaVersion: 3,
+      invocationId: "inv-att-1",
+      submitter: "tester",
+      lines: { generated: 1, replayed: 0 },
+    });
+    expect(a2.header.lines).toEqual({ generated: 0, replayed: 1 });
+    expect(a1.items[0]?.cachedFrom).toBeUndefined();
+  });
+
+  it("a replay of a replay still names the executing attempt", async () => {
+    await runOnce("att-1");
+    await runOnce("att-2");
+    await runOnce("att-3");
+    const a1 = await read("att-1");
+    const a3 = await read("att-3");
+    expect(a3.items[0]?.cachedFrom).toEqual({
+      attemptId: "att-1",
+      executedAt: a1.items[0]?.executedAt,
+    });
   });
 });

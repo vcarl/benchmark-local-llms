@@ -3,12 +3,13 @@
  *
  * `defaultRunEnv` builds the `env` stamped on every attempt (imported by
  * src/cli/commands/run.ts). `runtimeVersion` is a placeholder here; `runMatrix`
- * overrides it per configuration with the probed runtime version.
+ * overrides it per configuration with the probed runtime version. The hostname
+ * is not recorded; the hardware profile and its `hardwareId` identify the machine.
  */
-import os from "node:os";
 import { Command, type CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
 import type { RunEnv } from "../schema/run-manifest.js";
+import { hardwareId, probeHardware } from "./hardware.js";
 
 /** Short HEAD sha of the benchmark checkout; "unknown" if git is unavailable. */
 const gitSha = Command.string(Command.make("git", "rev-parse", "--short", "HEAD")).pipe(
@@ -17,10 +18,14 @@ const gitSha = Command.string(Command.make("git", "rev-parse", "--short", "HEAD"
 );
 
 export const defaultRunEnv = (): Effect.Effect<RunEnv, never, CommandExecutor.CommandExecutor> =>
-  Effect.map(gitSha, (benchmarkGitSha) => ({
-    hostname: os.hostname(),
-    platform: `${process.platform}-${process.arch}`,
-    runtimeVersion: "unknown",
-    nodeVersion: process.version,
-    benchmarkGitSha,
-  }));
+  Effect.gen(function* () {
+    const hardware = yield* probeHardware;
+    return {
+      platform: `${process.platform}-${process.arch}`,
+      runtimeVersion: "unknown",
+      nodeVersion: process.version,
+      benchmarkGitSha: yield* gitSha,
+      hardware,
+      hardwareId: hardwareId(hardware),
+    };
+  });

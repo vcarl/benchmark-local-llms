@@ -67,6 +67,10 @@ export interface RunChallengeInput {
   readonly archiveDir: string;
   readonly archivePath: string;
   readonly env: RunEnv;
+  /** Shared by every attempt of one `./bench run` invocation. */
+  readonly invocationId?: string;
+  /** Who produced the attempt (`BENCH_SUBMITTER`, default `local`). */
+  readonly submitter?: string;
   /** When true, bypass the cross-run cache and always execute. Default false (cache ON). */
   readonly noCache?: boolean;
   /** Samples (generations) to hold per item; default 1. Samples already cached are reused. */
@@ -117,7 +121,7 @@ const provenance = (c: ResolvedConfiguration): Partial<AttemptManifest> => ({
 });
 
 export const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
-  schemaVersion: 2,
+  schemaVersion: 3,
   attemptId: input.attemptId,
   startedAt,
   finishedAt: null,
@@ -133,6 +137,8 @@ export const baseHeader = (input: RunChallengeInput, startedAt: string): Attempt
   challengeVersion: input.challenge.version,
   challengeHash: input.challenge.challengeHash,
   passThreshold: input.challenge.passThreshold,
+  ...(input.invocationId === undefined ? {} : { invocationId: input.invocationId }),
+  ...(input.submitter === undefined ? {} : { submitter: input.submitter }),
   env: input.env,
   aggregate: { score: 0, passed: false },
   ...(input.config.quant !== undefined ? { quant: input.config.quant } : {}),
@@ -153,11 +159,11 @@ export const baseHeader = (input: RunChallengeInput, startedAt: string): Attempt
  * Before the cache lookup, writes the per-item prompt and scorer blobs to the
  * content store so the store is complete regardless of cache hit or miss.
  *
- * Cache-hit scorerHash stamp: on a hit whose cached row has no `scorerHash`
- * (v1 archive), the returned row has `scorerHash` set. This is an intentional,
- * spec-sanctioned narrow exception to the "cache hit = verbatim copy" invariant:
- * only the denormalized `scorerHash` field is set; measured-cost fields
- * (executedAt, tokens, tps, peakMemory, wallTime) are preserved verbatim.
+ * Cache-hit stamps: a hit carries `cachedFrom` (the executing attempt, set by
+ * the cache lookup), and a hit whose cached row has no `scorerHash` (v1 archive)
+ * has it set. These are the two sanctioned exceptions to the "cache hit =
+ * verbatim copy" invariant; measured-cost fields (executedAt, tokens, tps,
+ * peakMemory, wallTime) are preserved verbatim.
  */
 export const executeOrCacheItem = (
   input: RunChallengeInput,
@@ -185,6 +191,7 @@ export const executeOrCacheItem = (
             challengeId: input.challenge.id,
             challengeVersion: input.challenge.version,
             itemHash: item.itemHash,
+            ...(input.env.hardwareId === undefined ? {} : { hardwareId: input.env.hardwareId }),
           });
 
     const rows: ItemResult[] = [];
@@ -305,10 +312,12 @@ export const runChallengeWithServer = (
       }
     }
     const agg = aggregate(scored, input.challenge.passThreshold);
+    const replayed = scored.filter((r) => r.cachedFrom !== undefined).length;
+    const lines = { generated: scored.length - replayed, replayed };
     const finishedMs = yield* Clock.currentTimeMillis;
     const finishedAt = new Date(finishedMs).toISOString();
-    yield* finalizeAttempt(input.archivePath, finishedAt, agg);
-    return { ...header, finishedAt, interrupted: false, aggregate: agg };
+    yield* finalizeAttempt(input.archivePath, finishedAt, agg, { lines });
+    return { ...header, finishedAt, interrupted: false, aggregate: agg, lines };
   });
 
 /**

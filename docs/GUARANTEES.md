@@ -36,9 +36,21 @@ Ref: `src/archive/content-store.ts`, `src/report/reconstruct.ts`. See [ARCHIVE-F
 
 ## Cross-attempt cache validity
 
-When executing an item, the harness reuses a previous result only from a **completed** attempt (`finishedAt` set and `interrupted: false`) whose header matches `(configHash, challengeId, challengeVersion)` and that contains an item with the same `itemHash` and sample index (`sample`, absent = 0). Among matches, the most recent `executedAt` wins per sample. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so measured efficiency always reflects real cost, never a cache artifact. `--no-cache` bypasses the lookup and forces fresh execution.
+When executing an item, the harness reuses a previous result only from a **completed** attempt (`finishedAt` set and `interrupted: false`) whose header matches `(configHash, challengeId, challengeVersion)`, that ran on the same machine (`env.hardwareId`; an attempt without one predates hardware profiles and counts as local), and that contains an item with the same `itemHash` and sample index (`sample`, absent = 0). Among matches, the most recent `executedAt` wins per sample. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so measured efficiency always reflects real cost, never a cache artifact. The copy gains exactly two stamps: `cachedFrom`, naming the attempt that executed it, and `scorerHash` when the cached line lacks one. A replay therefore never reads as a fresh execution, and never carries another machine's measurements. `--no-cache` bypasses the lookup and forces fresh execution.
 
 Ref: `src/archive/cache.ts` (`findCachedSamples`), `src/orchestration/run-challenge.ts`.
+
+## Run provenance and privacy
+
+Every attempt one `./bench run` writes shares an `invocationId`, records its `submitter`, and counts the item lines it generated and replayed. The header's `env.hardware` and `env.hardwareId` identify the machine by its specification only: no hostname, serial number, username, or email is written, and a `BENCH_SUBMITTER` containing `@` is refused before any model starts. The hardware probe never fails a run; a field it cannot read is left out.
+
+Ref: `src/orchestration/hardware.ts`, `src/orchestration/run-loop.ts`, `src/cli/commands/run.ts`.
+
+## Report row selection
+
+A report row counts, per `(item, sample)`, the most recent execution at the set's current `itemHash` among completed attempts of that configuration on that machine — the cache's own rule — so a replay collapses into its original and a later single-sample replay never drops earlier resamples. Execution provenance (runtime, git sha, dates, submitter) comes from the executing attempt, never the replay. Rows never mix datasets: one report is one archive directory scored against one challenge directory.
+
+Ref: `src/report/rows.ts`. See [SCORING.md § Report rows](./SCORING.md#report-rows).
 
 ## Resume identity safety
 

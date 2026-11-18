@@ -52,7 +52,13 @@ Ref: `src/schema/scorer.ts`, `src/scoring/score-result.ts`.
 
 ## Per-execution score vs pass rate
 
-The `[0, 1]` values above are **per-item** scores. The report and the webapp turn them into one pass rate per row. An item passes only when its score is exactly 1. Partial credit and execution errors both count as fails. `./bench report` selects each row's evidence ([Report rows](#report-rows)); the webapp sums the row's cells and never chooses evidence.
+The `[0, 1]` values above are **per-item** scores. The report and the webapp turn them into one pass rate per row. An item passes only when its score is exactly 1 (`passFraction` in `src/schema/attempt.ts`). Partial credit and execution errors both count as fails. `./bench report` selects each row's evidence ([Report rows](#report-rows)); the webapp sums the row's cells and never chooses evidence.
+
+### Repeated samples
+
+An item can hold several generations (samples) for one config — `./bench run --samples k`, optionally limited to some items with `--items` (see [ARCHIVE-FORMAT.md § Cache and resume](./ARCHIVE-FORMAT.md#cache-and-resume)). A resampled item counts **once**, at its **pass fraction**: the share of its samples scoring exactly 1. A cell's passed count and each family's passed count add that fraction, so the pass rate is the mean over items of the per-item mean — unbiased, and lower-variance than one draw. An item with one sample contributes 0 or 1, exactly as a single-run item. Cost (generation tokens, wall time) and near-miss credit likewise add the per-item mean over samples, so cost stays that of one pass over the challenge; failure kinds count sample lines. In the clustered SE below, a resampled item enters its family's `y_f` as its fraction; family clustering is unchanged.
+
+The drilldown shows a resampled item once (its first sample) with `k/n samples` beside its score; the summary counts (`passed/items`) print to one decimal when fractional.
 
 ### The pass-rate formula
 
@@ -68,11 +74,13 @@ A challenge the row never ran, ran only at a stale content hash, or only interru
 
 The webapp ranks by this score. An incomplete row also shows its **running score**, passed over the items of the challenges it ran, muted and with its completeness (`86% · 5/11`), so a higher displayed figure can sit below a lower one.
 
-**Scope.** The webapp's scoring controls recompute every row from its cells: the dataset (when the report emits more than one), core or stretch items only (shown only when the challenge set tags items with a scope; it does not, so the control is hidden), or a subset of challenges. The formula is the same over the selected cells and items; a challenge with no items in scope drops out. When the plotted points change, the scatter slides each point (matched across datasets by model, runtime and quant) and the axes to their new positions; points without a match fade in.
+**Scope.** The webapp's scoring controls recompute every row from its cells: the dataset (main or pilot), core or stretch items only, or a subset of challenges. The formula is the same over the selected cells and items; a challenge with no items in scope drops out. When the plotted points change, the scatter slides each point (matched across datasets by model, runtime and quant) and the axes to their new positions; points without a match fade in.
 
 ### Uncertainty and statistical ties
 
-The webapp's uncertainty is computed over **families**: clusters of items whose outcomes may be correlated. The report gives each cell `families`, the `[items, passed]` count per family. Every item is its own family (`challengeId/itemId`), so the clustered variance below reduces to the ordinary item-level one.
+Items that share a scenario — one story, one set of numbers, one game — have correlated outcomes, so they are not independent draws; the sampling unit is the item **family** (Miller 2024, "Adding Error Bars to Evals": cluster only on a shared context). An item's family is its YAML `family`, or else its own `challengeId/name`; a multi-turn item's turns share the item's family. The generated batteries in `scripts/author/draft.ts` give every item of one scenario the same family. Hand-written items stand alone unless their YAML declares one.
+
+`family` is metadata: it enters no hash, so changing it never re-identifies an item, needs no erratum, and needs no re-score. The report reads families from the current challenge directory (`./bench report --challenges-dir`); each cell carries `families`, the `[items, passed]` count per family, and `scopeFamilies`, the same split by scope (detail items carry `family`). An archived item the current challenges do not name stands alone.
 
 `webapp/src/lib/stats.ts` treats each family `f` of the selected cells as a cluster with `n_f` items and `y_f` passed (0 in a non-scored cell), so `p = Σy / Σn` is exactly the score. Its standard error is the cluster-robust (CR1) variance of that ratio:
 
@@ -84,7 +92,7 @@ Two rows are compared **paired** over the families they share with the same item
 
 The webapp surfaces these in three places:
 
-- **List**: when sorted by score, the list is cut into **tiers**. A tier runs from its first entry (the head) until an entry whose paired 95% interval against the head excludes 0 — the head is significantly better — and that entry heads the next tier. A thin rule marks each boundary (`Tier 2 · below #1 at 95%`). Adjacent entries are almost never resolved from each other at this set's size (171 items), so marking every unresolved neighbour would mark nearly every rank; a boundary is drawn only where the data does separate entries. Hovering a score shows `± 1.96·SE`.
+- **List**: when sorted by score, the list is cut into **tiers**. A tier runs from its first entry (the head) until an entry whose paired 95% interval against the head excludes 0 — the head is significantly better — and that entry heads the next tier. A thin rule marks each boundary (`Tier 2 · below #1 at 95%`). Adjacent entries are almost never resolved from each other at this set's size (182 items, 10–20-point paired intervals), so marking every unresolved neighbour would mark nearly every rank; a boundary is drawn only where the data does separate entries. Hovering a score shows `± 1.96·SE`.
 - **Scatter**: hovering a row (in the plot or the list) draws a vertical whisker over `p ± 1.96·SE`, clamped to the plotted range; the tooltip repeats it.
 - **Drilldown**: the score carries `± 1.96·SE`; an entry's rank shows its tier and the paired difference (this − other, with its 95% interval) against the entry above and against the head it was tested against.
 
@@ -97,18 +105,28 @@ E = S^1.70 · g_wall^0.50 · g_tps^0.60 · g_tokens^0.70 · g_mem^0.10
 ```
 
 - `S` is the coverage-adjusted score above, under the current scope, so running fewer challenges never raises it.
-- Inputs, per row over its scored cells with cost: `wall` is wall seconds per item, `tps` the generation tokens per second (unweighted mean over those cells), `tokens` the generation tokens per item, `mem` the peak memory in GB (maximum over those cells). Per-item figures divide by all items of those cells.
+- Inputs, per row over its scored cells with cost: `wall` is wall seconds per item, `tps` the generation tokens per second (unweighted mean over those cells), `tokens` the generation tokens per item, `mem` the peak memory in GB (maximum over those cells). Per-item figures divide by all items of those cells; cost is not split by core/stretch.
 - Each `g = ε + (1 − ε)·u` with `ε = 0.05`. `u` is the input's log-min–max position over the pool, `(ln x − ln min) / (ln max − ln min)`, and is flipped to `1 − u` for the lower-is-better inputs (wall, tokens, mem); `tps` is higher-is-better. The floor keeps a worst-in-pool input from zeroing the product. When every row in the pool has the same value of an input, that input can't discriminate and is neutral (`g = 1`).
 - The pool is the in-scope rows of the selected dataset (rows with a scored challenge under the current scope), before the row filters. Filtering never changes a row's efficiency; changing the scope or the dataset does, because min and max move.
 - A row missing any cost input has no efficiency: it is not in the pool, shows `—`, and sorts last.
 
-The webapp shows `E × 100` (`eff`) and sorts by it (the **Efficient** preset).
+The webapp shows `E × 100` (`eff`) and sorts by it (the **Efficient** preset). On the main set the top of the ranking is gpt-oss-20b, gemma-4-26b-a4b-it and Cyber-Tiel-Coder-35B-A3B.
 
 **Hardware.** Wall time and generation speed belong to the machine and runtime, not the model. The current data comes from one machine, so they are comparable. Once rows from several machines sit side by side, wall and tok/s rank hardware as much as models; whether to normalize them per machine, drop them, or pool by `hardwareId` is the main open question. Tokens per item and the score are machine-independent, and memory is nearly so.
 
 **Re-tuning.** The exponents and `ε` were chosen with `scripts/efficiency-lab/`, an interactive page over the report rows (several formula families, sensitivity readouts, presets) plus its reference implementation `core.cjs`. Regenerate its data from `./bench report` and re-tune there as dependable data accumulates; see its README.
 
 Ref: `withEfficiency` in `webapp/src/lib/model.ts`; `scripts/efficiency-lab/core.cjs`.
+
+### Scope
+
+Each item is `core` (short, practical work close to how local models are used) or `stretch` (solver-backed multi-step reasoning). An item's scope is its YAML `scope`, else `stretch` for the `economics`, `financial` and `trust` challenges and `core` for every other challenge. Like `family` it is metadata: it enters no hash, and the report reads it from the current challenges (`./bench report --challenges-dir`). Each cell carries `scopes`, the `[items, passed]` count per scope.
+
+The default score counts both scopes; the Items control scores one. The drilldown shows `core X% · stretch Y%` over the selected cells.
+
+### Failure kinds
+
+Each cell carries `failureKinds`, the count of its sample lines per `failureKind` (see [Failure kind](#failure-kind)); passes are not counted. The drilldown sums them over the selected cells into a one-line "Failures" breakdown, most frequent first.
 
 ### Why binary `score === 1`
 
@@ -118,13 +136,13 @@ Ref: `src/report/rows.ts`, `webapp/src/lib/model.ts`, `webapp/src/lib/stats.ts`.
 
 ## Report rows
 
-`./bench report` writes `globalThis.__BENCHMARK_ROWS` (`src/report/rows.ts`) to `data.js`: the rows selected in the report step, one entry per **dataset**, so a consumer only sums and displays. A dataset is an archive directory scored against a challenge directory, labelled `main` for `challenges/`, else by the directory name. The report emits one dataset; its `release` is `null` and its `errata` empty (no release baseline or errata exist). Rows never mix datasets.
+`./bench report` writes `globalThis.__BENCHMARK_ROWS` (`src/report/rows.ts`) to `data.js`: the rows selected in the report step, one entry per **dataset**, so a consumer only sums and displays. A dataset is an archive directory scored against a challenge directory. `--dataset-label` names it (default `main` for `challenges/`, else the directory name). The dataset carries the `release-baseline.json` label when the baseline names an item of the set, and the ids of the `errata.yaml` entries that name an item of the set. The pilot is its own dataset, `pilot1`: `<archive-dir>-next` scored against `<challenges-dir>-next`, emitted after the main dataset when both directories exist (`--no-pilot` leaves it out). Rows never mix datasets.
 
 **Challenge set.** The set is every challenge loadable from `--challenges-dir` at report time, with its current version, hash, and items. It is never inferred from the records.
 
-**Rows.** A row is one `configHash` on one machine (`hardwareId`). Attempt archives do not record the machine, so every row's `hardwareId` is `unknown` and the dataset's `hardware` map is empty.
+**Rows.** A row is one `configHash` on one machine (`hardwareId`). An item line belongs to the machine of the attempt that executed it. Attempts without a hardware profile (before schemaVersion 3) belong to `--legacy-hardware`: `local` (default — this machine's `hardwareId`), `unknown`, or an explicit id.
 
-**Selection.** For each row and set challenge, the report pools the item lines of every completed attempt with the same `(configHash, challengeId, challengeVersion)` whose `itemHash` equals the set item's current hash. Per item it keeps the line with the latest `executedAt`. This is the cache's rule, so a row is what `./bench run` would serve: a replay collapses into its original. A line's **executor** is the earliest-started attempt holding the identical line that started no later than the line's `executedAt`; the executor's header supplies its runtime version and git sha (`unknown` when no executor is found).
+**Selection.** For each row and set challenge, the report pools the item lines of every completed attempt with the same `(configHash, challengeId, challengeVersion)` whose `itemHash` equals the set item's current hash, dropping retired lines. Per `(item, sample)` it keeps the line with the latest `executedAt`. This is the cache's rule, so a row is what `./bench run` would serve: a replay collapses into its original and a later single-sample replay cannot drop resamples. A line's **executor** is `cachedFrom.attemptId` when set, else the earliest-started attempt holding the identical line that started no later than the line's `executedAt`; the executor's header supplies its runtime version, git sha, and submitter (`unknown` when the header has none).
 
 **Cells.** Each set challenge gets a cell with a status:
 
@@ -135,9 +153,9 @@ Ref: `src/report/rows.ts`, `webapp/src/lib/model.ts`, `webapp/src/lib/stats.ts`.
 | `interrupted` | Only interrupted attempts exist |
 | `not_run` | No attempt exists |
 
-A cell carries its items, passed, `families` counts, its cost (generation tokens and wall time summed over items, peak memory, mean generation speed; scored cells only), its execution date range, runtime versions, git shas, executing attempts, and whether any executor was re-stamped. A non-`scored` cell counts 0 passed, and its items stay in every denominator. The contract also carries fields the archives cannot fill yet, at fixed values: `scopes` and `scopeFamilies` are empty, `failureKinds` is empty, `nearMissCredit` is 0, and `samples` is `[1, 1]` on a scored cell (one line per item).
+A cell carries its items, passed (pass fractions), `families`, `scopes` and `scopeFamilies` counts, its cost (item-mean generation tokens and wall time summed, peak memory, mean generation speed; scored cells only), near-miss credit, failure kinds (per sample line), min/max samples per item, execution date range, runtime versions, git shas, executing attempts, and whether any executor was re-stamped. A non-`scored` cell counts 0 passed, and its items stay in every denominator.
 
-**Row figures.** `passRate = Σ passed / Σ set items` — the formula above, so a missing or stale challenge counts as failed. `se` is the CR1 standard error over the row's families (`null` below 5). `completeness` counts scored challenges and their items; `freshness` is the execution date range of the counted lines; `provenance` lists runtime versions, git shas, submitters (always `local`), samples per item, and re-stamped cells, and sets `mixed` when the counted lines span more than one runtime version, more than one git sha (`unknown` counts), or more than 7 days. `variant` holds only the fields that differ among rows of the same `artifact` — runtime, quant, temperature, max tokens, system prompt — and `variantLabel` joins them (`t0.7 · quant 8bit`). Sampler knobs are not in the attempt header, so configs of one artifact that differ only there share a label. `modelKey` groups the builds of one model: the artifact's last path segment, lower-cased, without an uploader's `org_` prefix or packaging tokens (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`…); a `configs.yaml` entry's `modelKey` overrides it for that artifact. `modelName` is the same name with case kept.
+**Row figures.** `passRate = Σ passed / Σ set items` — the formula above, so a missing or stale challenge counts as failed. `se` is the CR1 standard error over the row's families (`null` below 5); `scopes` gives the core/stretch split over the same denominator. `completeness` counts scored challenges and their items; `freshness` is the execution date range of the counted lines; `provenance` lists runtime versions, git shas, submitters, samples per item, and re-stamped cells, and sets `mixed` when the counted lines span more than one runtime version, more than one git sha (`unknown` counts), or more than 7 days. `variant` holds only the fields that differ among rows of the same `artifact` — runtime, quant, temperature, max tokens, system prompt, sampler knobs, template kwargs, chat template, machine — and `variantLabel` joins them (`t0.7 · topK 20`). `modelKey` groups the builds of one model: the artifact's last path segment, lower-cased, without an uploader's `org_` prefix or packaging tokens (`GGUF`, `MLX`, `4bit`, `MXFP4`, `Q4_K_M`…); a `configs.yaml` entry's `modelKey` overrides it for that artifact. `modelName` is the same name with case kept.
 
 ## Item audit
 
@@ -168,7 +186,7 @@ A near miss is a specific wrong answer that earns partial credit. Each is declar
 
 For generated challenges the solvers in `scripts/author/` compute each near-miss value from the same inputs as the key, and the generator refuses a near-miss pattern that matches the prompt text itself. Hand-written challenges declare them directly in YAML. A near miss changes scores, so adding one is a scorer change and needs an erratum ([ERRATA.md](./ERRATA.md)).
 
-The headline pass rate stays binary — a near miss is not a pass (`score === 1` only). Partial credit is reported separately: the item line carries `failureKind: "near_miss"` and the `slip` in `nearMiss`, and each report record carries `near_miss_credit`, the sum of near-miss credit over its items. The config drilldown shows the latest invocation's total beside the pass rate as `+N near miss`; the ranking table does not show it.
+The headline pass rate stays binary — a near miss is not a pass (`score === 1` only). Partial credit is reported separately: the item line carries `failureKind: "near_miss"` and the `slip` in `nearMiss`, and each cell carries `nearMissCredit`, the sum of near-miss credit over its items. The drilldown shows the total over the selected cells; the list does not show it.
 
 Ref: `src/schema/scorer.ts` (`ExactNearMiss`, `PatternNearMiss`), `src/scoring/exact-match.ts`, `src/scoring/constraint.ts`.
 

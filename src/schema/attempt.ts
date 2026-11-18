@@ -35,6 +35,14 @@ export const ItemResult = Schema.Struct({
   /** Sampler seed sent with the request; absent when none was sent. */
   seed: Schema.optional(Schema.Number),
   executedAt: Schema.String,
+  /**
+   * Set on a line copied from the cross-attempt cache: the attempt that
+   * executed it and its `executedAt`. Absent on a line this attempt generated,
+   * and on every line written before schemaVersion 3.
+   */
+  cachedFrom: Schema.optional(
+    Schema.Struct({ attemptId: Schema.String, executedAt: Schema.String }),
+  ),
   promptTokens: Schema.Number,
   generationTokens: Schema.Number,
   promptTps: Schema.Number,
@@ -111,10 +119,11 @@ export type AttemptAggregate = typeof AttemptAggregate.Type;
  * identity are denormalized; `env` is provenance (incl. harness git sha) and
  * is NOT part of `configHash`. `aggregate` is zeroed at header-write and
  * filled at finalize. `passThreshold` and `schemaVersion: 2` are v2 reconstruction
- * additions (denormalized content, not hash inputs).
+ * additions (denormalized content, not hash inputs); `schemaVersion: 3` adds run
+ * provenance (`invocationId`, `submitter`, `lines`, `env.hardware`, `cachedFrom`).
  */
 export const AttemptManifest = Schema.Struct({
-  schemaVersion: Schema.Literal(1, 2),
+  schemaVersion: Schema.Literal(1, 2, 3),
   attemptId: Schema.String,
   startedAt: Schema.String,
   finishedAt: Schema.NullOr(Schema.String),
@@ -179,6 +188,13 @@ export const AttemptManifest = Schema.Struct({
    * report, and audit count only the remaining items. Absent when none.
    */
   retiredItems: Schema.optional(Schema.Array(Schema.String)),
+
+  /** Shared by every attempt one `./bench run` invocation writes. */
+  invocationId: Schema.optional(Schema.String),
+  /** Who produced the attempt (`BENCH_SUBMITTER`, default `local`). */
+  submitter: Schema.optional(Schema.String),
+  /** Item lines this attempt executed vs copied from the cache; filled at finalize. */
+  lines: Schema.optional(Schema.Struct({ generated: Schema.Number, replayed: Schema.Number })),
 
   env: RunEnv,
   aggregate: AttemptAggregate,
