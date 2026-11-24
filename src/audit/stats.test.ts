@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LoadedAttempt } from "../report/load-attempts.js";
+import type { LoadedAttempt } from "../legacy/load-attempts.js";
 import {
   auditItems,
   defaultAuditOptions,
