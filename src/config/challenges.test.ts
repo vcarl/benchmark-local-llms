@@ -1,16 +1,19 @@
+import * as fsp from "node:fs/promises";
+import * as os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FileSystem } from "@effect/platform";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
+import { computePromptHash, legacyItemIdentity } from "../legacy/identity.js";
 import { type Challenge, Challenge as ChallengeSchema } from "../schema/challenge.js";
 import { defaultScope, loadChallenge, resolveChallenge } from "./challenges.js";
-import { computePromptHash, stableStringify } from "./hashing.js";
+import { stableStringify } from "./hashing.js";
 
 // Absolute path to the repo root (two levels up from src/config/)
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const challengesDir = path.join(repoRoot, "challenges");
+const challengesDir = path.join(repoRoot, "releases", "0", "challenges");
 
 /** Inline exact_match item (flat on-disk shape). */
 const exactItem = (name: string, prompt: string) => ({
@@ -50,9 +53,11 @@ describe("resolveChallenge", () => {
     expect(exit._tag).toBe("Success");
     if (exit._tag !== "Success") return;
     const r = exit.value;
-    expect(r.challengeHash).toHaveLength(12);
-    expect(r.items.at(0)?.itemHash).toMatch(/^[0-9a-f]{12}$/);
-    expect(r.items.at(0)?.itemHash).not.toBe(r.items.at(1)?.itemHash);
+    expect(legacyItemIdentity(r).challengeHash).toHaveLength(12);
+    expect(legacyItemIdentity(r).items.at(0)?.itemHash).toMatch(/^[0-9a-f]{12}$/);
+    expect(legacyItemIdentity(r).items.at(0)?.itemHash).not.toBe(
+      legacyItemIdentity(r).items.at(1)?.itemHash,
+    );
     expect(r.items.at(0)?.scorer.type).toBe("constraint");
     expect(r.items.at(1)?.scorer.type).toBe("exact_match");
   });
@@ -100,6 +105,29 @@ describe("resolveChallenge", () => {
       ),
     );
     expect(bad._tag).toBe("Failure");
+  });
+});
+
+describe("resolveChallenge custom scorer", () => {
+  it("inlines the script file (relative to the challenge dir) as the scorer's source", async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "custom-scorer-"));
+    await fsp.writeFile(path.join(dir, "score.py"), "print('{\"score\": 1}')\n");
+    const challenge: Challenge = {
+      id: "c",
+      version: 1,
+      passThreshold: 0.5,
+      items: [
+        { name: "k", category: "x", tier: 1, prompt: "p", scorer: "custom", script: "score.py" },
+      ],
+    };
+    const exit = await run(provide(resolveChallenge(challenge, dir)));
+    await fsp.rm(dir, { recursive: true, force: true });
+    expect(exit._tag).toBe("Success");
+    if (exit._tag !== "Success") return;
+    expect(exit.value.items.at(0)?.scorer).toEqual({
+      type: "custom",
+      source: "print('{\"score\": 1}')\n",
+    });
   });
 });
 
@@ -242,8 +270,8 @@ describe("resolveChallenge hashing", () => {
       Effect.runPromise(provide(resolveChallenge(challenge, challengesDir))),
       Effect.runPromise(provide(resolveChallenge(challenge, challengesDir))),
     ]);
-    expect(a.challengeHash).toBe(b.challengeHash);
-    expect(a.challengeHash).toMatch(/^[0-9a-f]{12}$/);
+    expect(legacyItemIdentity(a).challengeHash).toBe(legacyItemIdentity(b).challengeHash);
+    expect(legacyItemIdentity(a).challengeHash).toMatch(/^[0-9a-f]{12}$/);
   });
 
   it("challengeHash drifts when an item's prompt text changes", async () => {
@@ -258,7 +286,7 @@ describe("resolveChallenge hashing", () => {
       Effect.runPromise(provide(resolveChallenge(base, challengesDir))),
       Effect.runPromise(provide(resolveChallenge(drifted, challengesDir))),
     ]);
-    expect(h1.challengeHash).not.toBe(h2.challengeHash);
+    expect(legacyItemIdentity(h1).challengeHash).not.toBe(legacyItemIdentity(h2).challengeHash);
   });
 
   it("family is metadata: defaults to a singleton (turns share the parent's) and changes no hash", async () => {
@@ -289,9 +317,9 @@ describe("resolveChallenge hashing", () => {
     ]);
     expect(u.items.map((i) => i.family)).toEqual(["g/a", "g/c", "g/c"]);
     expect(t.items.map((i) => i.family)).toEqual(["f", "f", "f"]);
-    expect(t.challengeHash).toBe(u.challengeHash);
-    expect(t.items.map((i) => [i.itemHash, i.promptHash])).toEqual(
-      u.items.map((i) => [i.itemHash, i.promptHash]),
+    expect(legacyItemIdentity(t).challengeHash).toBe(legacyItemIdentity(u).challengeHash);
+    expect(legacyItemIdentity(t).items.map((i) => [i.itemHash, i.promptHash])).toEqual(
+      legacyItemIdentity(u).items.map((i) => [i.itemHash, i.promptHash]),
     );
   });
 
@@ -313,7 +341,8 @@ describe("resolveChallenge hashing", () => {
     expect(core.items[0]?.scope).toBe("core");
     expect(stretch.items[0]?.scope).toBe("stretch");
     expect(tagged.items[0]?.scope).toBe("stretch");
-    expect(tagged.challengeHash).toBe(core.challengeHash);
+    expect(legacyItemIdentity(tagged).challengeHash).toBe(legacyItemIdentity(core).challengeHash);
+    expect(defaultScope("chains")).toBe("stretch");
     expect(defaultScope("extraction")).toBe("core");
   });
 });
@@ -368,22 +397,28 @@ describe("resolveChallenge multi-turn items", () => {
 
   it("hashes turn 1 like a single-shot prompt and later turns over the full conversation", async () => {
     const r = await resolve(chain(["1", "2", "3"]));
-    expect(r.items[0]?.promptHash).toBe(computePromptHash("p1", ""));
+    expect(legacyItemIdentity(r).items[0]?.promptHash).toBe(computePromptHash("p1", ""));
     const convo = stableStringify([
       { role: "user", content: "p1" },
       { role: "assistant", content: "1" },
       { role: "user", content: "p2" },
     ]);
-    expect(r.items[1]?.promptHash).toBe(computePromptHash(convo, ""));
+    expect(legacyItemIdentity(r).items[1]?.promptHash).toBe(computePromptHash(convo, ""));
   });
 
   it("changing an earlier gold answer changes every later turn's identity", async () => {
     const a = await resolve(chain(["1", "2", "3"]));
     const b = await resolve(chain(["7", "2", "3"]));
-    expect(b.items[0]?.promptHash).toBe(a.items[0]?.promptHash);
-    expect(b.items[1]?.itemHash).not.toBe(a.items[1]?.itemHash);
-    expect(b.items[2]?.itemHash).not.toBe(a.items[2]?.itemHash);
-    expect(b.challengeHash).not.toBe(a.challengeHash);
+    expect(legacyItemIdentity(b).items[0]?.promptHash).toBe(
+      legacyItemIdentity(a).items[0]?.promptHash,
+    );
+    expect(legacyItemIdentity(b).items[1]?.itemHash).not.toBe(
+      legacyItemIdentity(a).items[1]?.itemHash,
+    );
+    expect(legacyItemIdentity(b).items[2]?.itemHash).not.toBe(
+      legacyItemIdentity(a).items[2]?.itemHash,
+    );
+    expect(legacyItemIdentity(b).challengeHash).not.toBe(legacyItemIdentity(a).challengeHash);
   });
 
   it("fails when a turn's gold answer does not pass its own scorer", async () => {
@@ -452,6 +487,38 @@ describe("resolveChallenge multi-turn items", () => {
   });
 });
 
+describe("releases/draft/challenges/chains.yaml", () => {
+  const load = async (id: string) => {
+    const dir =
+      id === "chains" ? path.join(repoRoot, "releases", "draft", "challenges") : challengesDir;
+    const exit = await run(provide(loadChallenge(path.join(dir, `${id}.yaml`))));
+    if (exit._tag !== "Success") throw new Error(`load ${id} failed: ${String(exit.cause)}`);
+    return exit.value;
+  };
+
+  it("loads (every gold answer passes its turn's scorer) and expands to 13 turn units", async () => {
+    const chains = await load("chains");
+    expect(chains.items.map((i) => i.itemId)).toEqual([
+      ...[1, 2, 3, 4].map((k) => `chain_amortization#${k}`),
+      ...[1, 2, 3, 4].map((k) => `chain_tax_incidence#${k}`),
+      ...[1, 2, 3, 4, 5].map((k) => `chain_monopoly#${k}`),
+    ]);
+  });
+
+  it("asks turn 1 exactly as its single-shot baseline item", async () => {
+    const [chains, financial, economics] = await Promise.all(
+      ["chains", "financial", "economics"].map(load),
+    );
+    const hash = (c: typeof chains | undefined, id: string) =>
+      c && legacyItemIdentity(c).items.find((i) => i.itemId === id)?.promptHash;
+    expect(hash(chains, "chain_amortization#1")).toBe(
+      hash(financial, "financial_amort_monthly_payment"),
+    );
+    expect(hash(chains, "chain_tax_incidence#1")).toBe(hash(economics, "econ_tax_quantity"));
+    expect(hash(chains, "chain_monopoly#1")).toBe(hash(economics, "econ_monopoly_quantity"));
+  });
+});
+
 describe("loadChallenge against real inline challenge files", () => {
   it.each([
     ["smoke", 4],
@@ -466,7 +533,7 @@ describe("loadChallenge against real inline challenge files", () => {
     expect(exit._tag).toBe("Success");
     if (exit._tag !== "Success") return;
     expect(exit.value.items).toHaveLength(count);
-    expect(exit.value.challengeHash).toMatch(/^[0-9a-f]{12}$/);
+    expect(legacyItemIdentity(exit.value).challengeHash).toMatch(/^[0-9a-f]{12}$/);
     // code_exec items must have their companion test file inlined as testCode.
     for (const item of exit.value.items) {
       if (item.scorer.type === "code_exec") {

@@ -16,14 +16,12 @@ import type { ScorerConfig } from "../schema/scorer.js";
 import { scoreConstraints } from "../scoring/constraint.js";
 import { scoreExactMatch } from "../scoring/exact-match.js";
 import { translateInlineFlags } from "../scoring/regex-flags.js";
-import { computePromptHash, shortSha256, stableStringify } from "./hashing.js";
+import { stableStringify } from "./hashing.js";
 import { selectChallengeStems } from "./select.js";
 import { parseYaml } from "./yaml.js";
 
 export interface ResolvedItem {
   readonly itemId: string;
-  readonly promptHash: string;
-  readonly itemHash: string;
   readonly scorer: ScorerConfig;
   readonly prompt: PromptCorpusEntry;
   /** Multi-turn item name this unit is a turn of; absent on single-shot items. */
@@ -43,14 +41,16 @@ export interface ResolvedChallenge {
   readonly id: string;
   readonly version: number;
   readonly passThreshold: number;
-  readonly challengeHash: string;
   readonly items: ReadonlyArray<ResolvedItem>;
 }
 
-const scorerKey = (s: ScorerConfig): string => stableStringify(s);
-
 /** Challenges whose items are solver-backed multi-step reasoning (docs/SCORING.md § Scope). */
-const STRETCH_CHALLENGES: ReadonlySet<string> = new Set(["economics", "financial", "trust"]);
+const STRETCH_CHALLENGES: ReadonlySet<string> = new Set([
+  "economics",
+  "financial",
+  "trust",
+  "chains",
+]);
 
 /** Scope of an item that declares none: `stretch` for the solver suites, else `core`. */
 export const defaultScope = (challengeId: string): Scope =>
@@ -59,9 +59,7 @@ export const defaultScope = (challengeId: string): Scope =>
 /**
  * System prompt is a config concern, not a challenge concern. Inline items
  * never carry one, so every resolved item's prompt records the empty `none`
- * system. Kept so {@link PromptCorpusEntry} stays self-contained and the
- * `promptHash` formula (`promptText + system.text`) is unchanged from the
- * pre-inline era — existing archived attempts remain reconstructable.
+ * system. Kept so {@link PromptCorpusEntry} stays self-contained.
  */
 const NONE_SYSTEM: SystemPrompt = { key: "none", text: "" };
 
@@ -168,8 +166,8 @@ const validateConstraintPatterns = (challengeId: string, item: SingleItem): Conf
 
 /**
  * Bridge a decoded inline {@link SingleItem} (flat YAML shape) into a nested
- * {@link ScorerConfig}. For `code_exec` the companion test file is read here,
- * resolved relative to {@link challengeDir}.
+ * {@link ScorerConfig}. The `code_exec` companion test file and the `custom`
+ * scorer script are read here, resolved relative to {@link challengeDir}.
  */
 const resolveScorer = (
   item: SingleItem,
@@ -181,7 +179,8 @@ const resolveScorer = (
         type: "exact_match" as const,
         expected: item.expected,
         extract: item.extract,
-        // Absent unless declared, so items without near misses keep their scorerHash.
+        // Optional fields stay absent unless declared, so items without them keep their scorerHash.
+        ...(item.fallbackExtract === undefined ? {} : { fallbackExtract: item.fallbackExtract }),
         ...(item.nearMisses === undefined ? {} : { nearMisses: item.nearMisses }),
       });
     case "constraint":
@@ -212,6 +211,22 @@ const resolveScorer = (
         vocabulary: item.vocabulary,
         expected: item.expected,
         caseSensitive: item.caseSensitive,
+      });
+    }
+    case "custom": {
+      const resolved = path.resolve(challengeDir, item.script);
+      return Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const source = yield* fs.readFileString(resolved).pipe(
+          Effect.mapError(
+            (e) =>
+              new ConfigError({
+                path: resolved,
+                message: `failed to read script for item ${item.name}: ${e.message}`,
+              }),
+          ),
+        );
+        return { type: "custom" as const, source };
       });
     }
     case "code_exec": {
@@ -264,7 +279,6 @@ const buildPromptEntry = (
       system: NONE_SYSTEM,
       ...text,
       scorer,
-      promptHash: computePromptHash(promptContent(text), NONE_SYSTEM.text),
       tags: item.tags,
     };
   });
@@ -349,11 +363,8 @@ export const resolveChallenge = (
             }),
           );
         }
-        const itemHash = shortSha256(`${prompt.promptHash}|${scorerKey(prompt.scorer)}`);
         return {
           itemId: prompt.name,
-          promptHash: prompt.promptHash,
-          itemHash,
           scorer: prompt.scorer,
           prompt,
           ...turn,
@@ -362,14 +373,10 @@ export const resolveChallenge = (
         } satisfies ResolvedItem;
       }),
     );
-    const challengeHash = shortSha256(
-      items.map((i) => `${i.promptHash}:${scorerKey(i.scorer)}`).join("|"),
-    );
     return {
       id: challenge.id,
       version: challenge.version,
       passThreshold: challenge.passThreshold,
-      challengeHash,
       items,
     };
   });

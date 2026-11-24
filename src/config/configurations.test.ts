@@ -1,11 +1,11 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import { computeConfigHash, loadConfigurations } from "./configurations.js";
-import { shortSha256 } from "./hashing.js";
+import { loadConfigurations } from "./configurations.js";
 import { loadSystemPrompts, SystemPromptRegistry } from "./system-prompts.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -24,7 +24,7 @@ const writeTmp = (body: string) =>
   });
 
 describe("loadConfigurations", () => {
-  it("resolves system prompt text and stamps configHash", () =>
+  it("resolves system prompt text", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const path = yield* writeTmp(
@@ -33,11 +33,10 @@ describe("loadConfigurations", () => {
         const [cfg, ...rest] = yield* loadConfigurations(path);
         expect(rest).toHaveLength(0);
         expect(cfg?.systemPromptText).toBe("Be concise.");
-        expect(cfg?.configHash).toHaveLength(12);
       }),
     ).pipe(Effect.provide(Layer.mergeAll(NodeContext.layer, registry)), Effect.runPromise));
 
-  it("stamps chatTemplateSha from the template file's content, and only when set", () =>
+  it("stamps chatTemplateDigest from the template file's content, and only when set", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -49,67 +48,14 @@ describe("loadConfigurations", () => {
         const content = yield* fs.readFileString(
           path.join(repoRoot, "templates", "mistral-v7-tekken.jinja"),
         );
-        expect(withT?.chatTemplateSha).toBe(shortSha256(content));
-        expect(without !== undefined && "chatTemplateSha" in without).toBe(false);
-        // The template's content joins configHash; its absence leaves the hash as-is.
-        expect(withT?.configHash).not.toBe(without?.configHash);
+        expect(withT?.chatTemplateDigest).toBe(createHash("sha256").update(content).digest("hex"));
+        expect(without !== undefined && "chatTemplateDigest" in without).toBe(false);
 
         const bad = yield* writeTmp(`- id: b\n${base}  chatTemplate: no-such-template\n`);
         const err = yield* Effect.flip(loadConfigurations(bad));
         expect(err._tag).toBe("ConfigError");
       }),
     ).pipe(Effect.provide(Layer.mergeAll(NodeContext.layer, registry)), Effect.runPromise));
-
-  it("chatTemplateSha joins the hash only when set, by content", () => {
-    const base = { artifact: "a", runtime: "llamacpp", temperature: 0.7, maxTokens: 100 };
-    const h = (extra: object) => computeConfigHash({ ...base, ...extra }, "Be concise.");
-    expect(h({ chatTemplateSha: undefined })).toBe(h({}));
-    expect(h({ chatTemplateSha: "aaaaaaaaaaaa" })).not.toBe(h({}));
-    expect(h({ chatTemplateSha: "aaaaaaaaaaaa" })).not.toBe(h({ chatTemplateSha: "bbbbbbbbbbbb" }));
-  });
-
-  it("computeConfigHash is stable and order-insensitive to unrelated fields", () => {
-    const h1 = computeConfigHash(
-      { artifact: "a", runtime: "mlx", temperature: 0.7, maxTokens: 100 },
-      "Be concise.",
-    );
-    const h2 = computeConfigHash(
-      { artifact: "a", runtime: "mlx", temperature: 0.7, maxTokens: 100 },
-      "Be concise.",
-    );
-    expect(h1).toBe(h2);
-  });
-
-  it("sampler fields join the hash only when set", () => {
-    const base = {
-      artifact: "a",
-      runtime: "mlx",
-      temperature: 0.7,
-      maxTokens: 100,
-    };
-    const h = (extra: object) => computeConfigHash({ ...base, ...extra }, "Be concise.");
-    expect(
-      h({
-        topP: undefined,
-        topK: undefined,
-        minP: undefined,
-        presencePenalty: undefined,
-      }),
-    ).toBe(h({}));
-    const set = [h({ topP: 0.9 }), h({ topK: 40 }), h({ minP: 0.05 }), h({ presencePenalty: 1.5 })];
-    expect(new Set([h({}), ...set]).size).toBe(5);
-  });
-
-  it("chatTemplateKwargs joins the hash only when set, independent of key order", () => {
-    const base = { artifact: "a", runtime: "mlx", temperature: 0.7, maxTokens: 100 };
-    const h = (extra: object) => computeConfigHash({ ...base, ...extra }, "Be concise.");
-    // Pinned to the hash this configuration had before the field existed.
-    expect(h({ chatTemplateKwargs: undefined })).toBe("efcd17f58120");
-    expect(h({ chatTemplateKwargs: { enable_thinking: true } })).not.toBe(h({}));
-    expect(h({ chatTemplateKwargs: { a: 1, b: "x" } })).toBe(
-      h({ chatTemplateKwargs: { b: "x", a: 1 } }),
-    );
-  });
 });
 
 describe("configs.yaml catalog-only entries", () => {

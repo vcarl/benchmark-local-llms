@@ -1,26 +1,23 @@
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import * as YAML from "yaml";
-import { loadSelectedChallenges } from "./challenges.js";
+import { verifyRelease } from "../release/release.js";
 import {
   coverageGaps,
-  ErrataFile,
-  type Erratum,
+  Erratum,
   errataIdProblems,
   evalVersion,
   parseErratumId,
-  ReleaseBaseline,
+  parseEvalVersion,
   releaseArgProblem,
-  snapshotItems,
 } from "./errata.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-const id = (promptHash: string, scorerHash: string) => ({ promptHash, scorerHash });
+const id = (prompt: string, scorer: string) => ({ prompt, scorer });
 const erratum = (over: Partial<Erratum>): Erratum => ({
   id: "0.1",
   date: "2026-11-16",
@@ -28,6 +25,8 @@ const erratum = (over: Partial<Erratum>): Erratum => ({
   items: ["c/a"],
   description: "d",
   scorerChange: true,
+  scorers: {},
+  scoresChanged: { lines: 0, configs: 0 },
   releaseStatus: "none",
   ...over,
 });
@@ -83,83 +82,127 @@ describe("coverageGaps", () => {
     ).toEqual([]);
   });
 
+  it("requires recorded scorers on a scorerChange erratum, the latest matching the item", () => {
+    const cur = { ...base, "c/a": id("p1", "s9") };
+    const { scorers: _, ...unrecorded } = erratum({});
+    expect(coverageGaps(base, cur, [unrecorded])).toEqual(["0.1: scorers not recorded"]);
+    expect(coverageGaps(base, cur, [erratum({ scorers: { "c/a": "s8" } })])).toEqual([
+      "c/a: scorer is s9, erratum 0.1 recorded s8",
+    ]);
+    expect(
+      coverageGaps(base, cur, [
+        erratum({ scorers: { "c/a": "s8" } }),
+        erratum({ id: "0.2", scorers: { "c/a": "s9" } }),
+      ]),
+    ).toEqual([]);
+  });
+
   it("accepts an erratum naming an item that has left both snapshots", () => {
     expect(coverageGaps(base, base, [erratum({ kind: "retired", items: ["c/gone"] })])).toEqual([]);
   });
 });
 
+describe("Erratum", () => {
+  const decode = Schema.decodeUnknownEither(Erratum);
+  it("requires scoresChanged as counts of lines and configs", () => {
+    const { scoresChanged: _, ...without } = erratum({});
+    expect(decode(without)._tag).toBe("Left");
+    for (const kind of ["answer-key", "scorer", "prompt-ambiguity", "retired", "added"] as const) {
+      expect(decode(erratum({ kind, scoresChanged: { lines: 121, configs: 13 } }))._tag).toBe(
+        "Right",
+      );
+    }
+    expect(decode(erratum({ scoresChanged: { lines: -1, configs: 0 } }))._tag).toBe("Left");
+    expect(decode(erratum({ scoresChanged: { lines: 1.5, configs: 1 } }))._tag).toBe("Left");
+  });
+});
+
 describe("parseErratumId", () => {
-  it("splits <release>.<n> for the pre-release and CalVer releases", () => {
+  it("splits <release>.<n> for the alpha and YYYY.N releases", () => {
     expect(parseErratumId("0.7")).toEqual({ release: "0", n: 7 });
     expect(parseErratumId("2027.1.12")).toEqual({ release: "2027.1", n: 12 });
-    expect(parseErratumId("2027.12.1")).toEqual({ release: "2027.12", n: 1 });
+    expect(parseErratumId("2027.13.1")).toEqual({ release: "2027.13", n: 1 });
   });
   it("rejects other shapes", () => {
-    for (const id of ["E-0001", "0", "0.0", "0.01", "2027.1", "2027.0.1", "2027.13.1", "1.1"]) {
+    for (const id of ["E-0001", "0", "0.0", "0.01", "2027.1", "2027.0.1", "2027.1.0", "1.1"]) {
       expect(parseErratumId(id)).toBeUndefined();
     }
   });
 });
 
-describe("errataIdProblems", () => {
-  it("accepts contiguous ids from <release>.1 per release, older releases as history", () => {
-    expect(errataIdProblems("0", ids("0.1", "0.2", "0.3"))).toEqual([]);
-    expect(errataIdProblems("2027.1", ids("0.1", "0.2", "2027.1.1", "2027.1.2"))).toEqual([]);
-    expect(errataIdProblems("2027.1", ids("0.1"))).toEqual([]);
+describe("parseEvalVersion", () => {
+  it("takes n = 0 (before any erratum)", () => {
+    expect(parseEvalVersion("2027.1.0")).toEqual({ release: "2027.1", n: 0 });
+    expect(parseEvalVersion("0.7")).toEqual({ release: "0", n: 7 });
+    expect(parseEvalVersion("2027.1")).toBeUndefined();
+    expect(parseEvalVersion("2027.1.01")).toBeUndefined();
   });
-  it("flags malformed, duplicate, gapped, and future ids", () => {
+});
+
+describe("errataIdProblems", () => {
+  it("accepts contiguous ids from <release>.1", () => {
+    expect(errataIdProblems("0", ids("0.1", "0.2", "0.3"))).toEqual([]);
+    expect(errataIdProblems("2027.1", ids("2027.1.1", "2027.1.2"))).toEqual([]);
+    expect(errataIdProblems("2027.1", [])).toEqual([]);
+  });
+  it("flags malformed, duplicate, gapped, and other releases' ids", () => {
     expect(errataIdProblems("0", ids("E-0001"))).toEqual(["E-0001: id is not <release>.<n>"]);
     expect(errataIdProblems("0", ids("0.1", "0.1"))).toEqual(["0.1: expected id 0.2"]);
     expect(errataIdProblems("0", ids("0.2"))).toEqual(["0.2: expected id 0.1"]);
-    expect(errataIdProblems("0", ids("2027.1.1"))).toEqual([
-      "2027.1.1: release 2027.1 is newer than the baseline release 0",
+    expect(errataIdProblems("2027.1", ids("0.1"))).toEqual([
+      "0.1: not an erratum of release 2027.1",
     ]);
   });
-  it("flags a baseline release that is not a version", () => {
+  it("rejects errata after the release closed", () => {
+    expect(errataIdProblems("0", ids("0.1", "0.2"), "0.2")).toEqual([]);
+    expect(errataIdProblems("0", ids("0.1", "0.2", "0.3"), "0.2")).toEqual([
+      "0.3: release 0 closed at 0.2",
+    ]);
+    expect(errataIdProblems("0", [], "2027.1.0")).toEqual([
+      "closed 2027.1.0 is not an eval version of release 0",
+    ]);
+  });
+  it("flags a release that is not a version", () => {
     expect(errataIdProblems("initial-main", [])).toEqual([
-      "baseline release initial-main is not 0 or YYYY.M",
+      "release initial-main is not 0 or YYYY.N",
     ]);
   });
 });
 
 describe("evalVersion", () => {
-  it("is the baseline release plus its errata count", () => {
+  it("is the release plus its errata count, three-part for YYYY.N", () => {
     expect(evalVersion("0", ids("0.1", "0.2", "0.3"))).toBe("0.3");
-    expect(evalVersion("2027.1", ids("0.1", "0.2", "2027.1.1"))).toBe("2027.1.1");
-    expect(evalVersion("2027.1", ids("0.1"))).toBe("2027.1");
+    expect(evalVersion("2027.1", ids("2027.1.1"))).toBe("2027.1.1");
+    expect(evalVersion("2027.1", [])).toBe("2027.1.0");
   });
 });
 
 describe("releaseArgProblem", () => {
-  it("takes a CalVer release after the baseline release", () => {
+  it("takes a YYYY.N release after the latest release", () => {
     expect(releaseArgProblem("2027.1", "0")).toBeUndefined();
     expect(releaseArgProblem("2027.10", "2027.2")).toBeUndefined();
+    expect(releaseArgProblem("2027.13", "2027.12")).toBeUndefined();
     expect(releaseArgProblem("2027.1", undefined)).toBeUndefined();
   });
-  it("rejects other formats and releases not after the baseline", () => {
-    for (const v of ["0", "v2027.1", "2027.01", "2027.13", "2027", "27.1", "2027.1.1"]) {
-      expect(releaseArgProblem(v, "0")).toBe(`release ${v} is not YYYY.M (e.g. 2027.1)`);
+  it("rejects other formats and releases not after the latest", () => {
+    for (const v of ["0", "v2027.1", "2027.01", "2027.0", "2027", "27.1", "2027.1.1", "draft"]) {
+      expect(releaseArgProblem(v, "0")).toBe(`release ${v} is not YYYY.N (e.g. 2027.1)`);
     }
     expect(releaseArgProblem("2027.1", "2027.1")).toBe("release 2027.1 does not follow 2027.1");
     expect(releaseArgProblem("2026.12", "2027.1")).toBe("release 2026.12 does not follow 2027.1");
   });
 });
 
-describe("repository errata", () => {
-  it("cover every item change since the release baseline", async () => {
-    const errata = Schema.decodeUnknownSync(ErrataFile)(
-      YAML.parse(readFileSync(path.join(repoRoot, "errata.yaml"), "utf8")),
+const releasesDir = path.join(repoRoot, "releases");
+
+// Release 0: errata cover every change since release.json (legacy 12-hex), ids
+// in sequence up to `closed`, every recorded blob present. Draft: release.json
+// in sync with its challenges (`./bench release sync draft`), every blob present.
+describe.each(readdirSync(releasesDir))("releases/%s", (name) => {
+  it("verifies: blobs, coverage and recorded scorers, commitment", async () => {
+    const { problems } = await Effect.runPromise(
+      verifyRelease(path.join(releasesDir, name)).pipe(Effect.provide(NodeFileSystem.layer)),
     );
-    const baseline = Schema.decodeUnknownSync(ReleaseBaseline)(
-      JSON.parse(readFileSync(path.join(repoRoot, "release-baseline.json"), "utf8")),
-    );
-    const { challenges } = await Effect.runPromise(
-      loadSelectedChallenges(path.join(repoRoot, "challenges")).pipe(
-        Effect.provide(NodeFileSystem.layer),
-      ),
-    );
-    const current = snapshotItems(challenges.map((c) => c.resolved));
-    expect(coverageGaps(baseline.items, current, errata.errata)).toEqual([]);
-    expect(errataIdProblems(baseline.release, errata.errata)).toEqual([]);
+    expect(problems).toEqual([]);
   });
 });
