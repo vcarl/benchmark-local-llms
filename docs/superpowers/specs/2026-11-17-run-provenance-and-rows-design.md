@@ -1,5 +1,9 @@
 # Run provenance and report rows
 
+> Design record (2026-11-17). Not maintained; current behavior is in [docs/](../../) — see [SCORING.md § Report rows](../../SCORING.md#report-rows) and [ARCHIVE-FORMAT.md](../../ARCHIVE-FORMAT.md).
+>
+> Superseded by [the archive data model design](./2026-11-17-archive-data-model-design.md).
+
 ## Problem
 
 A ranking row must say which benchmark it scores, which executions it counts, and what produced them. A run has no identity, so the webapp guesses "the latest invocation" and sometimes cuts a run in two. A cache replay writes a header with the replayer's date and environment, so an old execution looks fresh, and a later single-sample replay supersedes five-sample evidence. Nothing records the machine, so contributors' results could not be told apart from local ones.

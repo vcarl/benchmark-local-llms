@@ -1,5 +1,7 @@
 # Economics challenge battery — design plan
 
+> Design record (2026-06-26). Not maintained; current behavior is in [docs/](../../) — see [SCORING.md](../../SCORING.md) and the generator `scripts/author/draft.ts`.
+
 Five new economics challenges, each a **scenario battery**: one scenario world,
 authored once, with 4–6 sibling sub-question **items**, each its own scored
 dimension. Partial credit emerges from the siblings — pass 4 of 5 items and the

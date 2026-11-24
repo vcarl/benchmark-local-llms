@@ -1,5 +1,7 @@
 # Financial challenge batteries — design plan
 
+> Design record (2026-06-26). Not maintained; current behavior is in [docs/](../../) — see [SCORING.md](../../SCORING.md) and the generator `scripts/author/draft.ts`.
+
 A challenge here is a **scenario battery**: one scenario world, authored once, carrying 4–6 sibling sub-question **items**, each its own scored dimension. Partial credit is per-item — answering 4 of 5 dimensions on a scenario yields 0.8 on that scenario — exactly mirroring the existing `financial_bailout_target` / `financial_bailout_amount` pair that share the single `chain` model in `scripts/author/draft.ts`. Every battery below **must** include a wide-numeric **capstone** dimension (an open dollar / period / rate figure that is not guessable); narrow 1-of-2 / 1-of-3 dimensions are permitted only as **minority weight** beside the wide factors, never as the main signal. The set/ordered-list scorers some dimensions want (marked ⊕) are live in `emit.ts` (`setItem` / `orderedItem`, backed by the `set_match` / `ordered_match` scorers), so those dimensions use the real scorer; no single-name fallback is needed.
 
 **Source of truth for all formulas, citations, edge cases, and variation axes:** `/private/tmp/claude-501/-Users-vcarl-workspace-testbench-llms/5b29f6fb-cee3-475b-8ca1-f2c540a48381/scratchpad/resources-financial.md` (the "resource pack"). Section numbers below (`pack §N`) point into it. Do not re-derive math — pull it from there and cross-check against the worked answers in this doc.
