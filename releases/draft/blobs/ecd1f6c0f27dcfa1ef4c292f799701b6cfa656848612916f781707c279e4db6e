@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","dotall":true,"name":"has JSON array","pattern":"\\[.*\".*\".*\\]"},{"check":"regex_count_min","min":3,"name":"has colon-separated pairs","pattern":"\\w+:\\s*\\w+"}],"type":"constraint"},"rules":2}

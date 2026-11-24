@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"includes below","pattern":"\\b[Bb][Ee][Ll][Oo][Ww]\\b"},{"check":"regex","name":"ends with phrase","pattern":"More soon\\.\\s*$"}],"type":"constraint"},"rules":2}

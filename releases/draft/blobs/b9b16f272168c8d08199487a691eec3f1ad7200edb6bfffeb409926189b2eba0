@@ -1,0 +1,903 @@
+Below is a depot shipping ledger. Read it and answer the question that follows it.
+
+<ledger>
+Entry 0001: On day 114, courier Nico carried 52 crates of salt fish from Larkspur Hill to the east depot.
+Entry 0002: Shipment of copper fittings (29 units) left Brindlemoor with Pavel; the south depot logged it on day 352.
+Entry 0003: A wagon driven by Greta brought 28 barrels of dried peas into the north depot on day 341.
+Entry 0004: Shipment of wire (70 units) left Dunmere with Rosa; the south depot logged it on day 108.
+Entry 0005: A wagon driven by Yara brought 24 barrels of candles into the north depot on day 90.
+Entry 0006: A wagon driven by Carys brought 65 barrels of wire into the north depot on day 248.
+Entry 0007: On day 309, courier Pavel carried 86 crates of wool bales from Millbeck to the north depot.
+Entry 0008: A wagon driven by Dov brought 23 barrels of rope into the west depot on day 158.
+Entry 0009: On day 219, courier Sven carried 52 crates of soap from Hollin Cross to the south depot.
+Entry 0010: On day 239, courier Orla carried 58 crates of rope from Fallowby to the west depot.
+Entry 0011: Zeno signed for 2 sacks of wool bales at the east depot after a 7-hour run from Grimsholt.
+Entry 0012: A wagon driven by Mila brought 75 barrels of leather into the south depot on day 194.
+Entry 0013: Shipment of dried peas (85 units) left Grimsholt with Ines; the north depot logged it on day 97.
+Entry 0014: Shipment of flour (52 units) left Brindlemoor with Yara; the north depot logged it on day 193.
+Entry 0015: Shipment of cider (18 units) left Fallowby with Fenn; the south depot logged it on day 34.
+Entry 0016: Shipment of candles (80 units) left Ivybridge End with Tilda; the west depot logged it on day 90.
+Entry 0017: Boris signed for 47 sacks of candles at the west depot after a 5-hour run from Kettlemouth.
+Entry 0018: On day 270, courier Ines carried 84 crates of candles from Larkspur Hill to the south depot.
+Entry 0019: A wagon driven by Greta brought 29 barrels of salt fish into the east depot on day 146.
+Entry 0020: On day 336, courier Sven carried 19 crates of wool bales from Larkspur Hill to the south depot.
+Entry 0021: Yara signed for 60 sacks of lamp oil at the north depot after a 3-hour run from Dunmere.
+Entry 0022: A wagon driven by Joss brought 35 barrels of rope into the west depot on day 336.
+Entry 0023: A wagon driven by Rosa brought 45 barrels of dried peas into the north depot on day 46.
+Entry 0024: On day 62, courier Pavel carried 69 crates of linen from Dunmere to the north depot.
+Entry 0025: Ines signed for 85 sacks of rope at the west depot after a 2-hour run from Fallowby.
+Entry 0026: Quin signed for 47 sacks of wire at the west depot after a 4-hour run from Eastwick Vale.
+Entry 0027: Shipment of wire (53 units) left Kettlemouth with Vera; the north depot logged it on day 359.
+Entry 0028: Lars signed for 75 sacks of copper fittings at the west depot after a 2-hour run from Millbeck.
+Entry 0029: Shipment of tar (74 units) left Eastwick Vale with Kira; the east depot logged it on day 170.
+Entry 0030: A wagon driven by Greta brought 68 barrels of wire into the west depot on day 260.
+Entry 0031: A wagon driven by Carys brought 35 barrels of nails into the west depot on day 276.
+Entry 0032: Joss signed for 84 sacks of nails at the south depot after a 4-hour run from Brindlemoor.
+Entry 0033: Shipment of timber (26 units) left Dunmere with Dario; the east depot logged it on day 247.
+Entry 0034: On day 329, courier Alma carried 89 crates of chalk from Millbeck to the west depot.
+Entry 0035: Ugo signed for 48 sacks of candles at the west depot after a 2-hour run from Dunmere.
+Entry 0036: On day 105, courier Tilda carried 60 crates of soap from Caskwell to the west depot.
+Entry 0037: Shipment of flour (80 units) left Caskwell with Vera; the west depot logged it on day 45.
+Entry 0038: On day 186, courier Xenia carried 76 crates of glass jars from Harlow Ford to the north depot.
+Entry 0039: Shipment of tar (64 units) left Larkspur Hill with Ines; the south depot logged it on day 164.
+Entry 0040: A wagon driven by Ines brought 31 barrels of wool bales into the west depot on day 159.
+Entry 0041: Hugo signed for 28 sacks of nails at the north depot after a 5-hour run from Kettlemouth.
+Entry 0042: A wagon driven by Ugo brought 39 barrels of barley into the north depot on day 253.
+Entry 0043: A wagon driven by Greta brought 65 barrels of salt fish into the south depot on day 11.
+Entry 0044: Shipment of timber (16 units) left Brindlemoor with Bram; the west depot logged it on day 7.
+Entry 0045: Shipment of barley (73 units) left Caskwell with Boris; the south depot logged it on day 15.
+Entry 0046: Quin signed for 21 sacks of linen at the east depot after a 12-hour run from Harlow Ford.
+Entry 0047: Xenia signed for 74 sacks of chalk at the north depot after a 7-hour run from Hollin Cross.
+Entry 0048: A wagon driven by Tilda brought 80 barrels of flour into the north depot on day 278.
+Entry 0049: On day 244, courier Ines carried 50 crates of tar from Dunmere to the south depot.
+Entry 0050: On day 360, courier Lars carried 59 crates of copper fittings from Eastwick Vale to the north depot.
+Entry 0051: Ines signed for 86 sacks of flour at the east depot after a 9-hour run from Ivybridge End.
+Entry 0052: A wagon driven by Kira brought 7 barrels of tar into the west depot on day 141.
+Entry 0053: On day 166, courier Hugo carried 73 crates of dried peas from Dunmere to the west depot.
+Entry 0054: A wagon driven by Ugo brought 72 barrels of wool bales into the south depot on day 283.
+Entry 0055: Shipment of glass jars (80 units) left Kettlemouth with Yara; the south depot logged it on day 287.
+Entry 0056: Shipment of barley (2 units) left Ivybridge End with Cleo; the north depot logged it on day 58.
+Entry 0057: On day 187, courier Cleo carried 33 crates of flour from Caskwell to the north depot.
+Entry 0058: A wagon driven by Edda brought 50 barrels of copper fittings into the north depot on day 310.
+Entry 0059: A wagon driven by Boris brought 11 barrels of copper fittings into the south depot on day 83.
+Entry 0060: On day 230, courier Ugo carried 62 crates of rope from Dunmere to the south depot.
+Entry 0061: Shipment of wire (55 units) left Harlow Ford with Yara; the south depot logged it on day 268.
+Entry 0062: Shipment of leather (62 units) left Grimsholt with Joss; the south depot logged it on day 197.
+Entry 0063: Ugo signed for 49 sacks of copper fittings at the east depot after a 14-hour run from Eastwick Vale.
+Entry 0064: Shipment of wool bales (73 units) left Brindlemoor with Cleo; the north depot logged it on day 195.
+Entry 0065: Ugo signed for 14 sacks of soap at the west depot after a 9-hour run from Fallowby.
+Entry 0066: Zeno signed for 53 sacks of timber at the south depot after a 11-hour run from Grimsholt.
+Entry 0067: On day 97, courier Bram carried 77 crates of cider from Caskwell to the north depot.
+Entry 0068: On day 144, courier Nico carried 73 crates of copper fittings from Millbeck to the west depot.
+Entry 0069: Pavel signed for 55 sacks of candles at the north depot after a 8-hour run from Hollin Cross.
+Entry 0070: On day 287, courier Ines carried 64 crates of lamp oil from Caskwell to the east depot.
+Entry 0071: On day 319, courier Orla carried 28 crates of tar from Caskwell to the east depot.
+Entry 0072: Shipment of lamp oil (18 units) left Ivybridge End with Wim; the east depot logged it on day 258.
+Entry 0073: Cleo signed for 6 sacks of wire at the east depot after a 14-hour run from Harlow Ford.
+Entry 0074: A wagon driven by Fenn brought 21 barrels of leather into the east depot on day 145.
+Entry 0075: Shipment of rope (56 units) left Millbeck with Xenia; the south depot logged it on day 313.
+Entry 0076: On day 258, courier Hugo carried 32 crates of dried peas from Larkspur Hill to the south depot.
+Entry 0077: On day 262, courier Rosa carried 5 crates of soap from Grimsholt to the west depot.
+Entry 0078: A wagon driven by Kira brought 6 barrels of dried peas into the south depot on day 224.
+Entry 0079: Xenia signed for 75 sacks of salt fish at the north depot after a 3-hour run from Ivybridge End.
+Entry 0080: A wagon driven by Quin brought 31 barrels of lamp oil into the south depot on day 330.
+Entry 0081: A wagon driven by Ines brought 31 barrels of dried peas into the west depot on day 218.
+Entry 0082: Xenia signed for 39 sacks of barley at the north depot after a 5-hour run from Kettlemouth.
+Entry 0083: Vera signed for 31 sacks of dried peas at the east depot after a 12-hour run from Brindlemoor.
+Entry 0084: Shipment of chalk (19 units) left Grimsholt with Lars; the north depot logged it on day 309.
+Entry 0085: Shipment of rope (62 units) left Brindlemoor with Hugo; the north depot logged it on day 305.
+Entry 0086: On day 273, courier Lars carried 83 crates of nails from Larkspur Hill to the south depot.
+Entry 0087: On day 360, courier Hugo carried 12 crates of wire from Eastwick Vale to the west depot.
+Entry 0088: On day 285, courier Vera carried 81 crates of wool bales from Kettlemouth to the west depot.
+Entry 0089: Dario signed for 11 sacks of lamp oil at the north depot after a 14-hour run from Millbeck.
+Entry 0090: On day 251, courier Dario carried 38 crates of dried peas from Larkspur Hill to the west depot.
+Entry 0091: Ada signed for 48 sacks of copper fittings at the west depot after a 7-hour run from Ivybridge End.
+Entry 0092: On day 47, courier Dov carried 80 crates of tar from Dunmere to the west depot.
+Entry 0093: Sven signed for 28 sacks of barley at the west depot after a 11-hour run from Millbeck.
+Entry 0094: Yara signed for 5 sacks of timber at the south depot after a 14-hour run from Dunmere.
+Entry 0095: Shipment of tar (10 units) left Larkspur Hill with Orla; the south depot logged it on day 40.
+Entry 0096: A wagon driven by Edda brought 12 barrels of tin plates into the south depot on day 58.
+Entry 0097: Ines signed for 42 sacks of leather at the south depot after a 11-hour run from Kettlemouth.
+Entry 0098: Wim signed for 25 sacks of barley at the west depot after a 11-hour run from Dunmere.
+Entry 0099: On day 230, courier Vera carried 20 crates of barley from Kettlemouth to the north depot.
+Entry 0100: A wagon driven by Mila brought 29 barrels of nails into the west depot on day 347.
+Entry 0101: Shipment of salt fish (44 units) left Fallowby with Kira; the west depot logged it on day 263.
+Entry 0102: A wagon driven by Tilda brought 11 barrels of soap into the north depot on day 71.
+Entry 0103: Shipment of wool bales (82 units) left Hollin Cross with Bram; the south depot logged it on day 350.
+Entry 0104: A wagon driven by Edda brought 33 barrels of copper fittings into the north depot on day 262.
+Entry 0105: A wagon driven by Quin brought 34 barrels of barley into the east depot on day 285.
+Entry 0106: On day 64, courier Alma carried 53 crates of lamp oil from Hollin Cross to the north depot.
+Entry 0107: Shipment of dried peas (56 units) left Dunmere with Ines; the south depot logged it on day 64.
+Entry 0108: A wagon driven by Xenia brought 74 barrels of barley into the west depot on day 90.
+Entry 0109: Boris signed for 6 sacks of glass jars at the south depot after a 3-hour run from Eastwick Vale.
+Entry 0110: Shipment of copper fittings (79 units) left Fallowby with Carys; the south depot logged it on day 350.
+Entry 0111: A wagon driven by Edda brought 72 barrels of rope into the east depot on day 316.
+Entry 0112: Greta signed for 39 sacks of flour at the north depot after a 11-hour run from Brindlemoor.
+Entry 0113: Shipment of tar (53 units) left Eastwick Vale with Orla; the east depot logged it on day 122.
+Entry 0114: Lars signed for 34 sacks of tin plates at the east depot after a 7-hour run from Caskwell.
+Entry 0115: On day 27, courier Vera carried 82 crates of linen from Brindlemoor to the east depot.
+Entry 0116: Shipment of linen (10 units) left Dunmere with Lars; the west depot logged it on day 170.
+Entry 0117: On day 150, courier Carys carried 73 crates of tar from Caskwell to the east depot.
+Entry 0118: Dario signed for 17 sacks of wool bales at the east depot after a 7-hour run from Millbeck.
+Entry 0119: A wagon driven by Dario brought 44 barrels of wire into the south depot on day 104.
+Entry 0120: On day 251, courier Zeno carried 44 crates of wire from Kettlemouth to the north depot.
+Entry 0121: On day 176, courier Alma carried 83 crates of glass jars from Larkspur Hill to the south depot.
+Entry 0122: A wagon driven by Fenn brought 40 barrels of nails into the north depot on day 25.
+Entry 0123: Shipment of tin plates (9 units) left Ivybridge End with Yara; the north depot logged it on day 352.
+Entry 0124: Edda signed for 42 sacks of cider at the south depot after a 5-hour run from Dunmere.
+Entry 0125: Ada signed for 42 sacks of chalk at the east depot after a 14-hour run from Harlow Ford.
+Entry 0126: A wagon driven by Hugo brought 66 barrels of timber into the west depot on day 77.
+Entry 0127: Shipment of lamp oil (52 units) left Caskwell with Pavel; the west depot logged it on day 349.
+Entry 0128: Rosa signed for 22 sacks of lamp oil at the east depot after a 11-hour run from Millbeck.
+Entry 0129: A wagon driven by Greta brought 30 barrels of soap into the north depot on day 52.
+Entry 0130: On day 308, courier Mila carried 49 crates of linen from Fallowby to the west depot.
+Entry 0131: Wim signed for 40 sacks of rope at the south depot after a 12-hour run from Kettlemouth.
+Entry 0132: A wagon driven by Boris brought 67 barrels of salt fish into the south depot on day 278.
+Entry 0133: Lars signed for 47 sacks of soap at the west depot after a 3-hour run from Hollin Cross.
+Entry 0134: Shipment of cider (74 units) left Caskwell with Fenn; the north depot logged it on day 30.
+Entry 0135: A wagon driven by Orla brought 18 barrels of tar into the north depot on day 32.
+Entry 0136: A wagon driven by Dario brought 46 barrels of rope into the east depot on day 225.
+Entry 0137: A wagon driven by Yara brought 18 barrels of barley into the west depot on day 288.
+Entry 0138: Ines signed for 15 sacks of soap at the east depot after a 7-hour run from Caskwell.
+Entry 0139: On day 238, courier Lars carried 49 crates of nails from Harlow Ford to the south depot.
+Entry 0140: Yara signed for 85 sacks of rope at the west depot after a 14-hour run from Caskwell.
+Entry 0141: On day 83, courier Joss carried 3 crates of linen from Harlow Ford to the east depot.
+Entry 0142: On day 162, courier Greta carried 49 crates of soap from Fallowby to the north depot.
+Entry 0143: Shipment of soap (83 units) left Harlow Ford with Bram; the north depot logged it on day 124.
+Entry 0144: Shipment of lamp oil (7 units) left Eastwick Vale with Tilda; the south depot logged it on day 231.
+Entry 0145: On day 19, courier Vera carried 65 crates of linen from Hollin Cross to the south depot.
+Entry 0146: A wagon driven by Orla brought 48 barrels of flour into the south depot on day 247.
+Entry 0147: On day 246, courier Joss carried 19 crates of timber from Millbeck to the west depot.
+Entry 0148: On day 144, courier Edda carried 6 crates of dried peas from Ivybridge End to the west depot.
+Entry 0149: A wagon driven by Orla brought 72 barrels of wire into the east depot on day 118.
+Entry 0150: Dario signed for 55 sacks of wire at the south depot after a 9-hour run from Dunmere.
+Entry 0151: A wagon driven by Hugo brought 52 barrels of dried peas into the east depot on day 27.
+Entry 0152: Shipment of flour (48 units) left Caskwell with Quin; the south depot logged it on day 345.
+Entry 0153: A wagon driven by Hugo brought 76 barrels of soap into the west depot on day 77.
+Entry 0154: A wagon driven by Quin brought 85 barrels of tar into the north depot on day 315.
+Entry 0155: Lars signed for 80 sacks of chalk at the west depot after a 12-hour run from Ivybridge End.
+Entry 0156: A wagon driven by Ada brought 50 barrels of leather into the south depot on day 310.
+Entry 0157: On day 121, courier Greta carried 38 crates of nails from Fallowby to the south depot.
+Entry 0158: Shipment of salt fish (28 units) left Harlow Ford with Cleo; the west depot logged it on day 76.
+Entry 0159: Shipment of linen (79 units) left Brindlemoor with Vera; the south depot logged it on day 187.
+Entry 0160: Shipment of candles (46 units) left Eastwick Vale with Dario; the north depot logged it on day 328.
+Entry 0161: Shipment of flour (14 units) left Ivybridge End with Zeno; the west depot logged it on day 275.
+Entry 0162: Tilda signed for 13 sacks of tar at the east depot after a 3-hour run from Kettlemouth.
+Entry 0163: Sven signed for 15 sacks of glass jars at the east depot after a 14-hour run from Dunmere.
+Entry 0164: On day 304, courier Ugo carried 55 crates of salt fish from Millbeck to the north depot.
+Entry 0165: A wagon driven by Sven brought 26 barrels of salt fish into the east depot on day 256.
+Entry 0166: On day 269, courier Ugo carried 86 crates of rope from Larkspur Hill to the south depot.
+Entry 0167: A wagon driven by Joss brought 76 barrels of dried peas into the east depot on day 242.
+Entry 0168: Shipment of soap (58 units) left Caskwell with Dov; the north depot logged it on day 148.
+Entry 0169: A wagon driven by Joss brought 30 barrels of timber into the east depot on day 235.
+Entry 0170: A wagon driven by Cleo brought 12 barrels of wool bales into the east depot on day 159.
+Entry 0171: On day 37, courier Tilda carried 42 crates of nails from Harlow Ford to the north depot.
+Entry 0172: A wagon driven by Lars brought 11 barrels of dried peas into the west depot on day 167.
+Entry 0173: Edda signed for 83 sacks of glass jars at the north depot after a 6-hour run from Brindlemoor.
+Entry 0174: A wagon driven by Greta brought 28 barrels of leather into the east depot on day 287.
+Entry 0175: A wagon driven by Alma brought 28 barrels of lamp oil into the south depot on day 146.
+Entry 0176: On day 79, courier Yara carried 20 crates of lamp oil from Hollin Cross to the east depot.
+Entry 0177: A wagon driven by Hugo brought 53 barrels of leather into the east depot on day 66.
+Entry 0178: On day 228, courier Ugo carried 44 crates of salt fish from Harlow Ford to the east depot.
+Entry 0179: Shipment of salt fish (44 units) left Dunmere with Greta; the west depot logged it on day 158.
+Entry 0180: A wagon driven by Lars brought 81 barrels of linen into the north depot on day 262.
+Entry 0181: A wagon driven by Xenia brought 57 barrels of barley into the north depot on day 331.
+Entry 0182: On day 128, courier Yara carried 60 crates of soap from Millbeck to the east depot.
+Entry 0183: On day 259, courier Cleo carried 7 crates of nails from Caskwell to the west depot.
+Entry 0184: A wagon driven by Dov brought 18 barrels of dried peas into the north depot on day 83.
+Entry 0185: A wagon driven by Zeno brought 2 barrels of timber into the north depot on day 98.
+Entry 0186: A wagon driven by Vera brought 72 barrels of chalk into the west depot on day 192.
+Entry 0187: On day 104, courier Rosa carried 24 crates of soap from Grimsholt to the south depot.
+Entry 0188: On day 204, courier Joss carried 33 crates of candles from Brindlemoor to the west depot.
+Entry 0189: Bram signed for 59 sacks of wire at the west depot after a 14-hour run from Millbeck.
+Entry 0190: Ugo signed for 86 sacks of salt fish at the south depot after a 8-hour run from Fallowby.
+Entry 0191: On day 357, courier Xenia carried 23 crates of dried peas from Ivybridge End to the east depot.
+Entry 0192: Shipment of linen (81 units) left Millbeck with Dario; the south depot logged it on day 130.
+Entry 0193: On day 139, courier Carys carried 43 crates of tar from Dunmere to the south depot.
+Entry 0194: On day 230, courier Sven carried 68 crates of barley from Eastwick Vale to the west depot.
+Entry 0195: Shipment of lamp oil (28 units) left Grimsholt with Hugo; the north depot logged it on day 298.
+Entry 0196: On day 99, courier Vera carried 19 crates of wool bales from Millbeck to the west depot.
+Entry 0197: Sven signed for 8 sacks of rope at the south depot after a 12-hour run from Harlow Ford.
+Entry 0198: Shipment of dried peas (68 units) left Millbeck with Edda; the west depot logged it on day 33.
+Entry 0199: Shipment of timber (71 units) left Larkspur Hill with Quin; the east depot logged it on day 320.
+Entry 0200: On day 127, courier Tilda carried 78 crates of leather from Larkspur Hill to the west depot.
+Entry 0201: Shipment of linen (64 units) left Caskwell with Wim; the north depot logged it on day 165.
+Entry 0202: A wagon driven by Carys brought 51 barrels of wire into the south depot on day 326.
+Entry 0203: Shipment of chalk (83 units) left Larkspur Hill with Wim; the north depot logged it on day 343.
+Entry 0204: Shipment of glass jars (80 units) left Harlow Ford with Fenn; the east depot logged it on day 176.
+Entry 0205: Sven signed for 5 sacks of tar at the south depot after a 2-hour run from Dunmere.
+Entry 0206: On day 23, courier Nico carried 38 crates of soap from Grimsholt to the south depot.
+Entry 0207: On day 265, courier Quin carried 43 crates of linen from Harlow Ford to the north depot.
+Entry 0208: Ugo signed for 21 sacks of candles at the north depot after a 2-hour run from Hollin Cross.
+Entry 0209: Shipment of leather (62 units) left Brindlemoor with Yara; the west depot logged it on day 141.
+Entry 0210: Dov signed for 38 sacks of tin plates at the north depot after a 4-hour run from Ivybridge End.
+Entry 0211: Shipment of cider (57 units) left Fallowby with Lars; the east depot logged it on day 2.
+Entry 0212: A wagon driven by Bram brought 46 barrels of rope into the south depot on day 191.
+Entry 0213: Rosa signed for 31 sacks of linen at the south depot after a 11-hour run from Brindlemoor.
+Entry 0214: A wagon driven by Cleo brought 85 barrels of wire into the north depot on day 22.
+Entry 0215: Shipment of dried peas (34 units) left Eastwick Vale with Cleo; the north depot logged it on day 346.
+Entry 0216: Fenn signed for 3 sacks of flour at the east depot after a 2-hour run from Caskwell.
+Entry 0217: A wagon driven by Ines brought 75 barrels of glass jars into the west depot on day 185.
+Entry 0218: On day 327, courier Bram carried 20 crates of rope from Kettlemouth to the east depot.
+Entry 0219: On day 355, courier Carys carried 74 crates of copper fittings from Dunmere to the east depot.
+Entry 0220: Pavel signed for 81 sacks of wire at the west depot after a 5-hour run from Larkspur Hill.
+Entry 0221: Dov signed for 16 sacks of salt fish at the west depot after a 14-hour run from Grimsholt.
+Entry 0222: Tilda signed for 27 sacks of copper fittings at the west depot after a 12-hour run from Grimsholt.
+Entry 0223: A wagon driven by Bram brought 81 barrels of candles into the south depot on day 36.
+Entry 0224: On day 82, courier Hugo carried 30 crates of wire from Brindlemoor to the north depot.
+Entry 0225: Quin signed for 85 sacks of timber at the west depot after a 7-hour run from Brindlemoor.
+Entry 0226: Mila signed for 2 sacks of lamp oil at the west depot after a 11-hour run from Larkspur Hill.
+Entry 0227: On day 25, courier Wim carried 82 crates of lamp oil from Eastwick Vale to the south depot.
+Entry 0228: Ada signed for 90 sacks of tin plates at the south depot after a 5-hour run from Fallowby.
+Entry 0229: On day 138, courier Rosa carried 2 crates of chalk from Dunmere to the north depot.
+Entry 0230: Shipment of linen (16 units) left Brindlemoor with Dario; the east depot logged it on day 59.
+Entry 0231: A wagon driven by Xenia brought 36 barrels of linen into the north depot on day 328.
+Entry 0232: On day 10, courier Yara carried 55 crates of chalk from Caskwell to the south depot.
+Entry 0233: Hugo signed for 69 sacks of barley at the north depot after a 10-hour run from Dunmere.
+Entry 0234: On day 196, courier Cleo carried 28 crates of wire from Hollin Cross to the south depot.
+Entry 0235: On day 164, courier Ugo carried 90 crates of wire from Brindlemoor to the south depot.
+Entry 0236: On day 265, courier Cleo carried 26 crates of leather from Dunmere to the south depot.
+Entry 0237: Rosa signed for 69 sacks of flour at the south depot after a 12-hour run from Harlow Ford.
+Entry 0238: A wagon driven by Kira brought 68 barrels of flour into the north depot on day 73.
+Entry 0239: Hugo signed for 25 sacks of glass jars at the east depot after a 13-hour run from Dunmere.
+Entry 0240: A wagon driven by Kira brought 81 barrels of salt fish into the west depot on day 24.
+Entry 0241: Ada signed for 85 sacks of leather at the south depot after a 13-hour run from Larkspur Hill.
+Entry 0242: A wagon driven by Rosa brought 76 barrels of soap into the east depot on day 74.
+Entry 0243: A wagon driven by Pavel brought 70 barrels of copper fittings into the north depot on day 161.
+Entry 0244: Shipment of leather (15 units) left Fallowby with Boris; the west depot logged it on day 96.
+Entry 0245: Cleo signed for 78 sacks of rope at the north depot after a 6-hour run from Brindlemoor.
+Entry 0246: Carys signed for 59 sacks of candles at the west depot after a 2-hour run from Eastwick Vale.
+Entry 0247: On day 74, courier Kira carried 9 crates of nails from Grimsholt to the east depot.
+Entry 0248: On day 25, courier Lars carried 28 crates of leather from Hollin Cross to the north depot.
+Entry 0249: Hugo signed for 34 sacks of chalk at the north depot after a 2-hour run from Hollin Cross.
+Entry 0250: Carys signed for 42 sacks of wire at the south depot after a 10-hour run from Ivybridge End.
+Entry 0251: Cleo signed for 2 sacks of linen at the south depot after a 4-hour run from Caskwell.
+Entry 0252: A wagon driven by Cleo brought 71 barrels of lamp oil into the north depot on day 127.
+Entry 0253: A wagon driven by Nico brought 54 barrels of barley into the west depot on day 232.
+Entry 0254: Vera signed for 73 sacks of tar at the west depot after a 11-hour run from Ivybridge End.
+Entry 0255: Shipment of wool bales (63 units) left Larkspur Hill with Zeno; the south depot logged it on day 202.
+Entry 0256: A wagon driven by Yara brought 16 barrels of flour into the south depot on day 354.
+Entry 0257: Edda signed for 25 sacks of timber at the east depot after a 4-hour run from Fallowby.
+Entry 0258: Hugo signed for 5 sacks of cider at the north depot after a 9-hour run from Ivybridge End.
+Entry 0259: On day 19, courier Greta carried 45 crates of tin plates from Fallowby to the south depot.
+Entry 0260: Ines signed for 73 sacks of timber at the south depot after a 11-hour run from Millbeck.
+Entry 0261: A wagon driven by Yara brought 46 barrels of flour into the west depot on day 23.
+Entry 0262: On day 17, courier Boris carried 31 crates of tar from Grimsholt to the north depot.
+Entry 0263: Shipment of dried peas (22 units) left Grimsholt with Greta; the east depot logged it on day 70.
+Entry 0264: A wagon driven by Greta brought 66 barrels of copper fittings into the west depot on day 52.
+Entry 0265: Yara signed for 72 sacks of glass jars at the east depot after a 4-hour run from Dunmere.
+Entry 0266: On day 276, courier Joss carried 75 crates of tar from Eastwick Vale to the west depot.
+Entry 0267: Dov signed for 36 sacks of soap at the east depot after a 5-hour run from Harlow Ford.
+Entry 0268: Orla signed for 5 sacks of chalk at the north depot after a 13-hour run from Grimsholt.
+Entry 0269: Dario signed for 44 sacks of linen at the east depot after a 12-hour run from Larkspur Hill.
+Entry 0270: A wagon driven by Nico brought 38 barrels of dried peas into the north depot on day 65.
+Entry 0271: On day 337, courier Ada carried 35 crates of flour from Dunmere to the west depot.
+Entry 0272: Dario signed for 40 sacks of nails at the west depot after a 9-hour run from Brindlemoor.
+Entry 0273: A wagon driven by Hugo brought 41 barrels of cider into the north depot on day 117.
+Entry 0274: Shipment of cider (50 units) left Grimsholt with Zeno; the north depot logged it on day 180.
+Entry 0275: A wagon driven by Rosa brought 66 barrels of salt fish into the south depot on day 203.
+Entry 0276: A wagon driven by Hugo brought 72 barrels of flour into the west depot on day 63.
+Entry 0277: On day 14, courier Fenn carried 49 crates of tin plates from Ivybridge End to the east depot.
+Entry 0278: On day 265, courier Cleo carried 43 crates of lamp oil from Fallowby to the east depot.
+Entry 0279: Mila signed for 67 sacks of cider at the west depot after a 12-hour run from Kettlemouth.
+Entry 0280: On day 71, courier Hugo carried 9 crates of lamp oil from Larkspur Hill to the north depot.
+Entry 0281: Shipment of salt fish (22 units) left Caskwell with Ugo; the west depot logged it on day 129.
+Entry 0282: A wagon driven by Ada brought 5 barrels of salt fish into the north depot on day 131.
+Entry 0283: A wagon driven by Fenn brought 38 barrels of chalk into the west depot on day 101.
+Entry 0284: Shipment of glass jars (53 units) left Fallowby with Xenia; the west depot logged it on day 117.
+Entry 0285: A wagon driven by Zeno brought 67 barrels of candles into the east depot on day 274.
+Entry 0286: On day 145, courier Carys carried 50 crates of linen from Brindlemoor to the west depot.
+Entry 0287: A wagon driven by Orla brought 5 barrels of barley into the north depot on day 334.
+Entry 0288: A wagon driven by Boris brought 26 barrels of candles into the north depot on day 186.
+Entry 0289: Shipment of barley (2 units) left Hollin Cross with Orla; the west depot logged it on day 22.
+Entry 0290: Nico signed for 85 sacks of rope at the west depot after a 11-hour run from Ivybridge End.
+Entry 0291: On day 59, courier Vera carried 49 crates of timber from Brindlemoor to the north depot.
+Entry 0292: Shipment of copper fittings (69 units) left Fallowby with Rosa; the east depot logged it on day 247.
+Entry 0293: Shipment of flour (24 units) left Dunmere with Ines; the north depot logged it on day 317.
+Entry 0294: A wagon driven by Dario brought 45 barrels of timber into the north depot on day 66.
+Entry 0295: On day 249, courier Edda carried 66 crates of chalk from Eastwick Vale to the east depot.
+Entry 0296: A wagon driven by Orla brought 59 barrels of barley into the east depot on day 221.
+Entry 0297: A wagon driven by Pavel brought 13 barrels of timber into the north depot on day 97.
+Entry 0298: A wagon driven by Tilda brought 41 barrels of soap into the west depot on day 119.
+Entry 0299: Bram signed for 74 sacks of lamp oil at the west depot after a 2-hour run from Eastwick Vale.
+Entry 0300: Shipment of flour (34 units) left Eastwick Vale with Fenn; the south depot logged it on day 36.
+Entry 0301: Shipment of cider (5 units) left Kettlemouth with Rosa; the east depot logged it on day 75.
+Entry 0302: A wagon driven by Alma brought 78 barrels of salt fish into the north depot on day 333.
+Entry 0303: Shipment of wool bales (62 units) left Fallowby with Ugo; the west depot logged it on day 31.
+Entry 0304: On day 126, courier Mila carried 66 crates of wool bales from Brindlemoor to the south depot.
+Entry 0305: On day 163, courier Xenia carried 70 crates of tin plates from Millbeck to the east depot.
+Entry 0306: Shipment of barley (9 units) left Eastwick Vale with Boris; the west depot logged it on day 200.
+Entry 0307: Shipment of barley (49 units) left Caskwell with Kira; the east depot logged it on day 140.
+Entry 0308: Shipment of chalk (69 units) left Millbeck with Boris; the west depot logged it on day 125.
+Entry 0309: Vera signed for 30 sacks of barley at the east depot after a 4-hour run from Caskwell.
+Entry 0310: Shipment of tar (18 units) left Harlow Ford with Ada; the east depot logged it on day 160.
+Entry 0311: Kira signed for 44 sacks of soap at the south depot after a 7-hour run from Hollin Cross.
+Entry 0312: A wagon driven by Xenia brought 7 barrels of chalk into the north depot on day 177.
+Entry 0313: Carys signed for 64 sacks of candles at the east depot after a 6-hour run from Ivybridge End.
+Entry 0314: On day 264, courier Xenia carried 89 crates of soap from Harlow Ford to the south depot.
+Entry 0315: Joss signed for 8 sacks of tin plates at the south depot after a 4-hour run from Ivybridge End.
+Entry 0316: On day 233, courier Quin carried 18 crates of rope from Harlow Ford to the north depot.
+Entry 0317: On day 258, courier Carys carried 6 crates of lamp oil from Hollin Cross to the south depot.
+Entry 0318: On day 34, courier Ugo carried 82 crates of flour from Harlow Ford to the east depot.
+Entry 0319: Dario signed for 51 sacks of cider at the south depot after a 6-hour run from Grimsholt.
+Entry 0320: Shipment of leather (63 units) left Brindlemoor with Bram; the south depot logged it on day 225.
+Entry 0321: Shipment of wire (66 units) left Eastwick Vale with Hugo; the east depot logged it on day 159.
+Entry 0322: Shipment of wire (2 units) left Caskwell with Wim; the south depot logged it on day 336.
+Entry 0323: Shipment of soap (60 units) left Harlow Ford with Kira; the north depot logged it on day 287.
+Entry 0324: A wagon driven by Carys brought 28 barrels of candles into the east depot on day 188.
+Entry 0325: Alma signed for 50 sacks of dried peas at the east depot after a 2-hour run from Hollin Cross.
+Entry 0326: On day 278, courier Vera carried 41 crates of tin plates from Ivybridge End to the east depot.
+Entry 0327: A wagon driven by Alma brought 42 barrels of copper fittings into the south depot on day 109.
+Entry 0328: A wagon driven by Vera brought 59 barrels of wire into the north depot on day 101.
+Entry 0329: A wagon driven by Dario brought 26 barrels of rope into the east depot on day 269.
+Entry 0330: A wagon driven by Cleo brought 59 barrels of timber into the south depot on day 248.
+Entry 0331: A wagon driven by Vera brought 6 barrels of tar into the south depot on day 261.
+Entry 0332: On day 357, courier Xenia carried 27 crates of tar from Grimsholt to the south depot.
+Entry 0333: Shipment of lamp oil (19 units) left Eastwick Vale with Zeno; the east depot logged it on day 330.
+Entry 0334: On day 261, courier Yara carried 5 crates of wool bales from Brindlemoor to the east depot.
+Entry 0335: Shipment of cider (39 units) left Millbeck with Dario; the south depot logged it on day 278.
+Entry 0336: A wagon driven by Nico brought 13 barrels of copper fittings into the south depot on day 153.
+Entry 0337: On day 17, courier Mila carried 81 crates of timber from Dunmere to the east depot.
+Entry 0338: Alma signed for 72 sacks of linen at the south depot after a 11-hour run from Harlow Ford.
+Entry 0339: A wagon driven by Ines brought 17 barrels of copper fittings into the west depot on day 40.
+Entry 0340: On day 272, courier Xenia carried 10 crates of leather from Dunmere to the north depot.
+Entry 0341: A wagon driven by Dov brought 21 barrels of flour into the south depot on day 133.
+Entry 0342: A wagon driven by Edda brought 55 barrels of cider into the south depot on day 239.
+Entry 0343: A wagon driven by Sven brought 2 barrels of wire into the east depot on day 211.
+Entry 0344: A wagon driven by Mila brought 25 barrels of candles into the west depot on day 10.
+Entry 0345: Shipment of linen (81 units) left Harlow Ford with Edda; the east depot logged it on day 281.
+Entry 0346: Edda signed for 15 sacks of salt fish at the south depot after a 12-hour run from Harlow Ford.
+Entry 0347: On day 327, courier Kira carried 45 crates of flour from Grimsholt to the east depot.
+Entry 0348: On day 254, courier Boris carried 88 crates of candles from Millbeck to the north depot.
+Entry 0349: Shipment of flour (3 units) left Eastwick Vale with Bram; the west depot logged it on day 174.
+Entry 0350: Shipment of cider (77 units) left Millbeck with Joss; the south depot logged it on day 316.
+Entry 0351: A wagon driven by Pavel brought 31 barrels of dried peas into the north depot on day 198.
+Entry 0352: On day 185, courier Boris carried 12 crates of candles from Ivybridge End to the east depot.
+Entry 0353: Shipment of tin plates (48 units) left Millbeck with Boris; the south depot logged it on day 175.
+Entry 0354: A wagon driven by Wim brought 71 barrels of dried peas into the south depot on day 35.
+Entry 0355: Tilda signed for 20 sacks of saffron at the east depot after a 11-hour run from Kettlemouth.
+Entry 0356: On day 180, courier Pavel carried 90 crates of barley from Grimsholt to the north depot.
+Entry 0357: Shipment of wire (34 units) left Eastwick Vale with Edda; the east depot logged it on day 166.
+Entry 0358: A wagon driven by Orla brought 80 barrels of timber into the east depot on day 186.
+Entry 0359: A wagon driven by Vera brought 4 barrels of wire into the east depot on day 223.
+Entry 0360: On day 13, courier Sven carried 20 crates of cider from Larkspur Hill to the west depot.
+Entry 0361: A wagon driven by Edda brought 49 barrels of salt fish into the south depot on day 312.
+Entry 0362: Ada signed for 15 sacks of salt fish at the west depot after a 12-hour run from Eastwick Vale.
+Entry 0363: On day 280, courier Dario carried 47 crates of chalk from Harlow Ford to the west depot.
+Entry 0364: Ines signed for 44 sacks of dried peas at the south depot after a 3-hour run from Eastwick Vale.
+Entry 0365: Shipment of lamp oil (8 units) left Grimsholt with Bram; the south depot logged it on day 139.
+Entry 0366: A wagon driven by Dov brought 27 barrels of wire into the south depot on day 26.
+Entry 0367: A wagon driven by Ada brought 25 barrels of nails into the south depot on day 308.
+Entry 0368: A wagon driven by Lars brought 3 barrels of copper fittings into the west depot on day 111.
+Entry 0369: Shipment of linen (74 units) left Dunmere with Carys; the east depot logged it on day 281.
+Entry 0370: Shipment of glass jars (67 units) left Brindlemoor with Zeno; the east depot logged it on day 257.
+Entry 0371: On day 77, courier Quin carried 45 crates of tar from Kettlemouth to the west depot.
+Entry 0372: A wagon driven by Dov brought 25 barrels of tin plates into the south depot on day 332.
+Entry 0373: Wim signed for 21 sacks of salt fish at the west depot after a 8-hour run from Hollin Cross.
+Entry 0374: Shipment of wire (18 units) left Fallowby with Dov; the south depot logged it on day 197.
+Entry 0375: Orla signed for 6 sacks of flour at the north depot after a 4-hour run from Kettlemouth.
+Entry 0376: On day 175, courier Cleo carried 65 crates of candles from Grimsholt to the west depot.
+Entry 0377: On day 263, courier Yara carried 22 crates of glass jars from Millbeck to the east depot.
+Entry 0378: On day 113, courier Vera carried 24 crates of nails from Eastwick Vale to the west depot.
+Entry 0379: A wagon driven by Bram brought 21 barrels of leather into the north depot on day 106.
+Entry 0380: On day 286, courier Zeno carried 25 crates of lamp oil from Millbeck to the north depot.
+Entry 0381: Shipment of lamp oil (85 units) left Kettlemouth with Dario; the south depot logged it on day 12.
+Entry 0382: Shipment of timber (58 units) left Kettlemouth with Dario; the north depot logged it on day 49.
+Entry 0383: On day 167, courier Alma carried 53 crates of timber from Caskwell to the east depot.
+Entry 0384: Ada signed for 74 sacks of wool bales at the west depot after a 11-hour run from Millbeck.
+Entry 0385: Shipment of barley (84 units) left Millbeck with Boris; the east depot logged it on day 153.
+Entry 0386: Shipment of candles (74 units) left Millbeck with Dario; the north depot logged it on day 142.
+Entry 0387: Shipment of barley (28 units) left Eastwick Vale with Sven; the east depot logged it on day 100.
+Entry 0388: Shipment of dried peas (83 units) left Larkspur Hill with Tilda; the west depot logged it on day 270.
+Entry 0389: A wagon driven by Ugo brought 47 barrels of chalk into the west depot on day 28.
+Entry 0390: A wagon driven by Tilda brought 32 barrels of candles into the east depot on day 281.
+Entry 0391: Edda signed for 52 sacks of copper fittings at the east depot after a 14-hour run from Ivybridge End.
+Entry 0392: A wagon driven by Xenia brought 60 barrels of wire into the east depot on day 11.
+Entry 0393: A wagon driven by Rosa brought 39 barrels of flour into the west depot on day 340.
+Entry 0394: On day 340, courier Orla carried 5 crates of soap from Grimsholt to the north depot.
+Entry 0395: Shipment of flour (24 units) left Dunmere with Boris; the south depot logged it on day 302.
+Entry 0396: A wagon driven by Wim brought 26 barrels of barley into the west depot on day 123.
+Entry 0397: On day 322, courier Kira carried 13 crates of leather from Eastwick Vale to the east depot.
+Entry 0398: Shipment of dried peas (31 units) left Kettlemouth with Quin; the south depot logged it on day 117.
+Entry 0399: Alma signed for 70 sacks of salt fish at the north depot after a 14-hour run from Grimsholt.
+Entry 0400: Carys signed for 41 sacks of candles at the north depot after a 5-hour run from Eastwick Vale.
+Entry 0401: On day 228, courier Ines carried 56 crates of wool bales from Brindlemoor to the west depot.
+Entry 0402: Shipment of dried peas (7 units) left Millbeck with Ada; the west depot logged it on day 278.
+Entry 0403: Shipment of wire (60 units) left Hollin Cross with Rosa; the north depot logged it on day 12.
+Entry 0404: A wagon driven by Kira brought 75 barrels of chalk into the south depot on day 12.
+Entry 0405: A wagon driven by Yara brought 28 barrels of nails into the south depot on day 268.
+Entry 0406: Ugo signed for 87 sacks of barley at the north depot after a 4-hour run from Grimsholt.
+Entry 0407: Shipment of dried peas (88 units) left Brindlemoor with Rosa; the west depot logged it on day 1.
+Entry 0408: On day 119, courier Boris carried 41 crates of flour from Fallowby to the west depot.
+Entry 0409: Alma signed for 12 sacks of cider at the south depot after a 13-hour run from Eastwick Vale.
+Entry 0410: A wagon driven by Ines brought 36 barrels of tar into the east depot on day 171.
+Entry 0411: On day 337, courier Lars carried 22 crates of salt fish from Hollin Cross to the south depot.
+Entry 0412: Xenia signed for 51 sacks of barley at the west depot after a 11-hour run from Larkspur Hill.
+Entry 0413: Carys signed for 45 sacks of cider at the west depot after a 9-hour run from Millbeck.
+Entry 0414: A wagon driven by Ugo brought 79 barrels of chalk into the south depot on day 31.
+Entry 0415: Shipment of candles (38 units) left Brindlemoor with Mila; the north depot logged it on day 191.
+Entry 0416: On day 171, courier Nico carried 6 crates of chalk from Caskwell to the north depot.
+Entry 0417: A wagon driven by Fenn brought 30 barrels of flour into the north depot on day 218.
+Entry 0418: Xenia signed for 52 sacks of cider at the east depot after a 2-hour run from Ivybridge End.
+Entry 0419: Shipment of flour (79 units) left Ivybridge End with Ines; the east depot logged it on day 178.
+Entry 0420: On day 177, courier Edda carried 55 crates of nails from Caskwell to the west depot.
+Entry 0421: A wagon driven by Hugo brought 51 barrels of lamp oil into the east depot on day 177.
+Entry 0422: On day 25, courier Cleo carried 56 crates of salt fish from Fallowby to the north depot.
+Entry 0423: On day 278, courier Xenia carried 16 crates of flour from Larkspur Hill to the west depot.
+Entry 0424: Lars signed for 3 sacks of wool bales at the west depot after a 3-hour run from Ivybridge End.
+Entry 0425: A wagon driven by Boris brought 34 barrels of barley into the west depot on day 257.
+Entry 0426: Shipment of chalk (61 units) left Hollin Cross with Dario; the north depot logged it on day 193.
+Entry 0427: Shipment of salt fish (47 units) left Fallowby with Edda; the west depot logged it on day 63.
+Entry 0428: A wagon driven by Yara brought 26 barrels of candles into the north depot on day 28.
+Entry 0429: Rosa signed for 49 sacks of rope at the west depot after a 5-hour run from Larkspur Hill.
+Entry 0430: Shipment of soap (27 units) left Dunmere with Xenia; the south depot logged it on day 17.
+Entry 0431: Shipment of chalk (75 units) left Ivybridge End with Rosa; the east depot logged it on day 27.
+Entry 0432: Sven signed for 8 sacks of tin plates at the west depot after a 3-hour run from Larkspur Hill.
+Entry 0433: A wagon driven by Greta brought 7 barrels of dried peas into the west depot on day 256.
+Entry 0434: On day 255, courier Cleo carried 89 crates of copper fittings from Millbeck to the west depot.
+Entry 0435: Lars signed for 28 sacks of salt fish at the west depot after a 14-hour run from Brindlemoor.
+Entry 0436: On day 120, courier Ada carried 6 crates of rope from Larkspur Hill to the north depot.
+Entry 0437: Shipment of flour (89 units) left Kettlemouth with Kira; the east depot logged it on day 58.
+Entry 0438: Shipment of linen (48 units) left Brindlemoor with Nico; the west depot logged it on day 295.
+Entry 0439: Shipment of nails (73 units) left Caskwell with Boris; the south depot logged it on day 104.
+Entry 0440: Cleo signed for 42 sacks of lamp oil at the east depot after a 3-hour run from Millbeck.
+Entry 0441: On day 64, courier Cleo carried 19 crates of dried peas from Kettlemouth to the west depot.
+Entry 0442: On day 207, courier Vera carried 6 crates of lamp oil from Kettlemouth to the south depot.
+Entry 0443: On day 65, courier Nico carried 26 crates of wool bales from Ivybridge End to the south depot.
+Entry 0444: A wagon driven by Edda brought 44 barrels of tin plates into the south depot on day 175.
+Entry 0445: A wagon driven by Vera brought 85 barrels of nails into the south depot on day 359.
+Entry 0446: A wagon driven by Quin brought 87 barrels of glass jars into the east depot on day 105.
+Entry 0447: Cleo signed for 34 sacks of candles at the south depot after a 8-hour run from Dunmere.
+Entry 0448: On day 209, courier Ines carried 36 crates of timber from Hollin Cross to the west depot.
+Entry 0449: Shipment of flour (44 units) left Grimsholt with Quin; the east depot logged it on day 221.
+Entry 0450: On day 201, courier Nico carried 49 crates of flour from Kettlemouth to the north depot.
+Entry 0451: On day 112, courier Fenn carried 4 crates of wool bales from Kettlemouth to the south depot.
+Entry 0452: Bram signed for 57 sacks of dried peas at the south depot after a 7-hour run from Kettlemouth.
+Entry 0453: A wagon driven by Vera brought 42 barrels of barley into the south depot on day 12.
+Entry 0454: Shipment of barley (87 units) left Ivybridge End with Rosa; the south depot logged it on day 64.
+Entry 0455: A wagon driven by Ada brought 76 barrels of wool bales into the north depot on day 77.
+Entry 0456: On day 236, courier Orla carried 55 crates of flour from Hollin Cross to the east depot.
+Entry 0457: A wagon driven by Quin brought 15 barrels of wire into the east depot on day 209.
+Entry 0458: A wagon driven by Wim brought 37 barrels of chalk into the east depot on day 148.
+Entry 0459: A wagon driven by Quin brought 27 barrels of flour into the north depot on day 159.
+Entry 0460: Hugo signed for 71 sacks of dried peas at the south depot after a 14-hour run from Caskwell.
+Entry 0461: On day 340, courier Cleo carried 49 crates of flour from Eastwick Vale to the south depot.
+Entry 0462: A wagon driven by Xenia brought 62 barrels of cider into the north depot on day 351.
+Entry 0463: On day 109, courier Dov carried 87 crates of wire from Kettlemouth to the north depot.
+Entry 0464: Shipment of flour (60 units) left Ivybridge End with Carys; the east depot logged it on day 145.
+Entry 0465: Shipment of wool bales (18 units) left Grimsholt with Greta; the north depot logged it on day 348.
+Entry 0466: A wagon driven by Wim brought 8 barrels of candles into the east depot on day 196.
+Entry 0467: Lars signed for 34 sacks of tar at the east depot after a 8-hour run from Ivybridge End.
+Entry 0468: Joss signed for 78 sacks of cider at the north depot after a 14-hour run from Caskwell.
+Entry 0469: A wagon driven by Greta brought 67 barrels of candles into the south depot on day 360.
+Entry 0470: Shipment of nails (55 units) left Grimsholt with Fenn; the west depot logged it on day 108.
+Entry 0471: Shipment of wool bales (17 units) left Grimsholt with Ines; the west depot logged it on day 147.
+Entry 0472: On day 117, courier Carys carried 58 crates of lamp oil from Millbeck to the north depot.
+Entry 0473: Shipment of leather (25 units) left Fallowby with Sven; the east depot logged it on day 112.
+Entry 0474: On day 105, courier Fenn carried 45 crates of chalk from Kettlemouth to the west depot.
+Entry 0475: Shipment of rope (60 units) left Hollin Cross with Hugo; the west depot logged it on day 325.
+Entry 0476: Shipment of salt fish (55 units) left Brindlemoor with Boris; the south depot logged it on day 104.
+Entry 0477: A wagon driven by Sven brought 67 barrels of chalk into the east depot on day 241.
+Entry 0478: On day 222, courier Vera carried 34 crates of lamp oil from Larkspur Hill to the east depot.
+Entry 0479: A wagon driven by Zeno brought 51 barrels of candles into the west depot on day 260.
+Entry 0480: Boris signed for 16 sacks of timber at the west depot after a 3-hour run from Ivybridge End.
+Entry 0481: Shipment of wire (62 units) left Eastwick Vale with Ada; the east depot logged it on day 71.
+Entry 0482: Shipment of lamp oil (51 units) left Grimsholt with Kira; the south depot logged it on day 168.
+Entry 0483: Shipment of soap (88 units) left Harlow Ford with Mila; the south depot logged it on day 194.
+Entry 0484: Shipment of rope (41 units) left Caskwell with Dov; the west depot logged it on day 105.
+Entry 0485: Shipment of timber (32 units) left Grimsholt with Mila; the south depot logged it on day 107.
+Entry 0486: Joss signed for 55 sacks of tin plates at the east depot after a 12-hour run from Ivybridge End.
+Entry 0487: On day 117, courier Xenia carried 68 crates of rope from Harlow Ford to the north depot.
+Entry 0488: A wagon driven by Ines brought 14 barrels of dried peas into the south depot on day 260.
+Entry 0489: A wagon driven by Rosa brought 64 barrels of glass jars into the west depot on day 151.
+Entry 0490: A wagon driven by Wim brought 77 barrels of cider into the north depot on day 328.
+Entry 0491: Wim signed for 28 sacks of candles at the north depot after a 3-hour run from Millbeck.
+Entry 0492: On day 183, courier Ada carried 74 crates of tar from Millbeck to the north depot.
+Entry 0493: Tilda signed for 59 sacks of nails at the east depot after a 14-hour run from Fallowby.
+Entry 0494: A wagon driven by Boris brought 17 barrels of tin plates into the north depot on day 196.
+Entry 0495: Shipment of salt fish (49 units) left Fallowby with Kira; the east depot logged it on day 173.
+Entry 0496: Shipment of soap (73 units) left Eastwick Vale with Greta; the south depot logged it on day 304.
+Entry 0497: Shipment of tar (71 units) left Larkspur Hill with Alma; the south depot logged it on day 25.
+Entry 0498: On day 7, courier Pavel carried 78 crates of linen from Millbeck to the north depot.
+Entry 0499: Nico signed for 82 sacks of timber at the south depot after a 4-hour run from Harlow Ford.
+Entry 0500: Shipment of tar (81 units) left Harlow Ford with Ines; the north depot logged it on day 115.
+Entry 0501: On day 24, courier Hugo carried 22 crates of rope from Grimsholt to the west depot.
+Entry 0502: On day 229, courier Mila carried 31 crates of glass jars from Ivybridge End to the north depot.
+Entry 0503: Xenia signed for 46 sacks of soap at the south depot after a 8-hour run from Larkspur Hill.
+Entry 0504: A wagon driven by Pavel brought 5 barrels of leather into the south depot on day 284.
+Entry 0505: A wagon driven by Cleo brought 22 barrels of glass jars into the south depot on day 321.
+Entry 0506: Yara signed for 11 sacks of soap at the west depot after a 13-hour run from Eastwick Vale.
+Entry 0507: Shipment of timber (51 units) left Caskwell with Wim; the south depot logged it on day 162.
+Entry 0508: Quin signed for 37 sacks of linen at the north depot after a 12-hour run from Dunmere.
+Entry 0509: Quin signed for 52 sacks of saffron at the north depot after a 9-hour run from Millbeck.
+Entry 0510: On day 173, courier Dov carried 44 crates of timber from Ivybridge End to the east depot.
+Entry 0511: On day 209, courier Bram carried 39 crates of rope from Larkspur Hill to the east depot.
+Entry 0512: Dario signed for 14 sacks of barley at the north depot after a 2-hour run from Millbeck.
+Entry 0513: Shipment of wool bales (2 units) left Ivybridge End with Mila; the west depot logged it on day 171.
+Entry 0514: On day 128, courier Carys carried 82 crates of candles from Larkspur Hill to the south depot.
+Entry 0515: Shipment of leather (33 units) left Fallowby with Ugo; the south depot logged it on day 334.
+Entry 0516: On day 234, courier Dov carried 63 crates of dried peas from Ivybridge End to the south depot.
+Entry 0517: Shipment of nails (53 units) left Harlow Ford with Sven; the east depot logged it on day 320.
+Entry 0518: A wagon driven by Lars brought 3 barrels of tar into the south depot on day 290.
+Entry 0519: A wagon driven by Xenia brought 86 barrels of barley into the west depot on day 167.
+Entry 0520: A wagon driven by Lars brought 60 barrels of dried peas into the north depot on day 24.
+Entry 0521: A wagon driven by Bram brought 87 barrels of timber into the south depot on day 22.
+Entry 0522: On day 70, courier Bram carried 30 crates of nails from Grimsholt to the east depot.
+Entry 0523: Cleo signed for 15 sacks of tin plates at the west depot after a 14-hour run from Caskwell.
+Entry 0524: Quin signed for 11 sacks of wool bales at the east depot after a 14-hour run from Larkspur Hill.
+Entry 0525: Dario signed for 42 sacks of timber at the east depot after a 2-hour run from Larkspur Hill.
+Entry 0526: Carys signed for 19 sacks of glass jars at the north depot after a 12-hour run from Kettlemouth.
+Entry 0527: Shipment of wire (12 units) left Harlow Ford with Dov; the north depot logged it on day 99.
+Entry 0528: Quin signed for 15 sacks of tar at the north depot after a 14-hour run from Caskwell.
+Entry 0529: On day 347, courier Orla carried 90 crates of chalk from Kettlemouth to the south depot.
+Entry 0530: Carys signed for 3 sacks of lamp oil at the north depot after a 12-hour run from Ivybridge End.
+Entry 0531: Shipment of nails (76 units) left Kettlemouth with Dario; the east depot logged it on day 260.
+Entry 0532: Shipment of dried peas (31 units) left Eastwick Vale with Rosa; the north depot logged it on day 360.
+Entry 0533: Ugo signed for 23 sacks of rope at the south depot after a 8-hour run from Hollin Cross.
+Entry 0534: Nico signed for 38 sacks of wool bales at the south depot after a 5-hour run from Fallowby.
+Entry 0535: A wagon driven by Hugo brought 65 barrels of cider into the west depot on day 278.
+Entry 0536: A wagon driven by Xenia brought 30 barrels of salt fish into the south depot on day 154.
+Entry 0537: A wagon driven by Vera brought 64 barrels of wool bales into the east depot on day 254.
+Entry 0538: Sven signed for 12 sacks of salt fish at the west depot after a 6-hour run from Larkspur Hill.
+Entry 0539: Shipment of dried peas (12 units) left Ivybridge End with Yara; the west depot logged it on day 132.
+Entry 0540: Shipment of copper fittings (84 units) left Kettlemouth with Lars; the north depot logged it on day 47.
+Entry 0541: A wagon driven by Kira brought 32 barrels of linen into the south depot on day 200.
+Entry 0542: A wagon driven by Orla brought 75 barrels of leather into the west depot on day 339.
+Entry 0543: Carys signed for 50 sacks of tin plates at the south depot after a 3-hour run from Grimsholt.
+Entry 0544: On day 134, courier Pavel carried 6 crates of wool bales from Eastwick Vale to the west depot.
+Entry 0545: On day 4, courier Edda carried 11 crates of wool bales from Grimsholt to the west depot.
+Entry 0546: On day 330, courier Tilda carried 86 crates of soap from Grimsholt to the west depot.
+Entry 0547: On day 174, courier Yara carried 85 crates of nails from Eastwick Vale to the west depot.
+Entry 0548: On day 311, courier Alma carried 65 crates of linen from Kettlemouth to the east depot.
+Entry 0549: On day 92, courier Fenn carried 20 crates of dried peas from Fallowby to the west depot.
+Entry 0550: Boris signed for 2 sacks of candles at the north depot after a 6-hour run from Grimsholt.
+Entry 0551: On day 81, courier Rosa carried 16 crates of barley from Fallowby to the south depot.
+Entry 0552: Shipment of soap (2 units) left Fallowby with Sven; the north depot logged it on day 110.
+Entry 0553: Greta signed for 5 sacks of leather at the south depot after a 5-hour run from Fallowby.
+Entry 0554: Shipment of wire (56 units) left Fallowby with Dov; the south depot logged it on day 72.
+Entry 0555: On day 306, courier Greta carried 33 crates of salt fish from Hollin Cross to the west depot.
+Entry 0556: Shipment of tin plates (4 units) left Kettlemouth with Dario; the south depot logged it on day 170.
+Entry 0557: A wagon driven by Sven brought 87 barrels of flour into the south depot on day 309.
+Entry 0558: Shipment of timber (80 units) left Harlow Ford with Nico; the south depot logged it on day 339.
+Entry 0559: A wagon driven by Tilda brought 52 barrels of barley into the north depot on day 334.
+Entry 0560: Shipment of linen (18 units) left Harlow Ford with Ugo; the north depot logged it on day 301.
+Entry 0561: On day 140, courier Zeno carried 86 crates of lamp oil from Hollin Cross to the north depot.
+Entry 0562: On day 254, courier Carys carried 25 crates of lamp oil from Kettlemouth to the east depot.
+Entry 0563: Fenn signed for 35 sacks of timber at the north depot after a 2-hour run from Grimsholt.
+Entry 0564: On day 131, courier Vera carried 71 crates of candles from Dunmere to the north depot.
+Entry 0565: Alma signed for 42 sacks of lamp oil at the east depot after a 14-hour run from Ivybridge End.
+Entry 0566: A wagon driven by Ugo brought 4 barrels of tar into the east depot on day 303.
+Entry 0567: Shipment of leather (13 units) left Ivybridge End with Ines; the east depot logged it on day 214.
+Entry 0568: Tilda signed for 27 sacks of flour at the north depot after a 5-hour run from Ivybridge End.
+Entry 0569: On day 341, courier Ines carried 86 crates of rope from Hollin Cross to the north depot.
+Entry 0570: On day 26, courier Bram carried 15 crates of wire from Millbeck to the west depot.
+Entry 0571: Hugo signed for 75 sacks of flour at the north depot after a 11-hour run from Eastwick Vale.
+Entry 0572: A wagon driven by Vera brought 18 barrels of tar into the east depot on day 84.
+Entry 0573: A wagon driven by Quin brought 84 barrels of lamp oil into the west depot on day 87.
+Entry 0574: A wagon driven by Hugo brought 40 barrels of flour into the west depot on day 316.
+Entry 0575: On day 325, courier Xenia carried 46 crates of lamp oil from Kettlemouth to the south depot.
+Entry 0576: Shipment of lamp oil (15 units) left Harlow Ford with Yara; the north depot logged it on day 147.
+Entry 0577: Pavel signed for 73 sacks of tin plates at the north depot after a 2-hour run from Dunmere.
+Entry 0578: Shipment of tar (10 units) left Larkspur Hill with Fenn; the east depot logged it on day 262.
+Entry 0579: Shipment of soap (37 units) left Harlow Ford with Ugo; the west depot logged it on day 5.
+Entry 0580: A wagon driven by Orla brought 62 barrels of leather into the west depot on day 186.
+Entry 0581: A wagon driven by Rosa brought 49 barrels of tar into the west depot on day 149.
+Entry 0582: Ada signed for 6 sacks of soap at the west depot after a 13-hour run from Fallowby.
+Entry 0583: A wagon driven by Wim brought 80 barrels of dried peas into the east depot on day 290.
+Entry 0584: Shipment of tar (53 units) left Hollin Cross with Kira; the north depot logged it on day 158.
+Entry 0585: A wagon driven by Ada brought 79 barrels of wire into the south depot on day 344.
+Entry 0586: Ines signed for 86 sacks of linen at the north depot after a 9-hour run from Millbeck.
+Entry 0587: A wagon driven by Edda brought 5 barrels of lamp oil into the north depot on day 141.
+Entry 0588: Shipment of chalk (64 units) left Larkspur Hill with Wim; the east depot logged it on day 226.
+Entry 0589: Shipment of copper fittings (8 units) left Eastwick Vale with Alma; the east depot logged it on day 288.
+Entry 0590: Yara signed for 20 sacks of candles at the west depot after a 6-hour run from Grimsholt.
+Entry 0591: A wagon driven by Ines brought 36 barrels of timber into the west depot on day 45.
+Entry 0592: Shipment of linen (42 units) left Brindlemoor with Quin; the west depot logged it on day 6.
+Entry 0593: Shipment of leather (55 units) left Grimsholt with Orla; the north depot logged it on day 306.
+Entry 0594: Dario signed for 68 sacks of timber at the south depot after a 3-hour run from Caskwell.
+Entry 0595: On day 80, courier Boris carried 32 crates of rope from Fallowby to the west depot.
+Entry 0596: A wagon driven by Ada brought 52 barrels of soap into the north depot on day 53.
+Entry 0597: Shipment of flour (43 units) left Dunmere with Fenn; the north depot logged it on day 315.
+Entry 0598: Shipment of tar (83 units) left Ivybridge End with Wim; the west depot logged it on day 268.
+Entry 0599: Cleo signed for 54 sacks of chalk at the east depot after a 4-hour run from Kettlemouth.
+Entry 0600: Tilda signed for 30 sacks of wire at the west depot after a 8-hour run from Larkspur Hill.
+Entry 0601: A wagon driven by Mila brought 12 barrels of linen into the west depot on day 9.
+Entry 0602: On day 360, courier Nico carried 10 crates of copper fittings from Ivybridge End to the west depot.
+Entry 0603: On day 116, courier Alma carried 79 crates of lamp oil from Dunmere to the west depot.
+Entry 0604: Rosa signed for 26 sacks of cider at the south depot after a 4-hour run from Ivybridge End.
+Entry 0605: Xenia signed for 3 sacks of lamp oil at the west depot after a 6-hour run from Eastwick Vale.
+Entry 0606: Shipment of leather (59 units) left Grimsholt with Orla; the north depot logged it on day 289.
+Entry 0607: A wagon driven by Wim brought 17 barrels of lamp oil into the east depot on day 200.
+Entry 0608: On day 242, courier Nico carried 8 crates of dried peas from Dunmere to the east depot.
+Entry 0609: On day 33, courier Ines carried 73 crates of linen from Harlow Ford to the east depot.
+Entry 0610: A wagon driven by Fenn brought 18 barrels of flour into the west depot on day 145.
+Entry 0611: Quin signed for 80 sacks of tin plates at the west depot after a 7-hour run from Brindlemoor.
+Entry 0612: Shipment of saffron (42 units) left Kettlemouth with Orla; the south depot logged it on day 94.
+Entry 0613: Dario signed for 85 sacks of dried peas at the west depot after a 4-hour run from Millbeck.
+Entry 0614: Nico signed for 72 sacks of chalk at the east depot after a 13-hour run from Fallowby.
+Entry 0615: A wagon driven by Cleo brought 58 barrels of flour into the north depot on day 101.
+Entry 0616: A wagon driven by Orla brought 54 barrels of soap into the south depot on day 146.
+Entry 0617: On day 237, courier Xenia carried 49 crates of barley from Dunmere to the north depot.
+Entry 0618: Alma signed for 21 sacks of barley at the west depot after a 9-hour run from Eastwick Vale.
+Entry 0619: On day 266, courier Edda carried 75 crates of tar from Dunmere to the north depot.
+Entry 0620: Shipment of wire (30 units) left Ivybridge End with Alma; the south depot logged it on day 116.
+Entry 0621: On day 110, courier Quin carried 16 crates of nails from Eastwick Vale to the west depot.
+Entry 0622: On day 166, courier Carys carried 16 crates of rope from Fallowby to the south depot.
+Entry 0623: A wagon driven by Zeno brought 19 barrels of wire into the north depot on day 345.
+Entry 0624: On day 82, courier Nico carried 25 crates of glass jars from Kettlemouth to the north depot.
+Entry 0625: Boris signed for 86 sacks of lamp oil at the west depot after a 7-hour run from Millbeck.
+Entry 0626: Shipment of flour (43 units) left Larkspur Hill with Edda; the south depot logged it on day 351.
+Entry 0627: Shipment of copper fittings (52 units) left Eastwick Vale with Orla; the west depot logged it on day 158.
+Entry 0628: A wagon driven by Fenn brought 25 barrels of timber into the north depot on day 336.
+Entry 0629: Nico signed for 11 sacks of salt fish at the west depot after a 4-hour run from Larkspur Hill.
+Entry 0630: Shipment of chalk (47 units) left Dunmere with Boris; the east depot logged it on day 158.
+Entry 0631: On day 236, courier Vera carried 70 crates of wool bales from Harlow Ford to the south depot.
+Entry 0632: On day 149, courier Quin carried 76 crates of leather from Brindlemoor to the north depot.
+Entry 0633: On day 228, courier Pavel carried 36 crates of timber from Fallowby to the south depot.
+Entry 0634: On day 137, courier Vera carried 70 crates of linen from Grimsholt to the west depot.
+Entry 0635: On day 252, courier Edda carried 37 crates of flour from Ivybridge End to the north depot.
+Entry 0636: A wagon driven by Ada brought 2 barrels of soap into the west depot on day 238.
+Entry 0637: On day 144, courier Orla carried 33 crates of copper fittings from Fallowby to the north depot.
+Entry 0638: Edda signed for 45 sacks of cider at the south depot after a 11-hour run from Kettlemouth.
+Entry 0639: Vera signed for 50 sacks of wool bales at the north depot after a 5-hour run from Caskwell.
+Entry 0640: On day 295, courier Yara carried 4 crates of tar from Fallowby to the north depot.
+Entry 0641: Shipment of timber (70 units) left Eastwick Vale with Greta; the west depot logged it on day 232.
+Entry 0642: A wagon driven by Dario brought 8 barrels of wool bales into the west depot on day 234.
+Entry 0643: Nico signed for 73 sacks of leather at the west depot after a 6-hour run from Millbeck.
+Entry 0644: A wagon driven by Fenn brought 84 barrels of soap into the north depot on day 261.
+Entry 0645: Nico signed for 74 sacks of soap at the north depot after a 13-hour run from Brindlemoor.
+Entry 0646: A wagon driven by Rosa brought 21 barrels of timber into the south depot on day 51.
+Entry 0647: Shipment of nails (58 units) left Kettlemouth with Boris; the east depot logged it on day 272.
+Entry 0648: Ines signed for 78 sacks of barley at the east depot after a 5-hour run from Dunmere.
+Entry 0649: Shipment of flour (43 units) left Larkspur Hill with Greta; the west depot logged it on day 57.
+Entry 0650: A wagon driven by Orla brought 18 barrels of salt fish into the west depot on day 93.
+Entry 0651: On day 71, courier Rosa carried 88 crates of leather from Millbeck to the north depot.
+Entry 0652: Shipment of timber (35 units) left Larkspur Hill with Hugo; the north depot logged it on day 194.
+Entry 0653: On day 53, courier Nico carried 67 crates of lamp oil from Kettlemouth to the east depot.
+Entry 0654: Boris signed for 67 sacks of cider at the west depot after a 7-hour run from Millbeck.
+Entry 0655: A wagon driven by Pavel brought 75 barrels of glass jars into the west depot on day 123.
+Entry 0656: A wagon driven by Boris brought 28 barrels of lamp oil into the north depot on day 50.
+Entry 0657: Shipment of leather (57 units) left Fallowby with Mila; the west depot logged it on day 169.
+Entry 0658: Shipment of lamp oil (73 units) left Grimsholt with Orla; the west depot logged it on day 182.
+Entry 0659: On day 350, courier Fenn carried 50 crates of salt fish from Millbeck to the east depot.
+Entry 0660: A wagon driven by Joss brought 79 barrels of tin plates into the east depot on day 65.
+Entry 0661: A wagon driven by Fenn brought 16 barrels of barley into the north depot on day 23.
+Entry 0662: Greta signed for 25 sacks of soap at the north depot after a 4-hour run from Larkspur Hill.
+Entry 0663: A wagon driven by Vera brought 23 barrels of candles into the east depot on day 273.
+Entry 0664: On day 120, courier Sven carried 38 crates of wool bales from Dunmere to the west depot.
+Entry 0665: Bram signed for 35 sacks of saffron at the north depot after a 6-hour run from Ivybridge End.
+Entry 0666: On day 284, courier Hugo carried 64 crates of flour from Eastwick Vale to the north depot.
+Entry 0667: A wagon driven by Yara brought 79 barrels of tar into the north depot on day 257.
+Entry 0668: Sven signed for 20 sacks of copper fittings at the west depot after a 2-hour run from Hollin Cross.
+Entry 0669: Pavel signed for 28 sacks of wire at the south depot after a 8-hour run from Fallowby.
+Entry 0670: Shipment of tar (32 units) left Kettlemouth with Lars; the south depot logged it on day 266.
+Entry 0671: On day 14, courier Carys carried 2 crates of rope from Kettlemouth to the north depot.
+Entry 0672: Shipment of tar (35 units) left Millbeck with Fenn; the north depot logged it on day 297.
+Entry 0673: On day 321, courier Cleo carried 43 crates of linen from Caskwell to the east depot.
+Entry 0674: Shipment of salt fish (78 units) left Caskwell with Nico; the south depot logged it on day 318.
+Entry 0675: Shipment of tin plates (84 units) left Caskwell with Carys; the east depot logged it on day 134.
+Entry 0676: On day 309, courier Vera carried 40 crates of soap from Fallowby to the west depot.
+Entry 0677: A wagon driven by Ines brought 59 barrels of linen into the west depot on day 154.
+Entry 0678: Quin signed for 58 sacks of cider at the west depot after a 2-hour run from Grimsholt.
+Entry 0679: Shipment of wire (68 units) left Brindlemoor with Pavel; the west depot logged it on day 234.
+Entry 0680: A wagon driven by Ines brought 65 barrels of chalk into the south depot on day 94.
+Entry 0681: Shipment of glass jars (27 units) left Kettlemouth with Dario; the east depot logged it on day 86.
+Entry 0682: On day 248, courier Lars carried 2 crates of wool bales from Hollin Cross to the south depot.
+Entry 0683: Rosa signed for 34 sacks of wire at the east depot after a 7-hour run from Millbeck.
+Entry 0684: Shipment of wire (11 units) left Millbeck with Ugo; the west depot logged it on day 212.
+Entry 0685: A wagon driven by Vera brought 52 barrels of linen into the west depot on day 89.
+Entry 0686: A wagon driven by Alma brought 18 barrels of lamp oil into the west depot on day 21.
+Entry 0687: A wagon driven by Tilda brought 6 barrels of rope into the east depot on day 110.
+Entry 0688: A wagon driven by Quin brought 49 barrels of flour into the east depot on day 229.
+Entry 0689: On day 63, courier Zeno carried 49 crates of copper fittings from Fallowby to the east depot.
+Entry 0690: On day 336, courier Boris carried 35 crates of salt fish from Harlow Ford to the east depot.
+Entry 0691: Joss signed for 81 sacks of timber at the south depot after a 2-hour run from Hollin Cross.
+Entry 0692: A wagon driven by Orla brought 20 barrels of dried peas into the north depot on day 239.
+Entry 0693: Bram signed for 90 sacks of glass jars at the west depot after a 6-hour run from Hollin Cross.
+Entry 0694: A wagon driven by Kira brought 39 barrels of glass jars into the west depot on day 181.
+Entry 0695: Shipment of wire (40 units) left Eastwick Vale with Yara; the west depot logged it on day 107.
+Entry 0696: On day 83, courier Bram carried 3 crates of soap from Ivybridge End to the south depot.
+Entry 0697: On day 320, courier Ada carried 60 crates of flour from Ivybridge End to the west depot.
+Entry 0698: On day 221, courier Orla carried 37 crates of cider from Millbeck to the south depot.
+Entry 0699: Shipment of barley (40 units) left Hollin Cross with Hugo; the west depot logged it on day 164.
+Entry 0700: A wagon driven by Nico brought 55 barrels of dried peas into the west depot on day 87.
+Entry 0701: Shipment of salt fish (57 units) left Millbeck with Kira; the west depot logged it on day 61.
+Entry 0702: On day 256, courier Carys carried 42 crates of lamp oil from Grimsholt to the west depot.
+Entry 0703: On day 93, courier Ines carried 81 crates of copper fittings from Brindlemoor to the west depot.
+Entry 0704: A wagon driven by Orla brought 35 barrels of lamp oil into the east depot on day 320.
+Entry 0705: On day 7, courier Joss carried 47 crates of wire from Hollin Cross to the west depot.
+Entry 0706: On day 336, courier Carys carried 78 crates of rope from Kettlemouth to the south depot.
+Entry 0707: On day 24, courier Wim carried 35 crates of lamp oil from Harlow Ford to the east depot.
+Entry 0708: Yara signed for 40 sacks of tar at the east depot after a 6-hour run from Harlow Ford.
+Entry 0709: Shipment of salt fish (86 units) left Dunmere with Nico; the south depot logged it on day 198.
+Entry 0710: A wagon driven by Quin brought 62 barrels of timber into the south depot on day 52.
+Entry 0711: Ugo signed for 90 sacks of flour at the north depot after a 11-hour run from Caskwell.
+Entry 0712: Xenia signed for 14 sacks of timber at the north depot after a 10-hour run from Dunmere.
+Entry 0713: A wagon driven by Orla brought 84 barrels of dried peas into the north depot on day 40.
+Entry 0714: A wagon driven by Hugo brought 27 barrels of salt fish into the south depot on day 53.
+Entry 0715: On day 152, courier Sven carried 53 crates of glass jars from Brindlemoor to the east depot.
+Entry 0716: Pavel signed for 84 sacks of salt fish at the south depot after a 5-hour run from Dunmere.
+Entry 0717: On day 170, courier Zeno carried 15 crates of linen from Ivybridge End to the west depot.
+Entry 0718: Shipment of copper fittings (61 units) left Hollin Cross with Rosa; the west depot logged it on day 327.
+Entry 0719: On day 214, courier Rosa carried 5 crates of barley from Kettlemouth to the east depot.
+Entry 0720: Shipment of glass jars (70 units) left Hollin Cross with Alma; the west depot logged it on day 100.
+Entry 0721: Shipment of rope (21 units) left Dunmere with Quin; the east depot logged it on day 11.
+Entry 0722: A wagon driven by Kira brought 3 barrels of dried peas into the east depot on day 110.
+Entry 0723: Rosa signed for 80 sacks of wool bales at the north depot after a 2-hour run from Eastwick Vale.
+Entry 0724: A wagon driven by Bram brought 8 barrels of wire into the east depot on day 317.
+Entry 0725: Shipment of barley (39 units) left Caskwell with Vera; the east depot logged it on day 318.
+Entry 0726: On day 31, courier Sven carried 20 crates of soap from Millbeck to the south depot.
+Entry 0727: A wagon driven by Edda brought 24 barrels of lamp oil into the east depot on day 311.
+Entry 0728: On day 93, courier Ugo carried 78 crates of wire from Ivybridge End to the east depot.
+Entry 0729: Mila signed for 63 sacks of saffron at the east depot after a 13-hour run from Eastwick Vale.
+Entry 0730: Wim signed for 82 sacks of timber at the north depot after a 2-hour run from Dunmere.
+Entry 0731: A wagon driven by Boris brought 5 barrels of soap into the north depot on day 278.
+Entry 0732: Shipment of linen (82 units) left Ivybridge End with Vera; the west depot logged it on day 230.
+Entry 0733: On day 244, courier Fenn carried 74 crates of flour from Hollin Cross to the south depot.
+Entry 0734: A wagon driven by Bram brought 74 barrels of linen into the north depot on day 103.
+Entry 0735: Cleo signed for 46 sacks of chalk at the north depot after a 3-hour run from Grimsholt.
+Entry 0736: Shipment of chalk (9 units) left Eastwick Vale with Edda; the west depot logged it on day 43.
+Entry 0737: Boris signed for 18 sacks of tar at the south depot after a 7-hour run from Caskwell.
+Entry 0738: Shipment of lamp oil (52 units) left Hollin Cross with Xenia; the east depot logged it on day 168.
+Entry 0739: On day 269, courier Alma carried 29 crates of linen from Dunmere to the east depot.
+Entry 0740: Dario signed for 80 sacks of lamp oil at the north depot after a 12-hour run from Larkspur Hill.
+Entry 0741: Shipment of tar (21 units) left Dunmere with Edda; the west depot logged it on day 337.
+Entry 0742: A wagon driven by Quin brought 5 barrels of chalk into the west depot on day 138.
+Entry 0743: On day 328, courier Pavel carried 49 crates of candles from Grimsholt to the east depot.
+Entry 0744: On day 271, courier Lars carried 60 crates of soap from Harlow Ford to the north depot.
+Entry 0745: On day 11, courier Wim carried 80 crates of nails from Ivybridge End to the east depot.
+Entry 0746: On day 186, courier Sven carried 59 crates of wool bales from Dunmere to the west depot.
+Entry 0747: On day 83, courier Hugo carried 36 crates of salt fish from Caskwell to the west depot.
+Entry 0748: A wagon driven by Xenia brought 82 barrels of rope into the south depot on day 96.
+Entry 0749: Zeno signed for 5 sacks of timber at the south depot after a 7-hour run from Eastwick Vale.
+Entry 0750: A wagon driven by Ines brought 76 barrels of dried peas into the north depot on day 318.
+Entry 0751: Shipment of flour (20 units) left Ivybridge End with Zeno; the east depot logged it on day 285.
+Entry 0752: On day 76, courier Dario carried 73 crates of glass jars from Kettlemouth to the west depot.
+Entry 0753: On day 113, courier Sven carried 39 crates of wool bales from Millbeck to the east depot.
+Entry 0754: Tilda signed for 87 sacks of barley at the east depot after a 9-hour run from Ivybridge End.
+Entry 0755: A wagon driven by Joss brought 26 barrels of tin plates into the north depot on day 313.
+Entry 0756: On day 251, courier Greta carried 3 crates of linen from Brindlemoor to the north depot.
+Entry 0757: On day 106, courier Bram carried 83 crates of dried peas from Larkspur Hill to the north depot.
+Entry 0758: A wagon driven by Mila brought 37 barrels of tar into the east depot on day 316.
+Entry 0759: Shipment of barley (26 units) left Hollin Cross with Wim; the west depot logged it on day 122.
+Entry 0760: Hugo signed for 36 sacks of dried peas at the west depot after a 13-hour run from Larkspur Hill.
+Entry 0761: A wagon driven by Kira brought 78 barrels of dried peas into the north depot on day 167.
+Entry 0762: Shipment of rope (51 units) left Eastwick Vale with Tilda; the south depot logged it on day 144.
+Entry 0763: Shipment of wool bales (56 units) left Ivybridge End with Kira; the north depot logged it on day 205.
+Entry 0764: A wagon driven by Joss brought 27 barrels of candles into the east depot on day 43.
+Entry 0765: A wagon driven by Zeno brought 6 barrels of dried peas into the north depot on day 282.
+Entry 0766: On day 301, courier Dario carried 83 crates of soap from Eastwick Vale to the north depot.
+Entry 0767: Shipment of lamp oil (4 units) left Harlow Ford with Sven; the west depot logged it on day 57.
+Entry 0768: On day 91, courier Greta carried 61 crates of linen from Eastwick Vale to the west depot.
+Entry 0769: Shipment of wire (6 units) left Kettlemouth with Joss; the north depot logged it on day 128.
+Entry 0770: A wagon driven by Ugo brought 67 barrels of wool bales into the west depot on day 311.
+Entry 0771: On day 214, courier Kira carried 19 crates of rope from Caskwell to the east depot.
+Entry 0772: Ugo signed for 2 sacks of cider at the east depot after a 10-hour run from Brindlemoor.
+Entry 0773: On day 69, courier Tilda carried 31 crates of barley from Larkspur Hill to the east depot.
+Entry 0774: Shipment of rope (70 units) left Fallowby with Bram; the east depot logged it on day 31.
+Entry 0775: A wagon driven by Carys brought 30 barrels of cider into the west depot on day 159.
+Entry 0776: Shipment of leather (18 units) left Dunmere with Ines; the south depot logged it on day 327.
+Entry 0777: On day 144, courier Yara carried 65 crates of rope from Larkspur Hill to the west depot.
+Entry 0778: Fenn signed for 16 sacks of timber at the south depot after a 7-hour run from Kettlemouth.
+Entry 0779: A wagon driven by Mila brought 5 barrels of leather into the south depot on day 66.
+Entry 0780: Shipment of linen (67 units) left Larkspur Hill with Cleo; the north depot logged it on day 61.
+Entry 0781: On day 68, courier Boris carried 18 crates of tar from Larkspur Hill to the south depot.
+Entry 0782: Shipment of leather (85 units) left Brindlemoor with Kira; the south depot logged it on day 130.
+Entry 0783: Edda signed for 63 sacks of dried peas at the south depot after a 3-hour run from Dunmere.
+Entry 0784: Shipment of wool bales (64 units) left Grimsholt with Ada; the south depot logged it on day 323.
+Entry 0785: A wagon driven by Pavel brought 85 barrels of wool bales into the south depot on day 45.
+Entry 0786: Pavel signed for 36 sacks of soap at the north depot after a 3-hour run from Dunmere.
+Entry 0787: On day 194, courier Ada carried 57 crates of wool bales from Fallowby to the east depot.
+Entry 0788: Lars signed for 77 sacks of lamp oil at the west depot after a 3-hour run from Dunmere.
+Entry 0789: Tilda signed for 51 sacks of glass jars at the west depot after a 8-hour run from Grimsholt.
+Entry 0790: Bram signed for 18 sacks of wool bales at the south depot after a 2-hour run from Grimsholt.
+Entry 0791: A wagon driven by Lars brought 32 barrels of flour into the east depot on day 249.
+Entry 0792: On day 125, courier Ugo carried 43 crates of barley from Dunmere to the east depot.
+Entry 0793: Hugo signed for 21 sacks of rope at the west depot after a 2-hour run from Harlow Ford.
+Entry 0794: On day 137, courier Joss carried 79 crates of barley from Dunmere to the north depot.
+Entry 0795: Cleo signed for 56 sacks of tin plates at the south depot after a 3-hour run from Hollin Cross.
+Entry 0796: On day 312, courier Yara carried 27 crates of rope from Brindlemoor to the west depot.
+Entry 0797: A wagon driven by Greta brought 24 barrels of candles into the west depot on day 57.
+Entry 0798: Shipment of leather (64 units) left Harlow Ford with Nico; the north depot logged it on day 34.
+Entry 0799: Shipment of wool bales (57 units) left Ivybridge End with Vera; the west depot logged it on day 246.
+Entry 0800: Shipment of wool bales (34 units) left Kettlemouth with Hugo; the south depot logged it on day 122.
+Entry 0801: Shipment of rope (72 units) left Fallowby with Bram; the west depot logged it on day 89.
+Entry 0802: A wagon driven by Vera brought 6 barrels of salt fish into the east depot on day 77.
+Entry 0803: Orla signed for 12 sacks of barley at the south depot after a 9-hour run from Millbeck.
+Entry 0804: On day 64, courier Orla carried 84 crates of lamp oil from Ivybridge End to the east depot.
+Entry 0805: On day 231, courier Ugo carried 25 crates of candles from Grimsholt to the south depot.
+Entry 0806: Lars signed for 5 sacks of rope at the east depot after a 6-hour run from Ivybridge End.
+Entry 0807: On day 115, courier Pavel carried 13 crates of glass jars from Eastwick Vale to the north depot.
+Entry 0808: Ugo signed for 57 sacks of linen at the north depot after a 7-hour run from Larkspur Hill.
+Entry 0809: On day 231, courier Lars carried 41 crates of lamp oil from Ivybridge End to the south depot.
+Entry 0810: A wagon driven by Zeno brought 40 barrels of timber into the south depot on day 112.
+Entry 0811: On day 338, courier Carys carried 43 crates of leather from Larkspur Hill to the west depot.
+Entry 0812: Edda signed for 53 sacks of nails at the east depot after a 12-hour run from Brindlemoor.
+Entry 0813: Shipment of linen (44 units) left Brindlemoor with Quin; the west depot logged it on day 162.
+Entry 0814: Zeno signed for 50 sacks of cider at the east depot after a 8-hour run from Caskwell.
+Entry 0815: A wagon driven by Zeno brought 16 barrels of barley into the north depot on day 289.
+Entry 0816: Quin signed for 72 sacks of lamp oil at the north depot after a 4-hour run from Brindlemoor.
+Entry 0817: On day 145, courier Ines carried 17 crates of chalk from Fallowby to the north depot.
+Entry 0818: Shipment of dried peas (48 units) left Eastwick Vale with Hugo; the south depot logged it on day 121.
+Entry 0819: A wagon driven by Xenia brought 89 barrels of dried peas into the south depot on day 133.
+Entry 0820: Shipment of candles (44 units) left Fallowby with Pavel; the north depot logged it on day 76.
+Entry 0821: Shipment of glass jars (61 units) left Fallowby with Hugo; the west depot logged it on day 141.
+Entry 0822: Edda signed for 62 sacks of leather at the north depot after a 13-hour run from Grimsholt.
+Entry 0823: Kira signed for 43 sacks of lamp oil at the west depot after a 13-hour run from Fallowby.
+Entry 0824: Ada signed for 34 sacks of glass jars at the south depot after a 5-hour run from Dunmere.
+Entry 0825: A wagon driven by Greta brought 88 barrels of linen into the west depot on day 261.
+Entry 0826: A wagon driven by Pavel brought 51 barrels of tin plates into the west depot on day 290.
+Entry 0827: On day 60, courier Vera carried 74 crates of glass jars from Ivybridge End to the east depot.
+Entry 0828: Shipment of copper fittings (71 units) left Kettlemouth with Yara; the north depot logged it on day 139.
+Entry 0829: On day 302, courier Sven carried 76 crates of glass jars from Dunmere to the north depot.
+Entry 0830: On day 58, courier Xenia carried 16 crates of wire from Kettlemouth to the north depot.
+Entry 0831: On day 346, courier Tilda carried 35 crates of timber from Grimsholt to the north depot.
+Entry 0832: A wagon driven by Yara brought 35 barrels of rope into the east depot on day 286.
+Entry 0833: On day 129, courier Vera carried 43 crates of lamp oil from Ivybridge End to the south depot.
+Entry 0834: Hugo signed for 64 sacks of copper fittings at the west depot after a 12-hour run from Ivybridge End.
+Entry 0835: On day 54, courier Boris carried 32 crates of timber from Millbeck to the north depot.
+Entry 0836: On day 109, courier Ines carried 48 crates of tar from Caskwell to the south depot.
+Entry 0837: On day 350, courier Alma carried 43 crates of salt fish from Ivybridge End to the east depot.
+Entry 0838: A wagon driven by Joss brought 29 barrels of barley into the south depot on day 273.
+Entry 0839: Kira signed for 51 sacks of wire at the north depot after a 11-hour run from Hollin Cross.
+Entry 0840: On day 195, courier Orla carried 3 crates of wool bales from Grimsholt to the south depot.
+Entry 0841: A wagon driven by Ines brought 59 barrels of leather into the north depot on day 266.
+Entry 0842: A wagon driven by Fenn brought 27 barrels of wire into the east depot on day 223.
+Entry 0843: On day 202, courier Orla carried 15 crates of glass jars from Ivybridge End to the north depot.
+Entry 0844: A wagon driven by Bram brought 76 barrels of wire into the east depot on day 98.
+Entry 0845: A wagon driven by Ines brought 39 barrels of dried peas into the west depot on day 324.
+Entry 0846: Alma signed for 63 sacks of leather at the east depot after a 6-hour run from Brindlemoor.
+Entry 0847: Zeno signed for 85 sacks of tin plates at the south depot after a 5-hour run from Eastwick Vale.
+Entry 0848: On day 114, courier Yara carried 49 crates of cider from Ivybridge End to the east depot.
+Entry 0849: A wagon driven by Ines brought 66 barrels of candles into the east depot on day 274.
+Entry 0850: Shipment of chalk (69 units) left Eastwick Vale with Ugo; the south depot logged it on day 148.
+Entry 0851: On day 172, courier Yara carried 38 crates of tar from Grimsholt to the north depot.
+Entry 0852: Shipment of tin plates (57 units) left Dunmere with Ugo; the south depot logged it on day 244.
+Entry 0853: A wagon driven by Ada brought 40 barrels of copper fittings into the east depot on day 98.
+Entry 0854: Vera signed for 37 sacks of lamp oil at the west depot after a 13-hour run from Dunmere.
+Entry 0855: Orla signed for 85 sacks of wool bales at the west depot after a 11-hour run from Larkspur Hill.
+Entry 0856: On day 100, courier Carys carried 87 crates of soap from Dunmere to the east depot.
+Entry 0857: A wagon driven by Tilda brought 89 barrels of flour into the north depot on day 247.
+Entry 0858: A wagon driven by Hugo brought 32 barrels of nails into the north depot on day 215.
+Entry 0859: A wagon driven by Vera brought 9 barrels of soap into the north depot on day 170.
+Entry 0860: A wagon driven by Carys brought 35 barrels of salt fish into the west depot on day 16.
+Entry 0861: A wagon driven by Dario brought 52 barrels of glass jars into the east depot on day 14.
+Entry 0862: Shipment of glass jars (84 units) left Larkspur Hill with Dario; the west depot logged it on day 199.
+Entry 0863: On day 167, courier Carys carried 63 crates of wool bales from Kettlemouth to the south depot.
+Entry 0864: A wagon driven by Ines brought 37 barrels of rope into the east depot on day 230.
+Entry 0865: On day 214, courier Lars carried 61 crates of rope from Eastwick Vale to the north depot.
+Entry 0866: A wagon driven by Wim brought 6 barrels of dried peas into the south depot on day 87.
+Entry 0867: Ugo signed for 77 sacks of flour at the south depot after a 7-hour run from Larkspur Hill.
+Entry 0868: Hugo signed for 80 sacks of linen at the east depot after a 5-hour run from Eastwick Vale.
+Entry 0869: A wagon driven by Ines brought 47 barrels of candles into the east depot on day 234.
+Entry 0870: Kira signed for 60 sacks of leather at the north depot after a 5-hour run from Kettlemouth.
+Entry 0871: A wagon driven by Quin brought 4 barrels of glass jars into the north depot on day 233.
+Entry 0872: A wagon driven by Carys brought 49 barrels of chalk into the north depot on day 350.
+Entry 0873: A wagon driven by Mila brought 66 barrels of timber into the south depot on day 119.
+Entry 0874: Shipment of flour (72 units) left Millbeck with Rosa; the north depot logged it on day 236.
+Entry 0875: On day 282, courier Pavel carried 27 crates of salt fish from Larkspur Hill to the west depot.
+Entry 0876: A wagon driven by Cleo brought 31 barrels of linen into the east depot on day 217.
+Entry 0877: On day 324, courier Lars carried 66 crates of cider from Caskwell to the west depot.
+Entry 0878: Shipment of linen (16 units) left Hollin Cross with Greta; the west depot logged it on day 40.
+Entry 0879: Shipment of soap (28 units) left Fallowby with Xenia; the south depot logged it on day 254.
+Entry 0880: Lars signed for 59 sacks of wire at the west depot after a 4-hour run from Harlow Ford.
+Entry 0881: Shipment of soap (5 units) left Kettlemouth with Rosa; the west depot logged it on day 135.
+Entry 0882: Quin signed for 81 sacks of candles at the west depot after a 6-hour run from Millbeck.
+Entry 0883: Shipment of dried peas (29 units) left Kettlemouth with Cleo; the east depot logged it on day 322.
+Entry 0884: A wagon driven by Dario brought 31 barrels of wire into the west depot on day 346.
+Entry 0885: On day 352, courier Yara carried 41 crates of lamp oil from Brindlemoor to the south depot.
+Entry 0886: Ines signed for 60 sacks of cider at the south depot after a 12-hour run from Dunmere.
+Entry 0887: Shipment of barley (18 units) left Brindlemoor with Ugo; the south depot logged it on day 176.
+Entry 0888: Ines signed for 32 sacks of rope at the south depot after a 5-hour run from Larkspur Hill.
+Entry 0889: Dario signed for 59 sacks of barley at the south depot after a 10-hour run from Dunmere.
+Entry 0890: On day 147, courier Pavel carried 63 crates of tar from Caskwell to the west depot.
+Entry 0891: A wagon driven by Alma brought 83 barrels of wire into the south depot on day 351.
+Entry 0892: A wagon driven by Vera brought 42 barrels of nails into the west depot on day 204.
+Entry 0893: Shipment of salt fish (14 units) left Kettlemouth with Orla; the south depot logged it on day 320.
+Entry 0894: Lars signed for 2 sacks of linen at the east depot after a 7-hour run from Caskwell.
+Entry 0895: Shipment of copper fittings (77 units) left Millbeck with Fenn; the south depot logged it on day 63.
+Entry 0896: A wagon driven by Orla brought 61 barrels of leather into the west depot on day 160.
+Entry 0897: Carys signed for 48 sacks of candles at the east depot after a 11-hour run from Ivybridge End.
+</ledger>
+
+Question: How many ledger entries record a shipment of saffron? Reply with only the number.

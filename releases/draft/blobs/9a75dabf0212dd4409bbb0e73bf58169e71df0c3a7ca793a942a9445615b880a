@@ -1,0 +1,73 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "updateUserRole",
+    "description": "Change the role of one user account, which sets what the user can see and edit in the workspace.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        },
+        "role": {
+          "type": "string",
+          "description": "New role for the account.",
+          "enum": [
+            "viewer",
+            "editor",
+            "admin"
+          ]
+        },
+        "notifyUser": {
+          "type": "boolean",
+          "description": "Email the user about the change.",
+          "default": true
+        }
+      },
+      "required": [
+        "userId",
+        "role"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  }
+]
+
+Request: Make user 62659 an admin.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

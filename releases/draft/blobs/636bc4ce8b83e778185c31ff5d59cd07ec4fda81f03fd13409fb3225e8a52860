@@ -1,0 +1,175 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Flights_2_SearchOnewayFlight",
+    "description": "Search for one-way flights between two airports on a given date and list the options with prices.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "IATA code of the departure airport, e.g. 'JFK' for New York JFK."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "IATA code of the arrival airport, e.g. 'LHR' for London Heathrow."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "Date of departure, formatted as YYYY-MM-DD."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "Number of passenger tickets to price, between 1 and 9.",
+          "default": 1
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "Cabin class to search in.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business",
+            "First"
+          ],
+          "default": "Economy"
+        },
+        "nonstop_only": {
+          "type": "boolean",
+          "description": "Only return flights without a connection.",
+          "default": false
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_GetFlightStatus",
+    "description": "Get the live status of one scheduled flight: gate, departure and arrival times, delays or cancellation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_number": {
+          "type": "string",
+          "description": "Airline flight number, e.g. 'BA117', exactly as printed on the ticket."
+        },
+        "date": {
+          "type": "string",
+          "description": "Scheduled departure date of the flight, formatted as YYYY-MM-DD."
+        }
+      },
+      "required": [
+        "flight_number",
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "Homes_2_FindHomeByArea",
+    "description": "Search for a property to rent or buy in a specified city, filtering by number of bedrooms, number of bathrooms, garage availability, and in-unit laundry facilities.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "description": "The city where the property is located, in the format of 'City, State' (e.g., 'San Francisco, CA'). State names must be abbreviated"
+        },
+        "intent": {
+          "type": "string",
+          "description": "The intent of the search, whether the user is looking to rent or buy.",
+          "enum": [
+            "rent",
+            "buy"
+          ]
+        },
+        "number_of_beds": {
+          "type": "integer",
+          "description": "The number of bedrooms required in the property."
+        },
+        "number_of_baths": {
+          "type": "integer",
+          "description": "The number of bathrooms required in the property."
+        },
+        "has_garage": {
+          "type": "boolean",
+          "description": "Indicates if the property must have a garage.",
+          "default": false
+        },
+        "in_unit_laundry": {
+          "type": "boolean",
+          "description": "Indicates if the property must have in-unit laundry facilities.",
+          "default": false
+        }
+      },
+      "required": [
+        "area",
+        "intent",
+        "number_of_beds",
+        "number_of_baths"
+      ]
+    }
+  },
+  {
+    "name": "getFileInfo",
+    "description": "Get the metadata of one file or directory: size, owner, permissions and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file or directory to inspect."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "game_rewards.get",
+    "description": "Retrieve information about different types of rewards that a player can receive when playing a specific game across various platforms.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "description": "The exact name of the game for which reward information is being retrieved."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The gaming platform for which reward information is being retrieved, such as 'Xbox', 'PlayStation', or 'PC'."
+        },
+        "mission": {
+          "type": "string",
+          "description": "The specific mission within the game for which rewards are being queried. If omitted, rewards for the entire game will be returned.",
+          "default": "All Missions"
+        },
+        "trophy": {
+          "type": "string",
+          "description": "The trophy level, such as 'bronze', 'silver', 'gold', or 'platinum', for which rewards information is sought. If omitted, rewards for all trophy levels will be returned.",
+          "enum": [
+            "bronze",
+            "silver",
+            "gold",
+            "platinum",
+            "all levels"
+          ],
+          "default": "all levels"
+        }
+      },
+      "required": [
+        "game",
+        "platform"
+      ]
+    }
+  }
+]
+
+Request: Find flights from YYZ to GRU on 2026-04-03.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

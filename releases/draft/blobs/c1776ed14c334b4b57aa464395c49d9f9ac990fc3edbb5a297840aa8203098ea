@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"days":9,"hourly":true,"location":"Tbilisi"},"name":"get_weather_forecast","optional":{"units":"celsius"}}]}],"type":"constraint"},"rules":2}

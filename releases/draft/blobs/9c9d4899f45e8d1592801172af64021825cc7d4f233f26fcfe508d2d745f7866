@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"category":"feature_request","customer":"Diego Okonkwo","order_id":null,"product":"Shelfwise","severity":"low","ticket_id":"T-41636"}}],"type":"constraint"},"rules":2}

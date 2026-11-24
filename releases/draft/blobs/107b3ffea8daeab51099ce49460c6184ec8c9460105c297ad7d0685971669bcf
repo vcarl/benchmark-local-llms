@@ -1,0 +1,420 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "convert_currency",
+    "description": "Convert an amount of money from one currency to another at today's mid-market exchange rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount in the source currency, e.g. 250 or 99.95."
+        },
+        "from_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the source currency, e.g. 'USD'."
+        },
+        "to_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the target currency, e.g. 'EUR'."
+        }
+      },
+      "required": [
+        "amount",
+        "from_currency",
+        "to_currency"
+      ]
+    }
+  },
+  {
+    "name": "get_exchange_rate",
+    "description": "Get the exchange rate between two currencies on a date; no amount is converted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the base currency, e.g. 'USD'."
+        },
+        "quote_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the quote currency, e.g. 'EUR'."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the rate, formatted as YYYY-MM-DD; today when left out."
+        }
+      },
+      "required": [
+        "base_currency",
+        "quote_currency"
+      ]
+    }
+  },
+  {
+    "name": "weather.get_weather_data",
+    "description": "Retrieves current weather data including temperature, wind speed, and precipitation levels for a specified city and country.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The name of the city for which weather data is being requested, e.g., 'San Francisco'."
+        },
+        "country": {
+          "type": "string",
+          "description": "The country in which the city is located, using ISO 3166-1 alpha-2 country codes, e.g., 'US' for the United States."
+        },
+        "units": {
+          "type": "string",
+          "description": "The unit system for the temperature (Celsius or Fahrenheit) and wind speed (m/s or mph).",
+          "enum": [
+            "metric",
+            "imperial"
+          ],
+          "default": "metric"
+        },
+        "language": {
+          "type": "string",
+          "description": "The language code for the response data, such as 'en' for English or 'es' for Spanish.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "city",
+        "country"
+      ]
+    }
+  },
+  {
+    "name": "RentalCars_3_ReserveCar",
+    "description": "This function reserves a car for rental, allowing a user to specify pick-up and drop-off times and locations, as well as the type of car and insurance options.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pickup_location": {
+          "type": "string",
+          "description": "The location where the car will be picked up, in the format of 'City, State', such as 'Berkeley, CA' or 'New York, NY'."
+        },
+        "start_date": {
+          "type": "string",
+          "description": "The starting date of the car rental in the format 'YYYY-MM-DD'."
+        },
+        "pickup_time": {
+          "type": "string",
+          "description": "The time of day when the car will be picked up, in 24-hour format 'HH:MM'."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "The end date of the car rental in the format 'YYYY-MM-DD'."
+        },
+        "car_type": {
+          "type": "string",
+          "description": "The category of car to reserve.",
+          "enum": [
+            "Hatchback",
+            "Sedan",
+            "SUV",
+            "dontcare"
+          ]
+        },
+        "add_insurance": {
+          "type": "boolean",
+          "description": "Flag to indicate whether to add insurance to the rental. True for adding insurance, false otherwise."
+        }
+      },
+      "required": [
+        "pickup_location",
+        "start_date",
+        "pickup_time",
+        "end_date",
+        "car_type",
+        "add_insurance"
+      ]
+    }
+  },
+  {
+    "name": "deleteFile",
+    "description": "Delete one file by path; by default it is moved to the trash, where it can still be restored.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file to delete, exactly as listed."
+        },
+        "permanent": {
+          "type": "boolean",
+          "description": "Delete permanently instead of moving the file to the trash.",
+          "default": false
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "Restaurants_2_ReserveRestaurant",
+    "description": "Make a table reservation at a restaurant specifying the restaurant name, location, reservation date and time, and the number of seats.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "restaurant_name": {
+          "type": "string",
+          "description": "The name of the restaurant where the reservation is to be made."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city and state where the restaurant is located, in the format of 'City, State', such as 'Berkeley, CA' or 'New York, NY'."
+        },
+        "date": {
+          "type": "string",
+          "description": "The tentative date for the reservation in ISO format (YYYY-MM-DD), such as '2023-03-01'."
+        },
+        "time": {
+          "type": "string",
+          "description": "The tentative time for the reservation in 24-hour format, such as '18:00' for 6 PM."
+        },
+        "number_of_seats": {
+          "type": "integer",
+          "description": "The number of seats to reserve at the restaurant. Valid options range from 1 to 6.",
+          "default": 2
+        }
+      },
+      "required": [
+        "restaurant_name",
+        "location",
+        "date",
+        "time"
+      ]
+    }
+  },
+  {
+    "name": "Alarm_1_AddAlarm",
+    "description": "Sets a new alarm with specified time and an optional custom name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "new_alarm_time": {
+          "type": "string",
+          "description": "The time to set for the new alarm in 24-hour format (e.g., '14:30' for 2:30 PM)."
+        },
+        "new_alarm_name": {
+          "type": "string",
+          "description": "The custom name to assign to the new alarm.",
+          "default": "New Alarm"
+        }
+      },
+      "required": [
+        "new_alarm_time"
+      ]
+    }
+  },
+  {
+    "name": "log_food",
+    "description": "Logs a food item with details about the portion size and the meal it is associated with.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "food_name": {
+          "type": "string",
+          "description": "The name of the food to log."
+        },
+        "portion_amount": {
+          "type": "number",
+          "description": "The amount of the food item that was consumed, in specified units."
+        },
+        "portion_unit": {
+          "type": "string",
+          "description": "The unit of measure for the portion amount. Choose a unit such as 'grams', 'ounces', 'pieces', 'cups', or 'tablespoons'.",
+          "enum": [
+            "grams",
+            "ounces",
+            "pieces",
+            "cups",
+            "tablespoons"
+          ],
+          "default": "grams"
+        },
+        "meal_name": {
+          "type": "string",
+          "description": "The name of the meal with which the food item is associated. Options include 'breakfast', 'lunch', 'dinner', or 'snack'."
+        }
+      },
+      "required": [
+        "food_name",
+        "portion_amount",
+        "meal_name"
+      ]
+    }
+  },
+  {
+    "name": "Trains_1_FindTrains",
+    "description": "Finds available train options for a specified route on a given date, allowing users to select a preferred travel class.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "_from": {
+          "type": "string",
+          "description": "The city where the train journey will start. Eg: 'Berkeley, CA'. State names must be abbreviated."
+        },
+        "to": {
+          "type": "string",
+          "description": "The destination city for the train journey. Eg: 'Berkeley, CA'. State names must be abbreviated."
+        },
+        "date_of_journey": {
+          "type": "string",
+          "description": "The date of the train journey, in the format of 'YYYY-MM-DD'."
+        },
+        "_class": {
+          "type": "string",
+          "description": "The fare class for the train reservation.",
+          "enum": [
+            "Value",
+            "Flexible",
+            "Business"
+          ],
+          "default": "Value"
+        },
+        "number_of_adults": {
+          "type": "integer",
+          "description": "The number of adults to reserve train tickets for.",
+          "default": 1
+        }
+      },
+      "required": [
+        "_from",
+        "to",
+        "date_of_journey"
+      ]
+    }
+  },
+  {
+    "name": "home.set_lights",
+    "description": "Switch the lights in one room on or off and, when switching on, set their brightness level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room whose lights to control.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "on": {
+          "type": "boolean",
+          "description": "true to switch the lights on, false to switch them off."
+        },
+        "brightness_pct": {
+          "type": "integer",
+          "description": "Brightness from 1 to 100 percent when switching on.",
+          "default": 100
+        },
+        "color": {
+          "type": "object",
+          "description": "Colour for colour-capable bulbs as hue and saturation; warm white when left out.",
+          "properties": {
+            "hue": {
+              "type": "integer",
+              "description": "Hue angle from 0 to 359 degrees."
+            },
+            "saturation": {
+              "type": "integer",
+              "description": "Saturation from 0 to 100 percent."
+            }
+          },
+          "required": [
+            "hue",
+            "saturation"
+          ]
+        }
+      },
+      "required": [
+        "room",
+        "on"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_CancelReservation",
+    "description": "Cancel an existing flight reservation by its confirmation code and refund it per the fare rules.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "confirmation_code": {
+          "type": "string",
+          "description": "Six-character booking confirmation code, e.g. 'K7QX2M'."
+        },
+        "refund_to": {
+          "type": "string",
+          "description": "Where the refund goes: the original card or a travel credit.",
+          "enum": [
+            "original_payment",
+            "travel_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "confirmation_code"
+      ]
+    }
+  },
+  {
+    "name": "Buses_3_BuyBusTicket",
+    "description": "This function processes the purchase of bus tickets from a departure city to a destination city on a specified date and time. It also accounts for the number of passengers and additional luggage options.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_city": {
+          "type": "string",
+          "description": "The city where the journey begins, in the format of 'City, State', such as 'New York, NY'."
+        },
+        "to_city": {
+          "type": "string",
+          "description": "The destination city for the trip, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The departure date in 'YYYY-MM-DD' format, for example, '2023-04-21'."
+        },
+        "departure_time": {
+          "type": "string",
+          "description": "The time of departure in 24-hour format 'HH:MM', such as '14:30' for 2:30 PM."
+        },
+        "num_passengers": {
+          "type": "integer",
+          "description": "The number of passengers for whom the tickets are being purchased. Must be a positive integer."
+        },
+        "additional_luggage": {
+          "type": "boolean",
+          "description": "Indicates whether additional luggage will be carried on the bus.",
+          "default": false
+        }
+      },
+      "required": [
+        "from_city",
+        "to_city",
+        "departure_date",
+        "departure_time",
+        "num_passengers"
+      ]
+    }
+  }
+]
+
+Request: Wie viel sind 2492.17 GBP in EUR?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

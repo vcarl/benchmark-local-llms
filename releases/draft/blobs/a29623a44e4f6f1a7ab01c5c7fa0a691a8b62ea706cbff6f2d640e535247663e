@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 0.2","pattern":"(?<![\\d.])0?\\.20*(?!\\d)"}],"type":"constraint"},"rules":2}

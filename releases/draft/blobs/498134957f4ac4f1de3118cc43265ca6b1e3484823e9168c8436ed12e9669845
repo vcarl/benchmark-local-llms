@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"namespace":"payments","pod":"billing-worker-8613-x27q","previous":true,"tail_lines":50},"name":"kube.get_pod_logs"}]}],"type":"constraint"},"rules":2}

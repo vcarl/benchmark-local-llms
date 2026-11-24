@@ -1,0 +1,688 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "game_rewards.get",
+    "description": "Retrieve information about different types of rewards that a player can receive when playing a specific game across various platforms.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "description": "The exact name of the game for which reward information is being retrieved."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The gaming platform for which reward information is being retrieved, such as 'Xbox', 'PlayStation', or 'PC'."
+        },
+        "mission": {
+          "type": "string",
+          "description": "The specific mission within the game for which rewards are being queried. If omitted, rewards for the entire game will be returned.",
+          "default": "All Missions"
+        },
+        "trophy": {
+          "type": "string",
+          "description": "The trophy level, such as 'bronze', 'silver', 'gold', or 'platinum', for which rewards information is sought. If omitted, rewards for all trophy levels will be returned.",
+          "enum": [
+            "bronze",
+            "silver",
+            "gold",
+            "platinum",
+            "all levels"
+          ],
+          "default": "all levels"
+        }
+      },
+      "required": [
+        "game",
+        "platform"
+      ]
+    }
+  },
+  {
+    "name": "telemetry.flowrules.interfaceInfo.get",
+    "description": "Retrieves specified telemetry information for a network interface within a given fabric, node, and pod, filtered by the interface and information types.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fabricName": {
+          "type": "string",
+          "description": "The name of the fabric to limit the nodes pertaining to the given fabric name."
+        },
+        "nodeId": {
+          "type": "integer",
+          "description": "The identifier of the node to limit the results pertaining to the given node ID."
+        },
+        "podId": {
+          "type": "integer",
+          "description": "The identifier of the pod to limit the results pertaining to the given pod ID."
+        },
+        "interfaceType": {
+          "type": "string",
+          "description": "The type of the interface to limit the results pertaining to the given interface type.",
+          "enum": [
+            "svi",
+            "ethernet",
+            "loopback",
+            "port-channel"
+          ]
+        },
+        "infoType": {
+          "type": "string",
+          "description": "The type of information to retrieve about the interface.",
+          "enum": [
+            "interfaces",
+            "status",
+            "statistics",
+            "errors"
+          ]
+        }
+      },
+      "required": [
+        "fabricName",
+        "nodeId",
+        "podId",
+        "interfaceType",
+        "infoType"
+      ]
+    }
+  },
+  {
+    "name": "moveFile",
+    "description": "Move or rename a single file on the file server; the destination is the file's full new path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "description": "Absolute path of the file to move, exactly as the user gives it."
+        },
+        "destinationPath": {
+          "type": "string",
+          "description": "Absolute new path of the file, including its file name."
+        },
+        "overwrite": {
+          "type": "boolean",
+          "description": "Replace an existing file at the destination instead of failing.",
+          "default": false
+        }
+      },
+      "required": [
+        "sourcePath",
+        "destinationPath"
+      ]
+    }
+  },
+  {
+    "name": "convert_currency",
+    "description": "Convert an amount of money from one currency to another at today's mid-market exchange rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount in the source currency, e.g. 250 or 99.95."
+        },
+        "from_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the source currency, e.g. 'USD'."
+        },
+        "to_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the target currency, e.g. 'EUR'."
+        }
+      },
+      "required": [
+        "amount",
+        "from_currency",
+        "to_currency"
+      ]
+    }
+  },
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "getMeetingTranscriptFunc",
+    "description": "Retrieves the transcript of a meeting including details such as topics, agendas, and discussions. If a duration is not specified, the transcript for the last 10 minutes will be fetched.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "meetingID": {
+          "type": "string",
+          "description": "The unique identifier for the meeting whose transcript is being requested."
+        },
+        "lastDurationInSeconds": {
+          "type": "integer",
+          "description": "The duration for which the transcript is requested, in seconds. If not specified, defaults to the last 600 seconds (10 minutes).",
+          "default": 600
+        }
+      },
+      "required": [
+        "meetingID"
+      ]
+    }
+  },
+  {
+    "name": "Trains_1_FindTrains",
+    "description": "Finds available train options for a specified route on a given date, allowing users to select a preferred travel class.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "_from": {
+          "type": "string",
+          "description": "The city where the train journey will start. Eg: 'Berkeley, CA'. State names must be abbreviated."
+        },
+        "to": {
+          "type": "string",
+          "description": "The destination city for the train journey. Eg: 'Berkeley, CA'. State names must be abbreviated."
+        },
+        "date_of_journey": {
+          "type": "string",
+          "description": "The date of the train journey, in the format of 'YYYY-MM-DD'."
+        },
+        "_class": {
+          "type": "string",
+          "description": "The fare class for the train reservation.",
+          "enum": [
+            "Value",
+            "Flexible",
+            "Business"
+          ],
+          "default": "Value"
+        },
+        "number_of_adults": {
+          "type": "integer",
+          "description": "The number of adults to reserve train tickets for.",
+          "default": 1
+        }
+      },
+      "required": [
+        "_from",
+        "to",
+        "date_of_journey"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_SearchOnewayFlight",
+    "description": "Search for one-way flights between two airports on a given date and list the options with prices.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "IATA code of the departure airport, e.g. 'JFK' for New York JFK."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "IATA code of the arrival airport, e.g. 'LHR' for London Heathrow."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "Date of departure, formatted as YYYY-MM-DD."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "Number of passenger tickets to price, between 1 and 9.",
+          "default": 1
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "Cabin class to search in.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business",
+            "First"
+          ],
+          "default": "Economy"
+        },
+        "nonstop_only": {
+          "type": "boolean",
+          "description": "Only return flights without a connection.",
+          "default": false
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  },
+  {
+    "name": "Events_3_BuyEventTickets",
+    "description": "Purchase tickets for a specific cultural event on a chosen date in a specified city.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_name": {
+          "type": "string",
+          "description": "The official title of the event, such as an artist's name or a play title."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The quantity of tickets to be reserved, must be an integer from 1 to 9."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the event, formatted as 'YYYY-MM-DD'."
+        },
+        "city": {
+          "type": "string",
+          "description": "The name of the city where the event will take place, formatted as 'City, State' (e.g., 'New York, NY')."
+        }
+      },
+      "required": [
+        "event_name",
+        "number_of_tickets",
+        "date",
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "Events_3_FindEvents",
+    "description": "Find cultural events, such as concerts and plays, happening in a specified city on a given date.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "description": "The type of cultural event to find. Events include concerts and plays.",
+          "enum": [
+            "Music",
+            "Theater"
+          ]
+        },
+        "city": {
+          "type": "string",
+          "description": "The city where the event is taking place, in the format 'City, State' or 'City, Country' (e.g., 'New York, NY' or 'London, UK'). State names must be abbreviated with two letters."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the event. Use the format 'YYYY-MM-DD'. If not specified, the current date is used."
+        }
+      },
+      "required": [
+        "event_type",
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_ReserveFlight",
+    "description": "Reserve seats on a specific scheduled flight and return a booking confirmation code.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_number": {
+          "type": "string",
+          "description": "Airline flight number, e.g. 'BA117', exactly as listed in search results."
+        },
+        "date": {
+          "type": "string",
+          "description": "Scheduled departure date of the flight, formatted as YYYY-MM-DD."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "Number of passenger tickets to reserve, between 1 and 9.",
+          "default": 1
+        }
+      },
+      "required": [
+        "flight_number",
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "youtube.check_videos",
+    "description": "Verify the existence of YouTube videos based on their title, publisher, and associated tags.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The exact title of the YouTube video to check."
+        },
+        "publisher": {
+          "type": "string",
+          "description": "The name of the channel or individual who published the video."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "An array of strings representing the hashtags associated with the video."
+        }
+      },
+      "required": [
+        "title",
+        "publisher",
+        "tags"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  },
+  {
+    "name": "compressFiles",
+    "description": "Pack a set of files into a single zip archive on the file server and return the archive's path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "description": "Absolute paths of the files to pack, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Absolute file path"
+          }
+        },
+        "archivePath": {
+          "type": "string",
+          "description": "Absolute path of the zip archive to create, ending in '.zip'."
+        }
+      },
+      "required": [
+        "paths",
+        "archivePath"
+      ]
+    }
+  },
+  {
+    "name": "search_messages",
+    "description": "Searches for messages that match the given query parameters and returns a paginated response.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Authentication token to validate user access."
+        },
+        "query": {
+          "type": "string",
+          "description": "The search query string to find specific messages."
+        },
+        "count": {
+          "type": "integer",
+          "description": "The number of messages to return per page. Default is 25, maximum is 100.",
+          "default": 25
+        },
+        "highlight": {
+          "type": "boolean",
+          "description": "Specifies whether to highlight the matching query terms in the response. Default is false.",
+          "default": false
+        },
+        "page": {
+          "type": "integer",
+          "description": "The page number of the search results to return. Starts from 1.",
+          "default": 1
+        },
+        "sort": {
+          "type": "string",
+          "description": "The field by which to sort the search results.",
+          "enum": [
+            "date",
+            "relevance"
+          ],
+          "default": "relevance"
+        },
+        "sort_dir": {
+          "type": "string",
+          "description": "The direction of sorting, either ascending or descending.",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "required": [
+        "token",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "Services_1_FindProvider",
+    "description": "Search for a hair stylist in a specified city, with options to filter for unisex salons.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The city where the stylist or salon is sought, such as 'New York, NY'. State names must be abbreviated with two letters."
+        },
+        "is_unisex": {
+          "type": "boolean",
+          "description": "Indicates whether the salon caters to all genders. True for yes, False for no.",
+          "default": false
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "get_current_weather",
+    "description": "Retrieves the current weather conditions for a specified location, such as 'City, State' or 'City, Country'.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The location for which the weather is being requested, in the format of 'City, State' or 'City, Country', such as 'Berkeley, CA' or 'London, UK'."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The unit system used for weather condition values (e.g., temperature, wind speed).",
+          "enum": [
+            "metric",
+            "imperial"
+          ],
+          "default": "metric"
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  }
+]
+
+Request: Please cancel order ORD-528361. Reason: arrives too late. Refund it as store credit.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

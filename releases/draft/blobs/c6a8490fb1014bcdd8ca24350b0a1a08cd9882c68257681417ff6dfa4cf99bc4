@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"says Stream.fromIterable","pattern":"(?i)Stream\\.(fromIterable|from)"}],"type":"constraint"},"rules":2}

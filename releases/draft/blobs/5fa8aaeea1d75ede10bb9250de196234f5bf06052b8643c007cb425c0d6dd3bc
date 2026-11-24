@@ -1,0 +1,8 @@
+Write a short piece about a weekend market by a harbour. Follow every rule below.
+
+1. Respond with only a JSON object with exactly these keys: "mood", "summary", "details". Every value must be a string.
+2. Do not use the word "market" anywhere.
+3. Include the word "scraps" at least once.
+4. Write the entire response in lowercase letters; no capital letters at all.
+
+Output only the piece itself.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"contains_exact","name":"says Queue.bounded","value":"Queue.bounded"}],"type":"constraint"},"rules":2}

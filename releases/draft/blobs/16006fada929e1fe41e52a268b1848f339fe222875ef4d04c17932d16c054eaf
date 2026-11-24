@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches Sten","pattern":"\\b[Ss][Tt][Ee][Nn]\\b"}],"type":"constraint"},"rules":2}

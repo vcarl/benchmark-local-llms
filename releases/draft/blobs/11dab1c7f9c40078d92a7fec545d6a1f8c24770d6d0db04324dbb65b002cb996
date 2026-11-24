@@ -1,0 +1,165 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "fmp.income_statement",
+    "description": "Fetches income statement data for a given stock symbol or Central Index Key (CIK), for a specified period. The user may also specify the data format and the maximum number of records to return.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "The stock symbol or company identifier, such as 'AAPL' for Apple Inc."
+        },
+        "period": {
+          "type": "string",
+          "description": "The reporting period for which the income statement is to be fetched, such as 'annual' or 'quarter'.",
+          "enum": [
+            "annual",
+            "quarter"
+          ]
+        },
+        "cik": {
+          "type": "string",
+          "description": "The Central Index Key (CIK) of the company, which is a unique identifier assigned by the SEC."
+        },
+        "datatype": {
+          "type": "string",
+          "description": "The format in which the data will be returned, with options 'json' and 'csv'.",
+          "enum": [
+            "json",
+            "csv"
+          ],
+          "default": "json"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "The maximum number of records to return. Defaults to 10 if not specified.",
+          "default": 10
+        }
+      },
+      "required": [
+        "symbol",
+        "period"
+      ]
+    }
+  },
+  {
+    "name": "determine_body_mass_index",
+    "description": "Calculates the Body Mass Index (BMI) using the individual's weight and height.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "weight": {
+          "type": "number",
+          "description": "Weight of the individual in kilograms."
+        },
+        "height": {
+          "type": "number",
+          "description": "Height of the individual in meters."
+        }
+      },
+      "required": [
+        "weight",
+        "height"
+      ]
+    }
+  },
+  {
+    "name": "game_rewards.get",
+    "description": "Retrieve information about different types of rewards that a player can receive when playing a specific game across various platforms.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "description": "The exact name of the game for which reward information is being retrieved."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The gaming platform for which reward information is being retrieved, such as 'Xbox', 'PlayStation', or 'PC'."
+        },
+        "mission": {
+          "type": "string",
+          "description": "The specific mission within the game for which rewards are being queried. If omitted, rewards for the entire game will be returned.",
+          "default": "All Missions"
+        },
+        "trophy": {
+          "type": "string",
+          "description": "The trophy level, such as 'bronze', 'silver', 'gold', or 'platinum', for which rewards information is sought. If omitted, rewards for all trophy levels will be returned.",
+          "enum": [
+            "bronze",
+            "silver",
+            "gold",
+            "platinum",
+            "all levels"
+          ],
+          "default": "all levels"
+        }
+      },
+      "required": [
+        "game",
+        "platform"
+      ]
+    }
+  },
+  {
+    "name": "getUserByEmail",
+    "description": "Fetch one user account of the admin console by the email address it is registered under.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Email address of the account, exactly as given."
+        }
+      },
+      "required": [
+        "email"
+      ]
+    }
+  },
+  {
+    "name": "searchFiles",
+    "description": "Find files below a directory whose names match a glob pattern, with their sizes and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Absolute path of the directory to search from, e.g. '/srv/reports'."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Glob pattern the file name must match, e.g. '*.csv' or 'invoice-*'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Search subdirectories as well as the directory itself.",
+          "default": true
+        },
+        "maxResults": {
+          "type": "integer",
+          "description": "Maximum number of matching files to return.",
+          "default": 50
+        },
+        "excludePatterns": {
+          "type": "array",
+          "description": "Glob patterns of file names to leave out, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Glob pattern"
+          }
+        }
+      },
+      "required": [
+        "directory",
+        "pattern"
+      ]
+    }
+  }
+]
+
+Request: Find me flights from YYZ to NBO on 2026-01-22.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

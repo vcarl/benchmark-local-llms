@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"includeHidden":true,"path":"/home/dev/projects","recursive":true,"sortBy":"modified"},"name":"listFiles","optional":{"limit":100}}]}],"type":"constraint"},"rules":2}

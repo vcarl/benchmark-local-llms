@@ -1,0 +1,19 @@
+Extract the sender's contact card from the message below into JSON with exactly these keys:
+
+- "name": string, the sender's full name
+- "title": string, the sender's job title
+- "company": string
+- "email": string, the sender's email address in lowercase
+- "phone": string, the sender's direct line in E.164 form: "+" followed by country code and number, digits only (e.g. "+15551234567")
+- "city": string, the city the sender works in
+
+Strings are copied exactly as written unless a format is given; numbers are JSON numbers, not strings. Reply with only the JSON object.
+
+---
+Great meeting you at the HealthTech forum in Denver last week! As promised, here are my details.
+
+I'm the Senior Data Engineer at Quarry Lane Studios, working out of our Melbourne office. Email is best: Jonas.Zhou@Quarrylane.co. My direct line is +1 (509) 555-1709; the main switchboard (+1 (800) 555-6337) can also find me. For scheduling, my assistant Hana Nair (hana@quarrylane.co, +1 (267) 555-7929) keeps my calendar.
+
+Cheers,
+Jonas Zhou
+---

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"items":[{"quantity":3,"sku":"009302"}],"recipient":{"country":"DE","name":"Ruth Abebe","postal_code":"06245","street":"220 Harbour Road"},"signature_required":true,"weight_kg":1.9},"name":"create_shipment","optional":{"service":"ground"}}]}],"type":"constraint"},"rules":2}

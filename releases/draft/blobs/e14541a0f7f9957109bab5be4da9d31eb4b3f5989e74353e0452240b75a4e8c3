@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"date":"2026-11-01","flight_number":"LH850","number_of_tickets":4},"name":"Flights_2_ReserveFlight"}]}],"type":"constraint"},"rules":2}

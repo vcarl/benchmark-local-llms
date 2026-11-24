@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"starts with heading","pattern":"^\\s*# \\S"},{"check":"regex","name":"avoids felt","pattern":"(?i)^(?![\\s\\S]*\\bfelt\\b)"},{"check":"regex","name":"ends with phrase","pattern":"More soon\\.\\s*$"},{"char":",","check":"not_contains_char","name":"no commas"}],"type":"constraint"},"rules":2}

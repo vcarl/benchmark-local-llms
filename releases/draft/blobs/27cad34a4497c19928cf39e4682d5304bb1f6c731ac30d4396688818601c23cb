@@ -1,0 +1,124 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "get_weather_forecast",
+    "description": "Get the daily weather forecast for a city, starting tomorrow, for up to ten days ahead.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "days": {
+          "type": "integer",
+          "description": "Number of days to forecast, from 1 to 10, starting with tomorrow."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "hourly": {
+          "type": "boolean",
+          "description": "Break each forecast day into hourly values instead of a daily summary.",
+          "default": false
+        },
+        "fields": {
+          "type": "array",
+          "description": "Forecast fields to return, in any order; all fields when left out.",
+          "items": {
+            "type": "string",
+            "description": "One forecast field.",
+            "enum": [
+              "temperature",
+              "precipitation",
+              "wind",
+              "humidity",
+              "uv_index"
+            ]
+          }
+        }
+      },
+      "required": [
+        "location",
+        "days"
+      ]
+    }
+  },
+  {
+    "name": "adjust_inventory",
+    "description": "Record a relative change in stock for one SKU, with the reason, for the warehouse audit trail.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Stock-keeping unit, exactly as written, including leading zeros."
+        },
+        "delta": {
+          "type": "integer",
+          "description": "Change in units: positive adds stock, negative removes it."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the stock changed.",
+          "enum": [
+            "sale",
+            "return",
+            "damage",
+            "restock"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "description": "Free-form labels for the audit trail, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Label"
+          }
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse code the change applies to.",
+          "default": "MAIN"
+        }
+      },
+      "required": [
+        "sku",
+        "delta",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_GetFlightStatus",
+    "description": "Get the live status of one scheduled flight: gate, departure and arrival times, delays or cancellation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_number": {
+          "type": "string",
+          "description": "Airline flight number, e.g. 'BA117', exactly as printed on the ticket."
+        },
+        "date": {
+          "type": "string",
+          "description": "Scheduled departure date of the flight, formatted as YYYY-MM-DD."
+        }
+      },
+      "required": [
+        "flight_number",
+        "date"
+      ]
+    }
+  }
+]
+
+Request: Record a stock change of +17 units on SKU 001849, reason: restock.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

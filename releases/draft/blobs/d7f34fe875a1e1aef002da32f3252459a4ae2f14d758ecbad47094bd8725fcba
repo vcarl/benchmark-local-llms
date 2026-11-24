@@ -1,0 +1,216 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "list_directory_contents",
+    "description": "List all the files and directories within the specified directory path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "dir_path": {
+          "type": "string",
+          "description": "The file system path to the directory whose contents are to be listed. The path should be absolute or relative to the current working directory."
+        },
+        "include_hidden": {
+          "type": "boolean",
+          "description": "A flag to determine whether hidden files and directories should be included in the list.",
+          "default": false
+        },
+        "sort_order": {
+          "type": "string",
+          "description": "The order in which the directory contents are listed. Ascending or descending by name.",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "required": [
+        "dir_path"
+      ]
+    }
+  },
+  {
+    "name": "get_shipping_quote",
+    "description": "Price a parcel shipment to a destination without creating it or booking a carrier pickup.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "postal_code": {
+          "type": "string",
+          "description": "Destination postal code, exactly as written, as a string."
+        },
+        "country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code of the destination."
+        },
+        "weight_kg": {
+          "type": "number",
+          "description": "Total parcel weight in kilograms, including the packaging."
+        },
+        "dimensions_cm": {
+          "type": "object",
+          "description": "Outer size of the parcel in centimetres; priced as a standard box when left out.",
+          "properties": {
+            "length": {
+              "type": "number",
+              "description": "Length in cm."
+            },
+            "width": {
+              "type": "number",
+              "description": "Width in cm."
+            },
+            "height": {
+              "type": "number",
+              "description": "Height in cm."
+            }
+          },
+          "required": [
+            "length",
+            "width",
+            "height"
+          ]
+        }
+      },
+      "required": [
+        "postal_code",
+        "country",
+        "weight_kg"
+      ]
+    }
+  },
+  {
+    "name": "searchUsers",
+    "description": "Search user accounts by name or part of a name and return their ids, emails and roles.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Name or part of a name to search for, case-insensitive."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of accounts to return.",
+          "default": 10
+        },
+        "includeInactive": {
+          "type": "boolean",
+          "description": "Also return deactivated accounts.",
+          "default": false
+        },
+        "roles": {
+          "type": "array",
+          "description": "Only return accounts holding one of these roles, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Role.",
+            "enum": [
+              "viewer",
+              "editor",
+              "admin"
+            ]
+          }
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "adjust_inventory",
+    "description": "Record a relative change in stock for one SKU, with the reason, for the warehouse audit trail.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Stock-keeping unit, exactly as written, including leading zeros."
+        },
+        "delta": {
+          "type": "integer",
+          "description": "Change in units: positive adds stock, negative removes it."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the stock changed.",
+          "enum": [
+            "sale",
+            "return",
+            "damage",
+            "restock"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "description": "Free-form labels for the audit trail, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Label"
+          }
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse code the change applies to.",
+          "default": "MAIN"
+        }
+      },
+      "required": [
+        "sku",
+        "delta",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "Movies_1_BuyMovieTickets",
+    "description": "Purchase tickets for a specific movie showing, including the number of tickets, show date and time, and location.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "movie_name": {
+          "type": "string",
+          "description": "The title of the movie for which tickets are being purchased."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The total number of tickets to be bought."
+        },
+        "show_date": {
+          "type": "string",
+          "description": "The date on which the movie is showing, in the format 'YYYY-MM-DD'."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city in which the movie theater is located, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "show_time": {
+          "type": "string",
+          "description": "The start time of the movie showing, in 24-hour format 'HH:MM'.",
+          "default": "20:00"
+        },
+        "show_type": {
+          "type": "string",
+          "description": "The format of the movie showing.",
+          "enum": [
+            "regular",
+            "3d",
+            "imax"
+          ],
+          "default": "regular"
+        }
+      },
+      "required": [
+        "movie_name",
+        "number_of_tickets",
+        "location"
+      ]
+    }
+  }
+]
+
+Request: What will the weather be like in Denver over the next 7 days?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

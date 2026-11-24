@@ -1,0 +1,167 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "searchUsers",
+    "description": "Search user accounts by name or part of a name and return their ids, emails and roles.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Name or part of a name to search for, case-insensitive."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of accounts to return.",
+          "default": 10
+        },
+        "includeInactive": {
+          "type": "boolean",
+          "description": "Also return deactivated accounts.",
+          "default": false
+        },
+        "roles": {
+          "type": "array",
+          "description": "Only return accounts holding one of these roles, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Role.",
+            "enum": [
+              "viewer",
+              "editor",
+              "admin"
+            ]
+          }
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "listFiles",
+    "description": "List the entries of a directory on the file server with their sizes and modification times.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the directory to list, e.g. '/var/log'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Descend into subdirectories and list their entries too.",
+          "default": false
+        },
+        "includeHidden": {
+          "type": "boolean",
+          "description": "Include dotfiles and other hidden entries in the listing.",
+          "default": false
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Field the listing is sorted by.",
+          "enum": [
+            "name",
+            "size",
+            "modified"
+          ],
+          "default": "name"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of entries to return in one response.",
+          "default": 100
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "send_email",
+    "description": "Send an email to the specified recipient with a given subject and optional message body.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to_address": {
+          "type": "string",
+          "description": "The email address of the recipient. Format should be a valid email address, such as 'example@domain.com'."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject line of the email."
+        },
+        "body": {
+          "type": "string",
+          "description": "The main content of the email. Plain text or HTML content is expected.",
+          "default": ""
+        },
+        "cc_address": {
+          "type": "string",
+          "description": "The email address to be included in the CC field. Format should be a valid email address, such as 'example@domain.com'.",
+          "default": ""
+        },
+        "bcc_address": {
+          "type": "string",
+          "description": "The email address to be included in the BCC field. Format should be a valid email address, such as 'example@domain.com'.",
+          "default": ""
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of file paths or URLs for files to be attached to the email."
+        }
+      },
+      "required": [
+        "to_address",
+        "subject"
+      ]
+    }
+  }
+]
+
+Request: Set the bedroom thermostat (zone bedroom) to 18.3 degrees in cool mode and hold it until 17:00.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

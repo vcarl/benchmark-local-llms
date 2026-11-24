@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"/api/cart":{"200":3,"201":2,"304":1},"/api/search":{"200":1,"304":2,"404":1,"500":1,"503":1},"/health":{"201":1,"204":1,"304":1,"404":1}}}],"type":"constraint"},"rules":2}

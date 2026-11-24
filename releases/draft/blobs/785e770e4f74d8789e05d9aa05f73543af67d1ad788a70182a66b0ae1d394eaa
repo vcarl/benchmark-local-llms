@@ -1,0 +1,3 @@
+An informant, Sable, is either Honest or Dishonest. Before any dealings you judge the prior probability that Sable is Honest to be 0.4. Each report Sable files is independently rated "corroborated" (a good signal) or "contradicted" (a bad signal). An Honest informant's report is corroborated with probability 0.8; a Dishonest informant's report is corroborated with probability 0.30000000000000004 (so contradicted with probability 0.7). Reports are conditionally independent given Sable's type. So far Sable has filed 4 corroborated and 2 contradicted reports.
+
+After that one extra contradicted report, has the probability that Sable is Honest fallen below one-half? Answer yes or no.

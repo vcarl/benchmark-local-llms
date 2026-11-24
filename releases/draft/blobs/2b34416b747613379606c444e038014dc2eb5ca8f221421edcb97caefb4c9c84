@@ -1,0 +1,53 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "adjust_inventory",
+    "description": "Record a relative change in stock for one SKU, with the reason, for the warehouse audit trail.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Stock-keeping unit, exactly as written, including leading zeros."
+        },
+        "delta": {
+          "type": "integer",
+          "description": "Change in units: positive adds stock, negative removes it."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the stock changed.",
+          "enum": [
+            "sale",
+            "return",
+            "damage",
+            "restock"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "description": "Free-form labels for the audit trail, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Label"
+          }
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse code the change applies to.",
+          "default": "MAIN"
+        }
+      },
+      "required": [
+        "sku",
+        "delta",
+        "reason"
+      ]
+    }
+  }
+]
+
+Request: Record a stock change of +2 units on SKU 006941, reason: restock, in warehouse RTM-1.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

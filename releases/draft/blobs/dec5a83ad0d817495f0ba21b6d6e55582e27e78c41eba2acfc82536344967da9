@@ -1,0 +1,180 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Restaurants_2_FindRestaurants",
+    "description": "Searches for restaurants based on specified location, category, and other optional preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "The type of cuisine or food category offered by the restaurant.",
+          "enum": [
+            "Mexican",
+            "Bistro",
+            "Izakaya",
+            "Brunch",
+            "Thai",
+            "Sandwich",
+            "Seafood",
+            "Barbecue",
+            "European",
+            "Steakhouse",
+            "Vietnamese",
+            "Asian",
+            "Coffeehouse",
+            "American",
+            "Gastropub",
+            "Austrian",
+            "Italian",
+            "Indian",
+            "Spanish",
+            "Vegetarian",
+            "Brasserie",
+            "Chinese",
+            "Breakfast",
+            "Greek",
+            "California",
+            "Tapas",
+            "Take-out",
+            "Japanese"
+          ]
+        },
+        "location": {
+          "type": "string",
+          "description": "The city where the restaurant is located, in the format 'City, State' (e.g., 'New York, NY'). State has to be abbrieviated"
+        },
+        "price_range": {
+          "type": "string",
+          "description": "The desired price range for the restaurant's offerings.",
+          "enum": [
+            "cheap",
+            "moderate",
+            "pricey",
+            "ultra high-end"
+          ],
+          "default": "moderate"
+        },
+        "has_vegetarian_options": {
+          "type": "boolean",
+          "description": "Specifies if the restaurant should offer vegetarian options.",
+          "default": false
+        },
+        "has_seating_outdoors": {
+          "type": "boolean",
+          "description": "Indicates whether the restaurant should have outdoor seating.",
+          "default": false
+        }
+      },
+      "required": [
+        "category",
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "Movies_1_BuyMovieTickets",
+    "description": "Purchase tickets for a specific movie showing, including the number of tickets, show date and time, and location.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "movie_name": {
+          "type": "string",
+          "description": "The title of the movie for which tickets are being purchased."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The total number of tickets to be bought."
+        },
+        "show_date": {
+          "type": "string",
+          "description": "The date on which the movie is showing, in the format 'YYYY-MM-DD'."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city in which the movie theater is located, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "show_time": {
+          "type": "string",
+          "description": "The start time of the movie showing, in 24-hour format 'HH:MM'.",
+          "default": "20:00"
+        },
+        "show_type": {
+          "type": "string",
+          "description": "The format of the movie showing.",
+          "enum": [
+            "regular",
+            "3d",
+            "imax"
+          ],
+          "default": "regular"
+        }
+      },
+      "required": [
+        "movie_name",
+        "number_of_tickets",
+        "location"
+      ]
+    }
+  }
+]
+
+Request: Log my rowing session: 33.3 km in 86 minutes. Heart rate averaged 116 bpm and peaked at 142 bpm.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

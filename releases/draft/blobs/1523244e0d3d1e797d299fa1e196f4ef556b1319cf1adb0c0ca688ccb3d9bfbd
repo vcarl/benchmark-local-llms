@@ -1,0 +1,144 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "calendar.create_event",
+    "description": "Create a new event on the user's primary calendar and send invitations to any attendees listed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Short title shown on the calendar, e.g. 'Design review'."
+        },
+        "start": {
+          "type": "string",
+          "description": "Local start date and time of the event, formatted as YYYY-MM-DDTHH:MM."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Length of the event in minutes; the calendar default is half an hour.",
+          "default": 30
+        },
+        "attendees": {
+          "type": "array",
+          "description": "Email addresses of the people to invite, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "location": {
+          "type": "string",
+          "description": "Room name or address where the event takes place, as free text."
+        },
+        "reminder_minutes": {
+          "type": "integer",
+          "description": "Minutes before the start at which to send a reminder notification.",
+          "default": 10
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Who can see the event details on shared calendars.",
+          "enum": [
+            "default",
+            "public",
+            "private"
+          ],
+          "default": "default"
+        },
+        "recurrence": {
+          "type": "object",
+          "description": "Repeat rule for a recurring event; a one-off event when left out.",
+          "properties": {
+            "frequency": {
+              "type": "string",
+              "description": "How often the event repeats.",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "description": "Total number of occurrences, the first one included."
+            }
+          },
+          "required": [
+            "frequency",
+            "count"
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "start"
+      ]
+    }
+  },
+  {
+    "name": "Flights_4_SearchOnewayFlight",
+    "description": "Search for one-way flights from an origin to a destination on a specified date, with options for seating class, ticket quantity, and preferred airline.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "The IATA code or the name of the airport or city to depart from. For example, 'LAX' for Los Angeles International Airport."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "The IATA code or the name of the airport or city to arrive at. For example, 'JFK' for John F. Kennedy International Airport."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The start date of the trip in the format 'YYYY-MM-DD'."
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "The cabin seat option for the flight.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business"
+          ],
+          "default": "Economy"
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The number of flight tickets for the trip.",
+          "default": 1
+        },
+        "airlines": {
+          "type": "string",
+          "description": "The preferred airline company for the flight. Use 'dontcare' if there is no preference.",
+          "enum": [
+            "United Airlines",
+            "American Airlines",
+            "Delta Airlines",
+            "Southwest Airlines",
+            "Alaska Airlines",
+            "British Airways",
+            "Air Canada",
+            "Air France",
+            "South African Airways",
+            "LOT Polish Airlines",
+            "LATAM Brasil",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  }
+]
+
+Request: Put "1:1 with Priya" on my calendar at 2026-02-05T15:15, lasting 45 minutes, and invite ana.ruiz@example.com, priya.n@example.org and j.okafor@example.org. Keep it private.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

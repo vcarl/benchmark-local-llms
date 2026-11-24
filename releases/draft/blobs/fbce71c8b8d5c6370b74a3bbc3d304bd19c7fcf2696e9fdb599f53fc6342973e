@@ -1,0 +1,1 @@
+{"config":{"expected":"ZZ-2104","extract":"\\b([A-Z]{2}-\\d{4})\\b","type":"exact_match"},"rules":2}

@@ -1,0 +1,22 @@
+Triage the support ticket below into JSON with exactly these keys:
+
+- "ticket_id": string, this ticket's id, e.g. "T-12345"
+- "customer": string, the customer's full name
+- "product": string, the product the ticket is about
+- "category": one of "billing", "bug", "account", "feature_request"
+- "severity": one of "critical" (the product is completely unavailable, or data was lost), "high" (something is broken and the customer has no workaround), "medium" (something is broken but there is a workaround), "low" (anything else: questions, requests, plan or account changes)
+- "order_id": string, the order id mentioned (e.g. "ORD-123456"), or null if none is mentioned
+
+Strings are copied exactly as written unless a format is given; numbers are JSON numbers, not strings. Reply with only the JSON object.
+
+---
+Ticket T-53925
+From: diego.sato@example.com
+
+Hello support,
+
+After last night's sync, every note we added in TrackPilot this week is gone. The records were there yesterday and now they're simply missing. (This is unrelated to ticket T-53393, which you already closed. We also use Shelfwise, and that's working fine.)
+
+Thanks,
+Diego Sato
+---

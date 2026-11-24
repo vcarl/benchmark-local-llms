@@ -1,0 +1,194 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "Buses_3_BuyBusTicket",
+    "description": "This function processes the purchase of bus tickets from a departure city to a destination city on a specified date and time. It also accounts for the number of passengers and additional luggage options.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_city": {
+          "type": "string",
+          "description": "The city where the journey begins, in the format of 'City, State', such as 'New York, NY'."
+        },
+        "to_city": {
+          "type": "string",
+          "description": "The destination city for the trip, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The departure date in 'YYYY-MM-DD' format, for example, '2023-04-21'."
+        },
+        "departure_time": {
+          "type": "string",
+          "description": "The time of departure in 24-hour format 'HH:MM', such as '14:30' for 2:30 PM."
+        },
+        "num_passengers": {
+          "type": "integer",
+          "description": "The number of passengers for whom the tickets are being purchased. Must be a positive integer."
+        },
+        "additional_luggage": {
+          "type": "boolean",
+          "description": "Indicates whether additional luggage will be carried on the bus.",
+          "default": false
+        }
+      },
+      "required": [
+        "from_city",
+        "to_city",
+        "departure_date",
+        "departure_time",
+        "num_passengers"
+      ]
+    }
+  },
+  {
+    "name": "user_authentication.login",
+    "description": "Authenticate a user by their credentials and return an access token.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user attempting to log in."
+        },
+        "password": {
+          "type": "string",
+          "description": "The password associated with the username."
+        },
+        "remember_me": {
+          "type": "boolean",
+          "description": "Whether to keep the user logged in for longer periods; defaults to false.",
+          "default": false
+        },
+        "login_type": {
+          "type": "string",
+          "description": "The type of login being performed.",
+          "enum": [
+            "standard",
+            "guest",
+            "admin"
+          ],
+          "default": "standard"
+        },
+        "redirect_url": {
+          "type": "string",
+          "description": "URL to redirect the user after successful login; defaults to the home page.",
+          "default": "https://www.example.com/home"
+        }
+      },
+      "required": [
+        "username",
+        "password"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  }
+]
+
+Request: What's happening with my order ORD-491967?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

@@ -1,0 +1,8 @@
+Write a short piece about learning to swim as an adult. Follow every rule below.
+
+1. Begin with a markdown heading line of the form "# Title".
+2. Do not use the word "felt" anywhere.
+3. End the response with the exact phrase "More soon." and nothing after it.
+4. Do not use any commas.
+
+Output only the piece itself.

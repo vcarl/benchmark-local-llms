@@ -1,0 +1,115 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "getFileInfo",
+    "description": "Get the metadata of one file or directory: size, owner, permissions and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file or directory to inspect."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "deleteFile",
+    "description": "Delete one file by path; by default it is moved to the trash, where it can still be restored.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file to delete, exactly as listed."
+        },
+        "permanent": {
+          "type": "boolean",
+          "description": "Delete permanently instead of moving the file to the trash.",
+          "default": false
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "searchFiles",
+    "description": "Find files below a directory whose names match a glob pattern, with their sizes and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Absolute path of the directory to search from, e.g. '/srv/reports'."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Glob pattern the file name must match, e.g. '*.csv' or 'invoice-*'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Search subdirectories as well as the directory itself.",
+          "default": true
+        },
+        "maxResults": {
+          "type": "integer",
+          "description": "Maximum number of matching files to return.",
+          "default": 50
+        },
+        "excludePatterns": {
+          "type": "array",
+          "description": "Glob patterns of file names to leave out, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Glob pattern"
+          }
+        }
+      },
+      "required": [
+        "directory",
+        "pattern"
+      ]
+    }
+  },
+  {
+    "name": "updateUserRole",
+    "description": "Change the role of one user account, which sets what the user can see and edit in the workspace.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        },
+        "role": {
+          "type": "string",
+          "description": "New role for the account.",
+          "enum": [
+            "viewer",
+            "editor",
+            "admin"
+          ]
+        },
+        "notifyUser": {
+          "type": "boolean",
+          "description": "Email the user about the change.",
+          "default": true
+        }
+      },
+      "required": [
+        "userId",
+        "role"
+      ]
+    }
+  }
+]
+
+Request: Find the files matching report-* under /mnt/shared/finance.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

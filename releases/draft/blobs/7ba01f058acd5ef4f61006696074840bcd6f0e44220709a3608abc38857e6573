@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"activity":"running","distance_km":45.7,"duration_minutes":21,"heart_rate":{"avg":144,"max":166},"indoor":true},"name":"Fitness_1_LogWorkout"}]}],"type":"constraint"},"rules":2}

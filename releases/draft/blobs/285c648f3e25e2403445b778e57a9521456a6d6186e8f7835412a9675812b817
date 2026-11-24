@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"hold_until":"16:30","target_temp_c":20.9,"zone":"kitchen"},"name":"home.set_thermostat","optional":{"mode":"auto"}}]}],"type":"constraint"},"rules":2}

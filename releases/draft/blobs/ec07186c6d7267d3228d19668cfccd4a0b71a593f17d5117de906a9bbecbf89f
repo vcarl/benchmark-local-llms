@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"duration_minutes":45,"start":"2026-08-12T09:30","title":"Hiring debrief"},"name":"calendar.create_event","optional":{"reminder_minutes":10,"visibility":"default"}}]}],"type":"constraint"},"rules":2}

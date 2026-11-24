@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches B","pattern":"\\b[Bb]\\b"}],"type":"constraint"},"rules":2}

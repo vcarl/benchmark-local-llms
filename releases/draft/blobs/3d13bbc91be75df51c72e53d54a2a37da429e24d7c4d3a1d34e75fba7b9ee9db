@@ -1,0 +1,1 @@
+{"config":{"expected":"2027-10-06","extract":"(?i)ANSWER:\\*{0,2}\\s*\\*{0,2}(\\d{4}-\\d{2}-\\d{2})","fallbackExtract":"(\\d{4}-\\d{2}-\\d{2})","type":"exact_match"},"rules":2}

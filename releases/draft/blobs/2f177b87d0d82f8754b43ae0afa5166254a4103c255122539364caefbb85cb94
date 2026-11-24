@@ -1,0 +1,24 @@
+Extract the invoice in the email below into JSON with exactly these keys:
+
+- "invoice_number": string, the current invoice's number, e.g. "INV-1234"
+- "vendor": string, the sending company's name
+- "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+- "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+- "line_items": array of {"description": string, "quantity": integer, "unit_price": number}, in the order listed
+- "total": number, the total due
+
+Strings are copied exactly as written unless a format is given; numbers are JSON numbers, not strings. Reply with only the JSON object.
+
+---
+Hi Dana,
+
+Attached is invoice INV-5711 for your purchase order PO-44282. It replaces the draft we sent earlier as INV-5704, which you can discard. The invoice was issued on February 9, 2023; everything shipped on December 7, 2023.
+
+This covers: 12 × desk lamp at £25.45 each; 7 units of roll of packing tape (£2.82 per unit); box of nitrile gloves, quantity 4, unit price £18.45.
+
+The total due is £398.94, payable within 30 days.
+
+Best regards,
+Grace Whitfield
+Pellucid Glassworks
+---

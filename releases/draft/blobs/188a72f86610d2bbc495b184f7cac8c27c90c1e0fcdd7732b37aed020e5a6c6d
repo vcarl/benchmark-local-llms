@@ -1,0 +1,17 @@
+Write a Python regular expression that matches an IPv4 address: four decimal octets from 0 to 255 separated by dots, with no leading zeros (0 is fine, 01 is not), followed by a required CIDR prefix length: "/" and a number from 0 to 32 with no leading zeros.
+
+It will be tested with re.fullmatch (so anchors are optional) against held-out strings: it must match every valid string and reject every invalid one. Examples (shown as JSON strings):
+
+Must match:
+  "0.0.120.143/32"
+  "255.255.255.0/26"
+  "255.188.109.3/4"
+  "235.255.59.0/24"
+
+Must not match:
+  "128.128.-1.0/24"
+  "0.0.255.3"
+  "5.11.90.154/33"
+  "17.147.4.0/8/8"
+
+Reply with only the pattern in a ```regex fenced block.

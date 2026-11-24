@@ -1,0 +1,126 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "home.set_lights",
+    "description": "Switch the lights in one room on or off and, when switching on, set their brightness level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room whose lights to control.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "on": {
+          "type": "boolean",
+          "description": "true to switch the lights on, false to switch them off."
+        },
+        "brightness_pct": {
+          "type": "integer",
+          "description": "Brightness from 1 to 100 percent when switching on.",
+          "default": 100
+        },
+        "color": {
+          "type": "object",
+          "description": "Colour for colour-capable bulbs as hue and saturation; warm white when left out.",
+          "properties": {
+            "hue": {
+              "type": "integer",
+              "description": "Hue angle from 0 to 359 degrees."
+            },
+            "saturation": {
+              "type": "integer",
+              "description": "Saturation from 0 to 100 percent."
+            }
+          },
+          "required": [
+            "hue",
+            "saturation"
+          ]
+        }
+      },
+      "required": [
+        "room",
+        "on"
+      ]
+    }
+  },
+  {
+    "name": "home.set_thermostat",
+    "description": "Set the target temperature and operating mode of the thermostat in one zone of the house.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "zone": {
+          "type": "string",
+          "description": "Heating and cooling zone the thermostat controls.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "target_temp_c": {
+          "type": "number",
+          "description": "Target temperature in degrees Celsius, between 10 and 30."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Operating mode: heat only, cool only, or switch automatically.",
+          "enum": [
+            "heat",
+            "cool",
+            "auto"
+          ],
+          "default": "auto"
+        },
+        "hold_until": {
+          "type": "string",
+          "description": "Keep this setting until the given local time HH:MM, then resume the schedule."
+        }
+      },
+      "required": [
+        "zone",
+        "target_temp_c"
+      ]
+    }
+  },
+  {
+    "name": "home.get_device_status",
+    "description": "Get the current state of every smart device in one room: power, temperature and battery levels.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room to report on.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "include_offline": {
+          "type": "boolean",
+          "description": "Also list devices that are currently unreachable.",
+          "default": false
+        }
+      },
+      "required": [
+        "room"
+      ]
+    }
+  }
+]
+
+Request: Set the kitchen thermostat (zone kitchen) to 18.4 degrees in heat mode. Also, turn on the lights in the bedroom at 60 percent. And set the living room thermostat (zone living_room) to 23.2 degrees.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

@@ -1,0 +1,28 @@
+Below is a web server access log. Each line is: timestamp, HTTP method, path, status code, latency. Lines starting with # are comments, not requests.
+
+Count the requests per path and status code, using only requests with timestamps from 19:00:00 to 19:59:59 inclusive (all methods). Reply with only a JSON object mapping each path to an object that maps each status code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}. Leave out paths and status codes with no requests in the window.
+
+```
+# access.log for 2025-02-15, rotated at 00:00:00
+2025-02-15T18:48:14Z POST /api/search 500 272ms
+2025-02-15T18:58:11Z GET /api/users 200 895ms
+2025-02-15T18:59:59Z POST /health 200 515ms
+2025-02-15T19:00:00Z GET /api/users 503 498ms
+2025-02-15T19:10:14Z POST /api/search 503 160ms
+2025-02-15T19:12:11Z GET /health 503 239ms
+2025-02-15T19:17:30Z GET /api/search 200 309ms
+2025-02-15T19:17:35Z GET /health 500 725ms
+2025-02-15T19:20:38Z GET /api/search 503 250ms
+2025-02-15T19:27:07Z POST /health 204 690ms
+2025-02-15T19:30:21Z GET /api/search 404 753ms
+2025-02-15T19:31:12Z GET /api/users 503 409ms
+2025-02-15T19:31:36Z GET /health 201 141ms
+2025-02-15T19:36:42Z POST /health 503 214ms
+2025-02-15T19:40:22Z GET /api/users 304 139ms
+2025-02-15T19:42:39Z GET /api/users 404 458ms
+2025-02-15T19:55:35Z POST /api/users 404 786ms
+2025-02-15T19:58:51Z GET /health 200 690ms
+2025-02-15T19:59:59Z GET /health 503 321ms
+2025-02-15T20:00:00Z GET /api/search 200 290ms
+2025-02-15T20:09:52Z GET /api/users 200 370ms
+```

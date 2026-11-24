@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"limit":25,"query":"Tanaka"},"name":"searchUsers","optional":{"includeInactive":false}}]}],"type":"constraint"},"rules":2}

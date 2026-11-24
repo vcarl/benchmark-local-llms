@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"date":"2026-12-10","include_declined":true},"name":"calendar.list_events","optional":{"calendar_id":"primary","max_results":50}}]}],"type":"constraint"},"rules":2}

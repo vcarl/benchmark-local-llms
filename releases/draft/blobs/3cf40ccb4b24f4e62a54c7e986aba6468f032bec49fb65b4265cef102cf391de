@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"category":"bug","customer":"Malik Okonkwo","order_id":null,"product":"Shelfwise","severity":"high","ticket_id":"T-52188"}}],"type":"constraint"},"rules":2}

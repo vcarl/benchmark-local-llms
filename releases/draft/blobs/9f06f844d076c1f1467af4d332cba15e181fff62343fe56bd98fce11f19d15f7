@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"target_temp_c":21.4,"zone":"office"},"name":"home.set_thermostat","optional":{"mode":"auto"}}]}],"type":"constraint"},"rules":2}

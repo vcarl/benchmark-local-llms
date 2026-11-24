@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"currency":"GBP","invoice_number":"INV-6355","issue_date":"2025-08-27","line_items":[{"description":"label printer","quantity":11,"unit_price":100.04},{"description":"safety goggles","quantity":6,"unit_price":14.61}],"total":1188.1,"vendor":"Pellucid Glassworks"}}],"type":"constraint"},"rules":2}

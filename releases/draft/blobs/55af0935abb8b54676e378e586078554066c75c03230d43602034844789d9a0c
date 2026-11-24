@@ -1,0 +1,163 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Banking_1_ListTransactions",
+    "description": "List the transactions of one of the user's accounts between two dates, newest first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "First day to include, formatted as YYYY-MM-DD."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "Last day to include, formatted as YYYY-MM-DD."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "min_amount": {
+          "type": "number",
+          "description": "Only list transactions of at least this absolute amount."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Only list transactions in these categories, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Category.",
+            "enum": [
+              "groceries",
+              "rent",
+              "travel",
+              "utilities",
+              "salary",
+              "other"
+            ]
+          }
+        }
+      },
+      "required": [
+        "start_date",
+        "end_date"
+      ]
+    }
+  },
+  {
+    "name": "getFileInfo",
+    "description": "Get the metadata of one file or directory: size, owner, permissions and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file or directory to inspect."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_CheckBalance",
+    "description": "Get the current and available balance of one of the user's bank accounts, in the account currency.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "Restaurants_2_ReserveRestaurant",
+    "description": "Make a table reservation at a restaurant specifying the restaurant name, location, reservation date and time, and the number of seats.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "restaurant_name": {
+          "type": "string",
+          "description": "The name of the restaurant where the reservation is to be made."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city and state where the restaurant is located, in the format of 'City, State', such as 'Berkeley, CA' or 'New York, NY'."
+        },
+        "date": {
+          "type": "string",
+          "description": "The tentative date for the reservation in ISO format (YYYY-MM-DD), such as '2023-03-01'."
+        },
+        "time": {
+          "type": "string",
+          "description": "The tentative time for the reservation in 24-hour format, such as '18:00' for 6 PM."
+        },
+        "number_of_seats": {
+          "type": "integer",
+          "description": "The number of seats to reserve at the restaurant. Valid options range from 1 to 6.",
+          "default": 2
+        }
+      },
+      "required": [
+        "restaurant_name",
+        "location",
+        "date",
+        "time"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  }
+]
+
+Request: Show me the savings transactions between 2026-05-01 and 2026-06-08.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"contains","name":"contains 'rocket'","value":"rocket"},{"check":"contains","name":"contains 'orbit'","value":"orbit"},{"check":"contains","name":"contains 'gravity'","value":"gravity"}],"type":"constraint"},"rules":2}

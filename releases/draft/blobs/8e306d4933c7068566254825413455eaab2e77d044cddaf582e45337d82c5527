@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"says acquireUseRelease or acquireRelease","pattern":"(?i)Effect\\.(acquireUseRelease|acquireRelease)"}],"type":"constraint"},"rules":2}

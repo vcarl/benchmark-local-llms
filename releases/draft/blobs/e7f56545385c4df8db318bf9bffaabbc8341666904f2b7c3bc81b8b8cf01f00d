@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"body":"The agenda for the offsite is attached; comments by Friday please.","send_at":"2025-04-02T08:15","subject":"Offsite agenda","to":["lars.berg@example.com"]},"name":"schedule_email","unordered":["to"]}]}],"type":"constraint"},"rules":2}

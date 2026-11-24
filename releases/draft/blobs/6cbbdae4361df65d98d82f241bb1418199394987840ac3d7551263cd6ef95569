@@ -1,0 +1,1 @@
+{"config":{"testCode":"assert fibonacci(0) == 0\nassert fibonacci(1) == 1\nassert fibonacci(2) == 1\nassert fibonacci(10) == 55\nassert fibonacci(20) == 6765\n","type":"code_exec"},"rules":2,"runner":"python@sha256:2d97f6910b16bd338d3060f261f53f144965f755599aab1acda1e13cf1731b1b"}

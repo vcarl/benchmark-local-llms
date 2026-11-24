@@ -1,0 +1,10 @@
+Classify the product review below by the reviewer's final verdict. Allowed labels:
+- positive: they would keep it, buy it again or recommend it
+- negative: they would not (returning it, would not buy it again, not worth it)
+- neutral: they say they are undecided or indifferent
+
+"""
+I've had this e-reader for a month. The charging cable broke within a week. The packaging was awful, mostly plastic. The firmware update prompts are annoying. The build quality is impressive for the price. On balance it's worth the money.
+"""
+
+Choose exactly one label. End your reply with a final line of the form `Label: <label>`, with the label written exactly as listed.

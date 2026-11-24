@@ -1,0 +1,3 @@
+In Effect-TS, a service has three parts. Name them in order.
+Reply as JSON: {"parts": ["first", "second", "third"]}
+Output only the JSON object, no extra text.

@@ -1,0 +1,28 @@
+Below is a web server access log. Each line is: timestamp, HTTP method, path, status code, latency. Lines starting with # are comments, not requests.
+
+Count the requests per path and status code, using only requests with timestamps from 16:00:00 to 16:59:59 inclusive (all methods). Reply with only a JSON object mapping each path to an object that maps each status code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}. Leave out paths and status codes with no requests in the window.
+
+```
+# access.log for 2025-04-16, rotated at 00:00:00
+2025-04-16T15:53:01Z GET /api/orders 200 482ms
+2025-04-16T15:58:11Z GET /api/cart 503 874ms
+2025-04-16T15:59:59Z POST /health 304 56ms
+2025-04-16T16:00:00Z POST /api/cart 204 300ms
+2025-04-16T16:01:52Z GET /health 201 251ms
+2025-04-16T16:05:59Z POST /health 500 263ms
+2025-04-16T16:08:54Z GET /api/cart 200 771ms
+2025-04-16T16:12:30Z POST /api/cart 404 716ms
+2025-04-16T16:15:38Z GET /api/cart 200 158ms
+2025-04-16T16:17:37Z GET /api/cart 503 166ms
+2025-04-16T16:20:33Z GET /api/orders 400 444ms
+2025-04-16T16:33:43Z POST /api/cart 200 96ms
+2025-04-16T16:34:54Z POST /api/cart 500 318ms
+2025-04-16T16:35:08Z POST /api/cart 400 157ms
+2025-04-16T16:36:35Z GET /api/cart 503 862ms
+2025-04-16T16:45:04Z POST /health 200 612ms
+2025-04-16T16:46:35Z GET /health 200 164ms
+2025-04-16T16:57:08Z GET /health 200 157ms
+2025-04-16T16:59:59Z POST /api/orders 200 11ms
+2025-04-16T17:00:00Z GET /api/orders 503 239ms
+2025-04-16T17:10:42Z GET /health 503 172ms
+```

@@ -1,0 +1,8 @@
+Write a short piece about a small town library. Follow every rule below.
+
+1. End the response with the exact phrase "Thank you for reading." and nothing after it.
+2. Format the response as a numbered list of exactly 5 items (1. 2. 3. …).
+3. Do not use the word "library" anywhere.
+4. Do not use any commas.
+
+Output only the piece itself.

@@ -1,0 +1,1 @@
+In Effect-TS, you have tagged errors. What function do you use to catch a specific error by its tag, leaving other error types unhandled? Reply with just the function name like `Effect.xxx`.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"names fork","pattern":"(?i)\\bfork\\b"},{"check":"contains_exact","name":"qualifies it as Effect.fork","value":"Effect.fork"},{"check":"regex","name":"names join","pattern":"(?i)\\bjoin\\b"},{"check":"contains_exact","name":"qualifies it as Fiber.join","value":"Fiber.join"}],"type":"constraint"},"rules":2}

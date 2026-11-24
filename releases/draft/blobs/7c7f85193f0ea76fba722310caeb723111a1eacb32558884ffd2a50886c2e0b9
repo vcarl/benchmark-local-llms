@@ -1,0 +1,179 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "updateUserRole",
+    "description": "Change the role of one user account, which sets what the user can see and edit in the workspace.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        },
+        "role": {
+          "type": "string",
+          "description": "New role for the account.",
+          "enum": [
+            "viewer",
+            "editor",
+            "admin"
+          ]
+        },
+        "notifyUser": {
+          "type": "boolean",
+          "description": "Email the user about the change.",
+          "default": true
+        }
+      },
+      "required": [
+        "userId",
+        "role"
+      ]
+    }
+  },
+  {
+    "name": "searchUsers",
+    "description": "Search user accounts by name or part of a name and return their ids, emails and roles.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Name or part of a name to search for, case-insensitive."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of accounts to return.",
+          "default": 10
+        },
+        "includeInactive": {
+          "type": "boolean",
+          "description": "Also return deactivated accounts.",
+          "default": false
+        },
+        "roles": {
+          "type": "array",
+          "description": "Only return accounts holding one of these roles, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Role.",
+            "enum": [
+              "viewer",
+              "editor",
+              "admin"
+            ]
+          }
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "Events_3_FindEvents",
+    "description": "Find cultural events, such as concerts and plays, happening in a specified city on a given date.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "description": "The type of cultural event to find. Events include concerts and plays.",
+          "enum": [
+            "Music",
+            "Theater"
+          ]
+        },
+        "city": {
+          "type": "string",
+          "description": "The city where the event is taking place, in the format 'City, State' or 'City, Country' (e.g., 'New York, NY' or 'London, UK'). State names must be abbreviated with two letters."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the event. Use the format 'YYYY-MM-DD'. If not specified, the current date is used."
+        }
+      },
+      "required": [
+        "event_type",
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "Restaurants_2_ReserveRestaurant",
+    "description": "Make a table reservation at a restaurant specifying the restaurant name, location, reservation date and time, and the number of seats.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "restaurant_name": {
+          "type": "string",
+          "description": "The name of the restaurant where the reservation is to be made."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city and state where the restaurant is located, in the format of 'City, State', such as 'Berkeley, CA' or 'New York, NY'."
+        },
+        "date": {
+          "type": "string",
+          "description": "The tentative date for the reservation in ISO format (YYYY-MM-DD), such as '2023-03-01'."
+        },
+        "time": {
+          "type": "string",
+          "description": "The tentative time for the reservation in 24-hour format, such as '18:00' for 6 PM."
+        },
+        "number_of_seats": {
+          "type": "integer",
+          "description": "The number of seats to reserve at the restaurant. Valid options range from 1 to 6.",
+          "default": 2
+        }
+      },
+      "required": [
+        "restaurant_name",
+        "location",
+        "date",
+        "time"
+      ]
+    }
+  },
+  {
+    "name": "Music_3_PlayMedia",
+    "description": "Plays a specified track on a designated media player device.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "track": {
+          "type": "string",
+          "description": "The title of the song to be played."
+        },
+        "artist": {
+          "type": "string",
+          "description": "The name of the artist performing the song. If unspecified, any artist is acceptable.",
+          "default": "dontcare"
+        },
+        "device": {
+          "type": "string",
+          "description": "The media player device where the song will be played.",
+          "enum": [
+            "Living room",
+            "Kitchen",
+            "Patio"
+          ],
+          "default": "Living room"
+        },
+        "album": {
+          "type": "string",
+          "description": "The album where the song is featured. If unspecified, any album is acceptable.",
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "track"
+      ]
+    }
+  }
+]
+
+Request: Find the users named Lindqvist.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

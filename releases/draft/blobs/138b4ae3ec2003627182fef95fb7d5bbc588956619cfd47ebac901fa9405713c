@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"destinationPath":"/mnt/shared/finance/backup.tar.gz","sourcePath":"/home/dev/Downloads/backup.tar.gz"},"name":"moveFile","optional":{"overwrite":false}}]}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"date":"2026-06-13","flight_number":"KL322","number_of_tickets":3},"name":"Flights_2_ReserveFlight"}]}],"type":"constraint"},"rules":2}

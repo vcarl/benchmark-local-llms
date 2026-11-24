@@ -1,0 +1,1 @@
+{"config":{"expected":"1648","extract":"\"year\"\\s*:\\s*(\\d{4})","type":"exact_match"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"expected":"4183","extract":"(?i)ANSWER:\\s*(-?\\d[\\d,]*)(?:\\.0+(?!\\d))?","fallbackExtract":"(-?\\d[\\d,]*)(?:\\.0+(?!\\d))?","type":"exact_match"},"rules":2}

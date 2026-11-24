@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 1.625","pattern":"(?<![\\d.])1\\.6250*(?!\\d)"}],"type":"constraint"},"rules":2}

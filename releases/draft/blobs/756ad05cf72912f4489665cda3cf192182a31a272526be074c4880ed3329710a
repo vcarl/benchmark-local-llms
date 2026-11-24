@@ -1,0 +1,6 @@
+Tennis serve, played as a one-shot simultaneous game. The Server chooses where to aim and the Receiver chooses where to anticipate; both decide at the same instant. The table shows points won per 10 rallies (Server points, Receiver points):
+(payoffs shown as Server, Receiver)
+- If Server plays Aim Left — Anticipate Left: (10, 2); Anticipate Right: (4, 8)
+- If Server plays Aim Right — Anticipate Left: (6, 6); Anticipate Right: (10, 2)
+
+In the mixed-strategy Nash equilibrium, with what probability does the SERVER aim Left? Reply with just the probability as a decimal between 0 and 1 (e.g. 0.5).

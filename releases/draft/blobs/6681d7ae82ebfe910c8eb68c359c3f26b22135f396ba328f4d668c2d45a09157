@@ -1,0 +1,25 @@
+The SQLite database below is created by these statements:
+
+```sql
+CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, status TEXT, amount INTEGER, placed_on TEXT);
+INSERT INTO orders VALUES (101, 'Greta Lind', 'shipped', 479, '2023-07-31');
+INSERT INTO orders VALUES (102, 'Bilal Khan', 'shipped', 35, '2023-06-30');
+INSERT INTO orders VALUES (103, 'Femi Adeyemi', 'pending', 302, '2023-06-29');
+INSERT INTO orders VALUES (104, 'Hugo Martin', 'pending', 74, '2023-07-19');
+INSERT INTO orders VALUES (105, 'Hugo Martin', 'cancelled', 189, '2023-06-07');
+INSERT INTO orders VALUES (106, 'Carmen Ortiz', 'cancelled', 468, '2023-06-05');
+INSERT INTO orders VALUES (107, 'Isla Grant', 'shipped', 351, '2023-07-19');
+INSERT INTO orders VALUES (108, 'Carmen Ortiz', 'shipped', 473, '2023-07-09');
+INSERT INTO orders VALUES (109, 'Hugo Martin', 'pending', 411, '2023-06-12');
+INSERT INTO orders VALUES (110, 'Jun Park', 'shipped', 209, '2023-08-19');
+INSERT INTO orders VALUES (111, 'Carmen Ortiz', 'cancelled', 67, '2023-07-15');
+INSERT INTO orders VALUES (112, 'Femi Adeyemi', 'shipped', 43, '2023-08-07');
+INSERT INTO orders VALUES (113, 'Greta Lind', 'pending', 340, '2023-08-01');
+INSERT INTO orders VALUES (114, 'Elena Petrova', 'shipped', 188, '2023-07-03');
+INSERT INTO orders VALUES (115, 'Jun Park', 'shipped', 446, '2023-06-17');
+INSERT INTO orders VALUES (116, 'Ada Brooks', 'shipped', 437, '2023-07-08');
+```
+
+Dates in placed_on are YYYY-MM-DD text. For orders with status 'shipped' placed in July 2023, return one row with two columns: the number of such orders, then their total amount.
+
+Write one SQLite SELECT statement that returns exactly the requested columns, in the order given. Reply with only the query in a ```sql fenced block.

@@ -1,0 +1,149 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "kube.scale_deployment",
+    "description": "Set the number of replicas of a Kubernetes deployment; the cluster adds or removes pods to match.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "Desired number of replicas, from 0 to 50."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment",
+        "replicas"
+      ]
+    }
+  },
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  },
+  {
+    "name": "kube.get_pod_logs",
+    "description": "Fetch the most recent log lines of one pod's container, optionally from its previous crashed run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pod": {
+          "type": "string",
+          "description": "Full pod name, exactly as listed, e.g. 'checkout-api-7d9f8-x2kqp'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return, counted from the end of the log.",
+          "default": 100
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "Read the log of the previous, terminated container instance.",
+          "default": false
+        }
+      },
+      "required": [
+        "pod"
+      ]
+    }
+  },
+  {
+    "name": "list_directory_contents",
+    "description": "List all the files and directories within the specified directory path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "dir_path": {
+          "type": "string",
+          "description": "The file system path to the directory whose contents are to be listed. The path should be absolute or relative to the current working directory."
+        },
+        "include_hidden": {
+          "type": "boolean",
+          "description": "A flag to determine whether hidden files and directories should be included in the list.",
+          "default": false
+        },
+        "sort_order": {
+          "type": "string",
+          "description": "The order in which the directory contents are listed. Ascending or descending by name.",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "required": [
+        "dir_path"
+      ]
+    }
+  },
+  {
+    "name": "cookbook.search_recipe",
+    "description": "Searches for cooking recipes based on a provided keyword. Returns a list of recipes that contain the keyword in their title or ingredients list.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string",
+          "description": "The keyword to search for in the recipe titles or ingredients."
+        },
+        "cuisine": {
+          "type": "string",
+          "description": "The cuisine type to narrow down the search results.",
+          "enum": [
+            "Italian",
+            "Chinese",
+            "Indian",
+            "French",
+            "Mexican"
+          ],
+          "default": "Italian"
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "The maximum number of recipe results to return.",
+          "default": 10
+        }
+      },
+      "required": [
+        "keyword"
+      ]
+    }
+  }
+]
+
+Request: Show me log lines of pod checkout-api-8455-x61q.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

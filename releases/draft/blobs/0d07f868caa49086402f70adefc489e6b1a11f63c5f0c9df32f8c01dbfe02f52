@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"no lowercase letters","pattern":"^[^a-z]*$"},{"char":",","check":"not_contains_char","name":"no commas"},{"check":"word_count_exact","count":2,"name":"stove x2","word":"stove"}],"type":"constraint"},"rules":2}

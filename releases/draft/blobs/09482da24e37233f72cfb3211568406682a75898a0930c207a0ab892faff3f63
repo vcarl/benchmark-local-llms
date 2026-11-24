@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"path":"/srv/reports/backup-20250724.csv","permanent":true},"name":"deleteFile"}]}],"type":"constraint"},"rules":2}

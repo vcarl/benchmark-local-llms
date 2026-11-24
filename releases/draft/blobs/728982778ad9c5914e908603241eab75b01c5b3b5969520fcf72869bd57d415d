@@ -1,0 +1,245 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "home.set_thermostat",
+    "description": "Set the target temperature and operating mode of the thermostat in one zone of the house.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "zone": {
+          "type": "string",
+          "description": "Heating and cooling zone the thermostat controls.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "target_temp_c": {
+          "type": "number",
+          "description": "Target temperature in degrees Celsius, between 10 and 30."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Operating mode: heat only, cool only, or switch automatically.",
+          "enum": [
+            "heat",
+            "cool",
+            "auto"
+          ],
+          "default": "auto"
+        },
+        "hold_until": {
+          "type": "string",
+          "description": "Keep this setting until the given local time HH:MM, then resume the schedule."
+        }
+      },
+      "required": [
+        "zone",
+        "target_temp_c"
+      ]
+    }
+  },
+  {
+    "name": "Travel_1_FindAttractions",
+    "description": "Browse attractions in a given city, filtering by various criteria such as free entry, category, and suitability for children.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The name of the city or town where the attraction is located, in the format of 'City, State' or 'City, Country', such as 'Paris, France' or 'New York, NY'."
+        },
+        "free_entry": {
+          "type": "string",
+          "description": "Flag indicating whether the attraction offers free entry. A value of 'True' filters for attractions with free entry, 'False' for attractions with an entry fee, and 'dontcare' (default) includes all attractions regardless of entry fee.",
+          "enum": [
+            "True",
+            "False",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the attraction, such as 'Place of Worship', 'Theme Park', etc. Use 'dontcare' (default) to include all categories.",
+          "enum": [
+            "Place of Worship",
+            "Theme Park",
+            "Museum",
+            "Historical Landmark",
+            "Park",
+            "Tourist Attraction",
+            "Sports Venue",
+            "Shopping Area",
+            "Performing Arts Venue",
+            "Nature Preserve",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "good_for_kids": {
+          "type": "string",
+          "description": "Flag indicating whether the attraction is suitable for children. 'True' filters for kid-friendly attractions, 'False' for attractions that may not be suitable for children, and 'dontcare' (default) includes all attractions.",
+          "enum": [
+            "True",
+            "False",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "home.get_device_status",
+    "description": "Get the current state of every smart device in one room: power, temperature and battery levels.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room to report on.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "include_offline": {
+          "type": "boolean",
+          "description": "Also list devices that are currently unreachable.",
+          "default": false
+        }
+      },
+      "required": [
+        "room"
+      ]
+    }
+  },
+  {
+    "name": "todo.add",
+    "description": "Creates a new todo entry in the list with the provided content.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "The text content of the todo item to be added."
+        },
+        "priority": {
+          "type": "string",
+          "description": "The priority level of the todo item.",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "default": "medium"
+        },
+        "due_date": {
+          "type": "string",
+          "description": "The due date for the todo item in the format 'YYYY-MM-DD', such as '2023-12-31'."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Flag indicating whether the todo item is completed.",
+          "default": false
+        }
+      },
+      "required": [
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "home.set_lights",
+    "description": "Switch the lights in one room on or off and, when switching on, set their brightness level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room whose lights to control.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "on": {
+          "type": "boolean",
+          "description": "true to switch the lights on, false to switch them off."
+        },
+        "brightness_pct": {
+          "type": "integer",
+          "description": "Brightness from 1 to 100 percent when switching on.",
+          "default": 100
+        },
+        "color": {
+          "type": "object",
+          "description": "Colour for colour-capable bulbs as hue and saturation; warm white when left out.",
+          "properties": {
+            "hue": {
+              "type": "integer",
+              "description": "Hue angle from 0 to 359 degrees."
+            },
+            "saturation": {
+              "type": "integer",
+              "description": "Saturation from 0 to 100 percent."
+            }
+          },
+          "required": [
+            "hue",
+            "saturation"
+          ]
+        }
+      },
+      "required": [
+        "room",
+        "on"
+      ]
+    }
+  },
+  {
+    "name": "list_directory_contents",
+    "description": "List all the files and directories within the specified directory path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "dir_path": {
+          "type": "string",
+          "description": "The file system path to the directory whose contents are to be listed. The path should be absolute or relative to the current working directory."
+        },
+        "include_hidden": {
+          "type": "boolean",
+          "description": "A flag to determine whether hidden files and directories should be included in the list.",
+          "default": false
+        },
+        "sort_order": {
+          "type": "string",
+          "description": "The order in which the directory contents are listed. Ascending or descending by name.",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "required": [
+        "dir_path"
+      ]
+    }
+  }
+]
+
+Request: Turn on the lights in these rooms: kitchen, office.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

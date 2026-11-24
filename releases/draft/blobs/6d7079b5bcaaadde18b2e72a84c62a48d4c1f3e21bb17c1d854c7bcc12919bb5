@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"items":[{"quantity":7,"sku":"004417"},{"quantity":1,"sku":"009302"}],"recipient":{"country":"FR","name":"Keiko Mori","postal_code":"04577","street":"220 Harbour Road"},"service":"express","signature_required":true,"weight_kg":20.3},"name":"create_shipment"}]}],"type":"constraint"},"rules":2}

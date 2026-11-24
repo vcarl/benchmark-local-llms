@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"exactly 6 sentences","pattern":"^\\s*(?:[^.!?\\s][^.!?]*[.!?]+\\s*){6}$"},{"check":"regex","name":"avoids felt","pattern":"(?i)^(?![\\s\\S]*\\bfelt\\b)"},{"check":"word_count_exact","count":2,"name":"made x2","word":"made"}],"type":"constraint"},"rules":2}

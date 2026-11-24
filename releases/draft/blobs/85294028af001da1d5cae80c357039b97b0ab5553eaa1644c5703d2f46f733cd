@@ -1,0 +1,195 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Movies_3_FindMovies",
+    "description": "Retrieves a list of movies based on the specified director, genre, and cast. The default behavior without parameters is to find a wide range of movies without specific preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directed_by": {
+          "type": "string",
+          "description": "The name of the movie's director. Use 'dontcare' to ignore this filter.",
+          "default": "dontcare"
+        },
+        "genre": {
+          "type": "string",
+          "description": "The genre category of the movie. Use 'dontcare' for no specific genre preference.",
+          "enum": [
+            "Offbeat",
+            "Fantasy",
+            "World",
+            "Mystery",
+            "Thriller",
+            "Comedy",
+            "Comedy-drama",
+            "Horror",
+            "Animation",
+            "Sci-fi",
+            "Cult",
+            "Drama",
+            "Anime",
+            "Family",
+            "Action",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "cast": {
+          "type": "string",
+          "description": "A comma-separated list of actors in the movie. Use 'dontcare' to ignore this filter.",
+          "default": "dontcare"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "compressFiles",
+    "description": "Pack a set of files into a single zip archive on the file server and return the archive's path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "description": "Absolute paths of the files to pack, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Absolute file path"
+          }
+        },
+        "archivePath": {
+          "type": "string",
+          "description": "Absolute path of the zip archive to create, ending in '.zip'."
+        }
+      },
+      "required": [
+        "paths",
+        "archivePath"
+      ]
+    }
+  },
+  {
+    "name": "get_weather_forecast",
+    "description": "Get the daily weather forecast for a city, starting tomorrow, for up to ten days ahead.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "days": {
+          "type": "integer",
+          "description": "Number of days to forecast, from 1 to 10, starting with tomorrow."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "hourly": {
+          "type": "boolean",
+          "description": "Break each forecast day into hourly values instead of a daily summary.",
+          "default": false
+        },
+        "fields": {
+          "type": "array",
+          "description": "Forecast fields to return, in any order; all fields when left out.",
+          "items": {
+            "type": "string",
+            "description": "One forecast field.",
+            "enum": [
+              "temperature",
+              "precipitation",
+              "wind",
+              "humidity",
+              "uv_index"
+            ]
+          }
+        }
+      },
+      "required": [
+        "location",
+        "days"
+      ]
+    }
+  },
+  {
+    "name": "get_exchange_rate",
+    "description": "Get the exchange rate between two currencies on a date; no amount is converted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the base currency, e.g. 'USD'."
+        },
+        "quote_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the quote currency, e.g. 'EUR'."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the rate, formatted as YYYY-MM-DD; today when left out."
+        }
+      },
+      "required": [
+        "base_currency",
+        "quote_currency"
+      ]
+    }
+  },
+  {
+    "name": "calculate_tax",
+    "description": "Calculates the applicable sales tax for a given purchase amount and jurisdiction. The function returns the total amount with tax.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "purchase_amount": {
+          "type": "number",
+          "description": "The total purchase amount in dollars."
+        },
+        "state": {
+          "type": "string",
+          "description": "The U.S. state abbreviation where the purchase is made, such as 'CA' for California or 'NY' for New York."
+        },
+        "county": {
+          "type": "string",
+          "description": "The county within the state where the purchase is made. This is optional and used to calculate local tax rates."
+        },
+        "city": {
+          "type": "string",
+          "description": "The city within the county for local tax rates. Optional and only used if the county is provided."
+        },
+        "tax_exempt": {
+          "type": "boolean",
+          "description": "Indicates whether the purchase is tax-exempt.",
+          "default": false
+        },
+        "discount_rate": {
+          "type": "number",
+          "description": "The discount rate as a percentage if applicable. Optional.",
+          "default": 0
+        },
+        "apply_special_tax": {
+          "type": "boolean",
+          "description": "A flag to apply special tax rules based on item type or promotions. Optional.",
+          "default": false
+        }
+      },
+      "required": [
+        "purchase_amount",
+        "state"
+      ]
+    }
+  }
+]
+
+Request: What will the weather be like in Tbilisi over the next 9 days? Give me hour-by-hour values.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

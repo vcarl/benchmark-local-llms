@@ -1,0 +1,123 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "convert_currency",
+    "description": "Convert an amount of money from one currency to another at today's mid-market exchange rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount in the source currency, e.g. 250 or 99.95."
+        },
+        "from_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the source currency, e.g. 'USD'."
+        },
+        "to_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the target currency, e.g. 'EUR'."
+        }
+      },
+      "required": [
+        "amount",
+        "from_currency",
+        "to_currency"
+      ]
+    }
+  },
+  {
+    "name": "Services_1_FindProvider",
+    "description": "Search for a hair stylist in a specified city, with options to filter for unisex salons.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The city where the stylist or salon is sought, such as 'New York, NY'. State names must be abbreviated with two letters."
+        },
+        "is_unisex": {
+          "type": "boolean",
+          "description": "Indicates whether the salon caters to all genders. True for yes, False for no.",
+          "default": false
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "get_exchange_rate",
+    "description": "Get the exchange rate between two currencies on a date; no amount is converted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the base currency, e.g. 'USD'."
+        },
+        "quote_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the quote currency, e.g. 'EUR'."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the rate, formatted as YYYY-MM-DD; today when left out."
+        }
+      },
+      "required": [
+        "base_currency",
+        "quote_currency"
+      ]
+    }
+  },
+  {
+    "name": "send_email",
+    "description": "Send an email to the specified recipient with a given subject and optional message body.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to_address": {
+          "type": "string",
+          "description": "The email address of the recipient. Format should be a valid email address, such as 'example@domain.com'."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject line of the email."
+        },
+        "body": {
+          "type": "string",
+          "description": "The main content of the email. Plain text or HTML content is expected.",
+          "default": ""
+        },
+        "cc_address": {
+          "type": "string",
+          "description": "The email address to be included in the CC field. Format should be a valid email address, such as 'example@domain.com'.",
+          "default": ""
+        },
+        "bcc_address": {
+          "type": "string",
+          "description": "The email address to be included in the BCC field. Format should be a valid email address, such as 'example@domain.com'.",
+          "default": ""
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of file paths or URLs for files to be attached to the email."
+        }
+      },
+      "required": [
+        "to_address",
+        "subject"
+      ]
+    }
+  }
+]
+
+Request: How much is 4395.23 AUD in CAD and in CHF?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

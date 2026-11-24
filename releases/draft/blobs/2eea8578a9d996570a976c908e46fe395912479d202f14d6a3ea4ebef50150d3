@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"mentions validation or parsing","pattern":"(?i)(validat|pars|decod|encod)"},{"check":"regex","name":"mentions schema/type definition","pattern":"(?i)(schema|type|defin|struct|descri)"},{"check":"min_length","length":40,"name":"is substantive"}],"type":"constraint"},"rules":2}

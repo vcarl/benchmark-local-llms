@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"deployment":"search-indexer","namespace":"prod"},"name":"kube.restart_deployment"}]}],"type":"constraint"},"rules":2}

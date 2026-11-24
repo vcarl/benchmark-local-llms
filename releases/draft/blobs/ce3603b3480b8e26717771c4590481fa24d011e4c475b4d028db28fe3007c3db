@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"includeInactive":true,"limit":5,"query":"Lindqvist"},"name":"searchUsers"}]}],"type":"constraint"},"rules":2}

@@ -1,0 +1,597 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Flights_4_SearchOnewayFlight",
+    "description": "Search for one-way flights from an origin to a destination on a specified date, with options for seating class, ticket quantity, and preferred airline.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "The IATA code or the name of the airport or city to depart from. For example, 'LAX' for Los Angeles International Airport."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "The IATA code or the name of the airport or city to arrive at. For example, 'JFK' for John F. Kennedy International Airport."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The start date of the trip in the format 'YYYY-MM-DD'."
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "The cabin seat option for the flight.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business"
+          ],
+          "default": "Economy"
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The number of flight tickets for the trip.",
+          "default": 1
+        },
+        "airlines": {
+          "type": "string",
+          "description": "The preferred airline company for the flight. Use 'dontcare' if there is no preference.",
+          "enum": [
+            "United Airlines",
+            "American Airlines",
+            "Delta Airlines",
+            "Southwest Airlines",
+            "Alaska Airlines",
+            "British Airways",
+            "Air Canada",
+            "Air France",
+            "South African Airways",
+            "LOT Polish Airlines",
+            "LATAM Brasil",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  },
+  {
+    "name": "getFileInfo",
+    "description": "Get the metadata of one file or directory: size, owner, permissions and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file or directory to inspect."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "calculate_tax",
+    "description": "Calculates the applicable sales tax for a given purchase amount and jurisdiction. The function returns the total amount with tax.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "purchase_amount": {
+          "type": "number",
+          "description": "The total purchase amount in dollars."
+        },
+        "state": {
+          "type": "string",
+          "description": "The U.S. state abbreviation where the purchase is made, such as 'CA' for California or 'NY' for New York."
+        },
+        "county": {
+          "type": "string",
+          "description": "The county within the state where the purchase is made. This is optional and used to calculate local tax rates."
+        },
+        "city": {
+          "type": "string",
+          "description": "The city within the county for local tax rates. Optional and only used if the county is provided."
+        },
+        "tax_exempt": {
+          "type": "boolean",
+          "description": "Indicates whether the purchase is tax-exempt.",
+          "default": false
+        },
+        "discount_rate": {
+          "type": "number",
+          "description": "The discount rate as a percentage if applicable. Optional.",
+          "default": 0
+        },
+        "apply_special_tax": {
+          "type": "boolean",
+          "description": "A flag to apply special tax rules based on item type or promotions. Optional.",
+          "default": false
+        }
+      },
+      "required": [
+        "purchase_amount",
+        "state"
+      ]
+    }
+  },
+  {
+    "name": "save_draft",
+    "description": "Save an email as a draft in the user's mailbox without sending it; recipients may be left empty.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the draft, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the draft, copied exactly as the user gives it."
+        },
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        }
+      },
+      "required": [
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "send_email",
+    "description": "Send an email to the specified recipient with a given subject and optional message body.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to_address": {
+          "type": "string",
+          "description": "The email address of the recipient. Format should be a valid email address, such as 'example@domain.com'."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject line of the email."
+        },
+        "body": {
+          "type": "string",
+          "description": "The main content of the email. Plain text or HTML content is expected.",
+          "default": ""
+        },
+        "cc_address": {
+          "type": "string",
+          "description": "The email address to be included in the CC field. Format should be a valid email address, such as 'example@domain.com'.",
+          "default": ""
+        },
+        "bcc_address": {
+          "type": "string",
+          "description": "The email address to be included in the BCC field. Format should be a valid email address, such as 'example@domain.com'.",
+          "default": ""
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of file paths or URLs for files to be attached to the email."
+        }
+      },
+      "required": [
+        "to_address",
+        "subject"
+      ]
+    }
+  },
+  {
+    "name": "Restaurants_2_ReserveRestaurant",
+    "description": "Make a table reservation at a restaurant specifying the restaurant name, location, reservation date and time, and the number of seats.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "restaurant_name": {
+          "type": "string",
+          "description": "The name of the restaurant where the reservation is to be made."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city and state where the restaurant is located, in the format of 'City, State', such as 'Berkeley, CA' or 'New York, NY'."
+        },
+        "date": {
+          "type": "string",
+          "description": "The tentative date for the reservation in ISO format (YYYY-MM-DD), such as '2023-03-01'."
+        },
+        "time": {
+          "type": "string",
+          "description": "The tentative time for the reservation in 24-hour format, such as '18:00' for 6 PM."
+        },
+        "number_of_seats": {
+          "type": "integer",
+          "description": "The number of seats to reserve at the restaurant. Valid options range from 1 to 6.",
+          "default": 2
+        }
+      },
+      "required": [
+        "restaurant_name",
+        "location",
+        "date",
+        "time"
+      ]
+    }
+  },
+  {
+    "name": "Services_4_BookAppointment",
+    "description": "Books an appointment with a selected therapist for a specified date and time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "therapist_name": {
+          "type": "string",
+          "description": "The full name of the therapist with whom the appointment is to be booked."
+        },
+        "appointment_time": {
+          "type": "string",
+          "description": "The desired time for the appointment, in 24-hour format (e.g., '14:00' for 2 PM)."
+        },
+        "appointment_date": {
+          "type": "string",
+          "description": "The desired date for the appointment, in the format of 'YYYY-MM-DD' (e.g., '2023-04-15')."
+        }
+      },
+      "required": [
+        "therapist_name",
+        "appointment_time",
+        "appointment_date"
+      ]
+    }
+  },
+  {
+    "name": "home.set_lights",
+    "description": "Switch the lights in one room on or off and, when switching on, set their brightness level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room whose lights to control.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "on": {
+          "type": "boolean",
+          "description": "true to switch the lights on, false to switch them off."
+        },
+        "brightness_pct": {
+          "type": "integer",
+          "description": "Brightness from 1 to 100 percent when switching on.",
+          "default": 100
+        },
+        "color": {
+          "type": "object",
+          "description": "Colour for colour-capable bulbs as hue and saturation; warm white when left out.",
+          "properties": {
+            "hue": {
+              "type": "integer",
+              "description": "Hue angle from 0 to 359 degrees."
+            },
+            "saturation": {
+              "type": "integer",
+              "description": "Saturation from 0 to 100 percent."
+            }
+          },
+          "required": [
+            "hue",
+            "saturation"
+          ]
+        }
+      },
+      "required": [
+        "room",
+        "on"
+      ]
+    }
+  },
+  {
+    "name": "telemetry.flowrules.interfaceInfo.get",
+    "description": "Retrieves specified telemetry information for a network interface within a given fabric, node, and pod, filtered by the interface and information types.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fabricName": {
+          "type": "string",
+          "description": "The name of the fabric to limit the nodes pertaining to the given fabric name."
+        },
+        "nodeId": {
+          "type": "integer",
+          "description": "The identifier of the node to limit the results pertaining to the given node ID."
+        },
+        "podId": {
+          "type": "integer",
+          "description": "The identifier of the pod to limit the results pertaining to the given pod ID."
+        },
+        "interfaceType": {
+          "type": "string",
+          "description": "The type of the interface to limit the results pertaining to the given interface type.",
+          "enum": [
+            "svi",
+            "ethernet",
+            "loopback",
+            "port-channel"
+          ]
+        },
+        "infoType": {
+          "type": "string",
+          "description": "The type of information to retrieve about the interface.",
+          "enum": [
+            "interfaces",
+            "status",
+            "statistics",
+            "errors"
+          ]
+        }
+      },
+      "required": [
+        "fabricName",
+        "nodeId",
+        "podId",
+        "interfaceType",
+        "infoType"
+      ]
+    }
+  },
+  {
+    "name": "searchFiles",
+    "description": "Find files below a directory whose names match a glob pattern, with their sizes and timestamps.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Absolute path of the directory to search from, e.g. '/srv/reports'."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Glob pattern the file name must match, e.g. '*.csv' or 'invoice-*'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Search subdirectories as well as the directory itself.",
+          "default": true
+        },
+        "maxResults": {
+          "type": "integer",
+          "description": "Maximum number of matching files to return.",
+          "default": 50
+        },
+        "excludePatterns": {
+          "type": "array",
+          "description": "Glob patterns of file names to leave out, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Glob pattern"
+          }
+        }
+      },
+      "required": [
+        "directory",
+        "pattern"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  },
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "moveFile",
+    "description": "Move or rename a single file on the file server; the destination is the file's full new path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "description": "Absolute path of the file to move, exactly as the user gives it."
+        },
+        "destinationPath": {
+          "type": "string",
+          "description": "Absolute new path of the file, including its file name."
+        },
+        "overwrite": {
+          "type": "boolean",
+          "description": "Replace an existing file at the destination instead of failing.",
+          "default": false
+        }
+      },
+      "required": [
+        "sourcePath",
+        "destinationPath"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_CancelReservation",
+    "description": "Cancel an existing flight reservation by its confirmation code and refund it per the fare rules.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "confirmation_code": {
+          "type": "string",
+          "description": "Six-character booking confirmation code, e.g. 'K7QX2M'."
+        },
+        "refund_to": {
+          "type": "string",
+          "description": "Where the refund goes: the original card or a travel credit.",
+          "enum": [
+            "original_payment",
+            "travel_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "confirmation_code"
+      ]
+    }
+  },
+  {
+    "name": "search_products",
+    "description": "Search for products based on various criteria such as color, size, category, price range, and brand, to find specific Stock Keeping Units (SKUs) or general Stock Production Units (SPUs).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "string",
+          "description": "The color of the product. This is an optional parameter that can be used to refine SKU searches."
+        },
+        "size": {
+          "type": "string",
+          "description": "The size of the product. This is an optional parameter that can be used to refine SKU searches."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the product, such as 'electronics', 'clothing', 'shoes' or 'furniture'. This parameter is required for both SPU and SKU level searches."
+        },
+        "price_min": {
+          "type": "number",
+          "description": "The minimum price of the product search. Enter a float value representing the lowest price in dollars.",
+          "default": 0
+        },
+        "price_max": {
+          "type": "number",
+          "description": "The maximum price of the product search. Enter a float value representing the highest price in dollars."
+        },
+        "brand": {
+          "type": "string",
+          "description": "The brand of the product. This is an optional parameter for searching within a specific brand."
+        }
+      },
+      "required": [
+        "category"
+      ]
+    }
+  },
+  {
+    "name": "deleteFile",
+    "description": "Delete one file by path; by default it is moved to the trash, where it can still be restored.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file to delete, exactly as listed."
+        },
+        "permanent": {
+          "type": "boolean",
+          "description": "Delete permanently instead of moving the file to the trash.",
+          "default": false
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  }
+]
+
+Request: Mueve /home/dev/Downloads/backup.tar.gz a /mnt/shared/finance/backup.tar.gz.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

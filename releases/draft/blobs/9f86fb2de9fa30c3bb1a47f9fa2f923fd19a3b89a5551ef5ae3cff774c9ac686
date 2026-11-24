@@ -1,0 +1,17 @@
+Write a Python regular expression that matches an order ID: the prefix "PO-", then exactly 2 uppercase ASCII letters, a hyphen, and exactly 5 digits, optionally followed by a revision suffix "-R" and one digit from 1 to 9.
+
+It will be tested with re.fullmatch (so anchors are optional) against held-out strings: it must match every valid string and reject every invalid one. Examples (shown as JSON strings):
+
+Must match:
+  "PO-KN-21934"
+  "PO-IB-85850"
+  "PO-RX-80781"
+  "PO-ES-34062"
+
+Must not match:
+  "PO-ZT-69744 "
+  "PO-pz-54051"
+  "po-WX-08295"
+  "PO-MR95431"
+
+Reply with only the pattern in a ```regex fenced block.

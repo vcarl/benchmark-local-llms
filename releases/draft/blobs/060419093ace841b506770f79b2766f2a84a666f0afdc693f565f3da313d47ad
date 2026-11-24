@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"departure_date":"2026-04-03","destination_airport":"GRU","origin_airport":"YYZ"},"name":"Flights_2_SearchOnewayFlight","optional":{"nonstop_only":false,"number_of_tickets":1,"seating_class":"Economy"}}]}],"type":"constraint"},"rules":2}

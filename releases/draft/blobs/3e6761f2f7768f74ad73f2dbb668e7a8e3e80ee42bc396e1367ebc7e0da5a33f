@@ -1,0 +1,1 @@
+A task starts on Monday, 2025-04-28. What is the date 20 business days later? Business days are Monday through Friday, excluding these holidays: Monday 2025-05-12 and Thursday 2025-05-22. The start date itself is not counted: one business day after a Friday is the following Monday. Work it out step by step, then write ANSWER: followed by only the date in YYYY-MM-DD format.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"event_id":"evt_1200c","notify_attendees":false},"name":"calendar.delete_event"}]}],"type":"constraint"},"rules":2}

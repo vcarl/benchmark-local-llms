@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches defect","pattern":"\\b[Dd][Ee][Ff][Ee][Cc][Tt]\\b"}],"type":"constraint"},"rules":2}

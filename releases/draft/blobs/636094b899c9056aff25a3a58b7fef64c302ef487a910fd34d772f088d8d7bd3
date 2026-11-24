@@ -1,0 +1,146 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "home.set_thermostat",
+    "description": "Set the target temperature and operating mode of the thermostat in one zone of the house.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "zone": {
+          "type": "string",
+          "description": "Heating and cooling zone the thermostat controls.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "target_temp_c": {
+          "type": "number",
+          "description": "Target temperature in degrees Celsius, between 10 and 30."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Operating mode: heat only, cool only, or switch automatically.",
+          "enum": [
+            "heat",
+            "cool",
+            "auto"
+          ],
+          "default": "auto"
+        },
+        "hold_until": {
+          "type": "string",
+          "description": "Keep this setting until the given local time HH:MM, then resume the schedule."
+        }
+      },
+      "required": [
+        "zone",
+        "target_temp_c"
+      ]
+    }
+  },
+  {
+    "name": "get_pods",
+    "description": "Retrieves a list of all pods within a specified namespace in a Kubernetes cluster.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "The namespace from which to retrieve pods. For example, 'default' or 'kube-system'."
+        },
+        "label_selector": {
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything if not specified.",
+          "default": ""
+        },
+        "field_selector": {
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything if not specified.",
+          "default": ""
+        },
+        "include_uninitialized": {
+          "type": "boolean",
+          "description": "If true, partially initialized resources are included in the response.",
+          "default": false
+        }
+      },
+      "required": [
+        "namespace"
+      ]
+    }
+  },
+  {
+    "name": "get_exchange_rate",
+    "description": "Get the exchange rate between two currencies on a date; no amount is converted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the base currency, e.g. 'USD'."
+        },
+        "quote_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the quote currency, e.g. 'EUR'."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the rate, formatted as YYYY-MM-DD; today when left out."
+        }
+      },
+      "required": [
+        "base_currency",
+        "quote_currency"
+      ]
+    }
+  },
+  {
+    "name": "Buses_3_BuyBusTicket",
+    "description": "This function processes the purchase of bus tickets from a departure city to a destination city on a specified date and time. It also accounts for the number of passengers and additional luggage options.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_city": {
+          "type": "string",
+          "description": "The city where the journey begins, in the format of 'City, State', such as 'New York, NY'."
+        },
+        "to_city": {
+          "type": "string",
+          "description": "The destination city for the trip, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The departure date in 'YYYY-MM-DD' format, for example, '2023-04-21'."
+        },
+        "departure_time": {
+          "type": "string",
+          "description": "The time of departure in 24-hour format 'HH:MM', such as '14:30' for 2:30 PM."
+        },
+        "num_passengers": {
+          "type": "integer",
+          "description": "The number of passengers for whom the tickets are being purchased. Must be a positive integer."
+        },
+        "additional_luggage": {
+          "type": "boolean",
+          "description": "Indicates whether additional luggage will be carried on the bus.",
+          "default": false
+        }
+      },
+      "required": [
+        "from_city",
+        "to_city",
+        "departure_date",
+        "departure_time",
+        "num_passengers"
+      ]
+    }
+  }
+]
+
+Request: Set the office thermostat (zone office) to 21.4 degrees.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

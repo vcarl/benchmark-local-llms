@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"char":"e","check":"not_contains_char","name":"no letter e"},{"check":"numbered_line_exists","line":3,"name":"has 3 lines"},{"check":"min_length","length":40,"name":"long enough"}],"type":"constraint"},"rules":2}

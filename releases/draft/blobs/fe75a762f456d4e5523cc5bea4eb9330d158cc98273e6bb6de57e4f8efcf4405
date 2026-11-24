@@ -1,0 +1,3 @@
+I need a function for a leetcode problem I'm stuck on. Function called two_sum, takes a list of ints and a target int, returns the indices of the two numbers that add up to the target. There's always exactly one answer. Please just give me the function.
+
+Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.

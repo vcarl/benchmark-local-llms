@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"days":4,"hourly":true,"location":"Nairobi","units":"fahrenheit"},"name":"get_weather_forecast"},{"arguments":{"days":4,"hourly":true,"location":"Dubai","units":"fahrenheit"},"name":"get_weather_forecast"}]}],"type":"constraint"},"rules":2}

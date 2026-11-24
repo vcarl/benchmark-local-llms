@@ -1,0 +1,542 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Events_3_BuyEventTickets",
+    "description": "Purchase tickets for a specific cultural event on a chosen date in a specified city.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_name": {
+          "type": "string",
+          "description": "The official title of the event, such as an artist's name or a play title."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The quantity of tickets to be reserved, must be an integer from 1 to 9."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the event, formatted as 'YYYY-MM-DD'."
+        },
+        "city": {
+          "type": "string",
+          "description": "The name of the city where the event will take place, formatted as 'City, State' (e.g., 'New York, NY')."
+        }
+      },
+      "required": [
+        "event_name",
+        "number_of_tickets",
+        "date",
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "Hotels_2_SearchHouse",
+    "description": "Search for a house accommodation at a specific location, optionally filtering by laundry service availability, number of adults, and review rating.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "where_to": {
+          "type": "string",
+          "description": "The destination where the house is searched for, in the format of 'City, State', such as 'Austin, TX' or 'San Francisco, CA'. State has to be abbrieviated"
+        },
+        "has_laundry_service": {
+          "type": "string",
+          "description": "Indicates if the house should have laundry service available.",
+          "enum": [
+            "True",
+            "False",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "number_of_adults": {
+          "type": "integer",
+          "description": "The number of adults for the reservation. Use 0 to indicate 'dontcare'.",
+          "default": 0
+        },
+        "rating": {
+          "type": "number",
+          "description": "The minimum review rating of the house on a scale from 1.0 to 5.0, with 5.0 being the highest. Use 0 to indicate 'dontcare'.",
+          "default": 0
+        }
+      },
+      "required": [
+        "where_to"
+      ]
+    }
+  },
+  {
+    "name": "kube.get_pod_logs",
+    "description": "Fetch the most recent log lines of one pod's container, optionally from its previous crashed run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pod": {
+          "type": "string",
+          "description": "Full pod name, exactly as listed, e.g. 'checkout-api-7d9f8-x2kqp'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return, counted from the end of the log.",
+          "default": 100
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "Read the log of the previous, terminated container instance.",
+          "default": false
+        }
+      },
+      "required": [
+        "pod"
+      ]
+    }
+  },
+  {
+    "name": "game_rewards.get",
+    "description": "Retrieve information about different types of rewards that a player can receive when playing a specific game across various platforms.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "description": "The exact name of the game for which reward information is being retrieved."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The gaming platform for which reward information is being retrieved, such as 'Xbox', 'PlayStation', or 'PC'."
+        },
+        "mission": {
+          "type": "string",
+          "description": "The specific mission within the game for which rewards are being queried. If omitted, rewards for the entire game will be returned.",
+          "default": "All Missions"
+        },
+        "trophy": {
+          "type": "string",
+          "description": "The trophy level, such as 'bronze', 'silver', 'gold', or 'platinum', for which rewards information is sought. If omitted, rewards for all trophy levels will be returned.",
+          "enum": [
+            "bronze",
+            "silver",
+            "gold",
+            "platinum",
+            "all levels"
+          ],
+          "default": "all levels"
+        }
+      },
+      "required": [
+        "game",
+        "platform"
+      ]
+    }
+  },
+  {
+    "name": "getUserById",
+    "description": "Fetch one user account of the admin console by its numeric id, with profile and role.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        }
+      },
+      "required": [
+        "userId"
+      ]
+    }
+  },
+  {
+    "name": "get_current_weather",
+    "description": "Get the current weather conditions (temperature, wind, precipitation) for a city, as observed right now.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "include_air_quality": {
+          "type": "boolean",
+          "description": "Also return the current air quality index and dominant pollutant.",
+          "default": false
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "getCurrentTime",
+    "description": "Returns the current local time in ISO 8601 format.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "description": "The timezone for which the current time is requested, in the format of 'Area/Location' (e.g., 'America/New_York'). If not provided, defaults to the server's local timezone.",
+          "default": "local"
+        },
+        "include_date": {
+          "type": "boolean",
+          "description": "Determines whether the date should be included in the time string. If set to true, the date is included. Defaults to false.",
+          "default": false
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "home.get_device_status",
+    "description": "Get the current state of every smart device in one room: power, temperature and battery levels.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room to report on.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "include_offline": {
+          "type": "boolean",
+          "description": "Also list devices that are currently unreachable.",
+          "default": false
+        }
+      },
+      "required": [
+        "room"
+      ]
+    }
+  },
+  {
+    "name": "Alarm_1_AddAlarm",
+    "description": "Sets a new alarm with specified time and an optional custom name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "new_alarm_time": {
+          "type": "string",
+          "description": "The time to set for the new alarm in 24-hour format (e.g., '14:30' for 2:30 PM)."
+        },
+        "new_alarm_name": {
+          "type": "string",
+          "description": "The custom name to assign to the new alarm.",
+          "default": "New Alarm"
+        }
+      },
+      "required": [
+        "new_alarm_time"
+      ]
+    }
+  },
+  {
+    "name": "get_shipping_quote",
+    "description": "Price a parcel shipment to a destination without creating it or booking a carrier pickup.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "postal_code": {
+          "type": "string",
+          "description": "Destination postal code, exactly as written, as a string."
+        },
+        "country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code of the destination."
+        },
+        "weight_kg": {
+          "type": "number",
+          "description": "Total parcel weight in kilograms, including the packaging."
+        },
+        "dimensions_cm": {
+          "type": "object",
+          "description": "Outer size of the parcel in centimetres; priced as a standard box when left out.",
+          "properties": {
+            "length": {
+              "type": "number",
+              "description": "Length in cm."
+            },
+            "width": {
+              "type": "number",
+              "description": "Width in cm."
+            },
+            "height": {
+              "type": "number",
+              "description": "Height in cm."
+            }
+          },
+          "required": [
+            "length",
+            "width",
+            "height"
+          ]
+        }
+      },
+      "required": [
+        "postal_code",
+        "country",
+        "weight_kg"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_ListTransactions",
+    "description": "List the transactions of one of the user's accounts between two dates, newest first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "First day to include, formatted as YYYY-MM-DD."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "Last day to include, formatted as YYYY-MM-DD."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "min_amount": {
+          "type": "number",
+          "description": "Only list transactions of at least this absolute amount."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Only list transactions in these categories, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Category.",
+            "enum": [
+              "groceries",
+              "rent",
+              "travel",
+              "utilities",
+              "salary",
+              "other"
+            ]
+          }
+        }
+      },
+      "required": [
+        "start_date",
+        "end_date"
+      ]
+    }
+  },
+  {
+    "name": "Services_1_FindProvider",
+    "description": "Search for a hair stylist in a specified city, with options to filter for unisex salons.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The city where the stylist or salon is sought, such as 'New York, NY'. State names must be abbreviated with two letters."
+        },
+        "is_unisex": {
+          "type": "boolean",
+          "description": "Indicates whether the salon caters to all genders. True for yes, False for no.",
+          "default": false
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "kube.scale_deployment",
+    "description": "Set the number of replicas of a Kubernetes deployment; the cluster adds or removes pods to match.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "Desired number of replicas, from 0 to 50."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment",
+        "replicas"
+      ]
+    }
+  },
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_ReserveFlight",
+    "description": "Reserve seats on a specific scheduled flight and return a booking confirmation code.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_number": {
+          "type": "string",
+          "description": "Airline flight number, e.g. 'BA117', exactly as listed in search results."
+        },
+        "date": {
+          "type": "string",
+          "description": "Scheduled departure date of the flight, formatted as YYYY-MM-DD."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "Number of passenger tickets to reserve, between 1 and 9.",
+          "default": 1
+        }
+      },
+      "required": [
+        "flight_number",
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "calendar_event_edit",
+    "description": "Modify one or more attributes of a calendar event. Unspecified fields remain unchanged, which allows for partial updates to an event's properties, such as rescheduling or changing the title.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "description": "Unique identifier of the event to be modified."
+        },
+        "new_title": {
+          "type": "string",
+          "description": "The new title for the event. If not provided, the title remains unchanged."
+        },
+        "new_start_date": {
+          "type": "string",
+          "description": "The new start date for the event in the format 'YYYY-MM-DD'. If not provided, the start date remains unchanged."
+        },
+        "new_start_time": {
+          "type": "string",
+          "description": "The new start time for the event in 24-hour format 'HH:MM'. If not provided, the start time remains unchanged."
+        },
+        "new_duration": {
+          "type": "integer",
+          "description": "The new duration of the event in minutes. If not provided, the duration remains unchanged."
+        },
+        "new_rrule": {
+          "type": "string",
+          "description": "The new recurrence rule for the event, following the iCalendar RRULE format. If not provided, the recurrence rule remains unchanged."
+        }
+      },
+      "required": [
+        "event_id"
+      ]
+    }
+  }
+]
+
+Request: Show me log lines of pod search-indexer-3267-x22q.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

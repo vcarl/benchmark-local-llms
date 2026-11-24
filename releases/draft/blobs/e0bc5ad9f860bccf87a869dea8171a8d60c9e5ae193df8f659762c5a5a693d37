@@ -1,0 +1,8 @@
+An Entrant decides whether to Enter a market or Stay Out. If it enters, the Incumbent then chooses to Accommodate (share the market) or Fight (a price war). Payoffs are annual profits in $ thousands, written [Entrant, Incumbent]:
+- Entrant stays out → [0, 120]
+- Entrant enters, Incumbent accommodates → [40, 50]
+- Entrant enters, Incumbent fights → [-30, 25]
+
+Before play, the Incumbent announces it will Fight any entry. The Entrant moves first; the Incumbent observes entry before responding.
+
+Is the Incumbent's threat to Fight credible — would the Incumbent actually carry it out once the Entrant has entered? Answer yes or no.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 163.19","pattern":"(?<![\\d.])163\\.190*(?!\\d)"}],"type":"constraint"},"rules":2}

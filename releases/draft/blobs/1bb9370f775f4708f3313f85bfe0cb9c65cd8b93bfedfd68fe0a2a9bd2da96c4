@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"contains_exact","name":"mentions Ref.make","value":"Ref.make"},{"check":"contains_exact","name":"mentions Ref.get","value":"Ref.get"},{"check":"regex","name":"mentions Ref.set or Ref.update","pattern":"Ref\\.(set|update)"}],"type":"constraint"},"rules":2}

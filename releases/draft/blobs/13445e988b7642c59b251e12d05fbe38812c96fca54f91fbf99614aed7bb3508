@@ -1,0 +1,97 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "create_shipment",
+    "description": "Create a parcel shipment with a label for one recipient and book the carrier pickup for it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "recipient": {
+          "type": "object",
+          "description": "Who receives the parcel and where it is delivered.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Recipient's full name as it should appear on the label."
+            },
+            "street": {
+              "type": "string",
+              "description": "Street address line, exactly as written."
+            },
+            "postal_code": {
+              "type": "string",
+              "description": "Postal code, exactly as written, as a string."
+            },
+            "country": {
+              "type": "string",
+              "description": "ISO 3166-1 alpha-2 country code.",
+              "enum": [
+                "US",
+                "DE",
+                "FR",
+                "JP"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "street",
+            "postal_code",
+            "country"
+          ]
+        },
+        "weight_kg": {
+          "type": "number",
+          "description": "Total parcel weight in kilograms, including the packaging."
+        },
+        "items": {
+          "type": "array",
+          "description": "Contents of the parcel, one entry per stock-keeping unit.",
+          "items": {
+            "type": "object",
+            "description": "One line of the contents.",
+            "properties": {
+              "sku": {
+                "type": "string",
+                "description": "Stock-keeping unit, exactly as written."
+              },
+              "quantity": {
+                "type": "integer",
+                "description": "Units."
+              }
+            },
+            "required": [
+              "sku",
+              "quantity"
+            ]
+          }
+        },
+        "service": {
+          "type": "string",
+          "description": "Delivery speed to book with the carrier.",
+          "enum": [
+            "ground",
+            "express",
+            "overnight"
+          ],
+          "default": "ground"
+        },
+        "signature_required": {
+          "type": "boolean",
+          "description": "Require a signature on delivery.",
+          "default": false
+        }
+      },
+      "required": [
+        "recipient",
+        "weight_kg",
+        "items"
+      ]
+    }
+  }
+]
+
+Request: Ship a 1.9 kg parcel to Ruth Abebe, 220 Harbour Road, 06245, Germany (DE). It holds 3 of SKU 009302. Someone has to sign for it.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

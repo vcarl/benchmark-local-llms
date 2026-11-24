@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"body":"The invoice is paid; the receipt is in the shared folder.","cc":["lars.berg@example.com"],"subject":"Invoice 2291","to":["mei.tan@example.net","lars.berg@example.com"]},"name":"send_email","optional":{"priority":"normal"},"unordered":["to","cc"]}]}],"type":"constraint"},"rules":2}

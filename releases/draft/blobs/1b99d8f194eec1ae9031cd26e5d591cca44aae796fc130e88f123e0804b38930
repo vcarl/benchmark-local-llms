@@ -1,0 +1,653 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "calendar.create_event",
+    "description": "Create a new event on the user's primary calendar and send invitations to any attendees listed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Short title shown on the calendar, e.g. 'Design review'."
+        },
+        "start": {
+          "type": "string",
+          "description": "Local start date and time of the event, formatted as YYYY-MM-DDTHH:MM."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Length of the event in minutes; the calendar default is half an hour.",
+          "default": 30
+        },
+        "attendees": {
+          "type": "array",
+          "description": "Email addresses of the people to invite, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "location": {
+          "type": "string",
+          "description": "Room name or address where the event takes place, as free text."
+        },
+        "reminder_minutes": {
+          "type": "integer",
+          "description": "Minutes before the start at which to send a reminder notification.",
+          "default": 10
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Who can see the event details on shared calendars.",
+          "enum": [
+            "default",
+            "public",
+            "private"
+          ],
+          "default": "default"
+        },
+        "recurrence": {
+          "type": "object",
+          "description": "Repeat rule for a recurring event; a one-off event when left out.",
+          "properties": {
+            "frequency": {
+              "type": "string",
+              "description": "How often the event repeats.",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "description": "Total number of occurrences, the first one included."
+            }
+          },
+          "required": [
+            "frequency",
+            "count"
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "start"
+      ]
+    }
+  },
+  {
+    "name": "get_current_weather",
+    "description": "Retrieves the current weather conditions for a specified location, such as 'City, State' or 'City, Country'.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The location for which the weather is being requested, in the format of 'City, State' or 'City, Country', such as 'Berkeley, CA' or 'London, UK'."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The unit system used for weather condition values (e.g., temperature, wind speed).",
+          "enum": [
+            "metric",
+            "imperial"
+          ],
+          "default": "metric"
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "save_draft",
+    "description": "Save an email as a draft in the user's mailbox without sending it; recipients may be left empty.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the draft, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the draft, copied exactly as the user gives it."
+        },
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        }
+      },
+      "required": [
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_GetFlightStatus",
+    "description": "Get the live status of one scheduled flight: gate, departure and arrival times, delays or cancellation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_number": {
+          "type": "string",
+          "description": "Airline flight number, e.g. 'BA117', exactly as printed on the ticket."
+        },
+        "date": {
+          "type": "string",
+          "description": "Scheduled departure date of the flight, formatted as YYYY-MM-DD."
+        }
+      },
+      "required": [
+        "flight_number",
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "calendar.list_events",
+    "description": "List the events on one day of a calendar, with their ids, titles, start times and attendees.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "The day to list, formatted as YYYY-MM-DD, in the calendar's time zone."
+        },
+        "calendar_id": {
+          "type": "string",
+          "description": "Which calendar to read; 'primary' is the user's own calendar.",
+          "default": "primary"
+        },
+        "include_declined": {
+          "type": "boolean",
+          "description": "Also list events the user has declined.",
+          "default": false
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "Maximum number of events to return, earliest first.",
+          "default": 50
+        }
+      },
+      "required": [
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "home.set_lights",
+    "description": "Switch the lights in one room on or off and, when switching on, set their brightness level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room whose lights to control.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "on": {
+          "type": "boolean",
+          "description": "true to switch the lights on, false to switch them off."
+        },
+        "brightness_pct": {
+          "type": "integer",
+          "description": "Brightness from 1 to 100 percent when switching on.",
+          "default": 100
+        },
+        "color": {
+          "type": "object",
+          "description": "Colour for colour-capable bulbs as hue and saturation; warm white when left out.",
+          "properties": {
+            "hue": {
+              "type": "integer",
+              "description": "Hue angle from 0 to 359 degrees."
+            },
+            "saturation": {
+              "type": "integer",
+              "description": "Saturation from 0 to 100 percent."
+            }
+          },
+          "required": [
+            "hue",
+            "saturation"
+          ]
+        }
+      },
+      "required": [
+        "room",
+        "on"
+      ]
+    }
+  },
+  {
+    "name": "get_exchange_rate",
+    "description": "Get the exchange rate between two currencies on a date; no amount is converted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the base currency, e.g. 'USD'."
+        },
+        "quote_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the quote currency, e.g. 'EUR'."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the rate, formatted as YYYY-MM-DD; today when left out."
+        }
+      },
+      "required": [
+        "base_currency",
+        "quote_currency"
+      ]
+    }
+  },
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "weather.get_weather_data",
+    "description": "Retrieves current weather data including temperature, wind speed, and precipitation levels for a specified city and country.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The name of the city for which weather data is being requested, e.g., 'San Francisco'."
+        },
+        "country": {
+          "type": "string",
+          "description": "The country in which the city is located, using ISO 3166-1 alpha-2 country codes, e.g., 'US' for the United States."
+        },
+        "units": {
+          "type": "string",
+          "description": "The unit system for the temperature (Celsius or Fahrenheit) and wind speed (m/s or mph).",
+          "enum": [
+            "metric",
+            "imperial"
+          ],
+          "default": "metric"
+        },
+        "language": {
+          "type": "string",
+          "description": "The language code for the response data, such as 'en' for English or 'es' for Spanish.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "city",
+        "country"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_CancelReservation",
+    "description": "Cancel an existing flight reservation by its confirmation code and refund it per the fare rules.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "confirmation_code": {
+          "type": "string",
+          "description": "Six-character booking confirmation code, e.g. 'K7QX2M'."
+        },
+        "refund_to": {
+          "type": "string",
+          "description": "Where the refund goes: the original card or a travel credit.",
+          "enum": [
+            "original_payment",
+            "travel_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "confirmation_code"
+      ]
+    }
+  },
+  {
+    "name": "create_a_docker_file",
+    "description": "This function generates a Dockerfile in the specified directory with basic configuration. The Dockerfile will be tailored to a simple Python application.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directory_name": {
+          "type": "string",
+          "description": "The name of the directory where the Dockerfile will be created. It should be a valid directory path relative to the current working directory."
+        },
+        "base_image": {
+          "type": "string",
+          "description": "The base image to use for the Dockerfile, representing the starting point for the build.",
+          "enum": [
+            "python:3.8-slim",
+            "python:3.9-slim",
+            "python:3.10-slim"
+          ],
+          "default": "python:3.8-slim"
+        },
+        "maintainer": {
+          "type": "string",
+          "description": "The name of the maintainer or author of the Dockerfile.",
+          "default": "Unknown"
+        },
+        "expose_port": {
+          "type": "integer",
+          "description": "The port number that the container should expose. This is typically the port that the application listens on.",
+          "default": 80
+        },
+        "entrypoint": {
+          "type": "string",
+          "description": "The command that will be executed when the Docker container starts.",
+          "default": "python app.py"
+        }
+      },
+      "required": [
+        "directory_name"
+      ]
+    }
+  },
+  {
+    "name": "resetPassword",
+    "description": "Invalidate a user's password and email them a single-use link to choose a new one.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        }
+      },
+      "required": [
+        "userId"
+      ]
+    }
+  },
+  {
+    "name": "kube.list_pods",
+    "description": "List the pods in a namespace with their status, restart counts and owning deployment.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "status": {
+          "type": "string",
+          "description": "Only list pods in this phase.",
+          "enum": [
+            "Running",
+            "Pending",
+            "Failed",
+            "Succeeded"
+          ]
+        },
+        "labels": {
+          "type": "object",
+          "description": "Only list pods carrying all of these labels.",
+          "properties": {
+            "app": {
+              "type": "string",
+              "description": "Value of the pod's 'app' label."
+            },
+            "tier": {
+              "type": "string",
+              "description": "Value of the pod's 'tier' label."
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "search_messages",
+    "description": "Searches for messages that match the given query parameters and returns a paginated response.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Authentication token to validate user access."
+        },
+        "query": {
+          "type": "string",
+          "description": "The search query string to find specific messages."
+        },
+        "count": {
+          "type": "integer",
+          "description": "The number of messages to return per page. Default is 25, maximum is 100.",
+          "default": 25
+        },
+        "highlight": {
+          "type": "boolean",
+          "description": "Specifies whether to highlight the matching query terms in the response. Default is false.",
+          "default": false
+        },
+        "page": {
+          "type": "integer",
+          "description": "The page number of the search results to return. Starts from 1.",
+          "default": 1
+        },
+        "sort": {
+          "type": "string",
+          "description": "The field by which to sort the search results.",
+          "enum": [
+            "date",
+            "relevance"
+          ],
+          "default": "relevance"
+        },
+        "sort_dir": {
+          "type": "string",
+          "description": "The direction of sorting, either ascending or descending.",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "required": [
+        "token",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_SearchOnewayFlight",
+    "description": "Search for one-way flights between two airports on a given date and list the options with prices.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "IATA code of the departure airport, e.g. 'JFK' for New York JFK."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "IATA code of the arrival airport, e.g. 'LHR' for London Heathrow."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "Date of departure, formatted as YYYY-MM-DD."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "Number of passenger tickets to price, between 1 and 9.",
+          "default": 1
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "Cabin class to search in.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business",
+            "First"
+          ],
+          "default": "Economy"
+        },
+        "nonstop_only": {
+          "type": "boolean",
+          "description": "Only return flights without a connection.",
+          "default": false
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  },
+  {
+    "name": "home.get_device_status",
+    "description": "Get the current state of every smart device in one room: power, temperature and battery levels.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room to report on.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "include_offline": {
+          "type": "boolean",
+          "description": "Also list devices that are currently unreachable.",
+          "default": false
+        }
+      },
+      "required": [
+        "room"
+      ]
+    }
+  },
+  {
+    "name": "listFiles",
+    "description": "List the entries of a directory on the file server with their sizes and modification times.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the directory to list, e.g. '/var/log'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Descend into subdirectories and list their entries too.",
+          "default": false
+        },
+        "includeHidden": {
+          "type": "boolean",
+          "description": "Include dotfiles and other hidden entries in the listing.",
+          "default": false
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Field the listing is sorted by.",
+          "enum": [
+            "name",
+            "size",
+            "modified"
+          ],
+          "default": "name"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of entries to return in one response.",
+          "default": 100
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "Services_4_BookAppointment",
+    "description": "Books an appointment with a selected therapist for a specified date and time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "therapist_name": {
+          "type": "string",
+          "description": "The full name of the therapist with whom the appointment is to be booked."
+        },
+        "appointment_time": {
+          "type": "string",
+          "description": "The desired time for the appointment, in 24-hour format (e.g., '14:00' for 2 PM)."
+        },
+        "appointment_date": {
+          "type": "string",
+          "description": "The desired date for the appointment, in the format of 'YYYY-MM-DD' (e.g., '2023-04-15')."
+        }
+      },
+      "required": [
+        "therapist_name",
+        "appointment_time",
+        "appointment_date"
+      ]
+    }
+  }
+]
+
+Request: ¿Mi vuelo LH669 del 2026-04-25 sale a tiempo? ¿De qué puerta sale?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"East":{"completed":286.26,"refunded":108.51},"North":{"completed":246.04,"refunded":43.12},"West":{"completed":210.44,"refunded":43.61}}}],"type":"constraint"},"rules":2}

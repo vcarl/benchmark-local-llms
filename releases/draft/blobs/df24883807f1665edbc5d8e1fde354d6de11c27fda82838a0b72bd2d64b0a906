@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"account_type":"savings","amount":698.04,"memo":"Dinner split","recipient_account":"DE761299036939785998"},"name":"Banking_1_TransferMoney"}]}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"carrier":"usps","tracking_number":"22931906196"},"name":"track_package","optional":{"language":"en"}}]}],"type":"constraint"},"rules":2}

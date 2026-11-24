@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"body":"Your badge now opens the second-floor lab.","send_at":"2025-04-25T09:15","subject":"Lab access","to":["j.okafor@example.org","lars.berg@example.com"]},"name":"schedule_email","unordered":["to"]}]}],"type":"constraint"},"rules":2}

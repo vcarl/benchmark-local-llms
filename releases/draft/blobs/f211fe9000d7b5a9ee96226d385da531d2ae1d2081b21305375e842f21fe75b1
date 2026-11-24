@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches inelastic","pattern":"\\b[Ii][Nn][Ee][Ll][Aa][Ss][Tt][Ii][Cc]\\b"}],"type":"constraint"},"rules":2}

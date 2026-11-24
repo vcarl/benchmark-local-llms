@@ -1,0 +1,22 @@
+Triage the support ticket below into JSON with exactly these keys:
+
+- "ticket_id": string, this ticket's id, e.g. "T-12345"
+- "customer": string, the customer's full name
+- "product": string, the product the ticket is about
+- "category": one of "billing", "bug", "account", "feature_request"
+- "severity": one of "critical" (the product is completely unavailable, or data was lost), "high" (something is broken and the customer has no workaround), "medium" (something is broken but there is a workaround), "low" (anything else: questions, requests, plan or account changes)
+- "order_id": string, the order id mentioned (e.g. "ORD-123456"), or null if none is mentioned
+
+Strings are copied exactly as written unless a format is given; numbers are JSON numbers, not strings. Reply with only the JSON object.
+
+---
+Ticket T-48020
+From: priya.rossi@example.com
+
+Hello support,
+
+Could you send me a PDF copy of the invoice for order ORD-307706? Our accountant needs it for the Shelfwise subscription. (This is unrelated to ticket T-47180, which you already closed. We also use TrackPilot, and that's working fine.)
+
+Thanks,
+Priya Rossi
+---
