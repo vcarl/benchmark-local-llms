@@ -1,6 +1,8 @@
 /**
- * CLI entry point (§8). Wires the subcommand definitions (report, score,
- * run, list-models, list-prompts) into a single `llm-bench` program and
+ * CLI entry point (§8). Wires the subcommand definitions (report, audit,
+ * run, verify, score, release, legacy, dataset, export-eee, list-models,
+ * list-prompts) into a
+ * single `llm-bench` program and
  * hands off to `NodeRuntime.runMain`.
  *
  * This is the one module where the Effect runtime touches `process.argv`
@@ -17,23 +19,31 @@ import { Command } from "@effect/cli";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
 import { Effect } from "effect";
 import { auditCommand } from "./commands/audit.js";
-import { exportCommand } from "./commands/export.js";
+import { datasetCommand } from "./commands/dataset.js";
+import { exportEeeCommand } from "./commands/export-eee.js";
+import { legacyCommand } from "./commands/legacy.js";
 import { listModelsCommand, listPromptsCommand } from "./commands/list.js";
+import { releaseCommand } from "./commands/release.js";
 import { reportCommand } from "./commands/report.js";
 import { runCommand } from "./commands/run.js";
 import { scoreCommand } from "./commands/score.js";
+import { verifyCommand } from "./commands/verify.js";
 import { installSubprocessSafetyNet } from "./subprocess-registry.js";
 
 const root = Command.make("llm-bench").pipe(
   Command.withDescription("Benchmark local LLM runtimes and emit reports"),
   Command.withSubcommands([
     reportCommand,
-    scoreCommand,
     auditCommand,
-    exportCommand,
+    exportEeeCommand,
     listModelsCommand,
     listPromptsCommand,
     runCommand,
+    verifyCommand,
+    scoreCommand,
+    releaseCommand,
+    legacyCommand,
+    datasetCommand,
   ]),
 );
 

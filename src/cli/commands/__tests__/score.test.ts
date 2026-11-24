@@ -1,983 +1,110 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import type { CommandExecutor } from "@effect/platform";
+import * as fsp from "node:fs/promises";
+import * as path from "node:path";
 import { NodeContext } from "@effect/platform-node";
-import { Effect, Option, Schema } from "effect";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { scorerHash, writeBlob } from "../../../archive/content-store.js";
-import type { ResolvedChallenge, ResolvedItem } from "../../../config/challenges.js";
-import { loadChallenge } from "../../../config/challenges.js";
-import { loadAttemptReconstruction } from "../../../report/reconstruct.js";
-import {
-  AttemptManifest,
-  type ItemResult,
-  ItemResult as ItemResultSchema,
-} from "../../../schema/attempt.js";
-import type { PromptCorpusEntry } from "../../../schema/prompt.js";
-import type { ScorerConfig } from "../../../schema/scorer.js";
-import {
-  formatSummary,
-  rescoreItems,
-  rescoreItemsFromStore,
-  restampBlocker,
-  scoreCommand,
-  withStaleScoreItems,
-} from "../score.js";
+import { Effect } from "effect";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeManifest } from "../../../dataset/manifest.js";
+import { MESSAGES_DIGEST, makeDraftRelease } from "../../../release/__tests__/fixtures.js";
+import { loadRelease } from "../../../release/release.js";
+import { execution, header } from "../../../store/__tests__/fixtures.js";
+import { appendExecution, createOpenBundle, sealBundle } from "../../../store/bundle.js";
+import { digestOf } from "../../../store/digest.js";
+import { readScores } from "../../../store/scores.js";
+import { scoreDataset } from "../score.js";
 
-const exactMatch: ScorerConfig = { type: "exact_match", expected: "42", extract: "(\\d+)" };
-
-const promptEntry = (name: string, promptHash: string): PromptCorpusEntry =>
-  ({
-    name,
-    category: "math",
-    tier: 1,
-    system: { key: "none", text: "" },
-    promptText: "what is 6*7?",
-    scorer: exactMatch,
-    promptHash,
-  }) as unknown as PromptCorpusEntry;
-
-const resolvedItem = (
-  itemId: string,
-  promptHash: string,
-  scorer: ScorerConfig = exactMatch,
-): ResolvedItem => ({
-  itemId,
-  family: itemId,
-  scope: "core",
-  promptHash,
-  itemHash: `${promptHash}-ih`,
-  scorer,
-  prompt: promptEntry(itemId, promptHash),
-});
-
-const resolved = (items: ReadonlyArray<ResolvedItem>): ResolvedChallenge => ({
-  id: "smoke",
-  version: 1,
-  passThreshold: 0.5,
-  challengeHash: "chh",
-  items,
-});
-
-const item = (overrides: Partial<ItemResult> = {}): ItemResult => ({
-  itemId: "p1",
-  promptName: "p1",
-  promptHash: "ph1",
-  itemHash: "ih1",
-  executedAt: "2026-01-01T00:00:00Z",
-  promptTokens: 1,
-  generationTokens: 1,
-  promptTps: 1,
-  generationTps: 1,
-  peakMemoryGb: 0,
-  wallTimeSec: 1,
-  output: "the answer is 42",
-  reasoning: null,
-  rawOutput: "the answer is 42",
-  error: null,
-  score: 0,
-  ...overrides,
-});
-
-const run = <A, E>(eff: Effect.Effect<A, E, CommandExecutor.CommandExecutor>) =>
+const run = <A, E>(eff: Effect.Effect<A, E, NodeContext.NodeContext>) =>
   Effect.runPromise(eff.pipe(Effect.provide(NodeContext.layer)));
 
-describe("rescoreItems", () => {
-  it("re-scores a matching item via scoreByConfig (output matches scorer → 1)", async () => {
-    const items = [item({ promptHash: "ph1", score: 0 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
-    expect(res.updated[0]?.score).toBe(1);
-    expect(res.rescored).toBe(1);
-    expect(res.drift).toBe(0);
-  });
+let root: string;
+let releases: string;
+let store: string;
+let datasets: string;
+beforeEach(async () => {
+  ({ root, releases } = await makeDraftRelease());
+  store = path.join(root, "store");
+  datasets = path.join(root, "datasets");
+  await fsp.mkdir(datasets);
+});
+afterEach(() => fsp.rm(root, { recursive: true, force: true }));
 
-  it("applies a scorer-only edit when promptHash matches but scorer changed (itemHash differs)", async () => {
-    // stored item scored 1 previously; the edited scorer now expects '99' → re-score to 0.
-    const newScorer: ScorerConfig = { type: "exact_match", expected: "99", extract: "(\\d+)" };
-    const items = [item({ promptHash: "ph1", score: 1, output: "the answer is 42" })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", newScorer)])));
-    expect(res.updated[0]?.score).toBe(0);
-    expect(res.rescored).toBe(1);
-    expect(res.drift).toBe(0);
-  });
-
-  it("keeps the stored score and counts drift when promptHash drifted", async () => {
-    const items = [item({ promptHash: "OLD", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "NEW")])));
-    expect(res.updated[0]?.score).toBe(1);
-    expect(res.rescored).toBe(0);
-    expect(res.drift).toBe(1);
-  });
-
-  it("keeps the stored score and counts drift when prompt is missing from another version", async () => {
-    const items = [item({ itemId: "ghost", promptName: "ghost", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")]), false));
-    expect(res.updated[0]?.score).toBe(1);
-    expect(res.rescored).toBe(0);
-    expect(res.drift).toBe(1);
-    expect(res.retired).toEqual([]);
-  });
-
-  it("retires an item missing from the same challenge version: line kept verbatim, not drift", async () => {
-    const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
-    const res = await run(rescoreItems([ghost], resolved([resolvedItem("p1", "ph1")]), true));
-    expect(res.updated[0]).toEqual(ghost);
-    expect(res.retired).toEqual(["ghost"]);
-    expect(res.drift).toBe(0);
-    expect(res.kept).toEqual([]);
-  });
-
-  it("forces score 0 for an item that recorded an execution error", async () => {
-    const items = [item({ promptHash: "ph1", error: "boom", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1")])));
-    expect(res.updated[0]?.score).toBe(0);
-    expect(res.rescored).toBe(1);
-    expect(res.drift).toBe(0);
-  });
-
-  it("captures the constraint breakdown (passed/failed names) on the re-scored item", async () => {
-    const constraintScorer: ScorerConfig = {
-      type: "constraint",
-      constraints: [
-        { check: "contains", name: "has_foo", value: "foo" },
-        { check: "contains", name: "has_bar", value: "bar" },
-        { check: "contains", name: "has_zzz", value: "zzz" },
-      ],
-    };
-    const items = [item({ promptHash: "ph1", output: "foo only", score: 0 })];
-    const res = await run(
-      rescoreItems(items, resolved([resolvedItem("p1", "ph1", constraintScorer)])),
-    );
-    expect(res.updated[0]?.breakdown?.passed).toEqual(["has_foo"]);
-    expect(res.updated[0]?.breakdown?.failed).toEqual(["has_bar", "has_zzz"]);
-    expect(res.updated[0]?.breakdown?.errored).toEqual([]);
-  });
-
-  it("carries no breakdown for an item that recorded an execution error", async () => {
-    const constraintScorer: ScorerConfig = {
-      type: "constraint",
-      constraints: [{ check: "contains", name: "has_foo", value: "foo" }],
-    };
-    // Even though the stored item carries a stale breakdown, an execution-error
-    // re-score forces score 0 and clears it.
-    const items = [
-      item({
-        promptHash: "ph1",
-        error: "boom",
-        score: 1,
-        breakdown: { passed: ["has_foo"], failed: [], errored: [] },
-      }),
-    ];
-    const res = await run(
-      rescoreItems(items, resolved([resolvedItem("p1", "ph1", constraintScorer)])),
-    );
-    expect(res.updated[0]?.score).toBe(0);
-    expect(res.updated[0]?.breakdown).toBeUndefined();
-  });
-
-  it("clears a stale breakdown when the re-score scorer no longer produces one", async () => {
-    // Stored item has a constraint breakdown; re-scoring with a non-constraint
-    // (exact_match) scorer must drop it.
-    const items = [
-      item({
-        promptHash: "ph1",
-        output: "the answer is 42",
-        score: 1,
-        breakdown: { passed: ["x"], failed: [], errored: [] },
-      }),
-    ];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", exactMatch)])));
-    expect(res.updated[0]?.score).toBe(1);
-    expect(res.updated[0]?.breakdown).toBeUndefined();
-  });
-
-  it("folds a scorer error to score 0 (and still counts as rescored)", async () => {
-    // A game scorer in scoreByConfig fails → caught → score 0.
-    const gameScorer = { type: "game", gameScorer: "nope", scorerParams: {} } as ScorerConfig;
-    const items = [item({ promptHash: "ph1", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", gameScorer)])));
-    expect(res.updated[0]?.score).toBe(0);
-    expect(res.updated[0]?.failureKind).toBe("scorer_error");
-    expect(res.rescored).toBe(1);
-  });
-
-  it("re-scored items name the scorer that produced their score", async () => {
-    const newScorer: ScorerConfig = { type: "exact_match", expected: "42", extract: "is (\\d+)" };
-    const items = [item({ promptHash: "ph1", itemHash: "stale", scorerHash: "stale" })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "ph1", newScorer)])));
-    expect(res.updated[0]?.itemHash).toBe("ph1-ih");
-    expect(res.updated[0]?.scorerHash).toBe(scorerHash(newScorer));
-  });
-
-  it("records failureKind and scoreDetails on every re-scored item", async () => {
-    const items = [
-      item({ itemId: "p1", promptName: "p1", output: "the answer is 42" }),
-      item({ itemId: "p2", promptName: "p2", output: "the answer is 41" }),
-      item({ itemId: "p3", promptName: "p3", output: "no digits here" }),
-      item({ itemId: "p4", promptName: "p4", output: "", stopReason: "length", reasoning: "hmm" }),
-    ];
-    const res = await run(
-      rescoreItems(
-        items,
-        resolved([
-          resolvedItem("p1", "ph1"),
-          resolvedItem("p2", "ph1"),
-          resolvedItem("p3", "ph1"),
-          resolvedItem("p4", "ph1"),
-        ]),
-      ),
-    );
-    expect(res.updated.map((u) => u.failureKind)).toEqual([
-      null,
-      "wrong",
-      "no_answer",
-      "thinking_truncated",
-    ]);
-    expect(res.updated[1]?.scoreDetails).toBe("expected 42, got 41");
-  });
-
-  it("scores an answer that only echoes truncated reasoning as no output (erratum 0.6)", async () => {
-    const thinking = "We need 6*7... the answer is 42? Let's re";
-    const items = [
-      item({
-        itemId: "p1",
-        promptName: "p1",
-        output: thinking,
-        reasoning: thinking,
-        rawOutput: thinking,
-        stopReason: "length",
-        score: 1,
-      }),
-      item({
-        itemId: "p2",
-        promptName: "p2",
-        output: thinking,
-        reasoning: thinking,
-        rawOutput: thinking,
-        stopReason: "stop",
-      }),
-    ];
-    const scored = resolved([resolvedItem("p1", "ph1"), resolvedItem("p2", "ph1")]);
-    const res = await run(rescoreItems(items, scored));
-    expect(res.updated[0]).toMatchObject({
-      output: "",
-      rawOutput: thinking,
-      score: 0,
-      failureKind: "thinking_truncated",
-    });
-    expect(res.updated[1]).toMatchObject({ output: thinking, score: 1 });
-    const fromStore = await run(
-      rescoreItemsFromStore(
-        items,
-        items.map((i) => ({ item: i, scorer: exactMatch })),
-      ),
-    );
-    expect(fromStore.updated[0]).toMatchObject({
-      output: "",
-      score: 0,
-      failureKind: "thinking_truncated",
-    });
-  });
-
-  it("lists the items that kept a stored score", async () => {
-    const items = [item({ promptHash: "OLD", score: 1 })];
-    const res = await run(rescoreItems(items, resolved([resolvedItem("p1", "NEW")])));
-    expect(res.kept).toEqual(["p1"]);
-  });
+const exec = (item: string, output: string, runId = "run-1") => ({
+  runId,
+  e: execution(item, 0, {
+    item: `math/${item}`,
+    messagesDigest: MESSAGES_DIGEST[`math/${item}`] as string,
+    output,
+    rawOutput: output,
+  }),
 });
 
-describe("withStaleScoreItems", () => {
-  it("records kept items and clears a prior record when none were kept", () => {
-    const m = baseManifest();
-    expect(withStaleScoreItems(m, ["a"]).staleScoreItems).toEqual(["a"]);
-    expect("staleScoreItems" in withStaleScoreItems({ ...m, staleScoreItems: ["a"] }, [])).toBe(
-      false,
-    );
-  });
-});
-
-describe("formatSummary", () => {
-  it("renders configId × challengeId@version with aggregate + PASS + counts", () => {
-    const line = formatSummary({
-      configId: "smoke-config",
-      challengeId: "smoke",
-      version: 1,
-      aggregate: { score: 0.75, passed: true },
-      rescored: 2,
-      total: 2,
-      drift: 0,
-      fallback: 0,
-      dryRun: false,
-    });
-    expect(line).toContain("score: smoke-config × smoke@1");
-    expect(line).toContain("aggregate 0.750 PASS");
-    expect(line).toContain("[rescored 2/2, drift 0, fallback 0]");
-    expect(line).not.toContain("dry");
-  });
-
-  it("marks a dry-run line clearly", () => {
-    const line = formatSummary({
-      configId: "c",
-      challengeId: "ch",
-      version: 3,
-      aggregate: { score: 0.2, passed: false },
-      rescored: 1,
-      total: 5,
-      drift: 4,
-      fallback: 0,
-      dryRun: true,
-    });
-    expect(line.toLowerCase()).toContain("dry");
-    expect(line).toContain("aggregate 0.200 FAIL");
-  });
-});
-
-// ── Command-handler boundary tests ───────────────────────────────────────────
-//
-// These exercise the real `scoreCommand.handler` (the same entry the CLI
-// invokes after option parsing), mirroring how report.test.ts drives the real
-// business logic. The seed archive is built through the actual schema encoders
-// and matched to the real `smoke` challenge so a re-score genuinely changes a
-// score on disk.
-
-const REAL_CHALLENGES = "challenges";
-
-/** The smoke item whose constraint scorer PASSING_OUTPUT satisfies. */
-const SMOKE_CONSTRAINT_ITEM = "constraint_keywords_direct";
-
-// A paragraph that satisfies the smoke challenge's constraint scorer (must
-// contain 'rocket', 'orbit', 'gravity') → re-scores to 1.0.
-const PASSING_OUTPUT =
-  "The rocket climbed steadily until it reached a stable orbit, where gravity gently held it in place.";
-
-const runHandler = (args: {
-  archive?: string | string[];
-  stale?: string;
-  challenge?: string;
-  dryRun?: boolean;
-  corpus?: boolean;
-}) =>
-  Effect.runPromise(
-    scoreCommand
-      .handler({
-        archive: args.archive === undefined ? [] : [args.archive].flat(),
-        stale: args.stale !== undefined,
-        archiveDir: args.stale ?? "unused",
-        challengesDir: REAL_CHALLENGES,
-        challenge: args.challenge === undefined ? Option.none() : Option.some(args.challenge),
-        dryRun: args.dryRun ?? false,
-        corpus: args.corpus ?? false,
-        verbose: false,
-      })
-      .pipe(Effect.provide(NodeContext.layer)),
-  );
-
-/** Resolve the real `smoke` challenge to learn its constraint item's promptHash. */
-const resolveSmoke = () =>
-  Effect.runPromise(
-    loadChallenge(`${REAL_CHALLENGES}/smoke.yaml`).pipe(Effect.provide(NodeContext.layer)),
-  );
-
-/** The smoke challenge's constraint_keywords_direct item (satisfied by PASSING_OUTPUT). */
-const smokeConstraintItem = (smoke: ResolvedChallenge): ResolvedItem | undefined =>
-  smoke.items.find((i) => i.itemId === SMOKE_CONSTRAINT_ITEM);
-
-/** Encode a schema-valid attempt archive (1 manifest line + N item lines). */
-const encodeArchive = (manifest: typeof AttemptManifest.Type, items: ReadonlyArray<ItemResult>) =>
-  Effect.runPromise(
+const seal = (runId: string, execs: ReadonlyArray<ReturnType<typeof exec>>) =>
+  run(
     Effect.gen(function* () {
-      const encHeader = yield* Schema.encode(AttemptManifest)(manifest);
-      const encItems = yield* Effect.forEach(items, (i) => Schema.encode(ItemResultSchema)(i));
-      return `${[JSON.stringify(encHeader), ...encItems.map((e) => JSON.stringify(e))].join("\n")}\n`;
+      const open = yield* createOpenBundle(store, header({ run: { ...header().run, id: runId } }));
+      for (const { e } of execs) yield* appendExecution(open, e);
+      return yield* sealBundle(store, open, "2026-01-01T00:01:00.000Z");
     }),
   );
 
-const baseManifest = (
-  overrides: Partial<typeof AttemptManifest.Type> = {},
-): typeof AttemptManifest.Type => ({
-  schemaVersion: 1,
-  attemptId: "att-test-1",
-  startedAt: "2026-01-01T00:00:00.000Z",
-  finishedAt: "2026-01-01T00:01:00.000Z",
-  interrupted: false,
-  configId: "smoke-config",
-  configHash: "cfghash",
-  artifact: "test/model",
-  runtime: "llamacpp",
-  quant: "q4",
-  temperature: 0,
-  systemPrompt: "concise",
-  maxTokens: 128,
-  challengeId: "smoke",
-  challengeVersion: 1,
-  challengeHash: "chh",
-  env: {
-    hostname: "h",
-    platform: "p",
-    runtimeVersion: "1",
-    nodeVersion: "1",
-    benchmarkGitSha: "s",
-  },
-  aggregate: { score: 0, passed: false },
-  ...overrides,
-});
-
-/** Write a minimal v2 attempt archive with content store into dir. Returns file path. */
-const writeV2AttemptWithStore = async (
-  dir: string,
-  opts: {
-    scorer: ScorerConfig;
-    output: string;
-    score: number;
-    passThreshold?: number;
-  },
-) => {
-  const sh = scorerHash(opts.scorer);
-  const promptHash = "ph-store";
-  const configHash = "cfg-store";
-  const attemptId = "att-store";
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      yield* writeBlob(dir, "prompts", promptHash, "what is 2+2?");
-      yield* writeBlob(dir, "scorers", sh, JSON.stringify(opts.scorer));
-      yield* writeBlob(dir, "system", configHash, "Be concise.");
-    }).pipe(Effect.provide(NodeContext.layer)),
+const manifest = (bundles: string[]) =>
+  run(
+    writeManifest(path.join(datasets, "d.yaml"), {
+      name: "d",
+      title: "D",
+      release: "draft",
+      evalVersion: null,
+      ranked: false,
+      bundles,
+    }),
   );
-  const header = {
-    schemaVersion: 2,
-    attemptId,
-    startedAt: "2026-01-01T00:00:00.000Z",
-    finishedAt: "2026-01-01T00:01:00.000Z",
-    interrupted: false,
-    configId: "store-config",
-    configHash,
-    artifact: "test/model",
-    runtime: "llamacpp",
-    quant: "q4",
-    temperature: 0,
-    systemPrompt: "default",
-    maxTokens: 128,
-    challengeId: "store-ch",
-    challengeVersion: 1,
-    challengeHash: "schh",
-    passThreshold: opts.passThreshold ?? 1,
-    env: {
-      hostname: "h",
-      platform: "p",
-      runtimeVersion: "1",
-      nodeVersion: "1",
-      benchmarkGitSha: "s",
-    },
-    aggregate: { score: 0, passed: false },
-  };
-  const itemJson = {
-    itemId: "i1",
-    promptName: "i1",
-    promptHash,
-    itemHash: "ih-store",
-    scorerHash: sh,
-    executedAt: "2026-01-01T00:00:00.000Z",
-    promptTokens: 1,
-    generationTokens: 1,
-    promptTps: 1,
-    generationTps: 1,
-    peakMemoryGb: 0,
-    wallTimeSec: 0,
-    output: opts.output,
-    reasoning: null,
-    rawOutput: opts.output,
-    error: null,
-    score: opts.score,
-  };
-  const file = path.join(dir, `${attemptId}.jsonl`);
-  writeFileSync(file, `${JSON.stringify(header)}\n${JSON.stringify(itemJson)}\n`, "utf-8");
-  return file;
-};
 
-describe("rescoreItemsFromStore", () => {
-  it("re-scores an item from stored scorer config", async () => {
-    const scorer: ScorerConfig = { type: "exact_match", expected: "4", extract: "(\\d+)" };
-    const sh = scorerHash(scorer);
-    const archived = item({
-      itemId: "i1",
-      promptName: "i1",
-      promptHash: "ph-x",
-      itemHash: "ih-x",
-      scorerHash: sh,
-      output: "the answer is 4",
-      score: 0,
-    });
-    const reconItems = [{ item: archived, scorer }];
-    const res = await run(rescoreItemsFromStore([archived], reconItems));
-    expect(res.updated[0]?.score).toBe(1);
-    expect(res.rescored).toBe(1);
-    expect(res.drift).toBe(0);
-  });
-});
-
-describe("scoreCommand.handler (boundary)", () => {
-  let dir: string;
-  let logSpy: ReturnType<typeof vi.spyOn>;
-  let logged: string[];
-
-  beforeEach(() => {
-    dir = mkdtempSync(path.join(tmpdir(), "score-cmd-"));
-    logged = [];
-    logSpy = vi.spyOn(console, "log").mockImplementation((line?: unknown) => {
-      logged.push(String(line));
-    });
-  });
-  afterEach(() => {
-    logSpy.mockRestore();
-    rmSync(dir, { recursive: true, force: true });
+const score = () =>
+  scoreDataset({
+    name: "d",
+    datasetsDir: datasets,
+    store,
+    releasesDir: releases,
+    harnessGitSha: "x",
   });
 
-  it("--dry-run leaves the archive byte-for-byte identical while reporting the would-change", async () => {
-    const smoke = await resolveSmoke();
-    const promptItem = smokeConstraintItem(smoke);
-    expect(promptItem).toBeDefined();
-    if (promptItem === undefined) return;
+describe("scoreDataset", () => {
+  it("appends the missing score records at the dataset's eval version, idempotently", async () => {
+    const one = await seal("run-1", [exec("a", "4"), exec("b", "4")]);
+    await manifest([one]);
+    expect(await run(score())).toEqual({ bundles: 1, appended: 2, present: 0 });
 
-    // Stored score 0; output actually passes → a real re-score would flip 0 → 1.
-    const archiveItem = item({
-      itemId: promptItem.itemId,
-      promptName: promptItem.itemId,
-      promptHash: promptItem.promptHash,
-      itemHash: promptItem.itemHash,
-      output: PASSING_OUTPUT,
-      rawOutput: PASSING_OUTPUT,
-      score: 0,
-    });
-    const contents = await encodeArchive(baseManifest(), [archiveItem]);
-    const file = path.join(dir, "att.jsonl");
-    writeFileSync(file, contents, "utf-8");
-    const before = readFileSync(file);
+    const records = await run(readScores(store, one));
+    const draft = await run(loadRelease(path.join(releases, "draft")));
+    expect(records.map((r) => [r.scorer, r.score])).toEqual([
+      [draft.file.items["math/a"]?.scorer, 1],
+      [draft.file.items["math/b"]?.scorer, 0],
+    ]);
+    expect(records[0]?.execution).toBe(digestOf(exec("a", "4").e));
 
-    await runHandler({ archive: file, dryRun: true });
+    expect(await run(score())).toEqual({ bundles: 1, appended: 0, present: 2 });
+    expect(await run(readScores(store, one))).toEqual(records);
 
-    const after = readFileSync(file);
-    expect(after.equals(before)).toBe(true); // byte-for-byte identical
-    const out = logged.join("\n");
-    expect(out).toContain("dry-run, no write");
-    // It reports the would-change (0 → 1) without having written it.
-    expect(out).toContain(`${promptItem.itemId}: 0 → 1`);
+    const two = await seal("run-2", [exec("chain#1", "2"), exec("chain#2", "5")]);
+    await manifest([one, two]);
+    expect(await run(score())).toEqual({ bundles: 2, appended: 2, present: 2 });
+    expect(await run(readScores(store, one))).toEqual(records);
+    expect((await run(readScores(store, two))).map((r) => r.score)).toEqual([1, 0]);
   });
 
-  it("falls back gracefully (exit 0, file untouched) when the challenge is unresolvable", async () => {
-    const archiveItem = item({ output: PASSING_OUTPUT, rawOutput: PASSING_OUTPUT, score: 0 });
-    const contents = await encodeArchive(baseManifest(), [archiveItem]);
-    const file = path.join(dir, "att.jsonl");
-    writeFileSync(file, contents, "utf-8");
-    const before = readFileSync(file);
-
-    // Point at a challenge file that does not exist → whole-archive fallback.
-    await expect(
-      runHandler({ archive: file, challenge: path.join(dir, "does-not-exist.yaml") }),
-    ).resolves.toBeUndefined();
-
-    const after = readFileSync(file);
-    expect(after.equals(before)).toBe(true);
-    expect(logged.join("\n")).toContain("challenge unresolvable");
-  });
-
-  it("surfaces a clear command-boundary error for a non-attempt (legacy/garbage) file", async () => {
-    const file = path.join(dir, "legacy.jsonl");
-    writeFileSync(file, '{"not":"an attempt manifest"}\ngarbage not even json\n', "utf-8");
-
-    await expect(runHandler({ archive: file })).rejects.toThrow(
-      "not an attempt archive (score no longer reads the legacy format)",
+  it("grades nothing for a legacy manifest whose archives hold no lines", async () => {
+    await fsp.writeFile(
+      path.join(datasets, "d.yaml"),
+      "name: d\ntitle: D\nrelease: draft\nevalVersion: null\nranked: true\nlegacy:\n  hardware: { id: unknown }\n  archives: {}\n",
     );
-    // The raw loader reason must NOT leak through.
-    await expect(runHandler({ archive: file })).rejects.not.toThrow(
-      /AttemptLoadIssue|is not JSON|is not an AttemptManifest/,
-    );
+    expect(await run(score())).toEqual({ bundles: 0, appended: 0, present: 0 });
   });
 
-  it("prints drift/skip warnings in NORMAL (non-dry-run) mode, then writes", async () => {
-    const smoke = await resolveSmoke();
-    const promptItem = smokeConstraintItem(smoke);
-    expect(promptItem).toBeDefined();
-    if (promptItem === undefined) return;
-
-    const realItem = item({
-      itemId: promptItem.itemId,
-      promptName: promptItem.itemId,
-      promptHash: promptItem.promptHash,
-      itemHash: promptItem.itemHash,
-      output: PASSING_OUTPUT,
-      rawOutput: PASSING_OUTPUT,
-      score: 0,
-    });
-    // An item absent from another version of the challenge → kept, warned, counts as drift.
-    const ghost = item({ itemId: "ghost", promptName: "ghost", score: 1 });
-    const contents = await encodeArchive(baseManifest({ challengeVersion: 0 }), [realItem, ghost]);
-    const file = path.join(dir, "att.jsonl");
-    writeFileSync(file, contents, "utf-8");
-
-    await runHandler({ archive: file, dryRun: false });
-
-    const out = logged.join("\n");
-    // Drift/skip warning is surfaced even in a real write.
-    expect(out).toContain("warn ghost: not in challenge");
-    // Summary still reflects the drift count.
-    expect(out).toContain("drift 1");
-    // The file was actually rewritten (re-score applied 0 → 1 for the real item).
-    const written = readFileSync(file, "utf-8");
-    expect(written).toContain('"score":1');
-  });
-
-  it("v2 default re-scores from the store with no corpus dir", async () => {
-    // Scorer: exact_match expects "4"; output "4" → score 1; but stored score is 0.
-    const scorer: ScorerConfig = { type: "exact_match", expected: "4", extract: "(\\d+)" };
-    const file = await writeV2AttemptWithStore(dir, {
-      scorer,
-      output: "4",
-      score: 0,
-      passThreshold: 1,
-    });
-
-    // NO prompts/challenges dir matching this archive exists — if the handler tried
-    // to load a corpus it would fail because challengeId is "store-ch" (no yaml).
-    await runHandler({ archive: file, corpus: false });
-
-    const out = logged.join("\n");
-    expect(out).toContain("PASS"); // aggregate passed (score 1 >= passThreshold 1)
-    const written = readFileSync(file, "utf-8");
-    expect(written).toContain('"score":1'); // item re-scored to 1 from store
-    expect(written).toContain('"passed":true'); // manifest aggregate updated
-  });
-
-  it("--corpus applies the current corpus scorer (v2 archive + corpus flag)", async () => {
-    const smoke = await resolveSmoke();
-    const promptItem = smokeConstraintItem(smoke);
-    expect(promptItem).toBeDefined();
-    if (promptItem === undefined) return;
-
-    // Build a v2 archive where:
-    //   stored scorer: exact_match expects "4" → output "4" → stored score 1
-    //   smoke corpus scorer: constraint keywords (rocket/orbit/gravity) → "4" → score 0
-    // With --corpus=true the handler uses the REAL smoke corpus scorer → score 0.
-    const storedScorer: ScorerConfig = { type: "exact_match", expected: "4", extract: "(\\d+)" };
-    const sh = scorerHash(storedScorer);
-    const configHash = "cfg-corpus-test";
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        yield* writeBlob(dir, "prompts", promptItem.promptHash, promptItem.prompt.promptText);
-        yield* writeBlob(dir, "scorers", sh, JSON.stringify(storedScorer));
-        yield* writeBlob(dir, "system", configHash, "Be concise.");
-      }).pipe(Effect.provide(NodeContext.layer)),
-    );
-    const header = {
-      schemaVersion: 2,
-      attemptId: "att-corpus",
-      startedAt: "2026-01-01T00:00:00.000Z",
-      finishedAt: "2026-01-01T00:01:00.000Z",
-      interrupted: false,
-      configId: "corpus-config",
-      configHash,
-      artifact: "test/model",
-      runtime: "llamacpp",
-      quant: "q4",
-      temperature: 0,
-      systemPrompt: "default",
-      maxTokens: 128,
-      challengeId: "smoke",
-      challengeVersion: 1,
-      challengeHash: "chh",
-      passThreshold: 1,
-      env: {
-        hostname: "h",
-        platform: "p",
-        runtimeVersion: "1",
-        nodeVersion: "1",
-        benchmarkGitSha: "s",
-      },
-      aggregate: { score: 1, passed: true },
-    };
-    const itemJson = {
-      itemId: promptItem.itemId,
-      promptName: promptItem.itemId,
-      promptHash: promptItem.promptHash,
-      itemHash: promptItem.itemHash,
-      scorerHash: sh,
-      executedAt: "2026-01-01T00:00:00.000Z",
-      promptTokens: 1,
-      generationTokens: 1,
-      promptTps: 1,
-      generationTps: 1,
-      peakMemoryGb: 0,
-      wallTimeSec: 0,
-      output: "4",
-      reasoning: null,
-      rawOutput: "4",
-      error: null,
-      score: 1,
-    };
-    const file = path.join(dir, "att-corpus.jsonl");
-    writeFileSync(file, `${JSON.stringify(header)}\n${JSON.stringify(itemJson)}\n`, "utf-8");
-
-    // --corpus=true → uses the REAL smoke corpus scorer (constraint keywords)
-    // Output "4" does NOT contain rocket/orbit/gravity → score 0, FAIL.
-    await runHandler({ archive: file, corpus: true });
-
-    const out = logged.join("\n");
-    expect(out).toContain("FAIL"); // smoke scorer didn't match "4"
-    const written = readFileSync(file, "utf-8");
-    expect(written).toContain('"score":0'); // item re-scored to 0 via corpus
-    expect(written).toContain('"passed":false');
-  });
-});
-
-describe("scoreCommand.handler re-stamp (scorer-only change)", () => {
-  let dir: string;
-  let logSpy: ReturnType<typeof vi.spyOn>;
-  let logged: string[];
-  const OLD_HASH = "0ld0ld0ld0ld";
-
-  beforeEach(() => {
-    dir = mkdtempSync(path.join(tmpdir(), "score-restamp-"));
-    logged = [];
-    logSpy = vi.spyOn(console, "log").mockImplementation((line?: unknown) => {
-      logged.push(String(line));
-    });
-  });
-  afterEach(() => {
-    logSpy.mockRestore();
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  /** A complete v2 smoke attempt recorded under an older (scorer-differing) identity. */
-  const writeStaleSmoke = async (
-    opts: { driftItem?: string; id?: string; retiredItem?: string } = {},
-  ) => {
-    const smoke = await resolveSmoke();
-    const oldScorer: ScorerConfig = { type: "exact_match", expected: "nope", extract: "(x)" };
-    const configHash = "cfgrestamp00";
-    const attemptId = `att-${configHash}-${OLD_HASH}-${opts.id ?? "1792738113316"}`;
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        yield* writeBlob(dir, "system", configHash, "");
-        yield* writeBlob(dir, "scorers", scorerHash(oldScorer), JSON.stringify(oldScorer));
-      }).pipe(Effect.provide(NodeContext.layer)),
-    );
-    const items = smoke.items.map((r) =>
-      item({
-        itemId: r.itemId,
-        promptName: r.itemId,
-        promptHash: r.itemId === opts.driftItem ? "drifted00000" : r.promptHash,
-        itemHash: "oldih0000000",
-        scorerHash: scorerHash(oldScorer),
-        output: PASSING_OUTPUT,
-        rawOutput: PASSING_OUTPUT,
-      }),
-    );
-    if (opts.retiredItem !== undefined) {
-      items.push(
-        item({
-          itemId: opts.retiredItem,
-          promptName: opts.retiredItem,
-          promptHash: "retired00000",
-          itemHash: "oldih0000000",
-          scorerHash: scorerHash(oldScorer),
-          score: 1,
-          failureKind: null,
-        }),
-      );
-      await Effect.runPromise(
-        writeBlob(dir, "prompts", "retired00000", "a retired prompt").pipe(
-          Effect.provide(NodeContext.layer),
-        ),
-      );
-    }
-    const manifest = baseManifest({
-      schemaVersion: 2,
-      attemptId,
-      configHash,
-      challengeHash: OLD_HASH,
-      passThreshold: smoke.passThreshold,
-    });
-    const file = path.join(dir, `${attemptId}.jsonl`);
-    writeFileSync(file, await encodeArchive(manifest, items), "utf-8");
-    return {
-      smoke,
-      file,
-      attemptId,
-      newId: `att-${configHash}-${smoke.challengeHash}-${opts.id ?? "1792738113316"}`,
-    };
-  };
-
-  const header = (file: string) =>
-    JSON.parse(readFileSync(file, "utf-8").split("\n")[0] ?? "") as typeof AttemptManifest.Type;
-
-  it("re-stamps identity, renames the file, and stays reconstructible", async () => {
-    const { smoke, file, attemptId, newId } = await writeStaleSmoke();
-    await runHandler({ archive: file, corpus: true });
-
-    const newFile = path.join(dir, `${newId}.jsonl`);
-    expect(existsSync(file)).toBe(false);
-    const h = header(newFile);
-    expect(h.attemptId).toBe(newId);
-    expect(h.challengeHash).toBe(smoke.challengeHash);
-    expect(h.restampedFrom).toBe(attemptId);
-    expect(logged.join("\n")).toContain(`restamp ${attemptId} → ${newId}`);
-
-    const recon = await Effect.runPromise(
-      loadAttemptReconstruction(newFile).pipe(Effect.provide(NodeContext.layer)),
-    );
-    for (const r of smoke.items) {
-      const got = recon.items.find((x) => x.item.itemId === r.itemId);
-      expect(got?.item.itemHash).toBe(r.itemHash);
-      expect(got?.scorer).toEqual(r.scorer);
-    }
-  });
-
-  it("re-stamps an attempt holding a retired item, keeps its line, and scores the current items", async () => {
-    const { smoke, file, newId } = await writeStaleSmoke({ retiredItem: "gone_item" });
-    const retiredLine = readFileSync(file, "utf-8").trim().split("\n").at(-1);
-    await runHandler({ archive: file, corpus: true });
-
-    const newFile = path.join(dir, `${newId}.jsonl`);
-    const h = header(newFile);
-    expect(h.retiredItems).toEqual(["gone_item"]);
-    expect(h.staleScoreItems).toBeUndefined();
-    const lines = readFileSync(newFile, "utf-8").trim().split("\n").slice(1);
-    expect(lines).toContain(retiredLine);
-    const current = lines
-      .map((l) => JSON.parse(l) as ItemResult)
-      .filter((r) => r.promptName !== "gone_item");
-    expect(current).toHaveLength(smoke.items.length);
-    expect(h.aggregate.score).toBe(current.filter((r) => r.score === 1).length / current.length);
-    await Effect.runPromise(
-      loadAttemptReconstruction(newFile).pipe(Effect.provide(NodeContext.layer)),
-    );
-  });
-
-  it("does not re-stamp when a promptHash drifted", async () => {
-    const { file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
-    await runHandler({ archive: file, corpus: true });
-
-    expect(existsSync(file)).toBe(true);
-    expect(header(file).challengeHash).toBe(OLD_HASH);
-    expect(header(file).restampedFrom).toBeUndefined();
-    expect(logged.join("\n")).toContain(
-      `no restamp (promptHash drift on ${SMOKE_CONSTRAINT_ITEM})`,
-    );
-  });
-
-  it("on a partial-drift re-score, flags the kept items and names the current scorers", async () => {
-    const { smoke, file } = await writeStaleSmoke({ driftItem: SMOKE_CONSTRAINT_ITEM });
-    await runHandler({ archive: file, corpus: true });
-
-    expect(header(file).staleScoreItems).toEqual([SMOKE_CONSTRAINT_ITEM]);
-    const lines = readFileSync(file, "utf-8").trim().split("\n").slice(1);
-    const rows = lines.map((l) => JSON.parse(l) as ItemResult);
-    for (const r of smoke.items.filter((i) => i.itemId !== SMOKE_CONSTRAINT_ITEM)) {
-      const sh = scorerHash(r.scorer);
-      expect(rows.find((x) => x.itemId === r.itemId)?.scorerHash).toBe(sh);
-      expect(existsSync(path.join(dir, "content", "scorers", `${sh}.json`))).toBe(true);
-    }
-  });
-
-  it("--dry-run reports the would-restamp and writes nothing", async () => {
-    const { file, newId } = await writeStaleSmoke();
-    const before = readFileSync(file);
-    await runHandler({ archive: file, corpus: true, dryRun: true });
-
-    expect(readFileSync(file).equals(before)).toBe(true);
-    expect(existsSync(path.join(dir, `${newId}.jsonl`))).toBe(false);
-    expect(logged.join("\n")).toContain("would restamp");
-  });
-
-  it("--stale tallies restamped / rescored-only / skipped across the directory", async () => {
-    await writeStaleSmoke({ id: "1" });
-    await writeStaleSmoke({ id: "2", driftItem: SMOKE_CONSTRAINT_ITEM });
-    const open = await writeStaleSmoke({ id: "3" });
-    const h = header(open.file);
-    writeFileSync(
-      open.file,
-      readFileSync(open.file, "utf-8").replace(
-        JSON.stringify(h),
-        JSON.stringify({ ...h, finishedAt: null, interrupted: true }),
-      ),
-    );
-    await runHandler({ stale: dir });
-
-    expect(logged.join("\n")).toContain(
-      "score: 1 restamped, 1 rescored-only, 1 skipped (incomplete 1), 0 already current",
-    );
-    expect(existsSync(path.join(dir, `${open.newId.replace(/-3$/, "-1")}.jsonl`))).toBe(true);
-  });
-
-  it("--stale names and skips legacy run files instead of passing over them silently", async () => {
-    await writeStaleSmoke({ id: "1" });
-    writeFileSync(path.join(dir, "2026-05-06_old-run.jsonl"), '{"schemaVersion":1,"runId":"r"}\n');
-    await runHandler({ stale: dir });
-
-    const out = logged.join("\n");
-    expect(out).toContain("2026-05-06_old-run.jsonl: skipped — not an attempt archive");
-    expect(out).toContain(
-      "score: 1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1), 0 already current",
-    );
-  });
-
-  it("--stale re-scores a current attempt holding an echoed-reasoning answer, then leaves it be", async () => {
-    const { file, newId } = await writeStaleSmoke({ id: "1" });
-    await runHandler({ archive: file, corpus: true });
-    const current = path.join(dir, `${newId}.jsonl`);
-    const [head, ...rows] = readFileSync(current, "utf-8").trim().split("\n");
-    const echoed = rows.map((l) => {
-      const r = JSON.parse(l) as ItemResult;
-      return r.itemId === SMOKE_CONSTRAINT_ITEM
-        ? JSON.stringify({ ...r, reasoning: r.output, stopReason: "length", score: 1 })
-        : l;
-    });
-    writeFileSync(current, `${[head, ...echoed].join("\n")}\n`);
-
-    await runHandler({ stale: dir });
-    const fixed = readFileSync(current, "utf-8")
-      .trim()
-      .split("\n")
-      .slice(1)
-      .map((l) => JSON.parse(l) as ItemResult);
-    expect(fixed.find((r) => r.itemId === SMOKE_CONSTRAINT_ITEM)).toMatchObject({
-      output: "",
-      score: 0,
-      failureKind: "thinking_truncated",
-    });
-    expect(logged.join("\n")).toContain("1 rescored-only, 0 skipped, 0 already current");
-
-    const after = readFileSync(current);
-    await runHandler({ stale: dir });
-    expect(readFileSync(current).equals(after)).toBe(true);
-    expect(logged.at(-1)).toContain("0 rescored-only, 0 skipped, 1 already current");
-  });
-
-  it("a batch of --archive files skips a legacy file and scores the rest", async () => {
-    const legacy = path.join(dir, "legacy.jsonl");
-    writeFileSync(legacy, '{"schemaVersion":1,"runId":"r"}\n');
-    const stale = await writeStaleSmoke({ id: "1" });
-    await runHandler({ archive: [legacy, stale.file], corpus: true });
-
-    const out = logged.join("\n");
-    expect(out).toContain("legacy.jsonl: skipped — not an attempt archive");
-    expect(out).toContain("1 restamped, 0 rescored-only, 1 skipped (not an attempt archive 1)");
-    expect(existsSync(path.join(dir, `${stale.newId}.jsonl`))).toBe(true);
-  });
-});
-
-describe("restampBlocker with repeated samples", () => {
-  const m = {
-    challengeId: "smoke",
-    challengeVersion: 1,
-    finishedAt: "t",
-    interrupted: false,
-    attemptId: "att-cfg-old-1",
-    challengeHash: "old",
-  } as unknown as AttemptManifest;
-  it("allows several samples of an item but still blocks a duplicated sample", () => {
-    const ch = resolved([resolvedItem("p1", "ph1")]);
-    expect(restampBlocker(m, [item(), item({ sample: 1 }), item({ sample: 2 })], ch)).toBeNull();
-    expect(restampBlocker(m, [item(), item()], ch)).toBe("duplicate item names in archive");
+  it("grades no execution whose prompt is not the release's current one", async () => {
+    const one = await seal("run-1", [
+      { runId: "run-1", e: execution("zz") },
+      { runId: "run-1", e: { ...exec("a", "4").e, messagesDigest: "0".repeat(64) } },
+    ]);
+    await manifest([one]);
+    expect(await run(score())).toEqual({ bundles: 1, appended: 0, present: 0 });
   });
 });

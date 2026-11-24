@@ -3,8 +3,7 @@
  *
  * Writes a minimal temp fixture (configs.yaml + system-prompts.yaml + two
  * challenge YAMLs), runs `runSweep` with fakeDeps + okStub for ChatCompletion,
- * and asserts that one `att-*.jsonl` per cell is written and the returned
- * grid string contains both config ids.
+ * and asserts on the sealed bundles and score records in the temp store.
  */
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
@@ -18,7 +17,7 @@ import {
   okStub,
   removeDir,
 } from "../../../orchestration/__tests__/fixtures.js";
-import { runSweep } from "../run.js";
+import { runSweep, type SweepArgs } from "../run.js";
 
 let dir: string;
 beforeEach(async () => {
@@ -76,32 +75,29 @@ items:
     extract: "(\\\\d+)"
 `;
 
-it("runs the full cross product and writes one archive per cell", async () => {
-  const challengesDir = path.join(dir, "challenges");
-  const archiveDir = path.join(dir, "archive");
-  await fsp.mkdir(challengesDir);
-  await fsp.mkdir(archiveDir);
+const writeFixture = async (challengesDir: string, challenges: Record<string, string>) => {
+  await fsp.mkdir(challengesDir, { recursive: true });
+  await fsp.writeFile(path.join(dir, "system-prompts.yaml"), SYSTEM_PROMPTS_YAML);
+  await fsp.writeFile(path.join(dir, "configs.yaml"), CONFIGS_YAML);
+  for (const [stem, yaml] of Object.entries(challenges)) {
+    await fsp.writeFile(path.join(challengesDir, `${stem}.yaml`), yaml);
+  }
+};
 
-  const systemPromptsFile = path.join(dir, "system-prompts.yaml");
-  const configsFile = path.join(dir, "configs.yaml");
-  await fsp.writeFile(systemPromptsFile, SYSTEM_PROMPTS_YAML);
-  await fsp.writeFile(configsFile, CONFIGS_YAML);
-  await fsp.writeFile(path.join(challengesDir, "alpha.yaml"), CHALLENGE_ALPHA_YAML);
-  await fsp.writeFile(path.join(challengesDir, "beta.yaml"), CHALLENGE_BETA_YAML);
-
+const sweep = async (
+  over: Partial<SweepArgs> & Pick<SweepArgs, "challengesDir">,
+): Promise<{ grid: string; calls: string[] }> => {
   const m = okStub();
   const grid = await Effect.runPromise(
     runSweep(
       {
         configsPattern: undefined,
         challengesPattern: undefined,
-        challengesDir,
-        configsFile,
-        systemPromptsFile,
-        archiveDir,
-        output: path.join(dir, "webapp", "src", "data"),
-        noCache: false,
-        noReport: true,
+        configsFile: path.join(dir, "configs.yaml"),
+        systemPromptsFile: path.join(dir, "system-prompts.yaml"),
+        store: path.join(dir, "store"),
+        noSkip: false,
+        ...over,
       },
       fakeDeps() as never,
     ).pipe(
@@ -110,95 +106,86 @@ it("runs the full cross product and writes one archive per cell", async () => {
       Effect.provide(NodeContext.layer),
     ),
   );
+  return { grid, calls: m.log.calls.map((c) => c.promptName) };
+};
 
-  // Grid should contain both config ids
+const twoChallenges = { alpha: CHALLENGE_ALPHA_YAML, beta: CHALLENGE_BETA_YAML };
+
+const headerOf = async (bundle: string | undefined) =>
+  JSON.parse(
+    (await fsp.readFile(path.join(dir, "store", "bundles", bundle ?? ""), "utf8")).split("\n")[0] ??
+      "",
+  );
+
+it("runs the full cross product and seals one scored bundle per cell", async () => {
+  const challengesDir = path.join(dir, "challenges");
+  await writeFixture(challengesDir, twoChallenges);
+  const { grid } = await sweep({ challengesDir });
+
   expect(grid).toContain("cfg-a");
   expect(grid).toContain("cfg-b");
+  // 2 configs × 2 challenges = 4 bundles, each with its score records
+  const bundles = await fsp.readdir(path.join(dir, "store", "bundles"));
+  expect(bundles.filter((f) => f.endsWith(".jsonl"))).toHaveLength(4);
+  expect((await fsp.readdir(path.join(dir, "store", "scores"))).sort()).toEqual(bundles.sort());
+  const header = await headerOf(bundles[0]);
+  expect(header.release).toBe("draft");
+  expect(header.run.contributor).toBe("local");
+});
 
-  // One archive per cell: 2 configs × 2 challenges = 4 archives
-  const files = await fsp.readdir(archiveDir);
-  const archives = files.filter((f) => f.endsWith(".jsonl"));
-  expect(archives).toHaveLength(4);
+it("a second sweep skips the executions the store holds; --no-skip executes them", async () => {
+  const challengesDir = path.join(dir, "challenges");
+  await writeFixture(challengesDir, twoChallenges);
+  expect((await sweep({ challengesDir })).calls).toHaveLength(4);
+  expect((await sweep({ challengesDir })).calls).toHaveLength(0);
+  expect((await sweep({ challengesDir, noSkip: true })).calls).toHaveLength(4);
+});
+
+it("names the release of releases/<name>/challenges and refuses release 0", async () => {
+  const release = path.join(dir, "releases", "2027.1", "challenges");
+  await writeFixture(release, { alpha: CHALLENGE_ALPHA_YAML });
+  await sweep({ challengesDir: release, configsPattern: "cfg-a" });
+  const [bundle] = await fsp.readdir(path.join(dir, "store", "bundles"));
+  expect((await headerOf(bundle)).release).toBe("2027.1");
+
+  const alpha = path.join(dir, "releases", "0", "challenges");
+  await writeFixture(alpha, { alpha: CHALLENGE_ALPHA_YAML });
+  await expect(sweep({ challengesDir: alpha })).rejects.toThrow(/release 0/);
+});
+
+it("refuses an email address as BENCH_CONTRIBUTOR", async () => {
+  const challengesDir = path.join(dir, "challenges");
+  await writeFixture(challengesDir, twoChallenges);
+  process.env["BENCH_CONTRIBUTOR"] = "me@example.com";
+  await expect(sweep({ challengesDir })).rejects.toThrow(/public handle/);
+  delete process.env["BENCH_CONTRIBUTOR"];
 });
 
 it("fails fast when no challenges are found", async () => {
   const emptyDir = path.join(dir, "empty-challenges");
-  await fsp.mkdir(emptyDir);
-  await fsp.writeFile(path.join(dir, "system-prompts.yaml"), SYSTEM_PROMPTS_YAML);
-  await fsp.writeFile(path.join(dir, "configs.yaml"), CONFIGS_YAML);
-
-  const m = okStub();
-  await expect(
-    Effect.runPromise(
-      runSweep(
-        {
-          configsPattern: undefined,
-          challengesPattern: undefined,
-          challengesDir: emptyDir,
-          configsFile: path.join(dir, "configs.yaml"),
-          systemPromptsFile: path.join(dir, "system-prompts.yaml"),
-          archiveDir: dir,
-          output: path.join(dir, "webapp", "src", "data"),
-          noCache: false,
-          noReport: true,
-        },
-        fakeDeps() as never,
-      ).pipe(
-        Effect.provide(m.layer),
-        Effect.provide(inertHttpClientLayer),
-        Effect.provide(NodeContext.layer),
-      ),
-    ),
-  ).rejects.toThrow();
+  await writeFixture(emptyDir, {});
+  await expect(sweep({ challengesDir: emptyDir })).rejects.toThrow();
 });
 
 describe("--samples with --items", () => {
-  const setup = async () => {
-    const challengesDir = path.join(dir, "challenges");
-    const archiveDir = path.join(dir, "archive");
-    await fsp.mkdir(challengesDir);
-    await fsp.mkdir(archiveDir);
-    await fsp.writeFile(path.join(dir, "system-prompts.yaml"), SYSTEM_PROMPTS_YAML);
-    await fsp.writeFile(path.join(dir, "configs.yaml"), CONFIGS_YAML);
-    await fsp.writeFile(path.join(challengesDir, "alpha.yaml"), CHALLENGE_ALPHA_YAML);
-    await fsp.writeFile(path.join(challengesDir, "beta.yaml"), CHALLENGE_BETA_YAML);
-    return { challengesDir, archiveDir };
-  };
-  const sweep = (challengesDir: string, archiveDir: string, items: string[] | undefined) => {
-    const m = okStub();
-    return Effect.runPromise(
-      runSweep(
-        {
-          configsPattern: "cfg-a",
-          challengesPattern: undefined,
-          challengesDir,
-          configsFile: path.join(dir, "configs.yaml"),
-          systemPromptsFile: path.join(dir, "system-prompts.yaml"),
-          archiveDir,
-          output: path.join(dir, "webapp", "src", "data"),
-          noCache: false,
-          noReport: true,
-          samples: 3,
-          items,
-        },
-        fakeDeps() as never,
-      ).pipe(
-        Effect.provide(m.layer),
-        Effect.provide(inertHttpClientLayer),
-        Effect.provide(NodeContext.layer),
-      ),
-    ).then(() => m.log.calls.map((c) => c.promptName));
-  };
-
   it("samples only the matched items; the rest run once", async () => {
-    const { challengesDir, archiveDir } = await setup();
-    const calls = await sweep(challengesDir, archiveDir, ["alpha/math_two_*"]);
+    const challengesDir = path.join(dir, "challenges");
+    await writeFixture(challengesDir, twoChallenges);
+    const { calls } = await sweep({
+      challengesDir,
+      configsPattern: "cfg-a",
+      samples: 3,
+      items: ["alpha/math_two_*"],
+    });
     expect(calls.filter((n) => n === "math_two_plus_two")).toHaveLength(3);
     expect(calls.filter((n) => n === "math_three_plus_three")).toHaveLength(1);
   });
 
   it("fails fast when an --items pattern matches no item", async () => {
-    const { challengesDir, archiveDir } = await setup();
-    await expect(sweep(challengesDir, archiveDir, ["alpha/typo"])).rejects.toThrow(/typo/);
+    const challengesDir = path.join(dir, "challenges");
+    await writeFixture(challengesDir, twoChallenges);
+    await expect(
+      sweep({ challengesDir, configsPattern: "cfg-a", samples: 3, items: ["alpha/typo"] }),
+    ).rejects.toThrow(/typo/);
   });
 });

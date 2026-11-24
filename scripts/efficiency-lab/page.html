@@ -277,13 +277,13 @@ function formula(c, html) {
 // ---------- spec ----------
 function spec(c, res) {
   const f = formula(c, false), lines = [];
-  const S = c.basis === "run" ? "running score (Σ passed / Σ items of scored cells)" : "score = row passRate, coverage-adjusted (Σ passed / Σ set items; a non-scored challenge counts as failed)";
+  const S = c.basis === "run" ? "partial pass rate (Σ passed / Σ items of scored cells)" : "score = row passRate, coverage-adjusted (Σ passed / Σ set items; a non-scored challenge counts as failed)";
   lines.push(`EFFICIENCY SPEC (${preset ?? FAMS[c.fam]}; family: ${FAMS[c.fam]})`, "", "Formula:", "  " + f.main, "  " + f.where, "");
   lines.push("Inputs, per row, over the row's scored cells that carry cost (same aggregation as scopeRow in webapp/src/lib/model.ts):",
     `  S              = ${S}`,
     "  tokPerItem     = Σ cell.cost.tokens / Σ cell.items",
     "  wallSecPerItem = Σ cell.cost.wallSec / Σ cell.items   (per item, so partial coverage does not shrink it)",
-    "  tps            = unweighted mean of cell.cost.genTps",
+    "  tps            = Σ cell.cost.tokens / Σ (cell.cost.tokens / cell.cost.genTps), cells with genTps > 0 (total tokens over total decode time)",
     "  memGB          = max of cell.cost.peakMemoryGb", "");
   const used = c.fam === "geo" ? F.filter((x) => c.geo.w[x.id] > 0).map((x) => x.id) : c.fam === "add" ? F.filter((x) => c.add.w[x.id] > 0).map((x) => x.id) : c.fam === "pareto" ? F.filter((x) => c.pareto.axes[x.id]).map((x) => x.id) : null;
   if (c.fam === "geo" || c.fam === "add" || c.fam === "gate") {
@@ -298,7 +298,7 @@ function spec(c, res) {
     if (c.fam === "geo" && c.geo.norm === "pct" || c.fam === "add" && c.add.method === "pct") lines.push("  Percentiles cannot be frozen; efficiency is relative to the current pool by construction.");
     lines.push("");
   }
-  lines.push("Incomplete rows: " + (c.pool === "complete" ? "efficiency = null for any row missing a scored set challenge; they sort after rows with efficiency." : c.basis === "run" ? "included. S is the running score, so missing challenges do not lower it (they also do not count against it)." : "included. S is coverage-adjusted, so a missing challenge counts as failed and lowers efficiency."));
+  lines.push("Incomplete rows: " + (c.pool === "complete" ? "efficiency = null for any row missing a scored set challenge; they sort after rows with efficiency." : c.basis === "run" ? "included. S is the partial pass rate, so missing challenges do not lower it (they also do not count against it)." : "included. S is coverage-adjusted, so a missing challenge counts as failed and lowers efficiency."));
   lines.push("Missing cost data: efficiency = null when the row has no scored cell with cost (tokens, wallSec, peakMemoryGb, genTps all required); such rows sort last. In the current main dataset this is " + ROWS.filter((r) => r.tpi === null).map((r) => r.n).join(", ") + ".");
   if (c.fam === "cpc") lines.push(`Score floor: efficiency = null for S < ${c.cpc.floor}.`);
   if (c.fam === "gate" && c.gate.mode === "gate") lines.push(`Gate: efficiency = null for S < ${c.gate.T}.`);

@@ -3,7 +3,7 @@
  *
  * Builds one COMPLETED attempt archive (.jsonl) through the REAL schema
  * encoders, plus the content store its items reference, so the seed stays in
- * sync with src/schema/attempt.ts and src/archive/content-store.ts.
+ * sync with src/schema/attempt.ts and src/legacy/content-store.ts.
  *
  * What it writes under dirname(outPath):
  *   <outPath>                              the .jsonl (header + 2 ItemResult lines)
@@ -13,7 +13,7 @@
  *
  * Header is finalized (interrupted:false, finishedAt set, aggregate filled) and
  * carries the content store (schemaVersion 2), so the seed is reconstructible:
- * it exercises `report` detail emission, `bench export`, and store re-scoring
+ * it exercises `report` detail emission and reconstruction
  * with no corpus or challenge YAML on disk.
  *
  * The scorer is `contains "seed output"`, which every item's output satisfies,
@@ -26,8 +26,8 @@ import { dirname } from "node:path";
 import { writeFileSync } from "node:fs";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
-import { scorerHash, writeBlob } from "../../../src/archive/content-store.js";
-import { stableStringify } from "../../../src/config/hashing.js";
+import { scorerHash, writeBlob } from "../../../src/legacy/content-store.js";
+import { computePromptHash, stableStringify } from "../../../src/config/hashing.js";
 import { AttemptManifest, ItemResult } from "../../../src/schema/attempt.js";
 import type { ScorerConfig } from "../../../src/schema/scorer.js";
 
@@ -54,7 +54,7 @@ const header: typeof AttemptManifest.Type = {
   startedAt: ENCODED_AT,
   finishedAt: ENCODED_AT,
   interrupted: false,
-  configId: "smoke-config",
+  configId: "qa-seed",
   configHash,
   artifact: "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
   runtime: "llamacpp",
@@ -96,9 +96,11 @@ const mkItem = (n: number, promptHash: string): ItemResult => ({
   score: 1.0,
 });
 
+const PROMPT_1 = "Prompt one: emit seed output 1.";
+const PROMPT_2 = "Prompt two: emit seed output 2.";
 const items: ReadonlyArray<{ item: ItemResult; promptText: string }> = [
-  { item: mkItem(1, "aaaaaaaaaaa1"), promptText: "Prompt one: emit seed output 1." },
-  { item: mkItem(2, "aaaaaaaaaaa2"), promptText: "Prompt two: emit seed output 2." },
+  { item: mkItem(1, computePromptHash(PROMPT_1, "")), promptText: PROMPT_1 },
+  { item: mkItem(2, computePromptHash(PROMPT_2, "")), promptText: PROMPT_2 },
 ];
 
 const program = Effect.gen(function* () {
@@ -109,7 +111,8 @@ const program = Effect.gen(function* () {
   writeFileSync(outPath, `${lines.join("\n")}\n`, "utf8");
 
   // Write the content store the .jsonl references (idempotent, content-addressed).
-  yield* writeBlob(archiveDir, "system", configHash, systemPromptText);
+  // schemaVersion 2 without sampler knobs: the system blob is keyed by configHash unchecked.
+  yield* writeBlob(archiveDir, "system", header, systemPromptText);
   yield* writeBlob(archiveDir, "scorers", SCORER_HASH, stableStringify(scorer));
   yield* Effect.forEach(items, ({ item, promptText }) =>
     writeBlob(archiveDir, "prompts", item.promptHash, promptText),

@@ -31,7 +31,7 @@ const systemPromptsFileOpt = Options.file("system-prompts-file").pipe(
 
 const challengesDirOpt = Options.directory("challenges").pipe(
   Options.withDescription("Path to challenges directory"),
-  Options.withDefault("challenges"),
+  Options.withDefault("releases/draft/challenges"),
 );
 
 const scenariosDirOpt = Options.directory("scenarios").pipe(

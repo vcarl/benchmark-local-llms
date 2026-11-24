@@ -5,8 +5,8 @@ A standalone explorer for the efficiency formula in `docs/SCORING.md` (§ Effici
 Files: `core.cjs` (pure scoring core), `page.html` (UI template), `extract.cjs` (report rows to `rows.json`), `build.cjs` (inlines core and data into one HTML page), `test.cjs` (core tests), `harness.cjs` (builds a page that drives the UI, for a headless browser check). Generated files go to `work/` (git-ignored).
 
 ```
-./bench report --output scripts/efficiency-lab/work    # writes work/data.js (and a details/ folder you can delete)
-node scripts/efficiency-lab/extract.cjs                # work/rows.json, from the "main" dataset
+./bench report --output scripts/efficiency-lab/work    # writes work/index.json + snapshots (and a details/ folder you can delete)
+node scripts/efficiency-lab/extract.cjs                # work/rows.json, from the index's first (alpha) snapshot
 node scripts/efficiency-lab/build.cjs                  # work/efficiency-lab.html
 node scripts/efficiency-lab/test.cjs                   # core tests over rows.json
 open scripts/efficiency-lab/work/efficiency-lab.html

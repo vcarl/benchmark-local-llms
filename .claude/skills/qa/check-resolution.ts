@@ -17,7 +17,7 @@ import { loadSystemPrompts, SystemPromptRegistry } from "../../../src/config/sys
 import { DEFAULT_SYSTEM_PROMPTS_PATH } from "../../../src/cli/paths.js";
 
 const configsFile = process.argv[2] ?? "configs.yaml";
-const challengePath = process.argv[3] ?? "challenges/smoke.yaml";
+const challengePath = process.argv[3] ?? "releases/draft/challenges/smoke.yaml";
 const systemPromptsFile = process.argv[4] ?? DEFAULT_SYSTEM_PROMPTS_PATH;
 const configId = "smoke-config";
 
