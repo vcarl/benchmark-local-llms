@@ -42,3 +42,16 @@ export class TemplateVerificationError extends Data.TaggedError("TemplateVerific
   readonly runtime: Runtime;
   readonly reason: string;
 }> {}
+
+/**
+ * The server passed health but could not serve a one-token completion: the
+ * model failed to load (e.g. `mlx_lm.server`'s generation thread died on a
+ * weight mismatch), the request errored, or it did not answer in time.
+ * Aborts boot so the run reports one clear failure instead of timing out on
+ * every item. `logTail` holds the server's last output lines.
+ */
+export class ModelLoadError extends Data.TaggedError("ModelLoadError")<{
+  readonly runtime: Runtime;
+  readonly reason: string;
+  readonly logTail?: string;
+}> {}

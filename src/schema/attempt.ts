@@ -15,9 +15,35 @@ export const FailureKind = Schema.Literal(
   "loop",
   "scorer_error",
   "execution_error",
+  "context_exceeded",
   "near_miss",
 );
 export type FailureKind = typeof FailureKind.Type;
+
+/**
+ * Per-request timing captured from the completion stream. Every field is
+ * optional and absent when not measured (errored lines, older archives); none
+ * enters any identity hash. `timingSource` says where `prefillMs`/`decodeMs`
+ * came from: `"server"` = llama.cpp's final `timings` block (`prompt_ms`,
+ * `predicted_ms`); `"client"` = the harness's own frame clock (prefill = TTFT,
+ * decode = first to last content/reasoning frame).
+ */
+export const ItemTimingFields = {
+  /** Request sent → first content or reasoning frame (ms, client clock). */
+  ttftMs: Schema.optional(Schema.Number),
+  prefillMs: Schema.optional(Schema.Number),
+  decodeMs: Schema.optional(Schema.Number),
+  timingSource: Schema.optional(Schema.Literal("server", "client")),
+  /** Prompt tokens actually evaluated, cache hits excluded (llama.cpp `prompt_n`). */
+  prefillTokens: Schema.optional(Schema.Number),
+  /** Prompt tokens served from the KV/prefix cache. */
+  cachedPromptTokens: Schema.optional(Schema.Number),
+  /** Speculative decoding: drafted / accepted tokens (llama.cpp `draft_n`, `draft_n_accepted`). */
+  draftTokens: Schema.optional(Schema.Number),
+  draftAcceptedTokens: Schema.optional(Schema.Number),
+};
+export const ItemTiming = Schema.Struct(ItemTimingFields);
+export type ItemTiming = typeof ItemTiming.Type;
 
 /** One challenge item's execution + per-item score. Body line of the attempt archive. */
 export const ItemResult = Schema.Struct({
@@ -49,6 +75,7 @@ export const ItemResult = Schema.Struct({
   generationTps: Schema.Number,
   peakMemoryGb: Schema.Number,
   wallTimeSec: Schema.Number,
+  ...ItemTimingFields,
   output: Schema.String,
   reasoning: Schema.NullOr(Schema.String),
   rawOutput: Schema.String,
@@ -147,6 +174,7 @@ export const AttemptManifest = Schema.Struct({
   topK: Schema.optional(Schema.Number),
   minP: Schema.optional(Schema.Number),
   presencePenalty: Schema.optional(Schema.Number),
+  presenceContextSize: Schema.optional(Schema.Number),
   repetitionPenalty: Schema.optional(Schema.Number),
   repetitionContextSize: Schema.optional(Schema.Number),
   chatTemplateKwargs: Schema.optional(
@@ -189,7 +217,7 @@ export const AttemptManifest = Schema.Struct({
    */
   retiredItems: Schema.optional(Schema.Array(Schema.String)),
 
-  /** Shared by every attempt one `./bench run` invocation writes. */
+  /** The run's id: shared by every attempt one `./bench run` writes. */
   invocationId: Schema.optional(Schema.String),
   /** Who produced the attempt (`BENCH_SUBMITTER`, default `local`). */
   submitter: Schema.optional(Schema.String),

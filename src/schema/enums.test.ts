@@ -78,6 +78,7 @@ describe("ConstraintCheck", () => {
     "json_field_is_list",
     "json_list_item_has",
     "json_matches",
+    "tool_calls",
     "numbered_lines",
     "no_numbered_line",
     "numbered_line_exists",
@@ -86,8 +87,8 @@ describe("ConstraintCheck", () => {
     "all_lines_word_count",
   ] as const;
 
-  it("has exactly 21 variants", () => {
-    expect(values.length).toBe(21);
+  it("has exactly 22 variants", () => {
+    expect(values.length).toBe(22);
   });
 
   it.each(values)("round-trips %s", (value) => {

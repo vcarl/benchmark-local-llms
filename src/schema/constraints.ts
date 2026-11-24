@@ -4,7 +4,7 @@ import { Schema } from "effect";
  * The constraint check variants defined in requirements §2.2.
  *
  * Each variant is a tagged struct whose `check` literal matches one of the
- * 20 values in {@link ConstraintCheck} (see `./enums.ts`). The shape of each
+ * values in {@link ConstraintCheck} (see `./enums.ts`). The shape of each
  * variant follows the Python prototype's `evaluate_constraint()` dispatch
  * in `common.py:348` — each branch reads specific dict keys, and we capture
  * exactly those keys as schema fields, renamed to camelCase per §2.2.
@@ -133,6 +133,32 @@ export const JsonMatchesConstraint = Schema.Struct({
 });
 export type JsonMatchesConstraint = typeof JsonMatchesConstraint.Type;
 
+/**
+ * One expected tool call of a `tool_calls` key. An argument value is either
+ * the exact value or `{ oneOf: [...] }`, its accepted alternatives. `optional`
+ * maps each optional argument the request leaves unstated to its declared
+ * default: absent passes, the explicit default earns partial credit.
+ * `unordered` names array arguments compared as multisets.
+ */
+export const ExpectedToolCall = Schema.Struct({
+  name: Schema.String,
+  arguments: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  optional: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  unordered: Schema.optional(Schema.Array(Schema.String)),
+});
+export type ExpectedToolCall = typeof ExpectedToolCall.Type;
+
+/**
+ * The answer is a list of tool calls matching `value` as a multiset; `[]`
+ * means no call (see docs/SCORING.md § tool_calls).
+ */
+export const ToolCallsConstraint = Schema.Struct({
+  check: Schema.Literal("tool_calls"),
+  ...name,
+  value: Schema.Array(ExpectedToolCall),
+});
+export type ToolCallsConstraint = typeof ToolCallsConstraint.Type;
+
 export const NumberedLinesConstraint = Schema.Struct({
   check: Schema.Literal("numbered_lines"),
   ...name,
@@ -200,6 +226,7 @@ export const ConstraintDef = Schema.Union(
   JsonFieldIsListConstraint,
   JsonListItemHasConstraint,
   JsonMatchesConstraint,
+  ToolCallsConstraint,
   NumberedLinesConstraint,
   NoNumberedLineConstraint,
   NumberedLineExistsConstraint,

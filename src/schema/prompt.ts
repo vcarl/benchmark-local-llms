@@ -24,10 +24,6 @@ export type ChatMessage = typeof ChatMessage.Type;
  * A frozen prompt definition at execution time. The prompt `name` is the sole
  * identity — variants of the same base prompt (e.g. direct vs cot) get
  * distinct names (`math_multiply_direct`, `math_multiply_cot`).
- *
- * `promptHash` is SHA-256[:12] over `promptText + system.text`; it forms part
- * of the cross-run cache key `(artifact, promptName, promptHash, temperature)`
- * (§2.3).
  */
 export const PromptCorpusEntry = Schema.Struct({
   name: Schema.String,
@@ -36,7 +32,6 @@ export const PromptCorpusEntry = Schema.Struct({
   system: SystemPrompt,
   promptText: Schema.String,
   scorer: ScorerConfig,
-  promptHash: Schema.String,
   // Capability cluster tags (e.g. `code-synthesis`, `instruction-following`).
   // `TODO` means auto-seeded, needs manual review.
   tags: Schema.optional(Schema.Array(Schema.String)),

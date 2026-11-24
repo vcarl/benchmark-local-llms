@@ -127,6 +127,47 @@ describe("Configuration", () => {
     );
   });
 
+  describe("presenceContextSize", () => {
+    const entry = (extra: object) => ({
+      id: "q",
+      artifact: "mlx-community/Qwen3.5-2B-4bit",
+      runtime: "mlx",
+      temperature: 1.0,
+      systemPrompt: "default",
+      maxTokens: 32768,
+      ...extra,
+    });
+    const decode = (extra: object) => Schema.decodeUnknownSync(Configuration)(entry(extra));
+
+    it("accepts it with a presence penalty on mlx and llamacpp", () => {
+      for (const runtime of ["mlx", "llamacpp"]) {
+        expect(decode({ runtime, presencePenalty: 1.5, presenceContextSize: 32768 })).toMatchObject(
+          { presenceContextSize: 32768 },
+        );
+      }
+    });
+
+    it("rejects it without a presence penalty", () => {
+      expect(() => decode({ presenceContextSize: 32768 })).toThrow(/requires presencePenalty/);
+    });
+
+    it("rejects it on omlx, which has no presence window", () => {
+      expect(() =>
+        decode({ runtime: "omlx", presencePenalty: 1.5, presenceContextSize: 32768 }),
+      ).toThrow(/not supported for runtime 'omlx'/);
+    });
+
+    it("rejects a llamacpp entry whose two windows disagree", () => {
+      const both = { runtime: "llamacpp", presencePenalty: 1.5, repetitionPenalty: 1.05 };
+      expect(() =>
+        decode({ ...both, repetitionContextSize: 64, presenceContextSize: 32768 }),
+      ).toThrow(/must match/);
+      expect(
+        decode({ ...both, repetitionContextSize: 32768, presenceContextSize: 32768 }),
+      ).toMatchObject({ presenceContextSize: 32768 });
+    });
+  });
+
   it("accepts a runtime: omlx entry without chatTemplate and without quant", () => {
     const v = {
       id: "some-omlx-model",
