@@ -1,0 +1,379 @@
+# Errata registry of release 0: every change to an item since its release
+# file. `npm test` (src/config/errata.test.ts) fails when an item differs from
+# release.json without an entry here. See docs/ERRATA.md.
+#
+#   id:            0.<n>, n = 1, 2, … in file order; release 0 is closed at 0.7
+#   kind:          answer-key | scorer | prompt-ambiguity | retired | added
+#   items:         challengeId/itemName of every affected item
+#   description:   public, plain language: what was wrong and what changed
+#   notes:         optional, internal technical detail (not published)
+#   scorerChange:  true when the entry changed how stored outputs score
+#   scorers:       with scorerChange: the scorerHash in effect after the entry,
+#                  per item (its blob is in blobs/)
+#   scoresChanged: { lines, configs } measured on the archive the report scores:
+#                  lines whose score differs between the eval version before and
+#                  after the entry, and their distinct configHashes (retired:
+#                  the lines it dropped from scoring)
+#   releaseStatus: none | next-release | released (+ releasedIn: <release>)
+errata:
+  - id: "0.1"
+    date: 2026-11-16
+    kind: answer-key
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+    description: >-
+      The answer keys for two amortization items kept full precision, but the
+      prompt asks for exact cents. The keys now round to the cent at each step:
+      balance after 12 months 15230.33 (was 15230.38), total interest 2444.36
+      (was 2444.38).
+    notes: >-
+      The amortization solver carried full precision through the schedule; it
+      now rounds the payment and each month's interest to the cent before use.
+    scorerChange: true
+    scorers:
+      financial/financial_amort_balance_after_12: "7a08cfc510a5"
+      financial/financial_amort_total_interest: "ed88fbe492a1"
+    scoresChanged: { lines: 8, configs: 8 }
+    releaseStatus: none
+  - id: "0.2"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+    description: >-
+      Answers of 1000 or more may now use comma thousands separators (15,230.33
+      for 15230.33). Smaller values are unchanged.
+    notes: >-
+      Applies to generated decimal answer patterns only.
+    scorerChange: true
+    scorers:
+      financial/financial_amort_balance_after_12: "ce7063392a06"
+      financial/financial_amort_total_interest: "0f951bd64341"
+    scoresChanged: { lines: 9, configs: 9 }
+    releaseStatus: none
+  - id: "0.3"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_total_interest
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_decay_flat_vale
+      - trust/trust_decay_vale_score
+      - trust/trust_folk_delta_star
+      - trust/trust_hazard_min_bonus
+    description: >-
+      Answers with a rounding slip now earn half credit: on the amortization
+      items, rounding only the final figure (15230.38, 2444.38); on the
+      six-decimal trust items, truncating instead of rounding (0.571428 for
+      0.571429). An item still passes only at full credit.
+    notes: >-
+      Declared near misses computed by the solvers: round-at-end on the
+      amortization items, truncate-to-6-dp on the 6-dp trust items.
+    scorerChange: true
+    scorers:
+      financial/financial_amort_balance_after_12: "cd51a9ad6403"
+      financial/financial_amort_total_interest: "bfd8fb7d77d9"
+      trust/trust_bayes_after_extra_bad: "51643bcc3012"
+      trust/trust_decay_flat_vale: "de194a058f8d"
+      trust/trust_decay_vale_score: "4f7e55034c71"
+      trust/trust_folk_delta_star: "5c2a9dd14090"
+      trust/trust_hazard_min_bonus: "9dfda810b88d"
+    scoresChanged: { lines: 10, configs: 9 }
+    releaseStatus: none
+  - id: "0.4"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - economics/econ_mixed_receiver_prob_left
+      - economics/econ_mixed_server_prob_left
+      - economics/econ_tax_buyer_share
+      - financial/financial_covenant_min_growth_no_breach
+      - financial/financial_npv_crossover_rate
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_bayes_posterior
+      - trust/trust_decay_flat_vale
+    description: >-
+      A probability, share, or rate asked for as a decimal but given as a
+      percent (5.08% for 0.0508) now earns half credit. The % sign is required.
+    notes: >-
+      Declared percent-for-decimal near miss.
+    scorerChange: true
+    scorers:
+      economics/econ_mixed_receiver_prob_left: "40202959f837"
+      economics/econ_mixed_server_prob_left: "7bef63ede0e1"
+      economics/econ_tax_buyer_share: "87829094e2c1"
+      financial/financial_covenant_min_growth_no_breach: "5221f6c96041"
+      financial/financial_npv_crossover_rate: "a5903cfc6d09"
+      trust/trust_bayes_after_extra_bad: "74aa54140480"
+      trust/trust_bayes_posterior: "1290c23c80b1"
+      trust/trust_decay_flat_vale: "22c62b998adc"
+    scoresChanged: { lines: 1, configs: 1 }
+    releaseStatus: none
+  - id: "0.5"
+    date: 2026-11-16
+    kind: retired
+    items:
+      - factual/fact_gold_direct
+      - factual/fact_gold_noisy
+    description: >-
+      Two factual items were removed because every tested model answered them
+      correctly, so they no longer separate models. Results already recorded
+      for them are kept but no longer counted.
+    notes: >-
+      Zero failures across every tested config's latest result (99 configs
+      each), found with `./bench audit --flag zero-failure` on the archive
+      re-scored under the current scorers. Archived lines are kept and listed
+      as retiredItems.
+    scorerChange: false
+    scoresChanged: { lines: 214, configs: 107 }
+    releaseStatus: next-release
+  - id: "0.6"
+    date: 2026-11-16
+    kind: scorer
+    items:
+      - economics/econ_entry_threat_credible
+      - economics/econ_mixed_has_pure_ne
+      - economics/econ_mixed_receiver_prob_left
+      - economics/econ_mixed_server_prob_left
+      - economics/econ_mixed_server_value
+      - effect-ts/effect_constructors_structured
+      - effect-ts/effect_error_class
+      - effect-ts/effect_fiber_fork
+      - effect-ts/effect_parallel
+      - effect-ts/effect_queue_bounded
+      - effect-ts/effect_resource_management
+      - effect-ts/effect_service_3_parts_structured
+      - effect-ts/effect_service_pattern
+      - effect-ts/effect_sink
+      - effect-ts/effect_stream_pipeline_structured
+      - effect-ts/effect_try_promise
+      - financial/financial_amort_balance_after_12
+      - financial/financial_amort_monthly_payment
+      - financial/financial_amort_payoff_month
+      - financial/financial_bailout_amount
+      - financial/financial_bailout_target
+      - financial/financial_breakeven_liquidity_cascade
+      - financial/financial_contagion_best_bailout
+      - financial/financial_contagion_firm_c_survives
+      - financial/financial_covenant_min_growth_no_breach
+      - financial/financial_covenant_state
+      - financial/financial_npv_crossover_rate
+      - financial/financial_npv_payback_a
+      - financial/financial_npv_project_a
+      - financial/financial_npv_project_b
+      - trust/trust_bayes_after_extra_bad
+      - trust/trust_bayes_crosses_half
+      - trust/trust_bayes_posterior
+      - trust/trust_decay_flat_vs_decay_gap
+      - trust/trust_decay_most_trustworthy
+      - trust/trust_decay_vale_score
+      - trust/trust_folk_delta_star
+      - trust/trust_hazard_min_bonus
+      - trust/trust_hazard_principal_profit
+      - trust/trust_hazard_worth_incentivizing
+    description: >-
+      When a model ran out of tokens while still reasoning, one model server
+      returned the unfinished reasoning as the answer, and the scorer could
+      pass it on an intermediate figure. Such a response now scores as no
+      answer. This rule applies to every item; the items listed are the ones
+      whose recorded passes it changed.
+    notes: >-
+      oMLX, when thinking hits maxTokens, returns the unfinished reasoning as
+      both reasoning and content. A line stopped by "length" whose output
+      equals its reasoning now scores as no output (score 0, failureKind
+      thinking_truncated); rawOutput keeps the content. The rule is
+      harness-wide and changes no scorerHash, so its recorded scorers are the
+      items' unchanged ones; the items listed are those with archived passes it
+      flipped. `./bench score --stale` treats an attempt holding such
+      a line as stale and re-scores it.
+    scorerChange: true
+    scorers:
+      economics/econ_entry_threat_credible: "2b2454f0167d"
+      economics/econ_mixed_has_pure_ne: "2b2454f0167d"
+      economics/econ_mixed_receiver_prob_left: "40202959f837"
+      economics/econ_mixed_server_prob_left: "7bef63ede0e1"
+      economics/econ_mixed_server_value: "9dbe2ad595c3"
+      effect-ts/effect_constructors_structured: "19f0c84d5099"
+      effect-ts/effect_error_class: "d5c3447153ce"
+      effect-ts/effect_fiber_fork: "066cc53a1a13"
+      effect-ts/effect_parallel: "7e74ac973528"
+      effect-ts/effect_queue_bounded: "58120dcb6dfd"
+      effect-ts/effect_resource_management: "ff60bf32e475"
+      effect-ts/effect_service_3_parts_structured: "ccbba48e859f"
+      effect-ts/effect_service_pattern: "5af5d06f6ed1"
+      effect-ts/effect_sink: "d382e840b74d"
+      effect-ts/effect_stream_pipeline_structured: "d01cc7cb2b07"
+      effect-ts/effect_try_promise: "b8b2e2f57d6b"
+      financial/financial_amort_balance_after_12: "cd51a9ad6403"
+      financial/financial_amort_monthly_payment: "86b73e7d1ddc"
+      financial/financial_amort_payoff_month: "973103ade875"
+      financial/financial_bailout_amount: "de3740074c54"
+      financial/financial_bailout_target: "f3f800d8167c"
+      financial/financial_breakeven_liquidity_cascade: "c07316bd0211"
+      financial/financial_contagion_best_bailout: "2314925d1b2f"
+      financial/financial_contagion_firm_c_survives: "2b2454f0167d"
+      financial/financial_covenant_min_growth_no_breach: "5221f6c96041"
+      financial/financial_covenant_state: "3320a3de7657"
+      financial/financial_npv_crossover_rate: "a5903cfc6d09"
+      financial/financial_npv_payback_a: "ea8ea7fdd42b"
+      financial/financial_npv_project_a: "411e958872df"
+      financial/financial_npv_project_b: "6a3d0e4be3aa"
+      trust/trust_bayes_after_extra_bad: "74aa54140480"
+      trust/trust_bayes_crosses_half: "ef50562ac1fa"
+      trust/trust_bayes_posterior: "1290c23c80b1"
+      trust/trust_decay_flat_vs_decay_gap: "0bb5d03cc8f3"
+      trust/trust_decay_most_trustworthy: "dacefa06890c"
+      trust/trust_decay_vale_score: "4f7e55034c71"
+      trust/trust_folk_delta_star: "5c2a9dd14090"
+      trust/trust_hazard_min_bonus: "9dfda810b88d"
+      trust/trust_hazard_principal_profit: "50ea9471b596"
+      trust/trust_hazard_worth_incentivizing: "ef50562ac1fa"
+    scoresChanged: { lines: 115, configs: 17 }
+    releaseStatus: none
+  - id: "0.7"
+    date: 2026-11-18
+    kind: scorer
+    items:
+      - economics/econ_cournot_price
+      - economics/econ_cournot_profit1
+      - economics/econ_cournot_q1
+      - economics/econ_cournot_q2
+      - economics/econ_entry_entrant_payoff
+      - economics/econ_entry_incumbent_payoff
+      - economics/econ_entry_threat_gap
+      - economics/econ_marginal_quantity
+      - economics/econ_monopoly_competitive_quantity
+      - economics/econ_monopoly_dwl
+      - economics/econ_monopoly_price
+      - economics/econ_monopoly_profit
+      - economics/econ_monopoly_quantity
+      - economics/econ_tax_buyer_price
+      - economics/econ_tax_dwl
+      - economics/econ_tax_quantity
+      - economics/econ_tax_revenue
+      - economics/econ_tax_seller_price
+      - economics/econ_vickrey_bid
+      - factual/fact_boiling_few_shot
+      - factual/fact_chromosomes_adversarial
+      - factual/fact_chromosomes_direct
+      - financial/financial_amort_payoff_month
+      - financial/financial_bailout_amount
+      - financial/financial_breakeven_liquidity_cascade
+      - financial/financial_contagion_buffer_bump_halts
+      - financial/financial_contagion_total_failed
+      - financial/financial_covenant_first_breach_month
+      - financial/financial_waterfall_equity_residual
+      - financial/financial_waterfall_mezz_payout
+      - financial/financial_waterfall_pool_equity_zero
+      - financial/financial_waterfall_senior_payout
+      - logic/logic_ages_cot
+      - logic/logic_bat_ball_direct
+      - logic/logic_bat_ball_noisy
+      - logic/logic_sequence
+      - logic/logic_sheep_cot
+      - logic/logic_sheep_direct
+      - logic/logic_sheep_few_shot
+      - logic/logic_widgets_adversarial
+      - logic/logic_widgets_direct
+      - math/math_chain_direct
+      - math/math_chain_noisy
+      - math/math_combinatorics_cot
+      - math/math_compound_interest
+      - math/math_modular_structured
+      - math/math_multiply_cot
+      - math/math_multiply_direct
+      - math/math_multiply_few_shot
+      - math/math_primes_sum_adversarial
+      - math/math_primes_sum_direct
+      - math/math_word_problem_decomposed
+      - math/math_word_problem_direct
+      - math/math_word_problem_structured
+      - smoke/math_multiply_direct
+      - trust/trust_bayes_signals_to_ninety
+      - trust/trust_folk_coop_payoff
+      - trust/trust_folk_temptation_gain
+      - trust/trust_hazard_principal_profit
+      - trust/trust_web_paths_above
+    description: >-
+      Whole-number answers are now read however they are formatted: with
+      thousands separators (1,331), a zero decimal tail (1331.00), or a
+      currency sign or unit ($1,331.00). Before, the scorer could read only
+      part of the number ("1,331" as 331, "$1,331.00" as 00) and mark a
+      correct answer wrong. A leading minus sign is now part of the number,
+      so -40 no longer passes for 40.
+    notes: >-
+      Every release-0 exact_match item with an integer extract ((\d+),
+      (-?\d+), (\d[\d,]*), and their ANSWER:/JSON-anchored forms) now uses
+      (-?\d[\d,]*)(?:\.0+(?!\d))?, the draft's INT_EXTRACT
+      (scripts/author/emit.ts). The comma case can hit only the answers of
+      1000 or more; the zero-tail case hits any integer item. Year (\d{4})
+      and decimal (fact_planck) extracts are unchanged. The scored line it
+      flips is econ_cournot_profit1 "1,600" on phi-4-mlx-8bit, fail to pass;
+      none flips from pass to fail.
+    scorerChange: true
+    scorers:
+      economics/econ_cournot_price: "033554be365b"
+      economics/econ_cournot_profit1: "bad68a9a001b"
+      economics/econ_cournot_q1: "4e4c34e2d332"
+      economics/econ_cournot_q2: "95528060285f"
+      economics/econ_entry_entrant_payoff: "4e4c34e2d332"
+      economics/econ_entry_incumbent_payoff: "01ec1c49d032"
+      economics/econ_entry_threat_gap: "50009bee3eb9"
+      economics/econ_marginal_quantity: "0cbcd3dd42cf"
+      economics/econ_monopoly_competitive_quantity: "568e71379f7d"
+      economics/econ_monopoly_dwl: "c910b1bd4e63"
+      economics/econ_monopoly_price: "50009bee3eb9"
+      economics/econ_monopoly_profit: "fc684b54a568"
+      economics/econ_monopoly_quantity: "5554765af1d7"
+      economics/econ_tax_buyer_price: "7dfbdc1db11f"
+      economics/econ_tax_dwl: "cfc9900fa597"
+      economics/econ_tax_quantity: "c70ffef19b21"
+      economics/econ_tax_revenue: "a5cb1b2482cc"
+      economics/econ_tax_seller_price: "e2480e021e1b"
+      economics/econ_vickrey_bid: "6a34802567f5"
+      factual/fact_boiling_few_shot: "bd4aa91313b8"
+      factual/fact_chromosomes_adversarial: "f9b1094ccf4c"
+      factual/fact_chromosomes_direct: "f9b1094ccf4c"
+      financial/financial_amort_payoff_month: "7661d81a0954"
+      financial/financial_bailout_amount: "1e2289df66f7"
+      financial/financial_breakeven_liquidity_cascade: "ed5ca6d39126"
+      financial/financial_contagion_buffer_bump_halts: "95528060285f"
+      financial/financial_contagion_total_failed: "0cbcd3dd42cf"
+      financial/financial_covenant_first_breach_month: "d977dcf923e2"
+      financial/financial_waterfall_equity_residual: "615c01352784"
+      financial/financial_waterfall_mezz_payout: "593bf776a917"
+      financial/financial_waterfall_pool_equity_zero: "6796f3d98e01"
+      financial/financial_waterfall_senior_payout: "02418d83af54"
+      logic/logic_ages_cot: "e32dce5e8287"
+      logic/logic_bat_ball_direct: "f791b9ba98b1"
+      logic/logic_bat_ball_noisy: "f791b9ba98b1"
+      logic/logic_sequence: "c09a11d7e5ae"
+      logic/logic_sheep_cot: "858422231406"
+      logic/logic_sheep_direct: "3c9ee090ff45"
+      logic/logic_sheep_few_shot: "3c9ee090ff45"
+      logic/logic_widgets_adversarial: "f791b9ba98b1"
+      logic/logic_widgets_direct: "f791b9ba98b1"
+      math/math_chain_direct: "1959a69b8a88"
+      math/math_chain_noisy: "1959a69b8a88"
+      math/math_combinatorics_cot: "d0da89ddb808"
+      math/math_compound_interest: "11b1f9116531"
+      math/math_modular_structured: "e63463709ffb"
+      math/math_multiply_cot: "13671a6bd854"
+      math/math_multiply_direct: "b0ebf13a2698"
+      math/math_multiply_few_shot: "b0ebf13a2698"
+      math/math_primes_sum_adversarial: "28d14e9d84c1"
+      math/math_primes_sum_direct: "28d14e9d84c1"
+      math/math_word_problem_decomposed: "9d1801906a32"
+      math/math_word_problem_direct: "9d1801906a32"
+      math/math_word_problem_structured: "f447996dc7e4"
+      smoke/math_multiply_direct: "b0ebf13a2698"
+      trust/trust_bayes_signals_to_ninety: "1fc735dbbfbe"
+      trust/trust_folk_coop_payoff: "f791b9ba98b1"
+      trust/trust_folk_temptation_gain: "0cbcd3dd42cf"
+      trust/trust_hazard_principal_profit: "50009bee3eb9"
+      trust/trust_web_paths_above: "ba3e994493af"
+    scoresChanged: { lines: 1, configs: 1 }
+    releaseStatus: none

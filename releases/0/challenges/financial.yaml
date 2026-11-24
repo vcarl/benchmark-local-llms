@@ -41,7 +41,7 @@ items:
       with a negative balance? Reply with only that number and no other figures.
     scorer: exact_match
     expected: "13"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -112,7 +112,7 @@ items:
       figures.
     scorer: exact_match
     expected: "670"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -135,7 +135,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "520"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -158,7 +158,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "120"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -181,7 +181,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "0"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -230,7 +230,7 @@ items:
       only that number and no other figures.
     scorer: exact_match
     expected: "1015"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -323,7 +323,7 @@ items:
       figures.
     scorer: exact_match
     expected: "4"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -351,7 +351,7 @@ items:
       and no other figures.
     scorer: exact_match
     expected: "20"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -434,7 +434,7 @@ items:
       month number.
     scorer: exact_match
     expected: "7"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model
@@ -744,7 +744,7 @@ items:
       each month? Reply with only the month number.
     scorer: exact_match
     expected: "47"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - financial-model

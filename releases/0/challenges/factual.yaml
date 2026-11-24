@@ -16,7 +16,7 @@ items:
       A:
     scorer: exact_match
     expected: "212"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - factual-recall
@@ -26,7 +26,7 @@ items:
     prompt: "Read carefully — this may be trickier than it looks. How many chromosomes do humans have? Note: I'm asking about the total number in a normal diploid cell, not the haploid number in gametes. Reply with just the number."
     scorer: exact_match
     expected: "46"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - factual-recall
@@ -36,7 +36,7 @@ items:
     prompt: How many chromosomes do humans have? Reply with just the number.
     scorer: exact_match
     expected: "46"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - factual-recall

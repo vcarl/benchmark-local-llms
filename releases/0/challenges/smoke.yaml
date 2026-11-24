@@ -27,7 +27,7 @@ items:
     prompt: What is 47 * 89? Reply with just the number.
     scorer: exact_match
     expected: "4183"
-    extract: (\d[\d,]*)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
   - name: constraint_keywords_direct
     category: constraint
     tier: 1

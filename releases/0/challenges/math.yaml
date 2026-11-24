@@ -8,7 +8,7 @@ items:
     prompt: Start with 5. Double it. Add 7. Triple the result. What number do you have? Reply with just the number.
     scorer: exact_match
     expected: "51"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -18,7 +18,7 @@ items:
     prompt: My friend told me this puzzle yesterday at the coffee shop (great latte by the way). Start with 5. Double it. Add 7. Triple the result. I think the answer might be 45 but I'm not sure. What number do you get? Focus on the core question and ignore irrelevant details. Reply with just the number.
     scorer: exact_match
     expected: "51"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -28,7 +28,7 @@ items:
     prompt: "How many ways can you choose 3 items from a set of 7? Think step by step, then write ANSWER: followed by just the number."
     scorer: exact_match
     expected: "35"
-    extract: ANSWER:\s*(\d+)
+    extract: ANSWER:\s*(-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -38,7 +38,7 @@ items:
     prompt: You invest $1000 at 10% annual interest compounded once per year. How much do you have after 3 years, rounded to the nearest dollar? Reply with just the number.
     scorer: exact_match
     expected: "1331"
-    extract: (\d[\d,]*)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -51,7 +51,7 @@ items:
       Output only the JSON, nothing else.
     scorer: exact_match
     expected: "12"
-    extract: '"result"\s*:\s*(\d+)'
+    extract: '"result"\s*:\s*(-?\d[\d,]*)(?:\.0+(?!\d))?'
     tags:
       - TODO
       - math-reasoning
@@ -61,7 +61,7 @@ items:
     prompt: "What is 47 * 89? Think step by step, then write ANSWER: followed by just the number."
     scorer: exact_match
     expected: "4183"
-    extract: ANSWER:\s*(\d[\d,]*)
+    extract: ANSWER:\s*(-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -71,7 +71,7 @@ items:
     prompt: What is 47 * 89? Reply with just the number.
     scorer: exact_match
     expected: "4183"
-    extract: (\d[\d,]*)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -89,7 +89,7 @@ items:
       A:
     scorer: exact_match
     expected: "4183"
-    extract: (\d[\d,]*)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -99,7 +99,7 @@ items:
     prompt: What is the sum of all prime numbers less than 20? Remember, 1 is not a prime number and 2 is the only even prime. Also note that 20 itself should not be included. Read carefully — this question is tricky. Reply with just the number.
     scorer: exact_match
     expected: "77"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -109,7 +109,7 @@ items:
     prompt: What is the sum of all prime numbers less than 20? Reply with just the number.
     scorer: exact_match
     expected: "77"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -125,7 +125,7 @@ items:
       Reply with ONLY the final number from step 3.
     scorer: exact_match
     expected: "96"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -135,7 +135,7 @@ items:
     prompt: A baker makes 4 batches of cookies. Each batch has 36 cookies. She gives away 1/3 of all the cookies. How many does she have left? Reply with just the number.
     scorer: exact_match
     expected: "96"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - math-reasoning
@@ -150,7 +150,7 @@ items:
       Output only the JSON, nothing else.
     scorer: exact_match
     expected: "96"
-    extract: '"answer"\s*:\s*(\d+)'
+    extract: '"answer"\s*:\s*(-?\d[\d,]*)(?:\.0+(?!\d))?'
     tags:
       - TODO
       - math-reasoning

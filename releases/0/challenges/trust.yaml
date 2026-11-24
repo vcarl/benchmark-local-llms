@@ -382,7 +382,7 @@ items:
       Reply with only that whole number.
     scorer: exact_match
     expected: "2"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - trust
@@ -408,7 +408,7 @@ items:
       that whole number.
     scorer: exact_match
     expected: "4"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - trust
@@ -492,7 +492,7 @@ items:
       Reply with only that whole number.
     scorer: exact_match
     expected: "5"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - trust
@@ -576,7 +576,7 @@ items:
       whole number.
     scorer: exact_match
     expected: "70"
-    extract: (-?\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - trust
@@ -703,7 +703,7 @@ items:
       above 0.4? Reply with only that whole number.
     scorer: exact_match
     expected: "3"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - trust

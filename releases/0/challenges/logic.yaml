@@ -8,7 +8,7 @@ items:
     prompt: "Alice is twice as old as Bob. In 10 years, Alice will be 1.5 times as old as Bob. How old is Bob now? Think step by step, then write ANSWER: followed by the number."
     scorer: exact_match
     expected: "10"
-    extract: ANSWER:\s*(\d+)
+    extract: ANSWER:\s*(-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -18,7 +18,7 @@ items:
     prompt: A bat and a ball cost $1.10 together. The bat costs $1.00 more than the ball. How much does the ball cost in cents? Reply with just the number.
     scorer: exact_match
     expected: "5"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -28,7 +28,7 @@ items:
     prompt: OK so my math teacher gave us this problem and half the class got it wrong lol. A bat and a ball cost $1.10 together and the bat is $1.00 more than the ball. Everyone keeps saying 10 cents but that's wrong right?? What does the ball actually cost in cents? Ignore irrelevant details and focus on the core question. Just the number.
     scorer: exact_match
     expected: "5"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -56,7 +56,7 @@ items:
     prompt: "What is the next number in this sequence: 1, 1, 2, 3, 5, 8, 13, 21, __? Reply with just the number."
     scorer: exact_match
     expected: "34"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -66,7 +66,7 @@ items:
     prompt: "A farmer has 17 sheep. All but 9 die. How many sheep are left? Think carefully about the wording, then write ANSWER: followed by the number."
     scorer: exact_match
     expected: "9"
-    extract: ANSWER:\s*(\d+)
+    extract: ANSWER:\s*(-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -76,7 +76,7 @@ items:
     prompt: A farmer has 17 sheep. All but 9 die. How many sheep are left? Reply with just the number.
     scorer: exact_match
     expected: "9"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -94,7 +94,7 @@ items:
       A:
     scorer: exact_match
     expected: "9"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -104,7 +104,7 @@ items:
     prompt: "Read carefully — this is a tricky question. If it takes 5 machines 5 minutes to make 5 widgets, how many minutes would it take 100 machines to make 100 widgets? Hint: the answer is NOT 100. Reply with just the number."
     scorer: exact_match
     expected: "5"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction
@@ -114,7 +114,7 @@ items:
     prompt: If it takes 5 machines 5 minutes to make 5 widgets, how many minutes does it take 100 machines to make 100 widgets? Reply with just the number.
     scorer: exact_match
     expected: "5"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - logical-deduction

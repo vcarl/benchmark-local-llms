@@ -83,7 +83,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "80"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -149,7 +149,7 @@ items:
       maximise profit? Reply with only that number and no other figures."
     scorer: exact_match
     expected: "4"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -398,7 +398,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "40"
-    extract: (-?\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - game-theory
@@ -429,7 +429,7 @@ items:
       INCUMBENT earn? Reply with only that number and no other figures.
     scorer: exact_match
     expected: "50"
-    extract: (-?\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - game-theory
@@ -462,7 +462,7 @@ items:
       and no other figures.
     scorer: exact_match
     expected: "70"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - game-theory
@@ -483,7 +483,7 @@ items:
       with only that number and no other figures.
     scorer: exact_match
     expected: "40"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -505,7 +505,7 @@ items:
       with only that number and no other figures.
     scorer: exact_match
     expected: "20"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -527,7 +527,7 @@ items:
       other figures.
     scorer: exact_match
     expected: "60"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -549,7 +549,7 @@ items:
       other figures.
     scorer: exact_match
     expected: "1600"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -593,7 +593,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "74"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -612,7 +612,7 @@ items:
       other figures.
     scorer: exact_match
     expected: "26"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -631,7 +631,7 @@ items:
       number and no other figures.
     scorer: exact_match
     expected: "18"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -675,7 +675,7 @@ items:
       that number and no other figures.
     scorer: exact_match
     expected: "24"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -695,7 +695,7 @@ items:
       only that number and no other figures.
     scorer: exact_match
     expected: "592"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -715,7 +715,7 @@ items:
       and no other figures.
     scorer: exact_match
     expected: "30"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -735,7 +735,7 @@ items:
       other figures.
     scorer: exact_match
     expected: "70"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -755,7 +755,7 @@ items:
       figures.
     scorer: exact_match
     expected: "1350"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -776,7 +776,7 @@ items:
       other figures.
     scorer: exact_match
     expected: "45"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
@@ -797,7 +797,7 @@ items:
       competition, in dollars? Reply with only that number and no other figures.
     scorer: exact_match
     expected: "225"
-    extract: (\d+)
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
     tags:
       - TODO
       - economics
