@@ -1,8 +1,6 @@
 # Architecture
 
-> _Last verified: 2026-06-20 against `9a651b2`._
-
-The harness benchmarks local LLMs. Its atomic unit of work is an **attempt**: one `(configuration × challenge)` run. A configuration is a model + runtime + quant + sampling settings + system prompt; a challenge is a named, versioned set of scored items. One attempt produces one self-describing archive — see [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md).
+The harness benchmarks local LLMs. Its atomic unit of work is a **bundle**: one configuration executing one challenge's items within a run. A configuration is a model + runtime + quant + sampling settings + system prompt; a challenge is a named, versioned set of scored items. One bundle is one sealed, content-addressed file — see [the archive data model spec](./superpowers/specs/2026-11-17-archive-data-model-design.md); the legacy attempt format (schemaVersion 1–3) is in [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md).
 
 The codebase is layered, and three rules hold across every layer:
 
@@ -10,22 +8,46 @@ The codebase is layered, and three rules hold across every layer:
 - **Errors travel as typed `Data.TaggedError` in the Effect channel.** A failure is a value with a `_tag`, not a thrown exception. Operational outcomes (a scorer rejecting an answer, an LLM timing out) are folded into results; only genuine defects use `orDie`.
 - **`try` / `throw` / `console.*` are banned outside `src/cli/`**, enforced by `scripts/lint-strict.sh`. The CLI layer is the one place allowed to touch `process`, log to the console, and use `try`/`throw`, because it owns the boundary with the outside world.
 
+## Vocabulary
+
+These words have one meaning each across code, docs, CLI and webapp. The target data model, and the terms it adds, is in [the archive data model spec](./superpowers/specs/2026-11-17-archive-data-model-design.md#glossary).
+
+| Term | Meaning |
+|---|---|
+| **Config** | One model build to evaluate: weights artifact, runtime, quant, sampling settings, chat template, system prompt. Declared in `configs.yaml`, identified by its `configHash`. |
+| **Run** | One `./bench run`. Every bundle it writes shares its `run.id`. |
+| **Bundle** | One config executing one challenge's items within a run, on one machine: one sealed `.jsonl` file in `store/bundles/`, named by the SHA-256 of its bytes. A legacy **attempt** is the same unit in the schemaVersion 1–3 archive. |
+| **Item** | One prompt plus its scorer, keyed `challengeId/itemName`. Each turn of a multi-turn item is an item. |
+| **Challenge** | A named suite of items on one topic, one `releases/<release>/challenges/<id>.yaml`. |
+| **Scorer** | How an item's output is graded (exact/regex/numeric, constraint checks, set/ordered match, `code_exec`, `custom`). Its result is the item's **score**, in `[0, 1]`. |
+| **Contributor** | The public handle a bundle names as its producer (`run.contributor`, set by `BENCH_CONTRIBUTOR`, default `local`). |
+| **Release** | A frozen item set, `0` (the alpha challenge set) or `YYYY.N`, in `releases/<release>/`. Its **release file**, `release.json`, records each item's prompt and scorer digest and, once frozen, a digest over the item set. |
+| **Erratum** | A documented change to items after a release, numbered `<release>.<n>`, in the release's `errata.yaml`. |
+| **Eval version** | A release plus its errata 1..n, written `<release>.<n>`. Fixes which scorer grades each item. |
+| **Dataset** | `datasets/<name>.yaml`: a release, an eval version, and exactly the bundles (v4) or pinned legacy attempts that count — one data format per dataset. The report scores them against that release's challenge set and ranks them together. The archival `alpha` dataset is release `0` (the alpha challenge set) in the legacy format; the `draft` dataset is the pre-release, v4 only. |
+| **Draft** | The complete set of the upcoming release under development: `releases/draft/challenges/` holds every release item an erratum does not retire (identical to `releases/0/challenges/` unless a pending-next-release erratum names it) plus the new candidate items. Reported as the `draft` dataset. |
+| **Row** | One config on one machine within a dataset: config digest × hardwareId × contributor for v4, `configHash × hardwareId` for legacy. Every config version is its own row. The unit that is ranked. |
+| **Cell** | One row's results for one challenge. |
+| **Pass rate** | Fraction of a row's (or cell's) items whose score is exactly 1, coverage-adjusted over the dataset's challenges: a challenge the row did not run counts as failed. |
+| **Partial pass rate** | The same fraction over only the challenges the row ran. |
+
+A row has a pass rate, never a score.
+
 ## Layer map
 
 ```
 src/cli/                 process boundary — argv, exit codes, console, subprocess safety net
-  main.ts                wires subcommands (run, report, score, export, list-models, list-prompts)
-  commands/run.ts        sweep matched configurations × challenges → one attempt archive per cell
-  commands/report.ts     aggregate attempts → webapp data + detail files
-  commands/score.ts      re-score an attempt archive in place
-  commands/export.ts     bundle an attempt + its blobs into a portable archive
+  main.ts                wires subcommands (run, verify, score, release, legacy, dataset, report, audit, export-eee, list-models, list-prompts)
+  commands/run.ts        sweep matched configurations × challenges → one bundle per cell
+  commands/report.ts     dataset manifests → snapshots, the snapshot index and detail files
+  commands/verify.ts     verify sealed bundle files
   commands/list.ts       read-only challenge-item / model sanity checks
   deps.ts                production wiring of the LLM-server factory
   subprocess-registry.ts process-level safety net (SIGHUP / uncaughtException / exit)
   logger.ts, paths.ts    log layer + canonical path helpers
 
 src/orchestration/
-  run-challenge.ts       attempt orchestrator: scope, server boot, per-item execute-or-cache, score, finalize; aggregate(); resume + ResumeMismatchError
+  run-challenge.ts       bundle orchestrator: scope, server boot, complete-bundle cell skip, per-item execute, seal, score; aggregate()
   run-prompt.ts          one prompt → completion → output/reasoning split → result assembly
   run-loop.ts, hardware.ts  run env: git sha, hardware profile + hardwareId (probed once per process)
 
@@ -38,62 +60,77 @@ src/scoring/
   dispatch.ts            scoreByConfig: dispatch a scorer config to its scorer by type
   strip-thinking.ts      split reasoning from answer when the runtime inlined it
   exact-match.ts, constraint.ts, code-exec.ts, custom.ts   the scorers
+  sandbox.ts             isolated Docker runner for code_exec / custom scorers
 
 src/config/
   configurations.ts      load configs.yaml, resolve identity (configHash)
   challenges.ts          load a challenge YAML, resolve its inline items + challengeHash
   system-prompts.ts      load the root system-prompts.yaml registry
-  hashing.ts             12-hex SHA-256 identity hashes; yaml.ts the parser
+  hashing.ts             12-hex scenario hash (12-hex hashes are legacy only; v4 identities are full SHA-256 digests); yaml.ts the parser
 
 src/schema/              Effect Schema definitions: attempt (manifest + item), configuration,
                          challenge, prompt, model, scorer, enums; run-manifest.ts exports RunEnv
 
-src/archive/
-  attempt-writer.ts      header write / item append / finalize / atomic full rewrite
-  content-store.ts       content-addressed blob store (prompts / scorers / system)
-  cache.ts               cross-attempt item cache lookup
+src/store/
+  digest.ts              stableStringify and SHA-256 digests
+  bundle.ts              open-file writer, canonical sealing, verifying reader
+  store-index.ts         skip index over sealed bundles
+  weights.ts             weights digest, cached in store/weights.json
+  scores.ts              score records, scorer digests
+
+src/scoring/rules.ts     SCORING_RULES, the harness-wide scoring rules version
 
 src/report/
-  index.ts               pipeline entry (runReport)
+  index.ts               pipeline entry (runReport, buildSnapshot), the snapshot index
+  v4-rows.ts             a v4 dataset's rows: bundles + score records, detail files
+  model-key.ts           modelKey: the model identity GGUF / MLX builds share
+
+src/legacy/              the schemaVersion 1-3 attempt reader (the only code that reads them)
+  content-store.ts       content-addressed blob keys and verification (prompts / scorers / system)
   load-attempts.ts       parse *.jsonl archives into LoadedAttempt
   aggregate.ts           completed-only filter and dedup: the attempts that get a detail file
-  rows.ts                selection: rows per config × machine over the challenge set (__BENCHMARK_ROWS)
-  model-key.ts           modelKey: the model identity GGUF / MLX builds share
-  write-data-js.ts       emit webapp/src/data/data.js
+  rows.ts                selection: rows per config × machine over the challenge set; cell and row math shared with v4 rows
   write-details.ts       emit per-attempt drilldown JSON
   reconstruct.ts         rebuild an attempt from .jsonl + content store
 
 src/errors/              typed Data.TaggedError classes, re-exported from index.ts
 ```
 
-## Attempt lifecycle
+## Bundle lifecycle
 
-`run` executes each `(configuration × challenge)` cell as one attempt, in order:
+`run` executes each `(configuration × challenge)` cell as one bundle, in order:
 
-1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items directly, computing every identity hash. Build an `attemptId` of the form `att-<configHash>-<challengeHash>-<timestamp>`.
-2. **Open the archive.** Inside `Effect.scoped`, write line 1 — the `AttemptManifest` header — in its open state (`finishedAt: null`, `interrupted: true`, zeroed aggregate). Write the resolved system-prompt blob to the content store.
-3. **Boot the LLM server.** `run` boots the runtime's server **once per configuration** and reuses it across that configuration's challenges. A server that won't boot skips the whole configuration's row — every cell is recorded `SKIPPED` and the sweep continues to the next configuration. (The single-attempt `runChallenge` wrapper instead `orDie`s, having nothing to recover to.) The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller.
-4. **Run each item.** For every challenge item: write its prompt and scorer blobs to the content store, then for each of its samples (one unless `--samples`) either serve a cross-attempt cache hit (copied verbatim from an attempt on this machine, stamped with `cachedFrom`) or execute it freshly via `runPrompt` with a random seed. Score the cleaned output with `scoreByConfig` — a scorer error folds to score 0, never a crashed attempt. An item whose execution carried an `error` scores 0. Append each resulting `ItemResult` as a new line.
-5. **Finalize.** Aggregate the items into `{ score, passed }` (`score` = fraction of items scoring exactly 1; `passed` = `score >= passThreshold`), then rewrite line 1 with `finishedAt`, `interrupted: false`, the filled aggregate, and the generated/replayed line counts. Body lines are never touched once appended.
+1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items, the config digest, the weights digest (cached in `store/weights.json`) and the hardware id. The release is taken from `--challenges-dir`.
+2. **Skip, resume or open.** A cell one sealed bundle already holds whole is skipped ([SCORING.md § Report rows](./SCORING.md#report-rows), run skip). Otherwise, inside `Effect.scoped`, the cell's matching open file in `store/open/` is resumed, or a new one is written: line 1 is the header, then one execution per line ([ARCHIVE-FORMAT.md § Lifecycle](./ARCHIVE-FORMAT.md#lifecycle-open-to-sealed)). `--no-skip` runs every cell.
+3. **Boot the LLM server.** `run` boots the runtime's server **once per configuration** and reuses it across that configuration's challenges. A server that won't boot skips the whole configuration's row — every cell is recorded `SKIPPED` and the sweep continues to the next configuration. (The single-attempt `runChallenge` wrapper instead `orDie`s, having nothing to recover to.) The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller. Health alone does not prove the model loaded — `mlx_lm.server` and oMLX answer `/v1/models` before the weights are in memory, and `mlx_lm.server` keeps answering after its load has failed while every completion hangs — so after the chat-template gate the supervisor sends a one-token completion. A non-2xx answer, no answer within the load budget, or (mlx) the generation thread's crash header on the server's output aborts the boot with a typed `ModelLoadError` carrying the server's last output lines, and the row is `SKIPPED` with that reason. mlx requests name the model `default_model`, the id `mlx_lm.server` gives its `--model` path; any other id makes it reload the model by that id.
+4. **Run each item.** Execute every item and each of its samples (one unless `--samples`) via `runPrompt` with a random seed and append the execution line.
+5. **Seal.** Fill `finishedAt` and the `executions` count, re-serialize every line canonically, and write the bytes to `store/bundles/<bundleDigest>.jsonl`, the name being their SHA-256. A cell that executed nothing writes no bundle.
+6. **Score.** Score each execution with `scoreByConfig` — a scorer error folds to score 0 — and append one score record per execution to `store/scores/<bundleDigest>.jsonl`. An execution that carried an `error` scores 0.
 
-The header→append→finalize order is what makes interruption safe: if the process dies before finalize, the archive keeps `interrupted: true` and `finishedAt: null`, and the report ignores it. An interrupted sweep is simply re-run: the cross-attempt item cache serves already-completed items verbatim, so re-invoking `run` only re-executes the gaps. (The lower-level `resumeChallenge` — re-resolve config and challenge, validate their hashes against the partial header, execute only the missing items, re-aggregate, finalize — remains in the orchestrator but is not exposed by the current CLI.)
+An interrupted run leaves its open file in `store/open/`; the report never reads it, and re-running `run` resumes it. Sealed bundles are never modified. `./bench verify` re-checks a sealed bundle without writing anything.
 
 ## Report pipeline
 
-`report` turns attempt archives into the webapp's data, one dataset at a time — the main archive against `--challenges-dir`, then the pilot (`<archive-dir>-next` against `<challenges-dir>-next`) when both exist and `--no-pilot` is not given:
+`report` builds one **snapshot** per dataset manifest in `--datasets-dir` (D11 in the data-model spec):
 
 ```
-per dataset: loadAttemptArchives → buildRows + detailSources
-then:        writeDataJs → writeDetails
+per manifest:  rows (legacy: pinned attempts; v4: bundles + score records)
+               → <output>/<sha256>.json
+then:          details/<id>.json + prompts/<sha256>.json (index order) → index.json → prune details
 ```
 
-1. **`loadAttemptArchives`** reads every `*.jsonl` under the archive directory, decoding line 1 as an `AttemptManifest` and lines 2+ as `ItemResult`s. A file that fails to parse becomes a collected load issue, not a failure.
-2. **`buildRows`** (`src/report/rows.ts`) selects the ranking: one row per `configHash × hardwareId` over the dataset's challenge set, with per-challenge cells, completeness, freshness, execution provenance, and the `modelKey` that groups builds of one model (`configs.yaml` `modelKey` overrides it). The rules are in [SCORING.md § Report rows](./SCORING.md#report-rows).
-3. **`detailSources`** keeps the **completed** attempts (`finishedAt` set and `interrupted: false`), deduplicated by `attemptId` (first wins); incomplete and duplicate attempts are counted.
-4. **`writeDataJs`** writes `globalThis.__BENCHMARK_ROWS = [...]`, one entry per dataset, main first, on one line to `webapp/src/data/data.js`. It is the webapp's only input.
-5. **`writeDetails`** writes one `webapp/public/details/<attemptId>.json` per completed, reconstructible attempt, joining the reconstructed prompt / scorer / system text with the in-memory output, reasoning, score, and error. A non-reconstructible attempt is skipped gracefully — its row still appears in `data.js`, only its drilldown is absent.
+1. **Release.** `loadRelease(releases/<release>)` reads `release.json`, `errata.yaml` and the blobs. The challenge set is every challenge loadable from `releases/<release>/challenges/`, never inferred from the records; families and scopes come from it. The snapshot's errata are the release's errata up to the manifest's eval version (a draft: none), without `notes` or `scorers`.
+2. **Challenge set.** The release's challenge YAML, every file of which must load (a failure names the file), checked against `release.json` as `./bench release verify` checks it (`challengeDrift`): a draft must match exactly, a release must be covered by its errata. Drift fails the build, naming the items.
+3. **Rows.**
+   - A **legacy** manifest is read by `loadLegacyDataset`: only the attempt files it lists, each checked against its SHA-256 before it is parsed, and blobs through a reader that checks their pins (a mismatch or a missing file fails the report). `buildRows` (`src/legacy/rows.ts`) selects one row per `configHash × hardwareId`; attempts without a hardware profile belong to the manifest's `legacy.hardware`.
+   - A **v4** manifest is read by `scoredExecutions` (`src/report/v4-rows.ts`): every listed bundle through the verifying reader, naming the manifest's release, each execution with our score record under the scorer digest in effect at the eval version. A missing record fails the build (`./bench score --dataset <name>` first); records of one execution and scorer that disagree fail it naming the item. `v4RowsOf` selects one row per config digest × hardwareId × contributor.
+   Both build cells with `buildCell` and rows with `assembleRows`, so a cell means the same thing in either; the rules are in [SCORING.md § Report rows](./SCORING.md#report-rows).
+4. **Snapshot file.** The snapshot's canonical bytes, written to `<sha256 of the bytes>.json` and never rewritten; its fields and `inputs` are in [ARCHIVE-FORMAT.md § Snapshots](./ARCHIVE-FORMAT.md#snapshots). `configs.yaml` enters `inputs` because its `modelKey` overrides group rows.
+5. **Details.** `details/<id>.json` per `sourceAttempts` id: a legacy attempt's (`writeDetails`, joining the reconstructed prompt / scorer / system text with the in-memory output, reasoning, score, error and per-item timing; a non-reconstructible attempt is skipped and its row still counts it) or a bundle's (the same JSON, `detailPayload`, with prompt text from the release's prompt blob). Each item's prompt text goes to a prompt pack, `prompts/<sha256>.json` (`{ item_id: text }`), named by the detail's `prompts` field, so every config's detail for a challenge shares one pack. An id shared by two datasets is written by the first in index order.
+6. **Index.** `index.json` = `{ snapshots: [{ dataset, title, release, evalVersion, ranked, legacy, digest, rows, challenges, span }] }`: this build's snapshots plus earlier entries whose file is still in the output and still hashes to its digest (any other is dropped with a warning); alpha first, then other legacy datasets, releases newest first (within a dataset the newest eval version, then this build's snapshot), drafts last.
+7. **Prune.** A detail file that no indexed snapshot's `sourceAttempts` names is removed.
 
-`RowsDataset` (`src/report/rows.ts`) is the backend→webapp contract. `webapp/src/lib/rows.ts` mirrors the fields the webapp reads; there is no compile-time link between the two files, so a change to one must be mirrored in the other.
+`RowsDataset` (`src/legacy/rows.ts`) is the backend→webapp contract. `webapp/src/lib/rows.ts` mirrors the fields the webapp reads; there is no compile-time link between the two files, so a change to one must be mirrored in the other.
 
 ## Reasoning split
 
@@ -112,7 +149,7 @@ Scorers consume the already-cleaned `output` and never re-strip. The split happe
 | Add a new scorer type | `src/schema/scorer.ts` (add the config variant), then a new case in `src/scoring/dispatch.ts` and its scorer module |
 | Add a new runtime | `src/llm/servers/` (a spawner over `supervisor.ts`), the port map in `src/llm/chat-completion.ts`, the `Runtime` enum in `src/schema/enums.ts`, and the factory in `src/cli/deps.ts` |
 | Debug a shutdown that hangs | `src/llm/servers/supervisor.ts` — the SIGTERM→SIGKILL finalizer and its bounded, interruptible kill timeouts |
-| Add a new report field | `src/report/rows.ts` **and** `webapp/src/lib/rows.ts` together (the contract is hand-maintained) |
+| Add a new report field | `src/legacy/rows.ts` **and** `webapp/src/lib/rows.ts` together (the contract is hand-maintained) |
 | Know what counts as a pass | An item passes when its `score === 1`; the same definition (`passFraction`) drives the attempt aggregate and each cell's `passed` |
 
 ## Conventions
@@ -120,5 +157,5 @@ Scorers consume the already-cleaned `output` and never re-strip. The split happe
 - **Effect error channel.** Failures are typed `Data.TaggedError` values; expected outcomes are folded into results, and only defects use `orDie`. See [GUARANTEES.md](./GUARANTEES.md#error-channel-discipline).
 - **Scope propagation.** Every subprocess and server is acquired in an `Effect.scoped` region whose finalizer guarantees teardown. See [GUARANTEES.md](./GUARANTEES.md#scope-managed-resources) and [#graceful-shutdown-sigterm--sigkill](./GUARANTEES.md#graceful-shutdown-sigterm--sigkill).
 - **Fail-fast config.** Configuration and challenge resolution validates eagerly; an unknown id or an undecodable YAML stops the run before any model is touched. See [GUARANTEES.md](./GUARANTEES.md#fail-fast-config).
-- **Self-sufficient archives.** An attempt's `.jsonl` plus its referenced content blobs are everything needed to reconstruct, re-score, or export it. See [GUARANTEES.md](./GUARANTEES.md#self-sufficient-archives) and [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md#content-store).
-- **One file per concept.** Each module owns a single concern — one scorer per file, one writer for the archive, one client for completions — so the layer map above reads as a table of contents.
+- **Self-sufficient archives.** A legacy attempt's `.jsonl` plus its referenced content blobs are everything needed to reconstruct it; a sealed bundle carries its own header, config and executions. See [GUARANTEES.md](./GUARANTEES.md#legacy-pins) and [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md#content-store).
+- **One file per concept.** Each module owns a single concern — one scorer per file, one writer for the store, one client for completions — so the layer map above reads as a table of contents.
