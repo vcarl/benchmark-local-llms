@@ -1,0 +1,317 @@
+id: regex
+version: 1
+passThreshold: 0.8
+items:
+  # reference: \d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]) (15 positive, 15 negative cases)
+  - name: regex_iso_date_s0
+    family: regex_iso_date
+    seed: 0
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an ISO calendar date
+      YYYY-MM-DD: any four-digit year, a month from 01 to 12 and a day from 01
+      to 31, separated by hyphens, with nothing before or after. Do not check
+      days per month (2023-02-31 counts as valid).
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "1905-05-19"
+        "2498-02-31"
+        "2505-03-27"
+        "0000-06-15"
+
+      Must not match:
+        "1511-20-05"
+        "1511-07-00"
+        "1511-04-40"
+        "1511-00-10"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_iso_date_s0.test.py
+  # reference: (?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]) (14 positive, 18 negative cases)
+  - name: regex_iso_date_s1
+    family: regex_iso_date
+    seed: 1
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an ISO calendar date
+      YYYY-MM-DD: a year from 1900 to 2099, a month from 01 to 12 and a day from
+      01 to 31, separated by hyphens, with nothing before or after. Do not check
+      days per month (2023-02-31 counts as valid).
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "1964-10-31"
+        "2088-01-01"
+        "1912-04-09"
+        "2081-01-18"
+
+      Must not match:
+        "969-03-15"
+        "1969-07-32"
+        "196903-15"
+        "1969/03/15"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_iso_date_s1.test.py
+  # reference: 20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]) (14 positive, 18 negative cases)
+  - name: regex_iso_date_s2
+    family: regex_iso_date
+    seed: 2
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an ISO calendar date
+      YYYY-MM-DD: a year from 2000 to 2099, a month from 01 to 12 and a day from
+      01 to 31, separated by hyphens, with nothing before or after. Do not check
+      days per month (2023-02-31 counts as valid).
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "2011-02-31"
+        "2003-08-06"
+        "2047-10-10"
+        "2001-10-30"
+
+      Must not match:
+        "2078-20-05"
+        "20780-03-15"
+        "2078-6-15"
+        "207803-15"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_iso_date_s2.test.py
+  # reference: PO-[A-Z]{2}-\d{5}(?:-R[1-9])? (15 positive, 14 negative cases)
+  - name: regex_order_id_s0
+    family: regex_order_id
+    seed: 0
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an order ID: the prefix
+      "PO-", then exactly 2 uppercase ASCII letters, a hyphen, and exactly 5
+      digits, optionally followed by a revision suffix "-R" and one digit from 1
+      to 9.
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "PO-KN-21934"
+        "PO-IB-85850"
+        "PO-RX-80781"
+        "PO-ES-34062"
+
+      Must not match:
+        "PO-ZT-69744 "
+        "PO-pz-54051"
+        "po-WX-08295"
+        "PO-MR95431"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_order_id_s0.test.py
+  # reference: PO-[A-Z]{3}-\d{6} (11 positive, 16 negative cases)
+  - name: regex_order_id_s1
+    family: regex_order_id
+    seed: 1
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an order ID: the prefix
+      "PO-", then exactly 3 uppercase ASCII letters, a hyphen, and exactly 6
+      digits. Nothing may come before or after.
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "PO-QFU-730139"
+        "PO-KFA-532606"
+        "PO-MSG-123262"
+        "PO-TCY-000000"
+
+      Must not match:
+        "PO-IUU-42872"
+        "XPO-SUS-315333"
+        "PO-ZYE-410652-R7"
+        "PO-RXQ-793359-R4"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_order_id_s1.test.py
+  # reference: SO-[A-Z]{2}-\d{7}(?:-R[1-9])? (15 positive, 14 negative cases)
+  - name: regex_order_id_s2
+    family: regex_order_id
+    seed: 2
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an order ID: the prefix
+      "SO-", then exactly 2 uppercase ASCII letters, a hyphen, and exactly 7
+      digits, optionally followed by a revision suffix "-R" and one digit from 1
+      to 9.
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "SO-QK-3803268"
+        "SO-BQ-6161378"
+        "SO-HM-0000000"
+        "SO-KN-6878481-R8"
+
+      Must not match:
+        "SO-DC7387914"
+        "SO-VP-0166706 "
+        "SO-JK-521236"
+        "XSO-AJ-4655914"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_order_id_s2.test.py
+  # reference: (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3} (13 positive, 12 negative cases)
+  - name: regex_ipv4_s0
+    family: regex_ipv4
+    seed: 0
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an IPv4 address: four
+      decimal octets from 0 to 255 separated by dots, with no leading zeros (0
+      is fine, 01 is not), and nothing before or after.
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "255.255.8.16"
+        "10.0.0.1"
+        "72.255.233.2"
+        "255.255.255.255"
+
+      Must not match:
+        "255.139.8.007"
+        "148.20.255"
+        "0.0.255.1000"
+        "256.1.1.1"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_ipv4_s0.test.py
+  # reference: (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?:/(?:3[0-2]|[12]?\d))? (21 positive, 15 negative cases)
+  - name: regex_ipv4_s1
+    family: regex_ipv4
+    seed: 1
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an IPv4 address: four
+      decimal octets from 0 to 255 separated by dots, with no leading zeros (0
+      is fine, 01 is not), optionally followed by a CIDR prefix length: "/" and
+      a number from 0 to 32 with no leading zeros.
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "0.253.0.45/26"
+        "255.43.149.0"
+        "255.0.34.111"
+        "0.185.14.8"
+
+      Must not match:
+        "255.32.16.1000"
+        "01.234.95.46"
+        "38.201.48.0."
+        "256.1.1.1"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_ipv4_s1.test.py
+  # reference: (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}/(?:3[0-2]|[12]?\d) (8 positive, 17 negative cases)
+  - name: regex_ipv4_s2
+    family: regex_ipv4
+    seed: 2
+    scope: core
+    category: regex
+    tier: 2
+    prompt: >-
+      Write a Python regular expression that matches an IPv4 address: four
+      decimal octets from 0 to 255 separated by dots, with no leading zeros (0
+      is fine, 01 is not), followed by a required CIDR prefix length: "/" and a
+      number from 0 to 32 with no leading zeros.
+
+
+      It will be tested with re.fullmatch (so anchors are optional) against
+      held-out strings: it must match every valid string and reject every
+      invalid one. Examples (shown as JSON strings):
+
+
+      Must match:
+        "0.0.120.143/32"
+        "255.255.255.0/26"
+        "255.188.109.3/4"
+        "235.255.59.0/24"
+
+      Must not match:
+        "128.128.-1.0/24"
+        "0.0.255.3"
+        "5.11.90.154/33"
+        "17.147.4.0/8/8"
+
+      Reply with only the pattern in a ```regex fenced block.
+    scorer: code_exec
+    submission: regex
+    testFile: regex_ipv4_s2.test.py

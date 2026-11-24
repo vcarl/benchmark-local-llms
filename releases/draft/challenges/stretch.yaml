@@ -1,0 +1,612 @@
+id: stretch
+version: 1
+passThreshold: 0.8
+items:
+  # q1=(a−2c1+c2)/(2b)=54, q2=(a+2c1−3c2)/(4b)=18, P=38, π_L=(P−c1)·q1=1458. Cournot π_L=1296. gold: 1458
+  - name: stackelberg_leader_profit
+    seed: 0
+    scope: stretch
+    category: economics
+    tier: 4
+    prompt: Two firms sell an identical product. Inverse demand is P = 110 − Q,
+      where Q is total output. Firm L has a constant marginal cost of 11 and
+      firm F has a constant marginal cost of 20; neither has fixed costs. Firm L
+      chooses its quantity first; firm F observes it and then chooses its own
+      quantity to maximize profit. In the subgame-perfect equilibrium, what is
+      firm L's profit? Reply with only the number.
+    scorer: exact_match
+    expected: "1458"
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - economics
+      - stackelberg
+    family: stackelberg
+  # q1=(a−2c1+c2)/(2b)=48, q2=(a+2c1−3c2)/(4b)=18, P=35, π_L=(P−c1)·q1=1152. Cournot π_L=1024. gold: 1152
+  - name: stackelberg_leader_profit_s1
+    seed: 1
+    scope: stretch
+    category: economics
+    tier: 4
+    prompt: Two firms sell an identical product. Inverse demand is P = 101 − Q,
+      where Q is total output. Firm L has a constant marginal cost of 11 and
+      firm F has a constant marginal cost of 17; neither has fixed costs. Firm L
+      chooses its quantity first; firm F observes it and then chooses its own
+      quantity to maximize profit. In the subgame-perfect equilibrium, what is
+      firm L's profit? Reply with only the number.
+    scorer: exact_match
+    expected: "1152"
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - economics
+      - stackelberg
+    family: stackelberg
+  # Stackelberg decomposed: follower reaction, leader quantity, price, first-mover gain over Cournot.
+  # t1: q2(x)=(a−c2−b·x)/(2b)=21
+  # t2: q1=72 (Cournot would be 48)
+  # t3: P=54
+  # t4: π_L 2592 − Cournot π_L 2304 = 288
+  - name: stackelberg_chain
+    seed: 0
+    scope: stretch
+    category: economics
+    tier: 4
+    turns:
+      - prompt: "Two firms sell an identical product. Inverse demand is P = 178 − Q,
+          where Q is total output. Firm L has a constant marginal cost of 18 and
+          firm F has a constant marginal cost of 2; neither has fixed costs.
+          Firm L chooses its quantity first; firm F observes it and then chooses
+          its own quantity to maximize profit. First: if firm L produced 134
+          units, how many units would firm F produce? Reply with only the
+          number."
+        answer: "21"
+        scorer: exact_match
+        expected: "21"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+      - prompt: Now anticipating firm F's reaction, how many units does firm L produce
+          in equilibrium? Reply with only the number.
+        answer: "72"
+        scorer: exact_match
+        expected: "72"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+      - prompt: What is the resulting market price? Reply with only the number.
+        answer: "54"
+        scorer: exact_match
+        expected: "54"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+      - prompt: How much more profit does firm L earn as the leader than it would if
+          both firms chose quantities simultaneously (Cournot)? Reply with only
+          the number.
+        answer: "288"
+        scorer: exact_match
+        expected: "288"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - economics
+      - stackelberg
+      - chain
+    family: stackelberg
+  # δ^(L+1) ≥ (T−R)/(T−P) = 0.6666666666666666 → δ* = ratio^(1/3) = 0.8735804647362989. Ignoring the lag gives 0.6667. gold: 0.8736
+  - name: grim_lag_threshold
+    seed: 0
+    scope: stretch
+    category: trust
+    tier: 4
+    prompt: "Two players play a prisoner's dilemma every period forever, discounting
+      future payoffs by δ per period. Per-period payoffs: both cooperate 4 each;
+      both defect 3 each; a defector facing a cooperator gets 6 and the
+      cooperator gets 1. Both players use grim trigger: cooperate until a
+      defection is discovered, then defect forever. Monitoring is imperfect: a
+      defection in period t is only discovered at the end of period t + 2, and
+      punishment (mutual defection forever) starts in period t + 3. Until it is
+      discovered, the deviator keeps defecting and the other player keeps
+      cooperating. What is the smallest discount factor δ at which no player
+      gains by deviating from cooperation? Give δ rounded to 4 decimal places.
+      Reply with only the number."
+    scorer: exact_match
+    expected: "0.8736"
+    extract: (-?\d*\.?\d+)
+    tags:
+      - trust
+      - grim-trigger
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        expected: "0.8735"
+    family: grim_lag
+  # δ^(L+1) ≥ (T−R)/(T−P) = 0.6666666666666666 → δ* = ratio^(1/2) = 0.816496580927726. Ignoring the lag gives 0.6667. gold: 0.8165
+  - name: grim_lag_threshold_s1
+    seed: 1
+    scope: stretch
+    category: trust
+    tier: 4
+    prompt: "Two players play a prisoner's dilemma every period forever, discounting
+      future payoffs by δ per period. Per-period payoffs: both cooperate 7 each;
+      both defect 6 each; a defector facing a cooperator gets 9 and the
+      cooperator gets 4. Both players use grim trigger: cooperate until a
+      defection is discovered, then defect forever. Monitoring is imperfect: a
+      defection in period t is only discovered at the end of period t + 1, and
+      punishment (mutual defection forever) starts in period t + 2. Until it is
+      discovered, the deviator keeps defecting and the other player keeps
+      cooperating. What is the smallest discount factor δ at which no player
+      gains by deviating from cooperation? Give δ rounded to 4 decimal places.
+      Reply with only the number."
+    scorer: exact_match
+    expected: "0.8165"
+    extract: (-?\d*\.?\d+)
+    tags:
+      - trust
+      - grim-trigger
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        expected: "0.8164"
+    family: grim_lag
+  # Grim trigger decomposed: textbook threshold, lagged threshold, longest sustainable lag at a given δ.
+  # t1: (T−R)/(T−P) = 0.3333333333333333
+  # t2: ratio^(1/4) = 0.7598356856515925
+  # t3: largest L with 0.93^(L+1) ≥ 0.3333333333333333: floor(ln ratio/ln δ) − 1 = 14
+  - name: grim_lag_chain
+    seed: 0
+    scope: stretch
+    category: trust
+    tier: 4
+    turns:
+      - prompt: "Two players play a prisoner's dilemma every period forever, discounting
+          future payoffs by δ per period. Per-period payoffs: both cooperate 9
+          each; both defect 7 each; a defector facing a cooperator gets 10 and
+          the cooperator gets 0. Both players use grim trigger: cooperate until
+          a defection is discovered, then defect forever. With perfect
+          monitoring (a defection is seen immediately and punished from the next
+          period), what is the smallest δ that sustains cooperation? Give δ
+          rounded to 4 decimal places. Reply with only the number."
+        answer: "0.3333"
+        scorer: exact_match
+        expected: "0.3333"
+        extract: (-?\d*\.?\d+)
+      - prompt: "Monitoring is imperfect: a defection in period t is only discovered at
+          the end of period t + 3, and punishment (mutual defection forever)
+          starts in period t + 4. Until it is discovered, the deviator keeps
+          defecting and the other player keeps cooperating. Now what is the
+          smallest δ that sustains cooperation? Give δ rounded to 4 decimal
+          places. Reply with only the number."
+        answer: "0.7598"
+        scorer: exact_match
+        expected: "0.7598"
+        extract: (-?\d*\.?\d+)
+      - prompt: Suppose δ = 0.93. What is the longest detection lag (in whole periods,
+          with the same timing as above) for which grim trigger still sustains
+          cooperation? Reply with only the number.
+        answer: "14"
+        scorer: exact_match
+        expected: "14"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - trust
+      - grim-trigger
+      - chain
+    family: grim_lag
+  # P = Σ_good λ^age, N = Σ_bad λ^age (age 0 = round 10); (P+1)/(P+N+2) = 0.4043751954223694. Slips: no decay 0.5833, most recent weighted λ 0.4112, prior decayed 0.3679, no prior 0.3615. gold: 0.4044
+  - name: trust_decay_posterior
+    seed: 0
+    scope: stretch
+    category: trust
+    tier: 4
+    prompt: >-
+      You track an agent's reliability θ (the probability that an interaction
+      with it goes well) with a Beta(1, 1) prior, one interaction per round. Its
+      record, oldest first:
+
+      Round 1: good
+
+      Round 2: good
+
+      Round 3: good
+
+      Round 4: good
+
+      Round 5: good
+
+      Round 6: bad
+
+      Round 7: good
+
+      Round 8: bad
+
+      Round 9: bad
+
+      Round 10: bad
+
+      You use exponential forgetting with λ = 0.8: an interaction k rounds
+      before the most recent one carries weight λ^k, so the most recent
+      interaction has weight 1. With P the total weight of good interactions and
+      N the total weight of bad ones, the posterior mean of θ is (P + 1)/(P + N
+      + 2); the prior's pseudo-counts do not decay. What is the posterior mean
+      of θ after round 10? Give it rounded to 4 decimal places. Reply with only
+      the number.
+    scorer: exact_match
+    expected: "0.4044"
+    extract: (-?\d*\.?\d+)
+    tags:
+      - trust
+      - bayesian-trust
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        expected: "0.4043"
+    family: trust_decay
+  # P = Σ_good λ^age, N = Σ_bad λ^age (age 0 = round 10); (P+1)/(P+N+2) = 0.49190524545767245. Slips: no decay 0.5833, most recent weighted λ 0.4923, prior decayed 0.4896, no prior 0.4889. gold: 0.4919
+  - name: trust_decay_posterior_s1
+    seed: 1
+    scope: stretch
+    category: trust
+    tier: 4
+    prompt: >-
+      You track an agent's reliability θ (the probability that an interaction
+      with it goes well) with a Beta(1, 1) prior, one interaction per round. Its
+      record, oldest first:
+
+      Round 1: good
+
+      Round 2: bad
+
+      Round 3: good
+
+      Round 4: good
+
+      Round 5: good
+
+      Round 6: good
+
+      Round 7: bad
+
+      Round 8: good
+
+      Round 9: bad
+
+      Round 10: bad
+
+      You use exponential forgetting with λ = 0.85: an interaction k rounds
+      before the most recent one carries weight λ^k, so the most recent
+      interaction has weight 1. With P the total weight of good interactions and
+      N the total weight of bad ones, the posterior mean of θ is (P + 1)/(P + N
+      + 2); the prior's pseudo-counts do not decay. What is the posterior mean
+      of θ after round 10? Give it rounded to 4 decimal places. Reply with only
+      the number.
+    scorer: exact_match
+    expected: "0.4919"
+    extract: (-?\d*\.?\d+)
+    tags:
+      - trust
+      - bayesian-trust
+    family: trust_decay
+  # Bayesian trust with forgetting decomposed: undecayed posterior, decayed posterior, one more round (everything ages), good run needed to recover.
+  # t1: (good+1)/(n+2) = 0.6666666666666666
+  # t2: (P+1)/(P+N+2) = 0.4875547192536595
+  # t3: all ages +1, new round weight 1: (P+1)/(P+N+2) = 0.5663041501193071
+  # t4: 4 goods → 0.7424419644593347 < 0.75; 5 goods → 0.7658528267035366 ≥ 0.75
+  - name: trust_decay_chain
+    seed: 0
+    scope: stretch
+    category: trust
+    tier: 4
+    turns:
+      - prompt: >-
+          You track an agent's reliability θ (the probability that an
+          interaction with it goes well) with a Beta(1, 1) prior, one
+          interaction per round. Its record, oldest first:
+
+          Round 1: good
+
+          Round 2: good
+
+          Round 3: good
+
+          Round 4: good
+
+          Round 5: good
+
+          Round 6: good
+
+          Round 7: bad
+
+          Round 8: good
+
+          Round 9: bad
+
+          Round 10: bad
+
+          You use exponential forgetting with λ = 0.8: an interaction k rounds
+          before the most recent one carries weight λ^k, so the most recent
+          interaction has weight 1. With P the total weight of good interactions
+          and N the total weight of bad ones, the posterior mean of θ is (P +
+          1)/(P + N + 2); the prior's pseudo-counts do not decay. First,
+          ignoring forgetting (every interaction weight 1, i.e. λ = 1), what is
+          the posterior mean of θ after round 10? Give it rounded to 4 decimal
+          places. Reply with only the number.
+        answer: "0.6667"
+        scorer: exact_match
+        expected: "0.6667"
+        extract: (-?\d*\.?\d+)
+        nearMisses:
+          - slip: truncated
+            credit: 0.5
+            expected: "0.6666"
+      - prompt: Now with forgetting at λ = 0.8, what is the posterior mean of θ after
+          round 10? Give it rounded to 4 decimal places. Reply with only the
+          number.
+        answer: "0.4876"
+        scorer: exact_match
+        expected: "0.4876"
+        extract: (-?\d*\.?\d+)
+        nearMisses:
+          - slip: truncated
+            credit: 0.5
+            expected: "0.4875"
+      - prompt: In round 11 the interaction is good. With forgetting at λ = 0.8 (round
+          11 is now the most recent), what is the posterior mean of θ after
+          round 11? Give it rounded to 4 decimal places. Reply with only the
+          number.
+        answer: "0.5663"
+        scorer: exact_match
+        expected: "0.5663"
+        extract: (-?\d*\.?\d+)
+      - prompt: Starting after round 11, what is the minimum number of consecutive good
+          interactions needed for the posterior mean of θ (with forgetting at λ
+          = 0.8) to reach at least 0.75? Reply with only the number.
+        answer: "5"
+        scorer: exact_match
+        expected: "5"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - trust
+      - bayesian-trust
+      - chain
+    family: trust_decay
+  # A1 = 158.83; balance after payment 12 = 21767.19; A2 = B·i2/(1 − (1+i2)^−168) = 213.32. Keeping A1 or using term 180 or i2 from month 1 gives 158.83 / 205.51 / 217.15. gold: 213.32
+  - name: arm_amort_new_payment
+    seed: 0
+    scope: stretch
+    category: financial
+    tier: 4
+    prompt: "A borrower takes a $23,000 adjustable-rate loan on a 180-month
+      level-payment schedule at 3% annual interest compounded monthly (a 0.25%
+      monthly rate). Immediately after the 12th monthly payment, the rate resets
+      to 7.8% annual (a 0.65% monthly rate), and the remaining balance is
+      re-amortized over the remaining 168 months with a new level payment
+      starting in month 13. Each month interest accrues on the outstanding
+      balance first, then the payment is applied to principal. Work to exact
+      cents: round each level payment and each month's interest to the nearest
+      cent; the final payment is whatever amount clears the remaining balance.
+      What is the new monthly payment after the reset? Give your answer in
+      dollars to the nearest cent. Reply with only the number."
+    scorer: exact_match
+    expected: "213.32"
+    extract: (-?\d[\d,]*(?:\.\d+)?)
+    tags:
+      - financial
+      - amortization
+    nearMisses:
+      - slip: truncated
+        credit: 0.5
+        expected: "213.31"
+    family: arm_amort
+  # A1 = 397.37; balance after payment 60 = 38881.85; A2 = B·i2/(1 − (1+i2)^−120) = 455.47. Keeping A1 or using term 180 or i2 from month 1 gives 397.37 / 353.84 / 482.32. gold: 455.47
+  - name: arm_amort_new_payment_s1
+    seed: 1
+    scope: stretch
+    category: financial
+    tier: 4
+    prompt: "A borrower takes a $53,000 adjustable-rate loan on a 180-month
+      level-payment schedule at 4.2% annual interest compounded monthly (a 0.35%
+      monthly rate). Immediately after the 60th monthly payment, the rate resets
+      to 7.2% annual (a 0.6% monthly rate), and the remaining balance is
+      re-amortized over the remaining 120 months with a new level payment
+      starting in month 61. Each month interest accrues on the outstanding
+      balance first, then the payment is applied to principal. Work to exact
+      cents: round each level payment and each month's interest to the nearest
+      cent; the final payment is whatever amount clears the remaining balance.
+      What is the new monthly payment after the reset? Give your answer in
+      dollars to the nearest cent. Reply with only the number."
+    scorer: exact_match
+    expected: "455.47"
+    extract: (-?\d[\d,]*(?:\.\d+)?)
+    tags:
+      - financial
+      - amortization
+    family: arm_amort
+  # Adjustable-rate loan decomposed: original payment, balance at the reset, re-amortized payment, lifetime interest.
+  # t1: A1 = P·i1/(1 − (1+i1)^−180) = 374.88
+  # t2: B = P(1+i1)^96 − A1((1+i1)^96 − 1)/i1, simulated to the cent = 27241.19
+  # t3: A2 = B·i2/(1 − (1+i2)^−84) = 359.95
+  # t4: 96·A1 − (P − B) + leg-2 interest = 16223.92
+  - name: arm_amort_chain
+    seed: 0
+    scope: stretch
+    category: financial
+    tier: 4
+    turns:
+      - prompt: "A borrower takes a $50,000 adjustable-rate loan on a 180-month
+          level-payment schedule at 4.2% annual interest compounded monthly (a
+          0.35% monthly rate). Immediately after the 96th monthly payment, the
+          rate resets to 3% annual (a 0.25% monthly rate), and the remaining
+          balance is re-amortized over the remaining 84 months with a new level
+          payment starting in month 97. Each month interest accrues on the
+          outstanding balance first, then the payment is applied to principal.
+          Work to exact cents: round each level payment and each month's
+          interest to the nearest cent; the final payment is whatever amount
+          clears the remaining balance. First: what is the original monthly
+          payment, before the reset? Give your answer in dollars to the nearest
+          cent. Reply with only the number."
+        answer: "374.88"
+        scorer: exact_match
+        expected: "374.88"
+        extract: (-?\d[\d,]*(?:\.\d+)?)
+        nearMisses:
+          - slip: truncated
+            credit: 0.5
+            expected: "374.87"
+      - prompt: What is the outstanding balance immediately after the 96th payment, when
+          the rate resets? Give your answer in dollars to the nearest cent.
+          Reply with only the number.
+        answer: "27241.19"
+        scorer: exact_match
+        expected: "27241.19"
+        extract: (-?\d[\d,]*(?:\.\d+)?)
+        nearMisses:
+          - slip: round-at-end
+            credit: 0.5
+            expected: "27241.74"
+          - slip: truncated
+            credit: 0.5
+            expected: "27241.73"
+      - prompt: What is the new monthly payment after the reset? Give your answer in
+          dollars to the nearest cent. Reply with only the number.
+        answer: "359.95"
+        scorer: exact_match
+        expected: "359.95"
+        extract: (-?\d[\d,]*(?:\.\d+)?)
+      - prompt: What is the total interest paid over the life of the loan? Give your
+          answer in dollars to the nearest cent. Reply with only the number.
+        answer: "16223.92"
+        scorer: exact_match
+        expected: "16223.92"
+        extract: (-?\d[\d,]*(?:\.\d+)?)
+        nearMisses:
+          - slip: round-at-end
+            credit: 0.5
+            expected: "16224.09"
+          - slip: truncated
+            credit: 0.5
+            expected: "16224.08"
+    tags:
+      - financial
+      - amortization
+      - chain
+    family: arm_amort
+  # P1: collect 8004000, senior int 988000, par 53000000/A 49400000 < 125% → cure 7000000, junior 16000. P2: A 42400000, collect 7140000, senior int 848000, divert 5520000, junior 410000. No OC test gives 820000; diverting all junior cash gives 0. gold: 426000
+  - name: oc_waterfall_junior_total
+    seed: 0
+    scope: stretch
+    category: financial
+    tier: 4
+    prompt: "A securitisation holds a collateral pool with par balance $63,800,000.
+      It has issued a senior tranche A of $49,400,000 paying 2% interest per
+      period on its outstanding balance, and a junior tranche B of $8,200,000
+      paying 5% interest per period (B's principal is not repaid during the two
+      periods). Equity receives whatever is left. In each of two periods, the
+      pool collects interest of 8% of its par balance at the start of the period
+      plus scheduled principal of $2,900,000. At the end of each period, par
+      falls by the scheduled principal and by that period's defaults (period 1:
+      $7,900,000; period 2: $4,000,000), with no recoveries. Each period's
+      collections are paid in this order: (1) senior interest on tranche A's
+      balance at the start of the period; (2) the overcollateralisation (OC)
+      test: if end-of-period par divided by tranche A's balance is below 125%,
+      cash is diverted to repay tranche A principal, exactly the amount that
+      brings the ratio back to 125% (or all remaining cash if that is less); (3)
+      junior interest on tranche B, where any shortfall is lost, not carried
+      forward; (4) everything left goes to equity. Tranche A's balance falls
+      only through OC diversions. What is the total cash received by junior
+      tranche B over both periods? Give the amount in whole dollars. Reply with
+      only the number."
+    scorer: exact_match
+    expected: "426000"
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - financial
+      - waterfall
+    family: oc_waterfall
+  # P1: collect 6516000, senior int 2464000, par 72300000/A 61600000 < 125% → cure 3760000, junior 292000. P2: A 57840000, collect 6084000, senior int 2313600, divert 720000, junior 350000. No OC test gives 700000; diverting all junior cash gives 0. gold: 642000
+  - name: oc_waterfall_junior_total_s1
+    seed: 1
+    scope: stretch
+    category: financial
+    tier: 4
+    prompt: "A securitisation holds a collateral pool with par balance $77,700,000.
+      It has issued a senior tranche A of $61,600,000 paying 4% interest per
+      period on its outstanding balance, and a junior tranche B of $5,000,000
+      paying 7% interest per period (B's principal is not repaid during the two
+      periods). Equity receives whatever is left. In each of two periods, the
+      pool collects interest of 8% of its par balance at the start of the period
+      plus scheduled principal of $300,000. At the end of each period, par falls
+      by the scheduled principal and by that period's defaults (period 1:
+      $5,100,000; period 2: $600,000), with no recoveries. Each period's
+      collections are paid in this order: (1) senior interest on tranche A's
+      balance at the start of the period; (2) the overcollateralisation (OC)
+      test: if end-of-period par divided by tranche A's balance is below 125%,
+      cash is diverted to repay tranche A principal, exactly the amount that
+      brings the ratio back to 125% (or all remaining cash if that is less); (3)
+      junior interest on tranche B, where any shortfall is lost, not carried
+      forward; (4) everything left goes to equity. Tranche A's balance falls
+      only through OC diversions. What is the total cash received by junior
+      tranche B over both periods? Give the amount in whole dollars. Reply with
+      only the number."
+    scorer: exact_match
+    expected: "642000"
+    extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - financial
+      - waterfall
+    family: oc_waterfall
+  # OC waterfall decomposed: period-1 test ratio, cure amount, period-2 junior receipts (after the period-1 paydown), equity total.
+  # t1: par 69100000 / A 60600000 = 114.02640264026402%
+  # t2: cure = A − par/1.25 = 60600000 − 55280000 = 5320000 (cash after senior interest 5470000)
+  # t3: A 55280000: collect 7219000 − senior int 2211200 − divert 1840000 → junior 392000
+  # t4: equity 0 + 2775800 = 2775800
+  - name: oc_waterfall_chain
+    seed: 0
+    scope: stretch
+    category: financial
+    tier: 4
+    turns:
+      - prompt: "A securitisation holds a collateral pool with par balance $76,600,000.
+          It has issued a senior tranche A of $60,600,000 paying 4% interest per
+          period on its outstanding balance, and a junior tranche B of
+          $4,900,000 paying 8% interest per period (B's principal is not repaid
+          during the two periods). Equity receives whatever is left. In each of
+          two periods, the pool collects interest of 9% of its par balance at
+          the start of the period plus scheduled principal of $1,000,000. At the
+          end of each period, par falls by the scheduled principal and by that
+          period's defaults (period 1: $6,500,000; period 2: $1,300,000), with
+          no recoveries. Each period's collections are paid in this order: (1)
+          senior interest on tranche A's balance at the start of the period; (2)
+          the overcollateralisation (OC) test: if end-of-period par divided by
+          tranche A's balance is below 125%, cash is diverted to repay tranche A
+          principal, exactly the amount that brings the ratio back to 125% (or
+          all remaining cash if that is less); (3) junior interest on tranche B,
+          where any shortfall is lost, not carried forward; (4) everything left
+          goes to equity. Tranche A's balance falls only through OC diversions.
+          First: what is the OC ratio at the end of period 1, before any
+          diversion (end-of-period par as a percentage of tranche A's balance)?
+          Give the percentage rounded to 2 decimal places, without the % sign.
+          Reply with only the number."
+        answer: "114.03"
+        scorer: exact_match
+        expected: "114.03"
+        extract: (-?\d*\.?\d+)
+        nearMisses:
+          - slip: truncated
+            credit: 0.5
+            expected: "114.02"
+      - prompt: How much cash is diverted to repay tranche A principal in period 1? Give
+          the amount in whole dollars. Reply with only the number.
+        answer: "5320000"
+        scorer: exact_match
+        expected: "5320000"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+      - prompt: How much cash does junior tranche B receive in period 2? Give the amount
+          in whole dollars. Reply with only the number.
+        answer: "392000"
+        scorer: exact_match
+        expected: "392000"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+      - prompt: What is the total cash received by equity over both periods? Give the
+          amount in whole dollars. Reply with only the number.
+        answer: "2775800"
+        scorer: exact_match
+        expected: "2775800"
+        extract: (-?\d[\d,]*)(?:\.0+(?!\d))?
+    tags:
+      - financial
+      - waterfall
+      - chain
+    family: oc_waterfall

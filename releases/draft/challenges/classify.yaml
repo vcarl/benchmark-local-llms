@@ -1,0 +1,483 @@
+id: classify
+version: 1
+passThreshold: 0.8
+items:
+  # Core request is billing; distractors mention cancellation. Keyword baseline says cancellation. gold: billing
+  - name: classify_intent_s0
+    seed: 0
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Classify the customer support ticket below by what the customer is
+      actually asking for. Allowed labels:
+
+      - billing: a question about charges, invoices or statements (no money back
+      requested)
+
+      - refund: the customer wants money returned
+
+      - technical: something in the product is malfunctioning
+
+      - account_access: the customer cannot sign in or get into their account
+
+      - cancellation: the customer wants to end their subscription
+
+
+      """
+
+      Could you explain what the 'service adjustment' line on this month's
+      statement is for? I don't want to cancel.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: billing
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_intent
+  # Core request is refund; distractors mention billing. Keyword baseline says billing. gold: refund
+  - name: classify_intent_s1
+    seed: 1
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Classify the customer support ticket below by what the customer is
+      actually asking for. Allowed labels:
+
+      - billing: a question about charges, invoices or statements (no money back
+      requested)
+
+      - refund: the customer wants money returned
+
+      - technical: something in the product is malfunctioning
+
+      - account_access: the customer cannot sign in or get into their account
+
+      - cancellation: the customer wants to end their subscription
+
+
+      """
+
+      The order never arrived, so I want my payment returned. My bill itself
+      looks correct.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: refund
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_intent
+  # Core request is technical; distractors mention refund. Keyword baseline says refund. gold: technical
+  - name: classify_intent_s2
+    seed: 2
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Classify the customer support ticket below by what the customer is
+      actually asking for. Allowed labels:
+
+      - billing: a question about charges, invoices or statements (no money back
+      requested)
+
+      - refund: the customer wants money returned
+
+      - technical: something in the product is malfunctioning
+
+      - account_access: the customer cannot sign in or get into their account
+
+      - cancellation: the customer wants to end their subscription
+
+
+      """
+
+      I'm not asking for a refund. Every time I open the export screen the page
+      goes blank and nothing loads.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: technical
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_intent
+  # Verdict sentence is positive. Keyword baseline says negative. gold: positive
+  - name: classify_sentiment_s0
+    seed: 0
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Classify the product review below by the reviewer's final verdict. Allowed
+      labels:
+
+      - positive: they would keep it, buy it again or recommend it
+
+      - negative: they would not (returning it, would not buy it again, not
+      worth it)
+
+      - neutral: they say they are undecided or indifferent
+
+
+      """
+
+      I've had this e-reader for a month. The charging cable broke within a
+      week. The packaging was awful, mostly plastic. The firmware update prompts
+      are annoying. The build quality is impressive for the price. On balance
+      it's worth the money.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: positive
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_sentiment
+  # Verdict sentence is negative. Keyword baseline says neutral. gold: negative
+  - name: classify_sentiment_s1
+    seed: 1
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Classify the product review below by the reviewer's final verdict. Allowed
+      labels:
+
+      - positive: they would keep it, buy it again or recommend it
+
+      - negative: they would not (returning it, would not buy it again, not
+      worth it)
+
+      - neutral: they say they are undecided or indifferent
+
+
+      """
+
+      I've had this smart speaker for a month. The companion app is fantastic.
+      Customer support was terrible when I had a question. All things
+      considered, I wouldn't buy it again.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: negative
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_sentiment
+  # Verdict sentence is neutral. Keyword baseline says positive. gold: neutral
+  - name: classify_sentiment_s2
+    seed: 2
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Classify the product review below by the reviewer's final verdict. Allowed
+      labels:
+
+      - positive: they would keep it, buy it again or recommend it
+
+      - negative: they would not (returning it, would not buy it again, not
+      worth it)
+
+      - neutral: they say they are undecided or indifferent
+
+
+      """
+
+      I've had this e-reader for a month. Its size is perfect for travel. The
+      build quality is impressive for the price. The battery life is excellent.
+      The case scratches easily, which is disappointing. I have no strong
+      feeling either way about it.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: neutral
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_sentiment
+  # Issues raised: performance, mobile_app, sign_in; mentioned as fine: docs, pricing. Keyword baseline says pricing, performance, mobile_app, docs, sign_in. gold: performance, mobile_app, sign_in
+  - name: classify_topics_s0
+    seed: 0
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Tag the customer feedback below with every product area where the customer
+      reports a problem or asks for a change. Do not tag an area they mention
+      only to say it works well. Allowed tags:
+
+      - pricing: cost and plans
+
+      - performance: speed and responsiveness
+
+      - mobile_app: the phone apps
+
+      - integrations: connections to other tools
+
+      - docs: guides and help content
+
+      - sign_in: logging in and authentication
+
+
+      """
+
+      On iPhone the buttons at the bottom of the screen are cut off. The
+      documentation has been helpful. Dashboards take ages to load once a
+      project has a few hundred tasks. The reset-password link says it has
+      expired as soon as I click it. The price is fair for what we get.
+
+      """
+
+
+      Reply with only the applicable tags, comma-separated on one line, written
+      exactly as listed, and no other text.
+    scorer: set_match
+    vocabulary:
+      - pricing
+      - performance
+      - mobile_app
+      - integrations
+      - docs
+      - sign_in
+    expected:
+      - performance
+      - mobile_app
+      - sign_in
+    tags:
+      - classification
+    family: classify_topics
+  # Issues raised: performance, docs, sign_in; mentioned as fine: integrations, mobile_app. Keyword baseline says performance, mobile_app, integrations, docs, sign_in. gold: performance, docs, sign_in
+  - name: classify_topics_s1
+    seed: 1
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Tag the customer feedback below with every product area where the customer
+      reports a problem or asks for a change. Do not tag an area they mention
+      only to say it works well. Allowed tags:
+
+      - pricing: cost and plans
+
+      - performance: speed and responsiveness
+
+      - mobile_app: the phone apps
+
+      - integrations: connections to other tools
+
+      - docs: guides and help content
+
+      - sign_in: logging in and authentication
+
+
+      """
+
+      The phone app works well. The tutorials still show the old menu layout. I
+      have to re-enter my password every morning even with 'remember me' ticked.
+      The calendar integration works perfectly. Dashboards take ages to load
+      once a project has a few hundred tasks.
+
+      """
+
+
+      Reply with only the applicable tags, comma-separated on one line, written
+      exactly as listed, and no other text.
+    scorer: set_match
+    vocabulary:
+      - pricing
+      - performance
+      - mobile_app
+      - integrations
+      - docs
+      - sign_in
+    expected:
+      - performance
+      - docs
+      - sign_in
+    tags:
+      - classification
+    family: classify_topics
+  # Issues raised: pricing, integrations, sign_in; mentioned as fine: performance, docs. Keyword baseline says pricing, performance, integrations, docs, sign_in. gold: pricing, integrations, sign_in
+  - name: classify_topics_s2
+    seed: 2
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Tag the customer feedback below with every product area where the customer
+      reports a problem or asks for a change. Do not tag an area they mention
+      only to say it works well. Allowed tags:
+
+      - pricing: cost and plans
+
+      - performance: speed and responsiveness
+
+      - mobile_app: the phone apps
+
+      - integrations: connections to other tools
+
+      - docs: guides and help content
+
+      - sign_in: logging in and authentication
+
+
+      """
+
+      The documentation has been helpful. Pages load quickly for us. I have to
+      re-enter my password every morning even with 'remember me' ticked. Please
+      add a cheaper tier between Basic and Pro. Please add a Zapier connector so
+      we can push tasks in from our CRM.
+
+      """
+
+
+      Reply with only the applicable tags, comma-separated on one line, written
+      exactly as listed, and no other text.
+    scorer: set_match
+    vocabulary:
+      - pricing
+      - performance
+      - mobile_app
+      - integrations
+      - docs
+      - sign_in
+    expected:
+      - pricing
+      - integrations
+      - sign_in
+    tags:
+      - classification
+    family: classify_topics
+  # production=true allUsers=true workaround=false → P1. Keyword baseline says P3. gold: P1
+  - name: classify_priority_s0
+    seed: 0
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Assign a priority to the incident report below using these rules:
+
+      - P1: production system, all users affected, and no workaround
+
+      - P2: production system, only some users affected, and no workaround
+
+      - P3: anything else (a non-production system, or a workaround exists)
+
+      Allowed labels: P1, P2, P3.
+
+
+      """
+
+      No rush on this one, just flagging it. Since this morning, search has been
+      failing on our production site. Every user is affected. There is no
+      workaround.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: P1
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_priority
+  # production=true allUsers=false workaround=false → P2. Keyword baseline says P3. gold: P2
+  - name: classify_priority_s1
+    seed: 1
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Assign a priority to the incident report below using these rules:
+
+      - P1: production system, all users affected, and no workaround
+
+      - P2: production system, only some users affected, and no workaround
+
+      - P3: anything else (a non-production system, or a workaround exists)
+
+      Allowed labels: P1, P2, P3.
+
+
+      """
+
+      No rush on this one, just flagging it. Since this morning, password reset
+      has been failing on our production site. Only users on the legacy plan are
+      affected, roughly 10% of them. There is no workaround.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: P2
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_priority
+  # production=false allUsers=true workaround=false → P3. Keyword baseline says P1. gold: P3
+  - name: classify_priority_s2
+    seed: 2
+    scope: core
+    category: classification
+    tier: 2
+    prompt: >-
+      Assign a priority to the incident report below using these rules:
+
+      - P1: production system, all users affected, and no workaround
+
+      - P2: production system, only some users affected, and no workaround
+
+      - P3: anything else (a non-production system, or a workaround exists)
+
+      Allowed labels: P1, P2, P3.
+
+
+      """
+
+      Emergency, please escalate. Since this morning, checkout has been failing
+      on our staging site (customers never see staging). Every user is affected.
+      There is no workaround.
+
+      """
+
+
+      Choose exactly one label. End your reply with a final line of the form
+      `Label: <label>`, with the label written exactly as listed.
+    scorer: exact_match
+    expected: P3
+    extract: "[Ll]abel:[*\\s]*([A-Za-z0-9_]+)"
+    tags:
+      - classification
+    family: classify_priority

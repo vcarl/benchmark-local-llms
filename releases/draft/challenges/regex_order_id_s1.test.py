@@ -1,0 +1,7 @@
+import re
+
+POSITIVE = ["PO-CDD-000179","PO-VGM-193414","PO-LHH-528047","PO-KFA-532606","PO-MSG-123262","PO-QFU-730139","PO-CCX-821423","PO-DBM-972927","PO-XML-362595","PO-EIH-281651","PO-TCY-000000"]
+NEGATIVE = ["PO-jaz-585246","PO-XT-499519","PO-VWCN-637780","PO-IUU-42872","PO-FAV-9556169","po-WSE-377743","POFDJ-415501","PO-BPE576652","XPO-SUS-315333","PO-SXR-430912 ","PO-FQ1-524747","PO-GZE-396574-R0","PO-LPE-424992-R12","PO-GTU-845901-r3","PO-RXQ-793359-R4","PO-ZYE-410652-R7"]
+_p = re.compile(SUBMISSION)
+_bad = [s for s in POSITIVE if not _p.fullmatch(s)] + [s for s in NEGATIVE if _p.fullmatch(s)]
+assert not _bad, "misclassified %d of %d: %r" % (len(_bad), len(POSITIVE) + len(NEGATIVE), _bad[:5])

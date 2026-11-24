@@ -1,0 +1,5 @@
+assert flatten([1, [2, 3], [4, [5, 6]]]) == [1, 2, 3, 4, 5, 6]
+assert flatten([]) == []
+assert flatten([1, 2, 3]) == [1, 2, 3]
+assert flatten([[[[1]]]]) == [1]
+assert flatten([1, [2, [3, [4, [5]]]]]) == [1, 2, 3, 4, 5]

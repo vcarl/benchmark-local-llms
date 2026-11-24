@@ -1,0 +1,1688 @@
+id: followups
+version: 1
+passThreshold: 0.8
+items:
+  # Invoice: extract, then line totals, then drop cheap lines.
+  # t1: key: {"invoice_number":"INV-5711","vendor":"Pellucid Glassworks","issue_date":"2023-02-09","currency":"GBP","line_items":[{"description":"desk lamp","quantity":12,"unit_price":25.45},{"description":"roll of packing tape","quantity":7,"unit_price":2.82},{"description":"box of nitrile gloves","quantity":4,"unit_price":18.45}],"total":398.94}
+  # t2: line totals: {"desk lamp":305.4,"roll of packing tape":19.74,"box of nitrile gloves":73.8}
+  # t3: cut 13: keep desk lamp, box of nitrile gloves; total 379.2
+  - name: followup_invoice_s0
+    seed: 0
+    scope: core
+    category: extraction
+    tier: 2
+    turns:
+      - prompt: >-
+          Extract the invoice in the email below into JSON with exactly these
+          keys:
+
+
+          - "invoice_number": string, the current invoice's number, e.g.
+          "INV-1234"
+
+          - "vendor": string, the sending company's name
+
+          - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+          - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+          - "line_items": array of {"description": string, "quantity": integer,
+          "unit_price": number}, in the order listed
+
+          - "total": number, the total due
+
+
+          Strings are copied exactly as written unless a format is given;
+          numbers are JSON numbers, not strings. Reply with only the JSON
+          object.
+
+
+          ---
+
+          Hi Dana,
+
+
+          Attached is invoice INV-5711 for your purchase order PO-44282. It
+          replaces the draft we sent earlier as INV-5704, which you can discard.
+          The invoice was issued on February 9, 2023; everything shipped on
+          December 7, 2023.
+
+
+          This covers: 12 × desk lamp at £25.45 each; 7 units of roll of packing
+          tape (£2.82 per unit); box of nitrile gloves, quantity 4, unit price
+          £18.45.
+
+
+          The total due is £398.94, payable within 30 days.
+
+
+          Best regards,
+
+          Grace Whitfield
+
+          Pellucid Glassworks
+
+          ---
+        answer: |-
+          ```json
+          {
+            "invoice_number": "INV-5711",
+            "vendor": "Pellucid Glassworks",
+            "issue_date": "2023-02-09",
+            "currency": "GBP",
+            "line_items": [
+              {
+                "description": "desk lamp",
+                "quantity": 12,
+                "unit_price": 25.45
+              },
+              {
+                "description": "roll of packing tape",
+                "quantity": 7,
+                "unit_price": 2.82
+              },
+              {
+                "description": "box of nitrile gloves",
+                "quantity": 4,
+                "unit_price": 18.45
+              }
+            ],
+            "total": 398.94
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              invoice_number: INV-5711
+              vendor: Pellucid Glassworks
+              issue_date: 2023-02-09
+              currency: GBP
+              line_items:
+                - description: desk lamp
+                  quantity: 12
+                  unit_price: 25.45
+                - description: roll of packing tape
+                  quantity: 7
+                  unit_price: 2.82
+                - description: box of nitrile gloves
+                  quantity: 4
+                  unit_price: 18.45
+              total: 398.94
+      - prompt: Now give each line item's line total (quantity × unit_price). Reply with
+          only a JSON object mapping each description to its line total as a
+          number rounded to 2 decimal places.
+        answer: |-
+          ```json
+          {
+            "desk lamp": 305.4,
+            "roll of packing tape": 19.74,
+            "box of nitrile gloves": 73.8
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              desk lamp: 305.4
+              roll of packing tape: 19.74
+              box of nitrile gloves: 73.8
+      - prompt: Now drop every line item whose unit price is below 13 and recompute the
+          total due from the lines that remain. Reply with only a JSON object
+          with keys "line_items" (array of the remaining descriptions, in the
+          original order) and "total" (number, rounded to 2 decimal places).
+        answer: |-
+          ```json
+          {
+            "line_items": [
+              "desk lamp",
+              "box of nitrile gloves"
+            ],
+            "total": 379.2
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              line_items:
+                - desk lamp
+                - box of nitrile gloves
+              total: 379.2
+    tags:
+      - chain
+      - followup
+    family: followup_invoice
+  # Invoice: extract, then line totals, then drop cheap lines.
+  # t1: key: {"invoice_number":"INV-1256","vendor":"Halden Supply Co.","issue_date":"2023-04-10","currency":"GBP","line_items":[{"description":"roll of packing tape","quantity":6,"unit_price":5.61},{"description":"label printer","quantity":1,"unit_price":205.92},{"description":"safety goggles","quantity":6,"unit_price":9.76}],"total":298.14}
+  # t2: line totals: {"roll of packing tape":33.66,"label printer":205.92,"safety goggles":58.56}
+  # t3: cut 79: keep label printer; total 205.92
+  - name: followup_invoice_s1
+    seed: 1
+    scope: core
+    category: extraction
+    tier: 2
+    turns:
+      - prompt: >-
+          Extract the invoice in the email below into JSON with exactly these
+          keys:
+
+
+          - "invoice_number": string, the current invoice's number, e.g.
+          "INV-1234"
+
+          - "vendor": string, the sending company's name
+
+          - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+          - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+          - "line_items": array of {"description": string, "quantity": integer,
+          "unit_price": number}, in the order listed
+
+          - "total": number, the total due
+
+
+          Strings are copied exactly as written unless a format is given;
+          numbers are JSON numbers, not strings. Reply with only the JSON
+          object.
+
+
+          ---
+
+          Hi Dana,
+
+
+          Attached is invoice INV-1256 for your purchase order PO-85962. It
+          replaces the draft we sent earlier as INV-1255, which you can discard.
+          The invoice was issued on April 10, 2023; everything shipped on
+          November 11, 2023.
+
+
+          This covers: roll of packing tape, quantity 6, unit price £5.61; 1
+          units of label printer (£205.92 per unit); 6 units of safety goggles
+          (£9.76 per unit).
+
+
+          The total due is £298.14, payable within 30 days.
+
+
+          Best regards,
+
+          Mara Quill
+
+          Halden Supply Co.
+
+          ---
+        answer: |-
+          ```json
+          {
+            "invoice_number": "INV-1256",
+            "vendor": "Halden Supply Co.",
+            "issue_date": "2023-04-10",
+            "currency": "GBP",
+            "line_items": [
+              {
+                "description": "roll of packing tape",
+                "quantity": 6,
+                "unit_price": 5.61
+              },
+              {
+                "description": "label printer",
+                "quantity": 1,
+                "unit_price": 205.92
+              },
+              {
+                "description": "safety goggles",
+                "quantity": 6,
+                "unit_price": 9.76
+              }
+            ],
+            "total": 298.14
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              invoice_number: INV-1256
+              vendor: Halden Supply Co.
+              issue_date: 2023-04-10
+              currency: GBP
+              line_items:
+                - description: roll of packing tape
+                  quantity: 6
+                  unit_price: 5.61
+                - description: label printer
+                  quantity: 1
+                  unit_price: 205.92
+                - description: safety goggles
+                  quantity: 6
+                  unit_price: 9.76
+              total: 298.14
+      - prompt: Now give each line item's line total (quantity × unit_price). Reply with
+          only a JSON object mapping each description to its line total as a
+          number rounded to 2 decimal places.
+        answer: |-
+          ```json
+          {
+            "roll of packing tape": 33.66,
+            "label printer": 205.92,
+            "safety goggles": 58.56
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              roll of packing tape: 33.66
+              label printer: 205.92
+              safety goggles: 58.56
+      - prompt: Now drop every line item whose unit price is below 79 and recompute the
+          total due from the lines that remain. Reply with only a JSON object
+          with keys "line_items" (array of the remaining descriptions, in the
+          original order) and "total" (number, rounded to 2 decimal places).
+        answer: |-
+          ```json
+          {
+            "line_items": [
+              "label printer"
+            ],
+            "total": 205.92
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              line_items:
+                - label printer
+              total: 205.92
+    tags:
+      - chain
+      - followup
+    family: followup_invoice
+  # Invoice: extract, then line totals, then drop cheap lines.
+  # t1: key: {"invoice_number":"INV-6355","vendor":"Pellucid Glassworks","issue_date":"2025-08-27","currency":"GBP","line_items":[{"description":"label printer","quantity":11,"unit_price":100.04},{"description":"safety goggles","quantity":6,"unit_price":14.61}],"total":1188.1}
+  # t2: line totals: {"label printer":1100.44,"safety goggles":87.66}
+  # t3: cut 41: keep label printer; total 1100.44
+  - name: followup_invoice_s2
+    seed: 2
+    scope: core
+    category: extraction
+    tier: 2
+    turns:
+      - prompt: >-
+          Extract the invoice in the email below into JSON with exactly these
+          keys:
+
+
+          - "invoice_number": string, the current invoice's number, e.g.
+          "INV-1234"
+
+          - "vendor": string, the sending company's name
+
+          - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+          - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+          - "line_items": array of {"description": string, "quantity": integer,
+          "unit_price": number}, in the order listed
+
+          - "total": number, the total due
+
+
+          Strings are copied exactly as written unless a format is given;
+          numbers are JSON numbers, not strings. Reply with only the JSON
+          object.
+
+
+          ---
+
+          Hi Dana,
+
+
+          Attached is invoice INV-6355 for your purchase order PO-45326. It
+          replaces the draft we sent earlier as INV-6350, which you can discard.
+          The invoice was issued on August 27, 2025; everything shipped on April
+          22, 2025.
+
+
+          This covers: 11 × label printer at £100.04 each; safety goggles,
+          quantity 6, unit price £14.61.
+
+
+          The total due is £1,188.10, payable within 30 days.
+
+
+          Best regards,
+
+          Mara Quill
+
+          Pellucid Glassworks
+
+          ---
+        answer: |-
+          ```json
+          {
+            "invoice_number": "INV-6355",
+            "vendor": "Pellucid Glassworks",
+            "issue_date": "2025-08-27",
+            "currency": "GBP",
+            "line_items": [
+              {
+                "description": "label printer",
+                "quantity": 11,
+                "unit_price": 100.04
+              },
+              {
+                "description": "safety goggles",
+                "quantity": 6,
+                "unit_price": 14.61
+              }
+            ],
+            "total": 1188.1
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              invoice_number: INV-6355
+              vendor: Pellucid Glassworks
+              issue_date: 2025-08-27
+              currency: GBP
+              line_items:
+                - description: label printer
+                  quantity: 11
+                  unit_price: 100.04
+                - description: safety goggles
+                  quantity: 6
+                  unit_price: 14.61
+              total: 1188.1
+      - prompt: Now give each line item's line total (quantity × unit_price). Reply with
+          only a JSON object mapping each description to its line total as a
+          number rounded to 2 decimal places.
+        answer: |-
+          ```json
+          {
+            "label printer": 1100.44,
+            "safety goggles": 87.66
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              label printer: 1100.44
+              safety goggles: 87.66
+      - prompt: Now drop every line item whose unit price is below 41 and recompute the
+          total due from the lines that remain. Reply with only a JSON object
+          with keys "line_items" (array of the remaining descriptions, in the
+          original order) and "total" (number, rounded to 2 decimal places).
+        answer: |-
+          ```json
+          {
+            "line_items": [
+              "label printer"
+            ],
+            "total": 1100.44
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              line_items:
+                - label printer
+              total: 1100.44
+    tags:
+      - chain
+      - followup
+    family: followup_invoice
+  # Orders: completed revenue, then also refunded, then broken down by status.
+  # t1: key: {"West":210.44,"East":286.26,"North":246.04}
+  # t2: completed + refunded: {"West":254.05,"East":394.77,"North":289.16}
+  # t3: {"West":{"completed":210.44,"refunded":43.61},"East":{"completed":286.26,"refunded":108.51},"North":{"completed":246.04,"refunded":43.12}}
+  - name: followup_orders_s0
+    seed: 0
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          The CSV below has a header row followed by one row per order.
+
+
+          Compute the revenue per region, counting only orders whose status is
+          "completed". An order's revenue is units × unit_price. Reply with only
+          a JSON object mapping each region to its revenue as a number rounded
+          to 2 decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+          completed orders.
+
+
+          ```csv
+
+          order_id,region,status,units,unit_price
+
+          5003,West,completed,4,7.48
+
+          5006,East,completed,4,31.91
+
+          5007,North,completed,8,21.92
+
+          5010,West,completed,7,21.61
+
+          5012,North,completed,2,35.34
+
+          5014,East,completed,2,30.44
+
+          5017,West,refunded,1,43.61
+
+          5020,East,refunded,3,36.17
+
+          5023,West,completed,9,3.25
+
+          5024,East,completed,6,16.29
+
+          5026,North,refunded,2,21.56
+
+          ```
+        answer: |-
+          ```json
+          {
+            "West": 210.44,
+            "East": 286.26,
+            "North": 246.04
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              West: 210.44
+              East: 286.26
+              North: 246.04
+      - prompt: Now count "refunded" orders as well as "completed" ones (still leaving
+          out every other status) and recompute the revenue per region. Reply
+          with only a JSON object mapping each region to its revenue as a number
+          rounded to 2 decimal places. Leave out regions with no counted orders.
+        answer: |-
+          ```json
+          {
+            "West": 254.05,
+            "East": 394.77,
+            "North": 289.16
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              West: 254.05
+              East: 394.77
+              North: 289.16
+      - prompt: "Now break that revenue down by status. Reply with only a JSON object
+          mapping each region to an object that maps each counted status
+          (\"completed\" or \"refunded\") to that region's revenue from it,
+          rounded to 2 decimal places, e.g. {\"North\": {\"completed\": 120.5,
+          \"refunded\": 30}}. Leave out a status with no orders in that region."
+        answer: |-
+          ```json
+          {
+            "West": {
+              "completed": 210.44,
+              "refunded": 43.61
+            },
+            "East": {
+              "completed": 286.26,
+              "refunded": 108.51
+            },
+            "North": {
+              "completed": 246.04,
+              "refunded": 43.12
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              West:
+                completed: 210.44
+                refunded: 43.61
+              East:
+                completed: 286.26
+                refunded: 108.51
+              North:
+                completed: 246.04
+                refunded: 43.12
+    tags:
+      - chain
+      - followup
+    family: followup_orders
+  # Orders: completed revenue, then also pending, then broken down by status.
+  # t1: key: {"Central":391.38,"North":495.64,"East":478.29}
+  # t2: completed + pending: {"East":496.07,"Central":391.38,"North":495.64}
+  # t3: {"East":{"pending":17.78,"completed":478.29},"Central":{"completed":391.38},"North":{"completed":495.64}}
+  - name: followup_orders_s1
+    seed: 1
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          The CSV below has a header row followed by one row per order.
+
+
+          Compute the revenue per region, counting only orders whose status is
+          "completed". An order's revenue is units × unit_price. Reply with only
+          a JSON object mapping each region to its revenue as a number rounded
+          to 2 decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+          completed orders.
+
+
+          ```csv
+
+          order_id,region,status,units,unit_price
+
+          5003,East,pending,1,17.78
+
+          5006,Central,completed,8,45.31
+
+          5007,North,refunded,6,2.96
+
+          5008,North,completed,8,46.08
+
+          5011,East,completed,5,48.01
+
+          5014,East,completed,4,8.30
+
+          5017,East,completed,2,3.56
+
+          5020,East,refunded,9,39.67
+
+          5021,East,completed,4,49.48
+
+          5022,North,completed,4,31.75
+
+          5023,Central,completed,5,5.78
+
+          5024,East,refunded,2,35.62
+
+          ```
+        answer: |-
+          ```json
+          {
+            "Central": 391.38,
+            "North": 495.64,
+            "East": 478.29
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              Central: 391.38
+              North: 495.64
+              East: 478.29
+      - prompt: Now count "pending" orders as well as "completed" ones (still leaving
+          out every other status) and recompute the revenue per region. Reply
+          with only a JSON object mapping each region to its revenue as a number
+          rounded to 2 decimal places. Leave out regions with no counted orders.
+        answer: |-
+          ```json
+          {
+            "East": 496.07,
+            "Central": 391.38,
+            "North": 495.64
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              East: 496.07
+              Central: 391.38
+              North: 495.64
+      - prompt: "Now break that revenue down by status. Reply with only a JSON object
+          mapping each region to an object that maps each counted status
+          (\"completed\" or \"pending\") to that region's revenue from it,
+          rounded to 2 decimal places, e.g. {\"North\": {\"completed\": 120.5,
+          \"pending\": 30}}. Leave out a status with no orders in that region."
+        answer: |-
+          ```json
+          {
+            "East": {
+              "pending": 17.78,
+              "completed": 478.29
+            },
+            "Central": {
+              "completed": 391.38
+            },
+            "North": {
+              "completed": 495.64
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              East:
+                pending: 17.78
+                completed: 478.29
+              Central:
+                completed: 391.38
+              North:
+                completed: 495.64
+    tags:
+      - chain
+      - followup
+    family: followup_orders
+  # Orders: completed revenue, then also refunded, then broken down by status.
+  # t1: key: {"South":278.45,"North":454.57}
+  # t2: completed + refunded: {"South":278.45,"North":546.12}
+  # t3: {"South":{"completed":278.45},"North":{"completed":454.57,"refunded":91.55}}
+  - name: followup_orders_s2
+    seed: 2
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          The CSV below has a header row followed by one row per order.
+
+
+          Compute the revenue per region, counting only orders whose status is
+          "completed". An order's revenue is units × unit_price. Reply with only
+          a JSON object mapping each region to its revenue as a number rounded
+          to 2 decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+          completed orders.
+
+
+          ```csv
+
+          order_id,region,status,units,unit_price
+
+          5001,North,pending,2,33.23
+
+          5003,South,pending,8,31.73
+
+          5005,South,completed,7,8.03
+
+          5008,North,completed,8,15.23
+
+          5009,South,completed,1,9.48
+
+          5012,North,completed,4,28.81
+
+          5015,West,pending,8,33.17
+
+          5017,North,refunded,5,18.31
+
+          5018,North,pending,3,5.57
+
+          5020,South,completed,6,35.46
+
+          5022,North,completed,7,31.07
+
+          ```
+        answer: |-
+          ```json
+          {
+            "South": 278.45,
+            "North": 454.57
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              South: 278.45
+              North: 454.57
+      - prompt: Now count "refunded" orders as well as "completed" ones (still leaving
+          out every other status) and recompute the revenue per region. Reply
+          with only a JSON object mapping each region to its revenue as a number
+          rounded to 2 decimal places. Leave out regions with no counted orders.
+        answer: |-
+          ```json
+          {
+            "South": 278.45,
+            "North": 546.12
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              South: 278.45
+              North: 546.12
+      - prompt: "Now break that revenue down by status. Reply with only a JSON object
+          mapping each region to an object that maps each counted status
+          (\"completed\" or \"refunded\") to that region's revenue from it,
+          rounded to 2 decimal places, e.g. {\"North\": {\"completed\": 120.5,
+          \"refunded\": 30}}. Leave out a status with no orders in that region."
+        answer: |-
+          ```json
+          {
+            "South": {
+              "completed": 278.45
+            },
+            "North": {
+              "completed": 454.57,
+              "refunded": 91.55
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              South:
+                completed: 278.45
+              North:
+                completed: 454.57
+                refunded: 91.55
+    tags:
+      - chain
+      - followup
+    family: followup_orders
+  # Sessions: top 3, then only sessions from 2025-02-20 on, then their totals.
+  # t1: totals: chen=319, dmitri=164, gustavo=132
+  # t2: from 2025-02-20: chen=150, dmitri=123, elif=109
+  # t3: {"chen":150,"dmitri":123,"elif":109}
+  - name: followup_sessions_s0
+    seed: 0
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          The CSV below logs study sessions: a header row, then one row per
+          session.
+
+
+          Rank users by their total minutes across all sessions and list the top
+          3, highest first (break ties alphabetically). Reply with only a JSON
+          array of the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+          ```csv
+
+          date,user,minutes
+
+          2025-02-03,dmitri,8
+
+          2025-02-05,chen,78
+
+          2025-02-06,bongani,65
+
+          2025-02-09,elif,6
+
+          2025-02-13,hiroshi,11
+
+          2025-02-13,gustavo,31
+
+          2025-02-15,bongani,27
+
+          2025-02-16,chen,91
+
+          2025-02-18,dmitri,33
+
+          2025-02-18,hiroshi,17
+
+          2025-02-21,dmitri,24
+
+          2025-02-22,dmitri,99
+
+          2025-02-22,gustavo,101
+
+          2025-02-23,chen,115
+
+          2025-02-24,elif,109
+
+          2025-02-28,chen,35
+
+          ```
+        answer: |-
+          ```json
+          [
+            "chen",
+            "dmitri",
+            "gustavo"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - chen
+              - dmitri
+              - gustavo
+      - prompt: Now drop every session dated before 2025-02-20 and rank the users again
+          by total minutes. Reply with only a JSON array of the top 3 user
+          names, highest first (break ties alphabetically).
+        answer: |-
+          ```json
+          [
+            "chen",
+            "dmitri",
+            "elif"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - chen
+              - dmitri
+              - elif
+      - prompt: Still leaving out sessions dated before 2025-02-20, give the total
+          minutes of each of those 3 users. Reply with only a JSON object
+          mapping each user name to their total minutes as a number.
+        answer: |-
+          ```json
+          {
+            "chen": 150,
+            "dmitri": 123,
+            "elif": 109
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              chen: 150
+              dmitri: 123
+              elif: 109
+    tags:
+      - chain
+      - followup
+    family: followup_sessions
+  # Sessions: top 3, then only sessions from 2025-10-08 on, then their totals.
+  # t1: totals: chen=501, hiroshi=263, elif=252
+  # t2: from 2025-10-08: chen=501, elif=210, hiroshi=176
+  # t3: {"chen":501,"elif":210,"hiroshi":176}
+  - name: followup_sessions_s1
+    seed: 1
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          The CSV below logs study sessions: a header row, then one row per
+          session.
+
+
+          Rank users by their total minutes across all sessions and list the top
+          3, highest first (break ties alphabetically). Reply with only a JSON
+          array of the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+          ```csv
+
+          date,user,minutes
+
+          2025-10-01,dmitri,59
+
+          2025-10-02,bongani,14
+
+          2025-10-02,elif,42
+
+          2025-10-05,hiroshi,87
+
+          2025-10-09,bongani,41
+
+          2025-10-10,hiroshi,91
+
+          2025-10-12,elif,53
+
+          2025-10-13,chen,80
+
+          2025-10-16,chen,113
+
+          2025-10-16,elif,73
+
+          2025-10-18,chen,109
+
+          2025-10-19,dmitri,50
+
+          2025-10-20,gustavo,108
+
+          2025-10-20,elif,16
+
+          2025-10-22,chen,80
+
+          2025-10-28,elif,68
+
+          2025-10-28,chen,119
+
+          2025-10-28,hiroshi,85
+
+          ```
+        answer: |-
+          ```json
+          [
+            "chen",
+            "hiroshi",
+            "elif"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - chen
+              - hiroshi
+              - elif
+      - prompt: Now drop every session dated before 2025-10-08 and rank the users again
+          by total minutes. Reply with only a JSON array of the top 3 user
+          names, highest first (break ties alphabetically).
+        answer: |-
+          ```json
+          [
+            "chen",
+            "elif",
+            "hiroshi"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - chen
+              - elif
+              - hiroshi
+      - prompt: Still leaving out sessions dated before 2025-10-08, give the total
+          minutes of each of those 3 users. Reply with only a JSON object
+          mapping each user name to their total minutes as a number.
+        answer: |-
+          ```json
+          {
+            "chen": 501,
+            "elif": 210,
+            "hiroshi": 176
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              chen: 501
+              elif: 210
+              hiroshi: 176
+    tags:
+      - chain
+      - followup
+    family: followup_sessions
+  # Sessions: top 3, then only sessions from 2025-11-09 on, then their totals.
+  # t1: totals: bongani=269, elif=169, hiroshi=121
+  # t2: from 2025-11-09: bongani=187, elif=169, farah=42
+  # t3: {"bongani":187,"elif":169,"farah":42}
+  - name: followup_sessions_s2
+    seed: 2
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          The CSV below logs study sessions: a header row, then one row per
+          session.
+
+
+          Rank users by their total minutes across all sessions and list the top
+          3, highest first (break ties alphabetically). Reply with only a JSON
+          array of the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+          ```csv
+
+          date,user,minutes
+
+          2025-11-03,hiroshi,91
+
+          2025-11-04,bongani,82
+
+          2025-11-06,farah,38
+
+          2025-11-08,dmitri,24
+
+          2025-11-11,farah,8
+
+          2025-11-11,bongani,56
+
+          2025-11-12,elif,21
+
+          2025-11-14,bongani,39
+
+          2025-11-15,bongani,92
+
+          2025-11-18,farah,34
+
+          2025-11-22,chen,12
+
+          2025-11-23,elif,41
+
+          2025-11-23,elif,30
+
+          2025-11-24,elif,77
+
+          2025-11-27,hiroshi,30
+
+          2025-11-28,chen,6
+
+          ```
+        answer: |-
+          ```json
+          [
+            "bongani",
+            "elif",
+            "hiroshi"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - bongani
+              - elif
+              - hiroshi
+      - prompt: Now drop every session dated before 2025-11-09 and rank the users again
+          by total minutes. Reply with only a JSON array of the top 3 user
+          names, highest first (break ties alphabetically).
+        answer: |-
+          ```json
+          [
+            "bongani",
+            "elif",
+            "farah"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - bongani
+              - elif
+              - farah
+      - prompt: Still leaving out sessions dated before 2025-11-09, give the total
+          minutes of each of those 3 users. Reply with only a JSON object
+          mapping each user name to their total minutes as a number.
+        answer: |-
+          ```json
+          {
+            "bongani": 187,
+            "elif": 169,
+            "farah": 42
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              bongani: 187
+              elif: 169
+              farah: 42
+    tags:
+      - chain
+      - followup
+    family: followup_sessions
+  # Access log (base seed 6): per-status counts, then status classes, then paths ranked by errors.
+  # t1: 16 of 21 requests fall in 09:00:00–09:59:59; key: {"/api/users":{"200":2,"201":1,"204":3,"304":1},"/health":{"304":1,"404":1,"503":1},"/api/orders":{"200":1,"204":1,"304":1,"404":1,"500":1,"503":1}}
+  # t2: {"/api/users":{"2xx":6,"3xx":1},"/health":{"3xx":1,"4xx":1,"5xx":1},"/api/orders":{"2xx":2,"3xx":1,"4xx":1,"5xx":2}}
+  # t3: /api/orders=3, /health=2, /api/users=0
+  - name: followup_access_log_s0
+    seed: 0
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          Below is a web server access log. Each line is: timestamp, HTTP
+          method, path, status code, latency. Lines starting with # are
+          comments, not requests.
+
+
+          Count the requests per path and status code, using only requests with
+          timestamps from 09:00:00 to 09:59:59 inclusive (all methods). Reply
+          with only a JSON object mapping each path to an object that maps each
+          status code (as a string key) to its count, e.g. {"/a": {"200": 3,
+          "404": 1}}. Leave out paths and status codes with no requests in the
+          window.
+
+
+          ```
+
+          # access.log for 2025-06-19, rotated at 00:00:00
+
+          2025-06-19T08:53:17Z GET /api/users 200 501ms
+
+          2025-06-19T08:59:53Z POST /api/users 500 387ms
+
+          2025-06-19T08:59:59Z POST /health 204 563ms
+
+          2025-06-19T09:00:00Z POST /api/users 201 737ms
+
+          2025-06-19T09:01:41Z POST /api/users 204 236ms
+
+          2025-06-19T09:03:37Z GET /health 503 99ms
+
+          2025-06-19T09:08:11Z POST /api/users 200 266ms
+
+          2025-06-19T09:14:44Z GET /api/orders 404 807ms
+
+          2025-06-19T09:15:04Z GET /api/orders 204 729ms
+
+          2025-06-19T09:19:22Z GET /api/users 204 109ms
+
+          2025-06-19T09:21:02Z GET /api/orders 500 111ms
+
+          2025-06-19T09:27:39Z GET /api/orders 304 708ms
+
+          2025-06-19T09:34:15Z POST /api/users 304 351ms
+
+          2025-06-19T09:38:53Z GET /health 304 141ms
+
+          2025-06-19T09:40:28Z GET /api/orders 503 159ms
+
+          2025-06-19T09:41:41Z GET /health 404 62ms
+
+          2025-06-19T09:44:42Z GET /api/orders 200 123ms
+
+          2025-06-19T09:46:01Z GET /api/users 204 320ms
+
+          2025-06-19T09:59:59Z GET /api/users 200 713ms
+
+          2025-06-19T10:00:00Z GET /health 503 868ms
+
+          2025-06-19T10:05:52Z GET /api/users 304 40ms
+
+          ```
+        answer: |-
+          ```json
+          {
+            "/api/users": {
+              "200": 2,
+              "201": 1,
+              "204": 3,
+              "304": 1
+            },
+            "/health": {
+              "304": 1,
+              "404": 1,
+              "503": 1
+            },
+            "/api/orders": {
+              "200": 1,
+              "204": 1,
+              "304": 1,
+              "404": 1,
+              "500": 1,
+              "503": 1
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              /api/users:
+                "200": 2
+                "201": 1
+                "204": 3
+                "304": 1
+              /health:
+                "304": 1
+                "404": 1
+                "503": 1
+              /api/orders:
+                "200": 1
+                "204": 1
+                "304": 1
+                "404": 1
+                "500": 1
+                "503": 1
+      - prompt: 'Now collapse the status codes into classes by their first digit ("2xx",
+          "3xx", "4xx", "5xx"), same time window. Reply with only a JSON object
+          mapping each path to an object that maps each class to its count, e.g.
+          {"/a": {"2xx": 4, "4xx": 1}}. Leave out classes with no requests.'
+        answer: |-
+          ```json
+          {
+            "/api/users": {
+              "2xx": 6,
+              "3xx": 1
+            },
+            "/health": {
+              "3xx": 1,
+              "4xx": 1,
+              "5xx": 1
+            },
+            "/api/orders": {
+              "2xx": 2,
+              "3xx": 1,
+              "4xx": 1,
+              "5xx": 2
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              /api/users:
+                2xx: 6
+                3xx: 1
+              /health:
+                3xx: 1
+                4xx: 1
+                5xx: 1
+              /api/orders:
+                2xx: 2
+                3xx: 1
+                4xx: 1
+                5xx: 2
+      - prompt: Now rank the paths by their number of error responses (4xx and 5xx
+          together) in the window, most first, breaking ties alphabetically.
+          Include every path from your last answer, even one with no errors.
+          Reply with only a JSON array of the paths.
+        answer: |-
+          ```json
+          [
+            "/api/orders",
+            "/health",
+            "/api/users"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - /api/orders
+              - /health
+              - /api/users
+    tags:
+      - chain
+      - followup
+    family: followup_access_log
+  # Access log (base seed 28): per-status counts, then status classes, then paths ranked by errors.
+  # t1: 16 of 21 requests fall in 15:00:00–15:59:59; key: {"/api/cart":{"404":3,"500":2,"503":1},"/api/orders":{"201":1,"304":2,"400":1,"404":1},"/api/search":{"400":1,"404":3,"503":1}}
+  # t2: {"/api/cart":{"4xx":3,"5xx":3},"/api/orders":{"2xx":1,"3xx":2,"4xx":2},"/api/search":{"4xx":4,"5xx":1}}
+  # t3: /api/cart=6, /api/search=5, /api/orders=2
+  - name: followup_access_log_s1
+    seed: 1
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          Below is a web server access log. Each line is: timestamp, HTTP
+          method, path, status code, latency. Lines starting with # are
+          comments, not requests.
+
+
+          Count the requests per path and status code, using only requests with
+          timestamps from 15:00:00 to 15:59:59 inclusive (all methods). Reply
+          with only a JSON object mapping each path to an object that maps each
+          status code (as a string key) to its count, e.g. {"/a": {"200": 3,
+          "404": 1}}. Leave out paths and status codes with no requests in the
+          window.
+
+
+          ```
+
+          # access.log for 2025-09-19, rotated at 00:00:00
+
+          2025-09-19T14:55:06Z GET /api/search 503 834ms
+
+          2025-09-19T14:59:59Z GET /api/cart 304 57ms
+
+          2025-09-19T15:00:00Z GET /api/cart 503 29ms
+
+          2025-09-19T15:01:04Z GET /api/cart 404 259ms
+
+          2025-09-19T15:01:55Z GET /api/orders 304 596ms
+
+          2025-09-19T15:03:21Z GET /api/search 404 379ms
+
+          2025-09-19T15:04:01Z GET /api/cart 404 16ms
+
+          2025-09-19T15:06:02Z POST /api/orders 400 254ms
+
+          2025-09-19T15:20:43Z GET /api/orders 201 794ms
+
+          2025-09-19T15:22:35Z GET /api/search 404 153ms
+
+          2025-09-19T15:24:38Z GET /api/cart 500 139ms
+
+          2025-09-19T15:24:48Z POST /api/search 404 227ms
+
+          2025-09-19T15:28:58Z POST /api/cart 404 474ms
+
+          2025-09-19T15:36:23Z GET /api/cart 500 678ms
+
+          2025-09-19T15:38:02Z GET /api/orders 404 756ms
+
+          2025-09-19T15:43:53Z POST /api/orders 304 166ms
+
+          2025-09-19T15:48:48Z POST /api/search 400 750ms
+
+          2025-09-19T15:59:59Z GET /api/search 503 129ms
+
+          2025-09-19T16:00:00Z GET /api/orders 400 366ms
+
+          2025-09-19T16:00:16Z GET /api/orders 404 620ms
+
+          2025-09-19T16:13:31Z GET /api/orders 204 203ms
+
+          ```
+        answer: |-
+          ```json
+          {
+            "/api/cart": {
+              "404": 3,
+              "500": 2,
+              "503": 1
+            },
+            "/api/orders": {
+              "201": 1,
+              "304": 2,
+              "400": 1,
+              "404": 1
+            },
+            "/api/search": {
+              "400": 1,
+              "404": 3,
+              "503": 1
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              /api/cart:
+                "404": 3
+                "500": 2
+                "503": 1
+              /api/orders:
+                "201": 1
+                "304": 2
+                "400": 1
+                "404": 1
+              /api/search:
+                "400": 1
+                "404": 3
+                "503": 1
+      - prompt: 'Now collapse the status codes into classes by their first digit ("2xx",
+          "3xx", "4xx", "5xx"), same time window. Reply with only a JSON object
+          mapping each path to an object that maps each class to its count, e.g.
+          {"/a": {"2xx": 4, "4xx": 1}}. Leave out classes with no requests.'
+        answer: |-
+          ```json
+          {
+            "/api/cart": {
+              "4xx": 3,
+              "5xx": 3
+            },
+            "/api/orders": {
+              "2xx": 1,
+              "3xx": 2,
+              "4xx": 2
+            },
+            "/api/search": {
+              "4xx": 4,
+              "5xx": 1
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              /api/cart:
+                4xx: 3
+                5xx: 3
+              /api/orders:
+                2xx: 1
+                3xx: 2
+                4xx: 2
+              /api/search:
+                4xx: 4
+                5xx: 1
+      - prompt: Now rank the paths by their number of error responses (4xx and 5xx
+          together) in the window, most first, breaking ties alphabetically.
+          Include every path from your last answer, even one with no errors.
+          Reply with only a JSON array of the paths.
+        answer: |-
+          ```json
+          [
+            "/api/cart",
+            "/api/search",
+            "/api/orders"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - /api/cart
+              - /api/search
+              - /api/orders
+    tags:
+      - chain
+      - followup
+    family: followup_access_log
+  # Access log (base seed 5): per-status counts, then status classes, then paths ranked by errors.
+  # t1: 16 of 21 requests fall in 13:00:00–13:59:59; key: {"/api/cart":{"200":3,"201":2,"304":1},"/health":{"201":1,"204":1,"304":1,"404":1},"/api/search":{"200":1,"304":2,"404":1,"500":1,"503":1}}
+  # t2: {"/api/cart":{"2xx":5,"3xx":1},"/health":{"2xx":2,"3xx":1,"4xx":1},"/api/search":{"2xx":1,"3xx":2,"4xx":1,"5xx":2}}
+  # t3: /api/search=3, /health=1, /api/cart=0
+  - name: followup_access_log_s2
+    seed: 2
+    scope: core
+    category: transformation
+    tier: 2
+    turns:
+      - prompt: >-
+          Below is a web server access log. Each line is: timestamp, HTTP
+          method, path, status code, latency. Lines starting with # are
+          comments, not requests.
+
+
+          Count the requests per path and status code, using only requests with
+          timestamps from 13:00:00 to 13:59:59 inclusive (all methods). Reply
+          with only a JSON object mapping each path to an object that maps each
+          status code (as a string key) to its count, e.g. {"/a": {"200": 3,
+          "404": 1}}. Leave out paths and status codes with no requests in the
+          window.
+
+
+          ```
+
+          # access.log for 2025-05-14, rotated at 00:00:00
+
+          2025-05-14T12:47:01Z GET /api/search 304 233ms
+
+          2025-05-14T12:59:51Z GET /api/search 200 692ms
+
+          2025-05-14T12:59:59Z GET /api/cart 404 353ms
+
+          2025-05-14T13:00:00Z GET /api/cart 200 224ms
+
+          2025-05-14T13:13:07Z POST /api/cart 304 862ms
+
+          2025-05-14T13:21:12Z GET /api/cart 200 863ms
+
+          2025-05-14T13:29:57Z GET /health 204 515ms
+
+          2025-05-14T13:32:38Z GET /health 404 508ms
+
+          2025-05-14T13:37:51Z GET /health 304 504ms
+
+          2025-05-14T13:39:28Z GET /api/search 200 714ms
+
+          2025-05-14T13:42:15Z POST /api/search 500 802ms
+
+          2025-05-14T13:44:06Z GET /health 201 833ms
+
+          2025-05-14T13:46:14Z POST /api/search 404 658ms
+
+          2025-05-14T13:49:17Z GET /api/cart 201 290ms
+
+          2025-05-14T13:50:12Z POST /api/cart 200 265ms
+
+          2025-05-14T13:52:02Z GET /api/cart 201 5ms
+
+          2025-05-14T13:55:40Z GET /api/search 304 358ms
+
+          2025-05-14T13:59:26Z GET /api/search 503 664ms
+
+          2025-05-14T13:59:59Z POST /api/search 304 361ms
+
+          2025-05-14T14:00:00Z GET /api/search 204 94ms
+
+          2025-05-14T14:05:07Z GET /api/cart 404 217ms
+
+          ```
+        answer: |-
+          ```json
+          {
+            "/api/cart": {
+              "200": 3,
+              "201": 2,
+              "304": 1
+            },
+            "/health": {
+              "201": 1,
+              "204": 1,
+              "304": 1,
+              "404": 1
+            },
+            "/api/search": {
+              "200": 1,
+              "304": 2,
+              "404": 1,
+              "500": 1,
+              "503": 1
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              /api/cart:
+                "200": 3
+                "201": 2
+                "304": 1
+              /health:
+                "201": 1
+                "204": 1
+                "304": 1
+                "404": 1
+              /api/search:
+                "200": 1
+                "304": 2
+                "404": 1
+                "500": 1
+                "503": 1
+      - prompt: 'Now collapse the status codes into classes by their first digit ("2xx",
+          "3xx", "4xx", "5xx"), same time window. Reply with only a JSON object
+          mapping each path to an object that maps each class to its count, e.g.
+          {"/a": {"2xx": 4, "4xx": 1}}. Leave out classes with no requests.'
+        answer: |-
+          ```json
+          {
+            "/api/cart": {
+              "2xx": 5,
+              "3xx": 1
+            },
+            "/health": {
+              "2xx": 2,
+              "3xx": 1,
+              "4xx": 1
+            },
+            "/api/search": {
+              "2xx": 1,
+              "3xx": 2,
+              "4xx": 1,
+              "5xx": 2
+            }
+          }
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              /api/cart:
+                2xx: 5
+                3xx: 1
+              /health:
+                2xx: 2
+                3xx: 1
+                4xx: 1
+              /api/search:
+                2xx: 1
+                3xx: 2
+                4xx: 1
+                5xx: 2
+      - prompt: Now rank the paths by their number of error responses (4xx and 5xx
+          together) in the window, most first, breaking ties alphabetically.
+          Include every path from your last answer, even one with no errors.
+          Reply with only a JSON array of the paths.
+        answer: |-
+          ```json
+          [
+            "/api/search",
+            "/health",
+            "/api/cart"
+          ]
+          ```
+        scorer: constraint
+        constraints:
+          - name: matches key
+            check: json_matches
+            value:
+              - /api/search
+              - /health
+              - /api/cart
+    tags:
+      - chain
+      - followup
+    family: followup_access_log
