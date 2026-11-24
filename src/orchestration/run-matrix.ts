@@ -1,22 +1,24 @@
 /**
  * Matrix runner — the outer loop over a matched set of configurations and
- * challenges. Lifts server lifetime from per-attempt to per-configuration:
+ * challenges. Lifts server lifetime from per-challenge to per-configuration:
  * each model boots ONCE (inside an Effect.scoped that also tears it down) and
  * is reused across all of that configuration's challenges.
  *
  * Strictly sequential: one local model in memory at a time. Different runtimes
  * bind different fixed ports, so config-by-config iteration keeps exactly one
- * server up at a time. Failure isolation: a boot failure SKIPs the whole row;
- * a per-cell IO error marks that cell ERROR and the row continues.
+ * server up at a time. Failure isolation: a boot (or weights digest) failure
+ * SKIPs the whole row; a per-cell store error marks that cell ERROR and the
+ * row continues.
  */
 import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
-import { Clock, Effect } from "effect";
+import { Effect } from "effect";
 import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
 import type { Runtime } from "../schema/enums.js";
-import type { RunEnv } from "../schema/run-manifest.js";
-import { modelFromConfig, runChallengeWithServer } from "./run-challenge.js";
+import type { Held } from "../store/store-index.js";
+import { weightsDigest } from "../store/weights.js";
+import { modelFromConfig, type RunEnv, runChallengeWithServer } from "./run-challenge.js";
 import type { RunModelDeps } from "./run-model.js";
 
 export type MatrixCellStatus = "PASS" | "FAIL" | "ERROR" | "SKIPPED";
@@ -39,13 +41,15 @@ export interface MatrixChallenge {
 export interface RunMatrixInput {
   readonly configs: ReadonlyArray<ResolvedConfiguration>;
   readonly challenges: ReadonlyArray<MatrixChallenge>;
-  readonly archiveDir: string;
+  readonly store: string;
+  readonly release: string;
+  readonly runId: string;
+  readonly contributor: string;
   readonly env: RunEnv;
-  /** Stamped on every attempt this sweep writes. */
-  readonly invocationId?: string;
-  readonly submitter?: string;
+  /** See `RunChallengeInput.present`. */
+  readonly present: ReadonlyArray<Held>;
   readonly deps: RunModelDeps;
-  readonly noCache?: boolean;
+  readonly noSkip?: boolean;
   /** Samples per item of a challenge (see `RunChallengeInput.samplesOf`); default 1. */
   readonly samplesOf?: (challengeId: string, item: ResolvedItem) => number;
   readonly onCell?: (
@@ -79,6 +83,7 @@ export const runMatrix = (
 
       const row = yield* Effect.scoped(
         Effect.gen(function* () {
+          const weights = yield* weightsDigest(input.store, config);
           const server = yield* input.deps.llmServer(modelFromConfig(config));
           let runtimeVersion = versions.get(config.runtime);
           if (runtimeVersion === undefined) {
@@ -88,20 +93,18 @@ export const runMatrix = (
           const env = { ...input.env, runtimeVersion };
           const rowCells: MatrixCell[] = [];
           for (const ch of input.challenges) {
-            const now = yield* Clock.currentTimeMillis;
-            const attemptId = `att-${config.configHash}-${ch.resolved.challengeHash}-${now}`;
             const result = yield* runChallengeWithServer(
               {
                 config,
                 challenge: ch.resolved,
-                attemptId,
-                archiveDir: input.archiveDir,
-                archivePath: `${input.archiveDir}/${attemptId}.jsonl`,
+                store: input.store,
+                release: input.release,
+                runId: input.runId,
+                contributor: input.contributor,
                 env,
-                ...(input.invocationId === undefined ? {} : { invocationId: input.invocationId }),
-                ...(input.submitter === undefined ? {} : { submitter: input.submitter }),
-                deps: input.deps,
-                ...(input.noCache !== undefined ? { noCache: input.noCache } : {}),
+                weightsDigest: weights,
+                present: input.present,
+                ...(input.noSkip === undefined ? {} : { noSkip: input.noSkip }),
                 ...(input.samplesOf === undefined
                   ? {}
                   : {

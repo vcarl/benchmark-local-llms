@@ -213,7 +213,7 @@ export const makeMockExecutor = (spec: MockProcessSpec): MockExecutorHandle => {
  * are handled by `buildMockProcess` as usual.
  *
  * Used for testing `peakRssKb` — the RSS poller calls `Command.string` on a
- * `ps -o rss= -p <pid>` invocation, which reads from `process.stdout`.
+ * `ps -o rss= -p <pid>` call, which reads from `process.stdout`.
  */
 export const makeMockExecutorWithRss = (
   spec: MockProcessSpec,

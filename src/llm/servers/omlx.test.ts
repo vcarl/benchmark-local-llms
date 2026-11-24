@@ -268,7 +268,7 @@ describe("omlxServer", () => {
     expect(ts.warmups().length).toBe(1);
   });
 
-  it("fails acquisition with ServerSpawnError when the warmup request fails", async () => {
+  it("fails acquisition with ModelLoadError when the warmup request fails", async () => {
     ts = await startOmlxServer();
     ts.failWarmup(true);
     const cacheRoot = await withCache();
@@ -283,8 +283,9 @@ describe("omlxServer", () => {
 
     expect(outcome._tag).toBe("Left");
     if (outcome._tag !== "Left") throw new Error("expected failure");
-    expect(outcome.left._tag).toBe("ServerSpawnError");
+    expect(outcome.left._tag).toBe("ModelLoadError");
     expect(JSON.stringify(outcome.left)).toContain("omlx");
+    expect(JSON.stringify(outcome.left)).toContain("HTTP 500");
   });
 
   it("fails with ServerSpawnError tagged omlx when the artifact is not cached", async () => {

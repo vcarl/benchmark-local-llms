@@ -1,373 +1,242 @@
+import * as fsp from "node:fs/promises";
+import * as path from "node:path";
 import { NodeContext } from "@effect/platform-node";
-import { Effect } from "effect";
+import { Effect, type Layer } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readBlob, scorerHash } from "../../archive/content-store.js";
-import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
-import { resolveChallenge } from "../../config/challenges.js";
-import type { ResolvedConfiguration } from "../../config/configurations.js";
-import { loadAttemptArchive } from "../../report/load-attempts.js";
-import { aggregate, baseHeader, runChallenge } from "../run-challenge.js";
+import type { ResolvedItem } from "../../config/challenges.js";
+import { type ChatCompletion, chatMessages } from "../../llm/chat-completion.js";
+import { scorerDigest } from "../../scoring/rules.js";
+import { appendExecution, bundlePath, createOpenBundle, readBundle } from "../../store/bundle.js";
+import { digestOf } from "../../store/digest.js";
+import { readScores } from "../../store/scores.js";
+import { loadPresent } from "../../store/store-index.js";
 import {
-  fakeDeps,
+  aggregate,
+  bundleHeader,
+  type RunChallengeInput,
+  runChallengeWithServer,
+} from "../run-challenge.js";
+import {
+  config,
+  env,
+  fakeServerHandle,
   inertHttpClientLayer,
+  makeChallenge,
   makeChatCompletionMock,
   makeTempDir,
+  okStub,
   removeDir,
-  samplePromptExact,
 } from "./fixtures.js";
 
 describe("aggregate", () => {
-  it("passes when perfect-score fraction meets threshold", () => {
-    expect(
-      aggregate(
-        [
-          { itemId: "a", score: 1 },
-          { itemId: "b", score: 1 },
-          { itemId: "c", score: 0 },
-        ],
-        0.6,
-      ),
-    ).toEqual({
-      score: 2 / 3,
-      passed: true,
-    });
-  });
-  it("fails below threshold and handles empty", () => {
-    expect(aggregate([{ itemId: "a", score: 0.9 }], 0.8)).toEqual({ score: 0, passed: false }); // partial credit is not a pass
-    expect(aggregate([], 0.5)).toEqual({ score: 0, passed: false });
-  });
-  it("averages an item's samples before averaging over items", () => {
+  it("averages an item's samples, then items; partial credit is not a pass", () => {
     const lines = [
       { itemId: "a", score: 1 },
-      { itemId: "a", score: 0, sample: 1 },
-      { itemId: "a", score: 1, sample: 2 },
-      { itemId: "a", score: 1, sample: 3 },
-      { itemId: "b", score: 1 },
+      { itemId: "a", score: 0 },
+      { itemId: "b", score: 0.9 },
     ];
-    expect(aggregate(lines, 0.8)).toEqual({ score: (0.75 + 1) / 2, passed: true });
+    expect(aggregate(lines, 0.2)).toEqual({ score: 0.25, passed: true });
+    expect(aggregate([], 0.5)).toEqual({ score: 0, passed: false });
   });
 });
 
-describe("runChallenge v2 + content store", () => {
-  let dir: string;
-  beforeEach(async () => {
-    dir = await makeTempDir();
-  });
-  afterEach(async () => {
-    await removeDir(dir);
-  });
+let store: string;
+beforeEach(async () => {
+  store = await makeTempDir();
+});
+afterEach(async () => {
+  await removeDir(store);
+});
 
-  const config: ResolvedConfiguration = {
-    id: "smoke-config",
-    artifact: "fake-artifact",
-    runtime: "mlx",
-    temperature: 0,
-    systemPrompt: "direct",
-    maxTokens: 128,
-    systemPromptText: "Be concise.",
-    configHash: "cfg-hash",
-  };
+const challenge = makeChallenge();
+const item = challenge.items[0] as ResolvedItem;
 
-  const env = {
-    hostname: "test",
-    platform: "test",
-    runtimeVersion: "test",
-    nodeVersion: "test",
-    benchmarkGitSha: "test",
-  };
+const input = (over: Partial<RunChallengeInput> = {}): RunChallengeInput => ({
+  config,
+  challenge,
+  store,
+  release: "draft",
+  runId: "run-a",
+  contributor: "tester",
+  env,
+  weightsDigest: null,
+  present: [],
+  ...over,
+});
 
-  const makeChallenge = (): ResolvedChallenge => {
-    const prompt = samplePromptExact();
-    const item: ResolvedItem = {
-      itemId: prompt.name,
-      family: prompt.name,
-      scope: "core",
-      promptHash: prompt.promptHash,
-      itemHash: "ih-fixed",
-      scorer: prompt.scorer,
-      prompt,
-    };
-    return {
-      id: "store-ch",
-      version: 1,
-      passThreshold: 0.5,
-      challengeHash: "store-hash",
-      items: [item],
-    };
-  };
+const run = (i: RunChallengeInput, chat: Layer.Layer<ChatCompletion> = okStub().layer) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      return yield* runChallengeWithServer(i, yield* fakeServerHandle());
+    }).pipe(
+      Effect.provide(chat),
+      Effect.provide(inertHttpClientLayer),
+      Effect.provide(NodeContext.layer),
+    ),
+  );
+const node = <A, E>(eff: Effect.Effect<A, E, NodeContext.NodeContext>) =>
+  Effect.runPromise(eff.pipe(Effect.provide(NodeContext.layer)));
 
-  const okStub = () =>
-    makeChatCompletionMock(
-      {},
-      {
-        kind: "ok",
-        result: {
-          output: "4",
-          reasoning: null,
-          promptTokens: 5,
-          generationTokens: 5,
-          promptTps: 0,
-          generationTps: 0,
-          finishReason: null,
-        },
-      },
+const openFiles = async () => (await fsp.readdir(path.join(store, "open")).catch(() => [])).length;
+
+describe("runChallengeWithServer", () => {
+  it("seals a v4 bundle and appends its score records", async () => {
+    const out = await run(input());
+    expect(out).toMatchObject({ executed: 1, skipped: 0, aggregate: { score: 1, passed: true } });
+    if (out.bundle === null) throw new Error("expected a bundle");
+
+    const b = await node(readBundle(bundlePath(store, out.bundle)));
+    expect(b.digest).toBe(out.bundle);
+    expect(b.header).toMatchObject({
+      schemaVersion: 4,
+      configId: config.id,
+      release: "draft",
+      challenge: challenge.id,
+      run: { id: "run-a", contributor: "tester" },
+      env: { hardwareId: env.hardwareId, runtimeVersion: "test" },
+      executions: 1,
+    });
+    expect(b.header.config).toMatchObject({
+      artifact: config.artifact,
+      weightsDigest: null,
+      systemPrompt: "Be concise.",
+      chatTemplateDigest: null,
+      sampling: {},
+    });
+    const [e] = b.executions;
+    expect(e).toMatchObject({ item: `${challenge.id}/p1`, sample: 0, output: "4", error: null });
+    expect(e?.messagesDigest).toBe(
+      digestOf(chatMessages({ systemPrompt: "Be concise.", userPrompt: "2+2?" })),
     );
 
-  it("writes a v3 archive and populates the content store", async () => {
-    const challenge = makeChallenge();
+    const scores = await node(readScores(store, out.bundle));
+    expect(scores).toHaveLength(1);
+    expect(scores[0]).toMatchObject({
+      execution: digestOf(e),
+      scorer: scorerDigest(item.scorer),
+      score: 1,
+      failureKind: null,
+      harnessGitSha: env.harnessGitSha,
+    });
+    expect(await openFiles()).toBe(0);
+  });
+
+  it("skips what the store holds: nothing executes, no bundle, summary still scored", async () => {
+    await run(input());
     const m = okStub();
-    const manifest = await Effect.runPromise(
-      runChallenge({
-        config,
-        challenge,
-        attemptId: "att-store",
-        archiveDir: dir,
-        archivePath: `${dir}/att-store.jsonl`,
-        env,
-        deps: fakeDeps(),
-      }).pipe(
-        Effect.provide(m.layer),
-        Effect.provide(inertHttpClientLayer),
-        Effect.provide(NodeContext.layer),
-      ),
+    const out = await run(
+      input({ runId: "run-b", present: await node(loadPresent(store)) }),
+      m.layer,
     );
-
-    expect(manifest.schemaVersion).toBe(3);
-    expect(manifest.passThreshold).toBe(challenge.passThreshold);
-
-    const item = challenge.items[0] as ResolvedItem;
-    const prompt = await Effect.runPromise(
-      Effect.provide(readBlob(dir, "prompts", item.promptHash), NodeContext.layer),
-    );
-    expect(prompt).toBe(item.prompt.promptText);
-
-    const scorer = await Effect.runPromise(
-      Effect.provide(readBlob(dir, "scorers", scorerHash(item.scorer)), NodeContext.layer),
-    );
-    expect(scorer.length).toBeGreaterThan(0);
-
-    const system = await Effect.runPromise(
-      Effect.provide(readBlob(dir, "system", config.configHash), NodeContext.layer),
-    );
-    expect(system).toBe(config.systemPromptText);
-  });
-});
-
-describe("runChallenge multi-turn items", () => {
-  let dir: string;
-  beforeEach(async () => {
-    dir = await makeTempDir();
-  });
-  afterEach(async () => {
-    await removeDir(dir);
+    expect(m.log.calls).toHaveLength(0);
+    expect(out).toMatchObject({ bundle: null, executed: 0, skipped: 1, aggregate: { score: 1 } });
+    expect(await openFiles()).toBe(0);
   });
 
-  const config: ResolvedConfiguration = {
-    id: "mt-config",
-    artifact: "fake-artifact",
-    runtime: "mlx",
-    temperature: 0,
-    systemPrompt: "direct",
-    maxTokens: 128,
-    systemPromptText: "Be concise.",
-    configHash: "cfg-mt",
-  };
-  const env = {
-    hostname: "test",
-    platform: "test",
-    runtimeVersion: "test",
-    nodeVersion: "test",
-    benchmarkGitSha: "test",
-  };
-  const turn = (prompt: string, answer: string) => ({
-    prompt,
-    answer,
-    scorer: "exact_match" as const,
-    expected: answer,
-    extract: "(\\d+)",
+  it("reruns the whole cell into one bundle when more samples are requested", async () => {
+    await run(input());
+    const m = okStub();
+    const out = await run(
+      input({ runId: "run-b", present: await node(loadPresent(store)), samplesOf: () => 3 }),
+      m.layer,
+    );
+    expect(m.log.calls).toHaveLength(3);
+    if (out.bundle === null) throw new Error("expected a bundle");
+    const b = await node(readBundle(bundlePath(store, out.bundle)));
+    expect(b.executions.map((e) => e.sample)).toEqual([0, 1, 2]);
   });
 
-  it("sends gold history, archives one line per turn with parent + turn, stores the conversation", async () => {
-    const challenge = await Effect.runPromise(
-      resolveChallenge(
-        {
-          id: "mt",
-          version: 1,
-          passThreshold: 0.5,
-          items: [
-            { name: "ch", category: "x", tier: 1, turns: [turn("p1", "1"), turn("p2", "2")] },
-          ],
-        } as never,
-        dir,
-      ).pipe(Effect.provide(NodeContext.layer)),
+  it("reruns the whole cell when the challenge gained an item", async () => {
+    await run(input());
+    const added: ResolvedItem = {
+      ...item,
+      itemId: "p2",
+      prompt: { ...item.prompt, name: "p2", promptText: "3+3?" },
+    };
+    const grown = { ...challenge, items: [item, added] };
+    const m = okStub();
+    const out = await run(
+      input({ runId: "run-b", challenge: grown, present: await node(loadPresent(store)) }),
+      m.layer,
     );
-    // The model gets turn 1 wrong ("4"); turn 2 must still see the gold "1".
-    const m = makeChatCompletionMock(
-      {},
-      {
-        kind: "ok",
-        result: {
-          output: "4",
-          reasoning: null,
-          promptTokens: 1,
-          generationTokens: 1,
-          promptTps: 0,
-          generationTps: 0,
-          finishReason: null,
-        },
+    expect(m.log.calls).toHaveLength(2);
+    if (out.bundle === null) throw new Error("expected a bundle");
+    const b = await node(readBundle(bundlePath(store, out.bundle)));
+    expect(b.executions.map((e) => e.item)).toEqual([`${challenge.id}/p1`, `${challenge.id}/p2`]);
+  });
+
+  it("never pools: items spread over two bundles leave the cell to run whole", async () => {
+    const added: ResolvedItem = {
+      ...item,
+      itemId: "p2",
+      prompt: { ...item.prompt, name: "p2", promptText: "3+3?" },
+    };
+    await run(input());
+    await run(input({ runId: "run-b", challenge: { ...challenge, items: [added] } }));
+    const m = okStub();
+    await run(
+      input({
+        runId: "run-c",
+        challenge: { ...challenge, items: [item, added] },
+        present: await node(loadPresent(store)),
+      }),
+      m.layer,
+    );
+    expect(m.log.calls).toHaveLength(2);
+  });
+
+  it("re-executes an errored execution, and everything under --no-skip", async () => {
+    const failing = makeChatCompletionMock({}, { kind: "fail", error: "transport" });
+    const first = await run(input(), failing.layer);
+    expect(first.aggregate.score).toBe(0);
+    const scores = await node(readScores(store, first.bundle ?? ""));
+    expect(scores[0]?.failureKind).toBe("execution_error");
+
+    const retry = okStub();
+    await run(input({ runId: "run-b", present: await node(loadPresent(store)) }), retry.layer);
+    expect(retry.log.calls).toHaveLength(1);
+
+    const forced = okStub();
+    const present = await node(loadPresent(store));
+    await run(input({ runId: "run-c", present, noSkip: true }), forced.layer);
+    expect(forced.log.calls).toHaveLength(1);
+  });
+
+  it("resumes the open file of the same config, hardware, release and challenge", async () => {
+    const crashed = bundleHeader(input({ runId: "run-crashed" }), "2026-01-01T00:00:00.000Z");
+    const openPath = await node(createOpenBundle(store, crashed));
+    // Sample 0 was written before the crash; the resumed run executes only sample 1.
+    const m = okStub();
+    const prior = {
+      item: `${challenge.id}/p1`,
+      sample: 0,
+      seed: 1,
+      messagesDigest: digestOf(chatMessages({ systemPrompt: "Be concise.", userPrompt: "2+2?" })),
+      executedAt: "2026-01-01T00:00:01.000Z",
+      output: "4",
+      reasoning: null,
+      rawOutput: "4",
+      error: null,
+      stopReason: null,
+      measured: {
+        promptTokens: 1,
+        generationTokens: 1,
+        promptTps: 1,
+        generationTps: 1,
+        peakMemoryGb: 0,
+        wallTimeSec: 1,
       },
-    );
-    const archivePath = `${dir}/att-mt.jsonl`;
-    await Effect.runPromise(
-      runChallenge({
-        config,
-        challenge,
-        attemptId: "att-mt",
-        archiveDir: dir,
-        archivePath,
-        env,
-        deps: fakeDeps(),
-      }).pipe(
-        Effect.provide(m.layer),
-        Effect.provide(inertHttpClientLayer),
-        Effect.provide(NodeContext.layer),
-      ),
-    );
+    };
+    await node(appendExecution(openPath, prior));
 
-    expect(m.log.calls.map((c) => c.history)).toEqual([
-      undefined,
-      [
-        { role: "user", content: "p1" },
-        { role: "assistant", content: "1" },
-      ],
-    ]);
-    expect(m.log.calls.map((c) => c.userPrompt)).toEqual(["p1", "p2"]);
-
-    const { items: rows } = await Effect.runPromise(
-      loadAttemptArchive(archivePath).pipe(Effect.provide(NodeContext.layer)),
-    );
-    expect(rows.map((r) => [r.itemId, r.parentItemId, r.turn])).toEqual([
-      ["ch#1", "ch", 1],
-      ["ch#2", "ch", 2],
-    ]);
-
-    const t2 = challenge.items[1] as ResolvedItem;
-    const blob = await Effect.runPromise(
-      Effect.provide(readBlob(dir, "prompts", t2.promptHash), NodeContext.layer),
-    );
-    expect(JSON.parse(blob)).toEqual([
-      { role: "user", content: "p1" },
-      { role: "assistant", content: "1" },
-      { role: "user", content: "p2" },
-    ]);
-
-    // A second attempt serves every turn from the cache, parent + turn intact.
-    const again = makeChatCompletionMock({});
-    await Effect.runPromise(
-      runChallenge({
-        config,
-        challenge,
-        attemptId: "att-mt2",
-        archiveDir: dir,
-        archivePath: `${dir}/att-mt2.jsonl`,
-        env,
-        deps: fakeDeps(),
-      }).pipe(
-        Effect.provide(again.layer),
-        Effect.provide(inertHttpClientLayer),
-        Effect.provide(NodeContext.layer),
-      ),
-    );
-    expect(again.log.calls).toHaveLength(0);
-    const { items: cached } = await Effect.runPromise(
-      loadAttemptArchive(`${dir}/att-mt2.jsonl`).pipe(Effect.provide(NodeContext.layer)),
-    );
-    expect(cached.map((r) => [r.itemId, r.parentItemId, r.turn])).toEqual([
-      ["ch#1", "ch", 1],
-      ["ch#2", "ch", 2],
-    ]);
-  });
-});
-
-describe("baseHeader provenance", () => {
-  const challenge: ResolvedChallenge = {
-    id: "c",
-    version: 1,
-    passThreshold: 1,
-    challengeHash: "chh",
-    items: [],
-  };
-  const header = (config: ResolvedConfiguration) =>
-    baseHeader(
-      {
-        config,
-        challenge,
-        attemptId: "att",
-        archiveDir: "/x",
-        archivePath: "/x/att.jsonl",
-        env: {
-          hostname: "h",
-          platform: "p",
-          runtimeVersion: "r",
-          nodeVersion: "n",
-          benchmarkGitSha: "g",
-        },
-        deps: fakeDeps(),
-      },
-      "2026-01-01T00:00:00Z",
-    );
-  const minimal: ResolvedConfiguration = {
-    id: "m",
-    artifact: "a",
-    runtime: "mlx",
-    temperature: 0.7,
-    systemPrompt: "direct",
-    maxTokens: 100,
-    systemPromptText: "",
-    configHash: "cfg",
-  };
-
-  it("records every sampler and server knob the configuration sets", () => {
-    const h = header({
-      ...minimal,
-      runtime: "llamacpp",
-      topP: 0.95,
-      topK: 20,
-      minP: 0,
-      presencePenalty: 1.5,
-      repetitionPenalty: 1.1,
-      repetitionContextSize: 64,
-      chatTemplateKwargs: { enable_thinking: true },
-      ctxSize: 32768,
-      chatTemplate: "tpl",
-      chatTemplateSha: "abc123abc123",
-    });
-    expect(h).toMatchObject({
-      configHash: "cfg",
-      topP: 0.95,
-      topK: 20,
-      minP: 0,
-      presencePenalty: 1.5,
-      repetitionPenalty: 1.1,
-      repetitionContextSize: 64,
-      chatTemplateKwargs: { enable_thinking: true },
-      ctxSize: 32768,
-      chatTemplate: "tpl",
-      chatTemplateSha: "abc123abc123",
-    });
-    expect(h.serverFlags).toContain("--reasoning-format");
-  });
-
-  it("records extraArgs where the runtime passes them to its server", () => {
-    expect(header({ ...minimal, extraArgs: ["--trust-remote-code"] }).extraArgs).toEqual([
-      "--trust-remote-code",
-    ]);
-  });
-
-  it("omits every unset knob, and serverFlags off llamacpp", () => {
-    const h = header(minimal);
-    for (const k of ["topP", "minP", "ctxSize", "chatTemplate", "serverFlags"]) {
-      expect(k in h).toBe(false);
-    }
+    const out = await run(input({ runId: "run-new", samplesOf: () => 2 }), m.layer);
+    expect(m.log.calls).toHaveLength(1);
+    expect(out).toMatchObject({ executed: 1, skipped: 1 });
+    if (out.bundle === null) throw new Error("expected a bundle");
+    const b = await node(readBundle(bundlePath(store, out.bundle)));
+    expect(b.header.run.id).toBe("run-crashed");
+    expect(b.executions.map((e) => e.sample)).toEqual([0, 1]);
+    expect(await node(readScores(store, out.bundle))).toHaveLength(2);
+    expect(await openFiles()).toBe(0);
   });
 });

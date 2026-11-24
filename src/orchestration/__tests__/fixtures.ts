@@ -1,16 +1,15 @@
 /**
  * Shared test fixtures and mock factories for the orchestration suite.
  *
- * The orchestration layer is integration glue; tests compose real B2 archive
+ * The orchestration layer is integration glue; tests compose real store
  * I/O (over a tempdir-backed filesystem) with mocked versions of everything
- * else: C1's ChatCompletion, C2's server supervisors, C3's runSession
+ * else: the ChatCompletion service, the server supervisors, the game session
  * subsystem. All mocks live here so individual tests stay narrow.
  */
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { HttpClient, HttpClientResponse } from "@effect/platform";
-import { NodeFileSystem, NodePath } from "@effect/platform-node";
 import { Deferred, Effect, Layer, Stream } from "effect";
 import type { ResolvedChallenge, ResolvedItem } from "../../config/challenges.js";
 import type { ResolvedConfiguration } from "../../config/configurations.js";
@@ -24,11 +23,11 @@ import {
 } from "../../llm/chat-completion.js";
 import type { ProcessHealthMonitor } from "../../llm/servers/process-health.js";
 import type { ServerHandle } from "../../llm/servers/supervisor.js";
-import type { AgentEvent, ExecutionResult } from "../../schema/execution.js";
+import type { AgentEvent } from "../../schema/execution.js";
 import type { ModelConfig } from "../../schema/model.js";
 import type { PromptCorpusEntry } from "../../schema/prompt.js";
-import type { RunEnv } from "../../schema/run-manifest.js";
-import type { ScenarioCorpusEntry } from "../../schema/scenario.js";
+import { hardwareIdOf } from "../../store/bundle.js";
+import type { RunEnv } from "../run-challenge.js";
 import type {
   AdmiralFactory,
   AdmiralHandle,
@@ -48,25 +47,7 @@ export const removeDir = async (dir: string): Promise<void> => {
   await fsp.rm(dir, { recursive: true, force: true });
 };
 
-export const readArchiveLines = async (p: string): Promise<string[]> => {
-  const text = await fsp.readFile(p, "utf8");
-  return text.split("\n").filter((l) => l.length > 0);
-};
-
-export const listFiles = async (dir: string): Promise<string[]> => {
-  const entries = await fsp.readdir(dir);
-  return entries.sort();
-};
-
 // ── Sample data ────────────────────────────────────────────────────────────
-
-export const sampleEnv: RunEnv = {
-  hostname: "test-host",
-  platform: "darwin-arm64",
-  runtimeVersion: "test",
-  nodeVersion: "v22.0.0",
-  benchmarkGitSha: "abcdef",
-};
 
 export const sampleModel = (overrides: Partial<ModelConfig> = {}): ModelConfig => ({
   artifact: "mlx-community/TestModel-4bit",
@@ -79,31 +60,17 @@ export const sampleModel = (overrides: Partial<ModelConfig> = {}): ModelConfig =
 
 export const samplePromptExact = (
   overrides: Partial<PromptCorpusEntry> = {},
-): PromptCorpusEntry => ({
-  name: "p1",
-  category: "math",
-  tier: 1,
-  system: { key: "direct", text: "Be brief." },
-  promptText: "2+2?",
-  scorer: { type: "exact_match", expected: "4", extract: "(\\d+)" },
-  promptHash: "hash-p1",
-  ...overrides,
-});
-
-export const sampleScenario = (
-  overrides: Partial<ScenarioCorpusEntry> = {},
-): ScenarioCorpusEntry => ({
-  name: "s1",
-  fixture: "starter",
-  players: [{ id: "alice", controlledBy: "llm" }],
-  scorer: "generic",
-  scorerParams: {},
-  cutoffs: { wallClockSec: 900, totalTokens: 32000, toolCalls: 100 },
-  tier: 1,
-  scenarioMd: "# Test Scenario",
-  scenarioHash: "hash-s1",
-  ...overrides,
-});
+): PromptCorpusEntry => {
+  return {
+    name: "p1",
+    category: "math",
+    tier: 1,
+    system: { key: "direct", text: "Be brief." },
+    promptText: "2+2?",
+    scorer: { type: "exact_match", expected: "4", extract: "(\\d+)" } as const,
+    ...overrides,
+  };
+};
 
 // ── Shared challenge/config fixtures (used by run-challenge and run-matrix tests) ─
 
@@ -115,15 +82,17 @@ export const config: ResolvedConfiguration = {
   systemPrompt: "direct",
   maxTokens: 128,
   systemPromptText: "Be concise.",
-  configHash: "cfg-hash",
 };
 
+const hardware = { cpu: "Test CPU", cpuCores: 8, memoryGb: 64, os: "TestOS 1" };
+
 export const env: RunEnv = {
-  hostname: "test",
   platform: "test",
   runtimeVersion: "test",
   nodeVersion: "test",
-  benchmarkGitSha: "test",
+  harnessGitSha: "0".repeat(40),
+  hardware,
+  hardwareId: hardwareIdOf(hardware),
 };
 
 export const makeChallenge = (): ResolvedChallenge => {
@@ -132,8 +101,6 @@ export const makeChallenge = (): ResolvedChallenge => {
     itemId: prompt.name,
     family: prompt.name,
     scope: "core",
-    promptHash: prompt.promptHash,
-    itemHash: "ih-fixed",
     scorer: prompt.scorer,
     prompt,
   };
@@ -141,7 +108,6 @@ export const makeChallenge = (): ResolvedChallenge => {
     id: "store-ch",
     version: 1,
     passThreshold: 0.5,
-    challengeHash: "store-hash",
     items: [item],
   };
 };
@@ -313,55 +279,3 @@ export const fakeDeps = (overrides: Partial<RunModelDeps> = {}): RunModelDeps =>
   runtimeVersion: () => Effect.succeed("test-runtime 0.0.0"),
   ...overrides,
 });
-
-// ── Sample events + execution result helpers ──────────────────────────────
-
-export const agentEvent = (
-  type: AgentEvent["event"],
-  data: Record<string, unknown> = {},
-): AgentEvent => ({
-  event: type,
-  tick: 0,
-  ts: "2026-01-01T00:00:00Z",
-  data,
-});
-
-export const sampleExistingResult = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => {
-  const output = overrides.output ?? "prior-output";
-  return {
-    archiveId: "prior-archive",
-    runId: "prior-run",
-    executedAt: "2026-04-01T00:00:00Z",
-    promptName: "p1",
-    temperature: 0.7,
-    model: "Test Model",
-    runtime: "mlx",
-    quant: "4bit",
-    promptTokens: 1,
-    generationTokens: 1,
-    promptTps: 1,
-    generationTps: 1,
-    peakMemoryGb: 0,
-    wallTimeSec: 1,
-    output,
-    reasoning: null,
-    rawOutput: output,
-    error: null,
-    promptHash: "hash-p1",
-    scenarioHash: null,
-    scenarioName: null,
-    terminationReason: null,
-    toolCallCount: null,
-    finalPlayerStats: null,
-    events: null,
-    blobPool: null,
-    ...overrides,
-  };
-};
-
-// ── Re-export platform layers commonly combined by tests ───────────────────
-
-export const platformLayer = Layer.merge(NodeFileSystem.layer, NodePath.layer);
-
-// Re-export Stream for convenient test use
-export { Stream };

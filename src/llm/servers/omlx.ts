@@ -39,16 +39,11 @@
 import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  Command,
-  type CommandExecutor,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "@effect/platform";
-import { Duration, Effect } from "effect";
+import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
+import { Effect } from "effect";
 import {
   type HealthCheckTimeout,
+  type ModelLoadError,
   ServerSpawnError,
   type TemplateVerificationError,
 } from "../../errors/index.js";
@@ -142,67 +137,6 @@ const buildArgs = (cfg: OmlxConfig, stagingDir: string, port: number): ReadonlyA
 };
 
 /**
- * Force the lazy weight load with a one-token completion. Any failure —
- * transport, non-2xx, or timeout — aborts acquisition through the same typed
- * channel as a spawn failure, because a server that cannot answer a trivial
- * completion cannot serve the benchmark either.
- */
-const warmup = (
-  artifact: string,
-  port: number,
-  timeoutSec: number,
-): Effect.Effect<void, ServerSpawnError, HttpClient.HttpClient> =>
-  Effect.gen(function* () {
-    const client = yield* HttpClient.HttpClient;
-    const modelId = leafModelId(artifact);
-    yield* Effect.logInfo(`warming ${modelId} (lazy weight load)`).pipe(
-      Effect.annotateLogs("scope", "omlx"),
-    );
-
-    const request = yield* HttpClientRequest.post(
-      `http://127.0.0.1:${port}/v1/chat/completions`,
-    ).pipe(
-      HttpClientRequest.bodyJson({
-        model: modelId,
-        messages: [{ role: "user", content: "hi" }],
-        max_tokens: 1,
-        temperature: 0,
-        stream: false,
-      }),
-      Effect.mapError(
-        (err) =>
-          new ServerSpawnError({
-            runtime: "omlx",
-            reason: `could not encode the omlx warmup request: ${String(err)}`,
-          }),
-      ),
-    );
-
-    yield* client.execute(request).pipe(
-      Effect.flatMap(HttpClientResponse.filterStatusOk),
-      Effect.asVoid,
-      Effect.timeoutFail({
-        duration: Duration.seconds(timeoutSec),
-        onTimeout: () =>
-          new ServerSpawnError({
-            runtime: "omlx",
-            reason: `omlx warmup did not complete within ${timeoutSec}s — the model never finished loading.`,
-          }),
-      }),
-      Effect.mapError((err) =>
-        err instanceof ServerSpawnError
-          ? err
-          : new ServerSpawnError({
-              runtime: "omlx",
-              reason: `omlx warmup request failed: ${String(err)}`,
-            }),
-      ),
-    );
-
-    yield* Effect.logInfo("warmed").pipe(Effect.annotateLogs("scope", "omlx"));
-  });
-
-/**
  * Acquire a running `omlx serve` within the current scope, healthy, template-
  * verified, and warm.
  */
@@ -210,7 +144,7 @@ export const omlxServer = (
   cfg: OmlxConfig,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError | ModelLoadError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -231,7 +165,7 @@ export const omlxServer = (
     const command = Command.make(bin, ...buildArgs(cfg, stagingDir, port)).pipe(
       Command.env({ HOME: homeDir }),
     );
-    const handle = yield* superviseServer({
+    return yield* superviseServer({
       runtime: "omlx",
       port,
       command,
@@ -241,16 +175,9 @@ export const omlxServer = (
       // against the resolved snapshot dir — where tokenizer_config.json /
       // chat_template.jinja live. Same logic as the mlx runtime.
       verifyTemplate: { runtime: "omlx", modelDir: snapshotDir },
+      // Health only proves directory discovery finished; weights load on the
+      // first inference request. Pay that cost here, not inside a measured
+      // prompt. The supervisor re-samples RSS once the weights are resident.
+      warmup: { model: leafModelId(cfg.artifact), timeoutSec: healthTimeoutSec },
     });
-
-    // Health only proves directory discovery finished; weights load on the
-    // first inference request. Pay that cost here, not inside a measured prompt.
-    yield* warmup(cfg.artifact, port, healthTimeoutSec);
-
-    // The supervisor's own RSS sample fired at health, when this process was
-    // still ~0.5GB of Python. Re-sample now that the weights are resident, or
-    // a sweep shorter than the 30s poll interval reports the empty footprint.
-    yield* handle.sampleNow;
-
-    return handle;
   });

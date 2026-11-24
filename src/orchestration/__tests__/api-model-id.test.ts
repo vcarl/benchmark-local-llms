@@ -8,9 +8,9 @@ describe("apiModelId", () => {
     );
   });
 
-  it("sends the full artifact for mlx", () => {
+  it("names the launched model for mlx, so the server never reloads by repo id", () => {
     expect(apiModelId({ artifact: "mlx-community/Qwen3-32B-4bit", runtime: "mlx" })).toBe(
-      "mlx-community/Qwen3-32B-4bit",
+      "default_model",
     );
   });
 
@@ -37,11 +37,9 @@ describe("apiModelId", () => {
     );
   });
 
-  it("keeps the whole path for a path artifact on mlx", () => {
-    // mlx_lm.server takes the path as --model and echoes back whatever it is
-    // handed, so there is nothing to shorten.
+  it("names the launched model for a path artifact on mlx too", () => {
     expect(apiModelId({ artifact: "/Users/x/models/Local-4bit", runtime: "mlx" })).toBe(
-      "/Users/x/models/Local-4bit",
+      "default_model",
     );
   });
 });

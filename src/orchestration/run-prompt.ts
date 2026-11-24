@@ -15,11 +15,13 @@
  * defects that bubble past this module.
  */
 import { Clock, Effect } from "effect";
+import { LlmRequestError } from "../errors/index.js";
 import {
   ChatCompletion,
   type CompletionParams,
   type CompletionResult,
 } from "../llm/chat-completion.js";
+import { MLX_MODEL_ID } from "../llm/servers/mlx.js";
 import { leafModelId } from "../llm/servers/omlx.js";
 import type { ExecutionResult } from "../schema/execution.js";
 import type { ModelConfig } from "../schema/model.js";
@@ -49,6 +51,8 @@ export interface RunPromptInput {
   readonly minP?: number;
   /** Presence penalty; omitted from the request when undefined. */
   readonly presencePenalty?: number;
+  /** How many recent tokens the presence penalty considers. */
+  readonly presenceContextSize?: number;
   /** Extra chat-template variables; omitted from the request when undefined. */
   readonly chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>>;
   /** Sampler seed; omitted from the request when undefined. */
@@ -78,8 +82,25 @@ const quantLabel = (model: ModelConfig): string => model.quant ?? "";
  *
  * Matches the prototype's 200-char truncation (`runner.py:247`) for parity
  * with how existing archives record failures.
+ *
+ * One error is the model's limit, not a fault: the prompt does not fit the
+ * context window. llama-server answers HTTP 400 `exceed_context_size_error`
+ * (`server-context.cpp`); oMLX answers HTTP 400 "Prompt too long: N tokens
+ * exceeds max context window of M tokens". Both are recorded as
+ * `"context_exceeded"`, which `classifyFailure` reports as its own failure
+ * kind and the run's skip rule holds as a model outcome.
  */
-const stringifyLlmError = (cause: unknown): string => {
+const CONTEXT_OVERFLOW =
+  /exceed_context_size_error|Prompt too long: \d+ tokens exceeds max context window/;
+
+export const stringifyLlmError = (cause: unknown): string => {
+  if (
+    cause instanceof LlmRequestError &&
+    cause.cause.startsWith("HTTP 400") &&
+    CONTEXT_OVERFLOW.test(cause.cause)
+  ) {
+    return "context_exceeded";
+  }
   if (typeof cause === "object" && cause !== null && "_tag" in cause) {
     return JSON.stringify(cause).slice(0, 200);
   }
@@ -87,10 +108,10 @@ const stringifyLlmError = (cause: unknown): string => {
 };
 
 /**
- * Derive tokens/sec for runtimes that don't report a `timings` block
- * (notably `mlx_lm.server`). Mirrors `runner.py::run_llamacpp_prompt`:
- * when the server omits timings, approximate `generationTps` from the
- * total wall time and generation token count. `promptTps` cannot be
+ * Fallback tokens/sec when neither the server's `timings` block nor the
+ * stream measured a decode rate (a single content frame, or fewer than two
+ * tokens): approximate `generationTps` from the total wall time and
+ * generation token count, prefill included. `promptTps` cannot be
  * reconstructed without knowing prefill time, so it stays at 0 in that
  * case — explicitly, not as a silent parse fallback.
  *
@@ -190,19 +211,19 @@ export const makeSuccessResult = (
     quant: quantLabel(input.model),
     promptTokens: completion.promptTokens,
     generationTokens: completion.generationTokens,
-    // llamacpp reports both; mlx_lm.server reports neither. When the server
-    // doesn't, compute generationTps from wall time (see `deriveTps`). We
-    // can't derive promptTps without prefill timing, so it stays 0 for MLX.
+    // llamacpp reports both; on MLX the stream measures generationTps
+    // (chat-completion.ts), with wall time as the last resort (`deriveTps`).
+    // promptTps stays 0 without server-reported prefill timing.
     promptTps: completion.promptTps ?? 0,
     generationTps: deriveTps(completion.generationTps, completion.generationTokens, wallTimeSec),
     peakMemoryGb: peakRssKbToGb(peakRssKb),
     wallTimeSec,
+    ...(completion.timing === undefined ? {} : { timing: completion.timing }),
     output: fields.output,
     reasoning: fields.reasoning,
     rawOutput: fields.rawOutput,
     error: fields.error,
     stopReason: completion.finishReason,
-    promptHash: input.prompt.promptHash,
     scenarioHash: null,
     scenarioName: null,
     terminationReason: null,
@@ -238,7 +259,6 @@ export const makeErrorResult = (
   reasoning: null,
   rawOutput: "",
   error,
-  promptHash: input.prompt.promptHash,
   scenarioHash: null,
   scenarioName: null,
   terminationReason: null,
@@ -251,8 +271,10 @@ export const makeErrorResult = (
 /**
  * The id to put in the OpenAI `model` field for this model.
  *
- * llamacpp and mlx_lm.server serve a single model and echo back whatever id
- * they are handed, so the full artifact goes over the wire. oMLX is a
+ * llama-server serves a single model and ignores the id, so the full artifact
+ * goes over the wire. `mlx_lm.server` loads whatever id it is handed: only
+ * {@link MLX_MODEL_ID} names the snapshot it was launched with (and the
+ * supervisor warmed); an HF repo id reloads the model from the hub. oMLX is a
  * multi-model server that registers each discovered model under its *leaf*
  * directory name (never `org/repo`), so an omlx request must name the leaf or
  * the server cannot route it. The leaf is derived by the omlx supervisor, which
@@ -263,7 +285,11 @@ export const makeErrorResult = (
  * archived/report field keep the full artifact.
  */
 export const apiModelId = (model: Pick<ModelConfig, "artifact" | "runtime">): string =>
-  model.runtime === "omlx" ? leafModelId(model.artifact) : model.artifact;
+  model.runtime === "omlx"
+    ? leafModelId(model.artifact)
+    : model.runtime === "mlx"
+      ? MLX_MODEL_ID
+      : model.artifact;
 
 const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   runtime: input.model.runtime,
@@ -283,6 +309,9 @@ const toCompletionParams = (input: RunPromptInput): CompletionParams => ({
   ...(input.topK === undefined ? {} : { topK: input.topK }),
   ...(input.minP === undefined ? {} : { minP: input.minP }),
   ...(input.presencePenalty === undefined ? {} : { presencePenalty: input.presencePenalty }),
+  ...(input.presenceContextSize === undefined
+    ? {}
+    : { presenceContextSize: input.presenceContextSize }),
   ...(input.chatTemplateKwargs === undefined
     ? {}
     : { chatTemplateKwargs: input.chatTemplateKwargs }),
