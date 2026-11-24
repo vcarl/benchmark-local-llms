@@ -105,6 +105,10 @@ describe("model groups of configs.yaml", () => {
         "hunyuan-a13b-instruct": [
           "mlx-community/Hunyuan-A13B-Instruct-4bit",
         ],
+        "inkling-2-mini": [
+          "ggml-org/Inkling-2-Mini-GGUF",
+          "mlx-community/Inkling-2-Mini-4bit",
+        ],
         "kimi-linear-48b-a3b-instruct": [
           "mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit",
         ],
@@ -113,6 +117,26 @@ describe("model groups of configs.yaml", () => {
         ],
         "laguna-s-2.1": [
           "mlx-community/Laguna-S-2.1-oQ4e",
+        ],
+        "lfm2.5-1.2b-instruct": [
+          "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
+          "LiquidAI/LFM2.5-1.2B-Instruct-MLX-4bit",
+        ],
+        "lfm2.5-1.2b-instruct-bf16": [
+          "LiquidAI/LFM2.5-1.2B-Instruct-MLX-bf16",
+        ],
+        "lfm2.5-1.2b-thinking": [
+          "LiquidAI/LFM2.5-1.2B-Thinking-GGUF",
+          "LiquidAI/LFM2.5-1.2B-Thinking-MLX-4bit",
+        ],
+        "lfm2.5-1.2b-thinking-bf16": [
+          "LiquidAI/LFM2.5-1.2B-Thinking-MLX-bf16",
+        ],
+        "lfm2.5-24b-a2b": [
+          "LiquidAI/LFM2.5-24B-A2B-MLX-4bit",
+        ],
+        "lfm3-1.7b": [
+          "LiquidAI/LFM3-1.7B-GGUF",
         ],
         "ling-3.0-flash": [
           "inclusionAI/Ling-3.0-flash-GGUF",
@@ -240,6 +264,12 @@ describe("model groups of configs.yaml", () => {
         ],
         "seed-oss-36b-instruct": [
           "lmstudio-community/Seed-OSS-36B-Instruct-MLX-4bit",
+        ],
+        "spark-x2.6-1.7b": [
+          "XHToken/Spark-X2.6-1.7B-GGUF",
+        ],
+        "ternary-bonsai-2.5-27b": [
+          "prism-ml/Ternary-Bonsai-2.5-27B-GGUF",
         ],
       }
     `);
