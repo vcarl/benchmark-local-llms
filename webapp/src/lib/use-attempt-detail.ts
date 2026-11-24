@@ -1,4 +1,20 @@
 import { useEffect, useState } from "react";
+import { detailUrl, promptsUrl } from "./snapshots";
+
+/** Per-item timing as `src/legacy/write-details.ts` emits it (archive field names in ARCHIVE-FORMAT.md). */
+export interface ItemTimingDetail {
+  wall_sec: number;
+  prompt_tokens: number;
+  generation_tokens: number;
+  ttft_ms?: number;
+  prefill_ms?: number;
+  decode_ms?: number;
+  source?: "server" | "client";
+  prefill_tokens?: number;
+  cached_prompt_tokens?: number;
+  draft_tokens?: number;
+  draft_accepted_tokens?: number;
+}
 
 export interface AttemptDetailItem {
   item_id: string;
@@ -22,6 +38,9 @@ export interface AttemptDetailItem {
   // Per-check constraint breakdown (constraint scorer only). Absent on archives
   // written before breakdown existed → drilldown renders no ✓/✗ marks.
   breakdown?: { passed: string[]; failed: string[]; errored: string[] } | null;
+  // Cost of the shown sample. Absent in detail files built before the field;
+  // its optional keys are absent on lines recorded before timing capture.
+  timing?: ItemTimingDetail;
 }
 
 export interface AttemptDetail {
@@ -32,6 +51,10 @@ export interface AttemptDetail {
   challenge_id: string;
   challenge_version: number;
   system_prompt_text: string;
+  // Digest of the prompt pack (`snapshots/prompts/<digest>.json`, `{ item_id: text }`)
+  // holding the items' prompt text. Absent in details built before packs, whose
+  // items carry `prompt_text` inline.
+  prompts?: string;
   items: AttemptDetailItem[];
 }
 
@@ -48,7 +71,7 @@ type FetchResult =
   | { kind: "error"; message: string };
 
 /**
- * Classify a `details/<id>.json` response. A missing detail (404, or — under
+ * Classify a `snapshots/details/<id>.json` response. A missing detail (404, or — under
  * GitHub Pages' SPA fallback — a 200 serving index.html) and any body that
  * isn't valid JSON degrade to "not-found" rather than throwing: drilldown is
  * legitimately unavailable for v1 / non-reconstructible attempts. Only genuine
@@ -73,6 +96,24 @@ export const classifyDetailResponse = async (res: Response): Promise<FetchResult
 
 // In-memory cache so re-expanding an attempt doesn't re-fetch.
 const cache = new Map<string, AttemptDetail>();
+// One fetch per prompt pack: every config's detail for a challenge shares it.
+const packs = new Map<string, Promise<Record<string, string>>>();
+
+/** Fill each item's `prompt_text` from the detail's prompt pack, when it names one. */
+export const withPrompts = async (detail: AttemptDetail): Promise<AttemptDetail> => {
+  const digest = detail.prompts;
+  if (digest === undefined) return detail;
+  let pack = packs.get(digest);
+  if (pack === undefined) {
+    pack = fetch(promptsUrl(digest)).then((res) =>
+      res.ok ? (res.json() as Promise<Record<string, string>>) : Promise.reject(new Error(`prompts ${digest}: HTTP ${res.status}`)),
+    );
+    packs.set(digest, pack);
+    pack.catch(() => packs.delete(digest));
+  }
+  const texts = await pack;
+  return { ...detail, items: detail.items.map((i) => ({ ...i, prompt_text: texts[i.item_id] ?? "" })) };
+};
 
 export const useAttemptDetail = (attemptId: string | undefined): DetailState => {
   const [state, setState] = useState<DetailState>({ status: "idle" });
@@ -90,12 +131,12 @@ export const useAttemptDetail = (attemptId: string | undefined): DetailState => 
     let cancelled = false;
     setState({ status: "loading" });
 
-    // Document-relative (not root-absolute) so it honors the deploy base path —
-    // e.g. /benchmark-local-llms/details/... on GitHub Pages — matching how
-    // index.html loads ./data.js. A root-absolute /details/ would resolve to
-    // the domain root and 404 under GitHub Pages' project subpath.
-    fetch(`./details/${attemptId}.json`)
+    // Document-relative (see ./snapshots.ts) so it honors the deploy base path.
+    fetch(detailUrl(attemptId))
       .then(classifyDetailResponse)
+      .then(async (r): Promise<FetchResult> =>
+        r.kind === "loaded" ? { kind: "loaded", detail: await withPrompts(r.detail) } : r,
+      )
       .then((r) => {
         if (cancelled) return;
         if (r.kind === "loaded") {

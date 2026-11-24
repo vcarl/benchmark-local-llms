@@ -1,4 +1,4 @@
-// The list's whole state — scope, row filters, view, open column, selection —
+// The list's whole state — scope, row filters, view, pane layout, selection —
 // and its URL form. A default is omitted from the URL; a preset is a full
 // setting of the controls, and the active preset is derived, never stored.
 import { modelFamily } from "./artifact";
@@ -25,7 +25,8 @@ export interface ViewState {
   filters: Filters;
   group: GroupBy;
   sort: SortKey;
-  open: boolean;
+  /** Pane layout: a @vcarl/sashay layout code; none = the default layout. */
+  layout?: string;
   /** Drilldown: the open row and attempt. */
   row?: string;
   attempt?: string;
@@ -45,7 +46,6 @@ export const defaultView = (set: string): ViewState => ({
   filters: { runtime: [], quant: [], family: [], hw: [], sub: [], complete: false, mem: null },
   group: "model",
   sort: "score",
-  open: false,
 });
 
 const csv = (v: unknown): string[] => (v === undefined || v === "" ? [] : String(v).split(","));
@@ -61,6 +61,7 @@ export const parseView = (s: Record<string, unknown>, defaultSet: string): ViewS
   const attempt = str(s.attempt);
   const sel = str(s.sel);
   const vp = parseViewport(s.vp);
+  const layout = str(s.p);
   return {
     set: str(s.set) ?? d.set,
     scope: { items: ITEM_SCOPES.includes(items) ? items : "all", challenges: csv(s.ch) },
@@ -75,11 +76,11 @@ export const parseView = (s: Record<string, unknown>, defaultSet: string): ViewS
     },
     group: str(s.group) === "none" ? "none" : "model",
     sort: SORTS.includes(sort) ? sort : "score",
-    open: str(s.filters) === "open",
     ...(row === undefined ? {} : { row }),
     ...(attempt === undefined ? {} : { attempt }),
     ...(sel === undefined ? {} : { sel }),
     ...(vp === undefined ? {} : { vp }),
+    ...(layout === undefined ? {} : { layout }),
   };
 };
 
@@ -97,33 +98,32 @@ export const toSearch = (v: ViewState, defaultSet: string): Record<string, strin
   put("mem", v.filters.mem === null ? undefined : String(v.filters.mem));
   put("group", v.group === "model" ? undefined : v.group);
   put("sort", v.sort === "score" ? undefined : v.sort);
-  put("filters", v.open ? "open" : undefined);
   put("row", v.row);
   put("attempt", v.attempt);
   put("sel", v.sel);
   put("vp", v.vp === undefined ? undefined : formatViewport(v.vp));
+  put("p", v.layout);
   return out;
 };
 
 // ─── Presets ────────────────────────────────────────────────────────────────
 
+/** `altSet`: the label of the dataset the `alt` preset switches to, when the index has one. */
 export interface Preset {
   id: string;
   name: string;
-  view: (defaultSet: string) => ViewState;
+  view: (defaultSet: string, altSet?: string) => ViewState;
 }
 
-const preset = (id: string, name: string, edit: (v: ViewState) => void): Preset => ({
+const preset = (id: string, name: string, edit: (v: ViewState, altSet?: string) => void): Preset => ({
   id,
   name,
-  view: (set) => {
+  view: (set, altSet) => {
     const v = defaultView(set);
-    edit(v);
+    edit(v, altSet);
     return v;
   },
 });
-
-export const PILOT_SET = "pilot1";
 
 export const PRESETS: Preset[] = [
   preset("leaderboard", "Leaderboard", () => {}),
@@ -141,25 +141,30 @@ export const PRESETS: Preset[] = [
   preset("efficient", "Efficient", (v) => {
     v.sort = "efficiency";
   }),
-  preset("pilot", "Pilot set", (v) => {
-    v.set = PILOT_SET;
+  // Named after its dataset by the chip (`setChipName`).
+  preset("alt", "Other set", (v, altSet) => {
+    v.set = altSet ?? v.set;
   }),
 ];
 
-/** Settings only: the column's open state, the selection and the zoom are not part of a preset. */
+/** The presets on offer: `alt` only when another release's dataset exists. */
+export const presetsFor = (altSet: string | undefined): Preset[] =>
+  PRESETS.filter((p) => p.id !== "alt" || altSet !== undefined);
+
+/** Settings only: the pane layout, the selection and the zoom are not part of a preset. */
 const settings = (v: ViewState, defaultSet: string) => {
-  const { filters: _open, row: _row, attempt: _attempt, sel: _sel, vp: _vp, ...rest } = toSearch(v, defaultSet);
+  const { p: _p, row: _row, attempt: _attempt, sel: _sel, vp: _vp, ...rest } = toSearch(v, defaultSet);
   return JSON.stringify(Object.entries(rest).sort());
 };
 
-/** The preset's settings; the column, selection, drilldown and zoom stay as they are. */
-export const applyPreset = (p: Preset, v: ViewState, defaultSet: string): ViewState => {
-  const { open, row, attempt, sel, vp } = v;
-  return { ...p.view(defaultSet), open, row, attempt, sel, vp };
+/** The preset's settings; the layout, selection, drilldown and zoom stay as they are. */
+export const applyPreset = (p: Preset, v: ViewState, defaultSet: string, altSet?: string): ViewState => {
+  const { layout, row, attempt, sel, vp } = v;
+  return { ...p.view(defaultSet, altSet), layout, row, attempt, sel, vp };
 };
 
-export const activePreset = (v: ViewState, defaultSet: string): Preset | undefined =>
-  PRESETS.find((p) => settings(p.view(defaultSet), defaultSet) === settings(v, defaultSet));
+export const activePreset = (v: ViewState, defaultSet: string, altSet?: string): Preset | undefined =>
+  presetsFor(altSet).find((p) => settings(p.view(defaultSet, altSet), defaultSet) === settings(v, defaultSet));
 
 // ─── Filters and facet counts ──────────────────────────────────────────────
 

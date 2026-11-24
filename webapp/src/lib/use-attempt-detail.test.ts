@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { classifyDetailResponse } from "./use-attempt-detail";
+import { describe, expect, it, vi } from "vitest";
+import { type AttemptDetail, classifyDetailResponse, withPrompts } from "./use-attempt-detail";
 
 const jsonHeaders = { "content-type": "application/json" };
 const htmlHeaders = { "content-type": "text/html" };
@@ -30,5 +30,31 @@ describe("classifyDetailResponse", () => {
   it("surfaces a non-404 HTTP failure as error", async () => {
     const res = new Response("boom", { status: 500 });
     expect(await classifyDetailResponse(res)).toEqual({ kind: "error", message: "HTTP 500" });
+  });
+});
+
+describe("withPrompts", () => {
+  const item = (item_id: string, prompt_text?: string) =>
+    ({ item_id, prompt_name: item_id, output: "", ...(prompt_text === undefined ? {} : { prompt_text }) }) as AttemptDetail["items"][number];
+  const detail = (over: Partial<AttemptDetail>) =>
+    ({ attempt_id: "a", items: [item("x"), item("y")], ...over }) as AttemptDetail;
+
+  it("leaves a detail with inline prompt text alone", async () => {
+    const d = detail({ items: [item("x", "inline")] });
+    expect(await withPrompts(d)).toBe(d);
+  });
+
+  it("fills prompt text from the named pack, fetching each pack once", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ x: "px", y: "py" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const a = await withPrompts(detail({ prompts: "d1" }));
+      await withPrompts(detail({ prompts: "d1" }));
+      expect(a.items.map((i) => i.prompt_text)).toEqual(["px", "py"]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith("./snapshots/prompts/d1.json");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

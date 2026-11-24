@@ -25,6 +25,7 @@ export const FAILURE_AXES = [
   "no_answer",
   "length_cutoff",
   "execution_error",
+  "context_exceeded",
   "scorer_error",
   "near_miss",
 ] as const;

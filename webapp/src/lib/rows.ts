@@ -1,6 +1,6 @@
-// The report's selected rows (`globalThis.__BENCHMARK_ROWS`, src/report/rows.ts),
-// one dataset per entry, the main dataset first. The webapp reads only this:
-// it sums cells and displays, and never chooses evidence.
+// A dataset snapshot (`snapshots/<digest>.json`, fetched by ./snapshots.ts): the
+// report's selected rows. The webapp reads only this: it sums cells and
+// displays, and never chooses evidence.
 
 export type Counts = Record<string, [number, number]>;
 export type CellStatus = "scored" | "stale_hash" | "interrupted" | "not_run";
@@ -77,6 +77,8 @@ export interface Erratum {
   items: string[];
   description: string;
   scorerChange: boolean;
+  /** Recorded lines whose score the erratum changed (a retirement: dropped), and their configs. */
+  scoresChanged: { lines: number; configs: number };
   releaseStatus: "none" | "next-release" | "released";
   releasedIn?: string;
 }
@@ -84,26 +86,32 @@ export interface Erratum {
 export interface RowsDataset {
   dataset: {
     label: string;
+    /** Display name: `Alpha challenge set`, `Release <version>`, `Pre-release (draft)`, or the label. */
+    title: string;
     archiveDir: string;
     challengesDir: string;
-    /** Baseline release: `0` (pre-release) or `YYYY.M`. */
+    /** Release: `0` (alpha challenge set), `draft` (pre-release) or `YYYY.N`. */
     release: string | null;
-    /** Eval version `<release>.<n>`: the baseline plus its errata 1..n. */
+    /** Eval version `<release>.<n>`: the release plus its errata 1..n. */
     version: string | null;
     errata: Erratum[];
-    generatedAt: string;
+    ranked: boolean;
+    legacy: boolean;
   };
+  /** The release file (release.json) without its items. */
+  releaseFile: {
+    release: string;
+    label?: string;
+    date?: string;
+    closed?: string;
+    commitment?: string;
+    committedAt?: string;
+  };
+  schemaVersion: number;
   challengeSet: { id: string; version: number; hash: string; items: number; scopes: Record<string, number> }[];
   hardware: Record<string, HardwareProfile>;
   rows: Row[];
 }
-
-declare global {
-  // biome-ignore lint/style/noVar: augmenting globalThis requires `var`
-  var __BENCHMARK_ROWS: unknown;
-}
-
-export const DATASETS = (globalThis.__BENCHMARK_ROWS ?? []) as unknown as RowsDataset[];
 
 /** `Apple M5 Max 128GB`; the id itself when the profile is unknown. */
 export const hardwareLabel = (ds: RowsDataset, id: string): string => {

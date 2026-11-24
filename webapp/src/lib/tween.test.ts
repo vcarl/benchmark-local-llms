@@ -4,7 +4,7 @@ import { easeOutCubic, identityKeys, lerpFrame, type Frame } from "./tween";
 
 const pt = (o: Partial<ScatterPoint>): ScatterPoint => ({
   id: "h", model: "m", artifact: "org/Model-7B-4bit", family: "Qwen", runtime: "omlx", quant: "4bit",
-  temperature: 0, x: 1000, y: 0.5, ySE: null, peak_memory_gb: 4,
+  temperature: 0, x: 1000, y: 0.5, yCI: null, peak_memory_gb: 4,
   generation_tps: 50, wall_time_sec: 60, ...o,
 });
 

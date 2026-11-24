@@ -13,6 +13,7 @@ import {
   inScope,
   parseView,
   PRESETS,
+  presetsFor,
   toSearch,
   type ViewState,
 } from "./view-state";
@@ -20,49 +21,53 @@ import {
 describe("URL state", () => {
   it("round-trips every field, omitting defaults", () => {
     const v: ViewState = {
-      set: "pilot1",
+      set: "draft",
       scope: { items: "core", challenges: ["math", "logic"] },
       filters: { runtime: ["mlx", "omlx"], quant: ["—"], family: ["Qwen"], hw: ["abc"], sub: ["local"], complete: true, mem: 32 },
       group: "none",
       sort: "speed",
-      open: true,
       row: "cfg@hw",
       attempt: "att-1",
       sel: "cfg@hw",
       vp: { x0: 12000, x1: 450000, y0: 0.55, y1: 0.95 },
+      layout: "8c4",
     };
-    expect(parseView(toSearch(v, "main"), "main")).toEqual(v);
-    expect(toSearch(defaultView("main"), "main")).toEqual({});
-    expect(parseView({}, "main")).toEqual(defaultView("main"));
+    expect(parseView(toSearch(v, "alpha"), "alpha")).toEqual(v);
+    expect(toSearch(defaultView("alpha"), "alpha")).toEqual({});
+    expect(parseView({}, "alpha")).toEqual(defaultView("alpha"));
+    expect(toSearch({ ...defaultView("alpha"), layout: "6c1" }, "alpha")).toEqual({ p: "6c1" });
   });
 
   it("coerces the router's JSON-parsed values and rejects unknown ones", () => {
-    const v = parseView({ mem: 32, complete: 1, sort: "bogus", items: "x" }, "main");
+    const v = parseView({ mem: 32, complete: 1, sort: "bogus", items: "x" }, "alpha");
     expect(v.filters).toMatchObject({ mem: 32, complete: true });
     expect(v.sort).toBe("score");
     expect(v.scope.items).toBe("all");
-    expect(parseView({ vp: "5,1,0,1" }, "main").vp).toBeUndefined();
-    expect(parseView({ sort: "efficiency" }, "main").sort).toBe("efficiency");
+    expect(parseView({ vp: "5,1,0,1" }, "alpha").vp).toBeUndefined();
+    expect(parseView({ sort: "efficiency" }, "alpha").sort).toBe("efficiency");
   });
 });
 
 describe("presets", () => {
-  it("the active preset is the one whose settings equal the state; open/selection ignored", () => {
-    expect(activePreset(defaultView("main"), "main")?.name).toBe("Leaderboard");
-    const fits = PRESETS.find((p) => p.id === "fits32")!.view("main");
-    expect(activePreset({ ...fits, open: true, row: "r" }, "main")?.id).toBe("fits32");
-    expect(activePreset({ ...fits, sort: "recent" }, "main")).toBeUndefined();
-    expect(activePreset(PRESETS.find((p) => p.id === "pilot")!.view("main"), "main")?.id).toBe("pilot");
+  it("the active preset is the one whose settings equal the state; layout/selection ignored", () => {
+    expect(activePreset(defaultView("alpha"), "alpha")?.name).toBe("Leaderboard");
+    const fits = PRESETS.find((p) => p.id === "fits32")!.view("alpha");
+    expect(activePreset({ ...fits, layout: "6c1", row: "r" }, "alpha")?.id).toBe("fits32");
+    expect(activePreset({ ...fits, sort: "recent" }, "alpha")).toBeUndefined();
+    const alt = PRESETS.find((p) => p.id === "alt")!;
+    expect(alt.view("draft", "alpha").set).toBe("alpha");
+    expect(activePreset(alt.view("draft", "alpha"), "draft", "alpha")?.id).toBe("alt");
+    expect(presetsFor(undefined).some((p) => p.id === "alt")).toBe(false);
     const vp = { x0: 1, x1: 10, y0: 0, y1: 1 };
-    expect(activePreset({ ...defaultView("main"), sel: "r", vp }, "main")?.id).toBe("leaderboard");
+    expect(activePreset({ ...defaultView("alpha"), sel: "r", vp }, "alpha")?.id).toBe("leaderboard");
   });
 
-  it("choosing a preset replaces the settings and keeps the column, selection and zoom", () => {
+  it("choosing a preset replaces the settings and keeps the layout, selection and zoom", () => {
     const vp = { x0: 1, x1: 10, y0: 0, y1: 1 };
-    const cur: ViewState = { ...defaultView("main"), sort: "recent", open: true, row: "r", attempt: "a", sel: "r", vp };
+    const cur: ViewState = { ...defaultView("alpha"), sort: "recent", layout: "6c1", row: "r", attempt: "a", sel: "r", vp };
     const eff = PRESETS.find((p) => p.id === "efficient")!;
-    expect(applyPreset(eff, cur, "main")).toEqual({ ...eff.view("main"), open: true, row: "r", attempt: "a", sel: "r", vp });
-    expect(eff.view("main").sort).toBe("efficiency");
+    expect(applyPreset(eff, cur, "alpha")).toEqual({ ...eff.view("alpha"), layout: "6c1", row: "r", attempt: "a", sel: "r", vp });
+    expect(eff.view("alpha").sort).toBe("efficiency");
   });
 });
 
@@ -84,7 +89,7 @@ describe("filters and facet counts", () => {
   const rows = [row("a", "mlx", "4bit", 20), row("b", "mlx", "8bit", 40), row("c", "llamacpp", "4bit", 20)].map(
     (r) => scopeRow(r, { items: "all", challenges: [] }),
   );
-  const f = { ...defaultView("main").filters, quant: ["4bit"] };
+  const f = { ...defaultView("alpha").filters, quant: ["4bit"] };
 
   it("counts each value with every other active filter applied, its own facet ignored", () => {
     expect(facetCounts(rows, f, "runtime")).toEqual(new Map([["llamacpp", 1], ["mlx", 1]]));
@@ -93,7 +98,7 @@ describe("filters and facet counts", () => {
 
   it("filters hide rows by facet, completeness and memory cap", () => {
     expect(applyFilters(rows, f).map((r) => r.row.rowId)).toEqual(["a", "c"]);
-    expect(applyFilters(rows, { ...defaultView("main").filters, mem: 32 }).map((r) => r.row.rowId)).toEqual(["a", "c"]);
+    expect(applyFilters(rows, { ...defaultView("alpha").filters, mem: 32 }).map((r) => r.row.rowId)).toEqual(["a", "c"]);
   });
 });
 
@@ -106,7 +111,7 @@ describe("funnel", () => {
 
   it("set rows → rows with a scored cell in scope → rows passing the filters → their distinct models", () => {
     const sameModel = core.map((r) => ({ ...r, row: { ...r.row, modelKey: "m" } }));
-    const f = { ...defaultView("main").filters, runtime: ["mlx"] };
+    const f = { ...defaultView("alpha").filters, runtime: ["mlx"] };
     expect(core.filter(inScope).map((r) => r.row.rowId)).toEqual(["a", "c"]);
     const shown = applyFilters(core.filter(inScope), f);
     expect(funnel(5, core, shown)).toEqual({ total: 5, inScope: 2, match: 1, models: 1 });

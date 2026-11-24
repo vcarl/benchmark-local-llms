@@ -4,22 +4,17 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "node:path";
 import fs from "node:fs";
 
-// Serves webapp/src/data/data.js at /data.js and webapp/src/data/events/*.json
-// at /events/*.json in dev; copies both to dist/ at build time. `./bench
-// report --output webapp/src/data` writes both. The build fails loudly if
-// data.js is missing so a stale deploy is impossible.
+// Serves webapp/src/data/events/*.json at /events/*.json in dev and copies them
+// to dist/ at build time. webapp/public/snapshots/ (written by `./bench report`)
+// is plain static content; the build fails loudly if its index is missing so a
+// stale or empty deploy is impossible.
 function dataJsPlugin(): Plugin {
   const srcDir = path.resolve(__dirname, "src/data");
-  const srcDataJs = path.join(srcDir, "data.js");
+  const snapshotIndex = path.resolve(__dirname, "public/snapshots/index.json");
   const srcEventsDir = path.join(srcDir, "events");
   return {
-    name: "data-js",
+    name: "events-and-snapshots",
     configureServer(server) {
-      server.middlewares.use("/data.js", (_req, res, next) => {
-        if (!fs.existsSync(srcDataJs)) return next();
-        res.setHeader("Content-Type", "application/javascript");
-        fs.createReadStream(srcDataJs).pipe(res);
-      });
       server.middlewares.use("/events", (req, res, next) => {
         // Strip leading /events from req.url; default to "/" so we 404 on bare prefix.
         const rel = (req.url ?? "/").replace(/^\/+/, "");
@@ -30,14 +25,13 @@ function dataJsPlugin(): Plugin {
         fs.createReadStream(filePath).pipe(res);
       });
     },
-    writeBundle(options) {
-      if (!fs.existsSync(srcDataJs)) {
-        throw new Error(
-          "data.js missing — run './bench report --output webapp/src/data' before building",
-        );
+    buildStart() {
+      if (!fs.existsSync(snapshotIndex)) {
+        throw new Error("snapshots/index.json missing — run './bench report' before building");
       }
+    },
+    writeBundle(options) {
       const outDir = options.dir ?? "dist";
-      fs.copyFileSync(srcDataJs, path.resolve(outDir, "data.js"));
       if (fs.existsSync(srcEventsDir)) {
         fs.cpSync(srcEventsDir, path.resolve(outDir, "events"), { recursive: true });
       }
