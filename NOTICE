@@ -1,0 +1,32 @@
+llms benchmark harness
+Copyright (C) 2026 Carl Vitullo
+
+Licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only);
+see LICENSE.
+
+Third-party material included in this repository keeps its own license:
+
+- src/export/eee/schemas/*.schema.json
+  Every Eval Ever schemas, https://github.com/evaleval/every_eval_ever
+  License: MIT. Copyright the Every Eval Ever contributors.
+
+- templates/mistral-v7-tekken.jinja
+  Chat template for Mistral AI models. Upstream source and license to be
+  confirmed (see docs/SUBMISSION-READINESS.md, Licensing).
+
+- scripts/author/next/toolcall-vendored.json (and the tool catalogs it
+  contributes to releases/draft/challenges/toolcall.yaml)
+  Function schemas (name, description, parameters) from the Gorilla project's
+  Berkeley Function Calling Leaderboard, https://github.com/ShishirPatil/gorilla,
+  commit 6ea57973c7a6097fd7c5915698c54c17c5b1b6c8, files
+  berkeley-function-call-leaderboard/bfcl_eval/data/BFCL_v4_live_multiple.json,
+  BFCL_v4_live_simple.json and BFCL_v4_live_irrelevance.json.
+  License: Apache-2.0. Copyright the Gorilla project authors.
+  Each entry records its source row id and the changes made to it (conversion
+  to a JSON Schema subset, type/default/enum defect fixes). Only schemas are
+  used: no BFCL question or answer key is reused; requests, answer keys and
+  scoring are our own.
+  The 20 entries with Schema-Guided-Dialogue-style names (e.g.
+  Weather_1_GetWeather) may derive from Google's Schema-Guided Dialogue
+  dataset, which secondary sources list as CC BY-SA 4.0; that upstream license
+  and whether it carries through BFCL's Apache-2.0 release are unverified.
