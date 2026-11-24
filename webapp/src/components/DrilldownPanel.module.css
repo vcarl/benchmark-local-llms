@@ -108,3 +108,6 @@
   user-select: none;
 }
 .thinkingEmpty { color: var(--text-faint); font-size: var(--fz-11); font-style: italic; margin: var(--space-2) 0; }
+
+/* A cell whose scores an erratum changed since <release>.0. */
+.erratumMark { color: var(--warn-orange); cursor: help; }

@@ -96,10 +96,8 @@
     --r-10: 10px;
 
     /* Z-index scale */
-    --z-raised: 2;
     --z-overlay: 10;
     --z-tooltip: 40;
-    --z-modal: 51;
 
     /* Focus ring */
     --focus-ring: 2px solid var(--accent-300);

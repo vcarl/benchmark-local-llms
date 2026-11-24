@@ -1,6 +1,7 @@
 {
   "name": "benchmark-report",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -9,6 +10,7 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@tanstack/react-router": "^1",
+    "@vcarl/sashay": "1.2.0",
     "react": "^19",
     "react-dom": "^19"
   },

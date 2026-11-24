@@ -5,7 +5,6 @@ import { computeTpsDomain } from "../lib/encoding";
 import { familyColor } from "../lib/colors";
 import { formatWallTime } from "../lib/format";
 import { glyphDrawParams, starPath } from "./ScatterGlyph";
-import { Z95 } from "../lib/stats";
 import { fitXDomain, fitYDomain, paretoFrontier, placeLabels, pointLabels, type AxisDomain } from "../lib/scatter-layout";
 import { type Action, type GestureEvent, type GestureState, IDLE, type Rect, step } from "../lib/gesture";
 import { type Frame, useTweenedFrame } from "../lib/tween";
@@ -410,16 +409,16 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
             );
           })}
 
-          {/* ±1.96·SE pass-rate whisker for the hovered config only (from the
+          {/* 95% CI pass-rate whisker for the hovered config only (from the
               plot or a ranking row): always-on whiskers span most of a zoomed
               y-axis and bury the plot. Clamped to the plotted range. */}
           {(() => {
             const d = shown.points.find((p) => p.id === hovered);
-            if (d === undefined || d.ySE === null || d.ySE === 0) return null;
+            if (d === undefined || d.yCI === null || d.yCI === 0) return null;
             const clampY = (v: number) => Math.max(yDomain.min, Math.min(yDomain.max, v));
             const x = xScale(d.x);
-            const y1 = yScale(clampY(d.y - Z95 * d.ySE));
-            const y2 = yScale(clampY(d.y + Z95 * d.ySE));
+            const y1 = yScale(clampY(d.y - d.yCI));
+            const y2 = yScale(clampY(d.y + d.yCI));
             return (
               <path
                 className={styles.scatterWhisker}
@@ -561,7 +560,7 @@ export function Scatter({ points, hovered, onHover, selected, onTap, viewport, o
           </div>
           <div>
             Pass: <strong>{(tip.dot.y * 100).toFixed(0)}%</strong>
-            {tip.dot.ySE !== null && <> ± {(Z95 * tip.dot.ySE * 100).toFixed(0)}</>} · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong> · Mem: <strong>{tip.dot.peak_memory_gb.toFixed(1)} GB</strong>
+            {tip.dot.yCI !== null && <> ± {(tip.dot.yCI * 100).toFixed(0)}</>} · Tokens: <strong>{Math.round(tip.dot.x).toLocaleString()}</strong> · Mem: <strong>{tip.dot.peak_memory_gb.toFixed(1)} GB</strong>
           </div>
         </div>
       )}

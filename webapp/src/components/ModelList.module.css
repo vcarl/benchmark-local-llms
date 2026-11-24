@@ -69,11 +69,12 @@
 
 .score { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
 .pct { font-size: var(--fz-15); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--band, var(--text-primary)); }
-/* Incomplete: the running score, muted — it is not what the row is ranked by. */
+/* Incomplete: the partial pass rate, muted — it is not what the row is ranked by. */
 .partial { color: var(--text-muted); font-weight: 500; }
 .done { font-size: var(--fz-10); color: var(--text-faint); font-variant-numeric: tabular-nums; }
 .stat { text-align: right; font-size: var(--fz-12); color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .head .stat, .head .score, .head .rank { color: var(--text-faint); font-size: var(--fz-10); }
+.head .score { white-space: nowrap; }
 
 /* "+N" opens a model's other rows; sits under the rank number. */
 .more {

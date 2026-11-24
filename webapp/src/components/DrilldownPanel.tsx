@@ -1,13 +1,13 @@
 import { useState } from "react";
 import styles from "./DrilldownPanel.module.css";
 import { formatDiff, variantLine } from "./ModelList";
+import { changedCellTitle } from "../lib/errata";
 import { RunSpread } from "./RunSpread";
 import { scoreBand } from "../lib/constants";
 import { describeScorer } from "../lib/describe-scorer";
-import { formatCount, formatWallTime } from "../lib/format";
+import { formatCount, formatItemTiming, formatWallTime } from "../lib/format";
 import type { Scope, ScopedRow, Tier } from "../lib/model";
 import type { Cell, CellStatus, RowsDataset } from "../lib/rows";
-import { Z95 } from "../lib/stats";
 import { useAttemptDetail } from "../lib/use-attempt-detail";
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
   scope: Scope;
   /** The row's list position when it leads an entry; its tier under the score sort. */
   rank: { position: number; tier: Tier | undefined } | undefined;
+  /** Cells an erratum changed since `<release>.0` (lib/errata changedCells). */
+  changed: Map<string, string[]>;
   attemptId: string | undefined;
   onSelectAttempt: (id: string | undefined) => void;
 }
@@ -47,7 +49,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 const counts = (c: Cell, scope: Scope): [number, number] =>
   scope.items === "all" ? [c.items, c.passed] : (c.scopes[scope.items] ?? [0, 0]);
 
-export function DrilldownPanel({ r, runs, dataset, scope, rank, attemptId, onSelectAttempt }: Props) {
+export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attemptId, onSelectAttempt }: Props) {
   const t = rank?.tier;
   const { row } = r;
   // A shared URL with an attempt opens that attempt's challenge.
@@ -93,17 +95,17 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, attemptId, onSel
 
         <div className={styles.debugGroup}>
           <Stat
-            label="Score"
+            label="Pass rate"
             value={
               <span style={{ color: "var(--band)" }} data-band={scoreBand(r.score)}>
                 {pct(r.score)}
-                {r.se !== null && ` ± ${(Z95 * r.se * 100).toFixed(1)}`}
+                {r.ci !== null && ` ± ${(r.ci * 100).toFixed(1)}`}
               </span>
             }
           />
           {!r.complete && (
             <Stat
-              label="Over challenges run"
+              label="Partial pass rate"
               value={`${r.running === null ? "—" : pct(r.running)} · ${r.challenges[0]}/${r.challenges[1]}`}
             />
           )}
@@ -146,7 +148,7 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, attemptId, onSel
                 : `${hw.cpu} · ${hw.cpuCores} cores${hw.gpuCores === undefined ? "" : ` · ${hw.gpuCores} GPU cores`} · ${hw.memoryGb} GB · ${hw.os}`
             }
           />
-          <Stat label="Submitter" value={list(p.submitters)} />
+          <Stat label="Contributor" value={list(p.submitters)} />
         </div>
 
         <div className={styles.debugGroup}>
@@ -163,15 +165,29 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, attemptId, onSel
         const [n, y] = counts(c, scope);
         const scored = c.status === "scored";
         const open = openCell === id;
+        const errata = changed.get(id);
         return (
           <div key={id}>
             <button
               type="button"
               className={`${styles.challengeRow}${scored ? "" : ` ${styles.challengeRowMissing}`}`}
-              onClick={() => scored && setOpenCell(open ? null : id)}
+              onClick={() => {
+                if (!scored) return;
+                setOpenCell(open ? null : id);
+                // Opening a challenge loads its (first) attempt's items straight away.
+                onSelectAttempt(open ? undefined : c.sourceAttempts[0]);
+              }}
               aria-expanded={scored ? open : undefined}
             >
-              <span className={styles.challengeKey}>{id}</span>
+              <span className={styles.challengeKey}>
+                {id}
+                {errata !== undefined && (
+                  <span className={styles.erratumMark} title={changedCellTitle(errata, dataset.dataset.release ?? "")}>
+                    {" "}
+                    ✱
+                  </span>
+                )}
+              </span>
               <span className={styles.challengeCoverage}>
                 {scored
                   ? `${formatCount(y)}/${n} · ${span(c.executedFrom, c.executedTo)} · ${c.samples?.[1] ?? 1}× · ${list(c.runtimeVersions)}${c.cost === null ? "" : ` · ${formatWallTime(c.cost.wallSec)}`}`
@@ -183,18 +199,19 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, attemptId, onSel
             </button>
             {open && (
               <div className={styles.attempts}>
-                <span className={styles.debugStatLabel}>Executed by</span>
-                {c.sourceAttempts.map((a) => (
-                  <button
-                    type="button"
-                    key={a}
-                    className={styles.attempt}
-                    aria-pressed={a === attemptId}
-                    onClick={() => onSelectAttempt(a === attemptId ? undefined : a)}
-                  >
-                    {a}
-                  </button>
-                ))}
+                {/* Several attempts behind one cell: a switcher; otherwise just the items. */}
+                {c.sourceAttempts.length > 1 &&
+                  c.sourceAttempts.map((a) => (
+                    <button
+                      type="button"
+                      key={a}
+                      className={styles.attempt}
+                      aria-pressed={a === attemptId}
+                      onClick={() => onSelectAttempt(a)}
+                    >
+                      {a}
+                    </button>
+                  ))}
                 {attemptId !== undefined && c.sourceAttempts.includes(attemptId) && (
                   <AttemptItems detail={detail} />
                 )}
@@ -225,6 +242,7 @@ function AttemptItems({ detail }: { detail: ReturnType<typeof useAttemptDetail> 
             </span>
             {it.samples !== undefined && ` · ${it.samples[0]}/${it.samples[1]} samples`}
           </div>
+          {it.timing !== undefined && <div className={styles.itemLabel}>{formatItemTiming(it.timing)}</div>}
           <div className={styles.itemLabel}>Prompt</div>
           <div className={styles.itemText}>{it.prompt_text}</div>
           <div className={styles.itemLabel}>Output</div>

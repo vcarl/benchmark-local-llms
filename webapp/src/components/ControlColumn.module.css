@@ -1,70 +1,36 @@
-/* Filter column. One element in both states: a head button whose title (the
-   row funnel) is the same text collapsed and expanded — collapsed it rotates
-   90° into the 44 px bar, expanded it lies flat above the controls. On a
-   narrow frame the collapsed column is a one-line strip and the expanded one
-   a full-screen sheet; the title never rotates there. */
-.column {
-  position: relative;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-left: 1px solid var(--border-subtle);
-  border-right: 1px solid var(--border-subtle);
-  background: var(--gray-955);
-  font-size: var(--fz-12);
-  color: var(--text-secondary);
-}
-.head {
-  position: relative;
-  flex: 0 0 36px;
-  width: 100%;
-  border: none;
-  border-bottom: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  cursor: pointer;
-}
-.column[data-open="false"] .head { flex: 1 1 auto; border-bottom: none; }
-.head:hover { background: var(--surface-hover); color: var(--text-primary); }
-.icon { position: absolute; top: 9px; left: 14px; font-size: var(--fz-14); line-height: 16px; }
-.title {
-  position: absolute;
-  top: 10px;
-  left: 34px;
-  font-size: var(--fz-11);
-  line-height: 16px;
-  white-space: nowrap;
-  transform-origin: 0 0;
-  transition: transform 0.2s ease-out, top 0.2s ease-out, left 0.2s ease-out;
-}
-/* Rotating 90° about the top-left corner puts the line box left of the
-   origin, so the origin sits half a line right of the bar's centre. */
-.column[data-open="false"] .title { top: 38px; left: calc(50% + 8px); transform: rotate(90deg); }
-.close {
-  position: absolute;
-  top: 7px;
-  right: var(--space-6);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-4);
-  color: var(--text-muted);
-  padding: 0 var(--space-4);
-  line-height: 18px;
-}
-.column[data-open="false"] .close { display: none; }
-.head:hover .close { color: var(--text-primary); }
-.closeNarrow { display: none; }
-
+/* Drawer content (dataset and filter drawers); the drawer edge scrolls it. */
 .body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  padding: var(--space-6) var(--space-8) 0;
+  color: var(--text-secondary);
 }
+.summary { margin: 0; color: var(--text-muted); font-size: var(--fz-11); }
+
+/* Dataset options: one radio per dataset, title over its facts. */
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-6);
+  cursor: pointer;
+}
+.option:hover { border-color: var(--border-strong); }
+.option:has(input:checked) { border-color: var(--accent-300); background: var(--accent-700); }
+.option:has(input:focus-visible) { outline: 2px solid var(--accent-300); outline-offset: 2px; }
+.option input { margin-top: 3px; }
+.optionText { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.optionTitle { color: var(--text-primary); font-size: var(--fz-13); font-weight: 600; }
+.optionMeta { color: var(--text-muted); font-size: var(--fz-11); font-variant-numeric: tabular-nums; }
+.tag { margin-left: var(--space-3); padding: 0 var(--space-2); border: 1px solid var(--border-default); border-radius: var(--r-3); color: var(--text-muted); font-size: var(--fz-10); font-weight: 500; }
+
+/* Releases: a heading (linking to its notes) over its datasets. */
+.release { display: flex; flex-direction: column; gap: var(--space-4); }
+.releaseHeading { color: var(--text-faint); font-size: var(--fz-11); text-transform: uppercase; letter-spacing: 0.04em; text-decoration: none; }
+a.releaseHeading:hover { color: var(--text-primary); text-decoration: underline; }
+.snapshots { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-3) 0 0 var(--space-10); }
 
 /* Presets: a chip row above the list, outside the column. It scrolls
    sideways inside its own strip and never widens the page. */
@@ -129,7 +95,7 @@
   justify-content: space-between;
   padding: var(--space-5) 0;
   border-top: 1px solid var(--border-subtle);
-  background: var(--gray-955);
+  background: var(--surface-2);
   color: var(--text-muted);
 }
 .reset {
@@ -138,32 +104,4 @@
   color: var(--accent-300);
   font: inherit;
   cursor: pointer;
-}
-
-@container shiftFrame (max-width: 899px) {
-  .column[data-open="false"] {
-    height: 40px;
-    border: none;
-    border-top: 1px solid var(--border-subtle);
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .column[data-open="false"] .title,
-  .title { top: 12px; left: 36px; right: var(--space-6); transform: none; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-  .column[data-open="true"] .title { right: 72px; top: 14px; }
-  .column[data-open="true"] {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-modal);
-    height: auto;
-    border: none;
-  }
-  .column[data-open="true"] .head { flex-basis: 44px; }
-  .column[data-open="true"] .icon { top: 14px; }
-  .closeWide { display: none; }
-  .closeNarrow { display: inline; }
-  .close { top: 9px; padding: var(--space-2) var(--space-8); color: var(--text-primary); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .title { transition: none; }
 }
