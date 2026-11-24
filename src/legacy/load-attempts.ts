@@ -1,3 +1,4 @@
+// src/legacy/ is the only code that reads schemaVersion 1-3 attempt archives.
 import { FileSystem, Path } from "@effect/platform";
 import { Effect, Schema } from "effect";
 import { FileIOError } from "../errors/index.js";
@@ -25,8 +26,11 @@ export const currentItems = (
 const decodeManifest = Schema.decodeUnknown(AttemptManifest);
 const decodeItem = Schema.decodeUnknown(ItemResult);
 
-/** Parse one attempt `.jsonl`: line 1 = manifest, lines 2.. = item results. */
-const parseAttempt = (path: string, source: string) =>
+/** Parse one attempt `.jsonl` source: line 1 = manifest, lines 2.. = item results. */
+export const parseAttempt = (
+  path: string,
+  source: string,
+): Effect.Effect<LoadedAttempt, AttemptLoadIssue> =>
   Effect.gen(function* () {
     const lines = source.split("\n").filter((l) => l.trim().length > 0);
     if (lines.length === 0) return yield* Effect.fail(`empty file`);

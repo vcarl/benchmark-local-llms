@@ -1,10 +1,12 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import { Effect, Exit } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { scorerHash, writeBlob } from "../archive/content-store.js";
+import { stableStringify } from "../config/hashing.js";
+import { pinnedToDisk, putBlob } from "./__tests__/blobs.js";
+import { computeConfigHash, computePromptHash, scorerHash } from "./identity.js";
 import { loadAttemptReconstruction } from "./reconstruct.js";
 
 const run = <A, E>(eff: Effect.Effect<A, E, NodeContext.NodeContext>) =>
@@ -12,6 +14,11 @@ const run = <A, E>(eff: Effect.Effect<A, E, NodeContext.NodeContext>) =>
 
 // Minimal v2 attempt jsonl (header + one item) written by hand into `dir`.
 const SCORER = { type: "exact_match", expected: "4", extract: "(\\d+)" };
+const PH = computePromptHash("What is 2+2?", "");
+const CFG = computeConfigHash(
+  { artifact: "a", runtime: "mlx", temperature: 0, maxTokens: 64 },
+  "Be concise.",
+);
 const writeV2Attempt = async (dir: string) => {
   const sh = scorerHash(SCORER as never);
   const header = {
@@ -21,7 +28,7 @@ const writeV2Attempt = async (dir: string) => {
     finishedAt: "t",
     interrupted: false,
     configId: "c",
-    configHash: "cfg",
+    configHash: CFG,
     artifact: "a",
     runtime: "mlx",
     temperature: 0,
@@ -43,7 +50,7 @@ const writeV2Attempt = async (dir: string) => {
   const item = {
     itemId: "i",
     promptName: "i",
-    promptHash: "ph",
+    promptHash: PH,
     itemHash: "ih",
     scorerHash: sh,
     executedAt: "t",
@@ -62,9 +69,9 @@ const writeV2Attempt = async (dir: string) => {
   await Effect.runPromise(
     Effect.provide(
       Effect.gen(function* () {
-        yield* writeBlob(dir, "prompts", "ph", "What is 2+2?");
-        yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
-        yield* writeBlob(dir, "system", "cfg", "Be concise.");
+        yield* putBlob(dir, "prompts", PH, "What is 2+2?");
+        yield* putBlob(dir, "scorers", sh, stableStringify(SCORER));
+        yield* putBlob(dir, "system", header, "Be concise.");
       }),
       NodeContext.layer,
     ),
@@ -85,7 +92,7 @@ describe("loadAttemptReconstruction", () => {
 
   it("rehydrates prompt/system/scorer purely from the archive + store", async () => {
     const file = await writeV2Attempt(dir);
-    const exit = await run(loadAttemptReconstruction(file));
+    const exit = await run(loadAttemptReconstruction(file, pinnedToDisk));
     expect(Exit.isSuccess(exit)).toBe(true);
     if (Exit.isSuccess(exit)) {
       expect(exit.value.systemPromptText).toBe("Be concise.");
@@ -93,6 +100,16 @@ describe("loadAttemptReconstruction", () => {
       expect(exit.value.items[0]?.scorer.type).toBe("exact_match");
       expect(exit.value.manifest.passThreshold).toBe(0.8);
     }
+  });
+
+  it("fails NotReconstructible when a blob does not hash to its key", async () => {
+    const file = await writeV2Attempt(dir);
+    await writeFile(join(dir, "content", "prompts", `${PH}.txt`), "What is 2+3?");
+    const exit = await run(loadAttemptReconstruction(file, pinnedToDisk));
+    expect(Exit.isFailure(exit) && exit.cause._tag === "Fail" && exit.cause.error).toMatchObject({
+      _tag: "NotReconstructible",
+      reason: expect.stringContaining(`content/prompts/${PH} hashes to`),
+    });
   });
 
   it("fails NotReconstructible on a v1 archive (no store)", async () => {
@@ -104,7 +121,7 @@ describe("loadAttemptReconstruction", () => {
       finishedAt: "t",
       interrupted: false,
       configId: "c",
-      configHash: "cfg",
+      configHash: CFG,
       artifact: "a",
       runtime: "mlx",
       temperature: 0,
@@ -124,7 +141,7 @@ describe("loadAttemptReconstruction", () => {
     };
     const f = join(dir, "v1.jsonl");
     await writeFile(f, `${JSON.stringify(header)}\n`);
-    const exit = await run(loadAttemptReconstruction(f));
+    const exit = await run(loadAttemptReconstruction(f, pinnedToDisk));
     expect(Exit.isFailure(exit)).toBe(true);
   });
 });

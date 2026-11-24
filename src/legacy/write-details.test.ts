@@ -4,10 +4,17 @@ import { join } from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { scorerHash, writeBlob } from "../archive/content-store.js";
+import { stableStringify } from "../config/hashing.js";
+import { pinnedToDisk, putBlob } from "./__tests__/blobs.js";
+import { computeConfigHash, computePromptHash, scorerHash } from "./identity.js";
 import { writeDetails } from "./write-details.js";
 
 const SCORER = { type: "exact_match", expected: "4", extract: "(\\d+)" };
+const PH = computePromptHash("What is 2+2?", "");
+const CFG = computeConfigHash(
+  { artifact: "a", runtime: "mlx", temperature: 0, maxTokens: 64 },
+  "Be concise.",
+);
 
 const v2Header = {
   schemaVersion: 2,
@@ -16,7 +23,7 @@ const v2Header = {
   finishedAt: "t",
   interrupted: false,
   configId: "c",
-  configHash: "cfg",
+  configHash: CFG,
   artifact: "a",
   runtime: "mlx",
   temperature: 0,
@@ -52,7 +59,7 @@ describe("writeDetails", () => {
     const item = {
       itemId: "i",
       promptName: "i",
-      promptHash: "ph",
+      promptHash: PH,
       itemHash: "ih",
       scorerHash: sh,
       executedAt: "t",
@@ -61,7 +68,12 @@ describe("writeDetails", () => {
       promptTps: 1,
       generationTps: 1,
       peakMemoryGb: 0,
-      wallTimeSec: 0,
+      wallTimeSec: 0.4,
+      ttftMs: 150,
+      prefillMs: 150,
+      decodeMs: 200,
+      timingSource: "client",
+      cachedPromptTokens: 0,
       output: "4",
       reasoning: null,
       rawOutput: "4",
@@ -74,13 +86,13 @@ describe("writeDetails", () => {
       Effect.provide(
         Effect.gen(function* () {
           const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
-          yield* writeBlob(dir, "prompts", "ph", "What is 2+2?");
-          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
-          yield* writeBlob(dir, "system", "cfg", "Be concise.");
+          yield* putBlob(dir, "prompts", PH, "What is 2+2?");
+          yield* putBlob(dir, "scorers", sh, stableStringify(SCORER));
+          yield* putBlob(dir, "system", v2Header, "Be concise.");
           yield* Effect.promise(() =>
             writeFile(file, `${JSON.stringify(v2Header)}\n${JSON.stringify(item)}\n`),
           );
-          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }], pinnedToDisk);
         }),
         NodeContext.layer,
       ),
@@ -88,13 +100,25 @@ describe("writeDetails", () => {
     expect(result).toEqual({ written: 1, skipped: 0 });
     const detail = JSON.parse(await readFile(join(out, "att-x.json"), "utf8"));
     expect(detail.attempt_id).toBe("att-x");
-    expect(detail.config_hash).toBe("cfg");
+    expect(detail.config_hash).toBe(CFG);
     expect(detail.challenge_id).toBe("ch");
     expect(detail.system_prompt_text).toBe("Be concise.");
-    expect(detail.items[0].prompt_text).toBe("What is 2+2?");
+    const pack = JSON.parse(await readFile(join(dir, "prompts", `${detail.prompts}.json`), "utf8"));
+    expect(pack[detail.items[0].item_id]).toBe("What is 2+2?");
+    expect(detail.items[0].prompt_text).toBeUndefined();
     expect(detail.items[0].output).toBe("4");
     expect(detail.items[0].score).toBe(1);
     expect(detail.items[0].scorer.type).toBe("exact_match");
+    expect(detail.items[0].timing).toEqual({
+      wall_sec: 0.4,
+      prompt_tokens: 1,
+      generation_tokens: 1,
+      ttft_ms: 150,
+      prefill_ms: 150,
+      decode_ms: 200,
+      source: "client",
+      cached_prompt_tokens: 0,
+    });
   });
 
   it("leaves retired items out of the detail file", async () => {
@@ -102,7 +126,7 @@ describe("writeDetails", () => {
     const line = (promptName: string) => ({
       itemId: promptName,
       promptName,
-      promptHash: "ph",
+      promptHash: PH,
       itemHash: "ih",
       scorerHash: sh,
       executedAt: "t",
@@ -125,14 +149,14 @@ describe("writeDetails", () => {
       Effect.provide(
         Effect.gen(function* () {
           const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
-          yield* writeBlob(dir, "prompts", "ph", "What is 2+2?");
-          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
-          yield* writeBlob(dir, "system", "cfg", "Be concise.");
+          yield* putBlob(dir, "prompts", PH, "What is 2+2?");
+          yield* putBlob(dir, "scorers", sh, stableStringify(SCORER));
+          yield* putBlob(dir, "system", v2Header, "Be concise.");
           const body = [header, line("kept"), line("gone")]
             .map((l) => JSON.stringify(l))
             .join("\n");
           yield* Effect.promise(() => writeFile(file, `${body}\n`));
-          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }], pinnedToDisk);
         }),
         NodeContext.layer,
       ),
@@ -146,7 +170,7 @@ describe("writeDetails", () => {
     const line = (promptName: string, score: number, extra: Record<string, unknown> = {}) => ({
       itemId: promptName,
       promptName,
-      promptHash: "ph",
+      promptHash: PH,
       itemHash: "ih",
       scorerHash: sh,
       executedAt: "t",
@@ -169,9 +193,9 @@ describe("writeDetails", () => {
       Effect.provide(
         Effect.gen(function* () {
           const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
-          yield* writeBlob(dir, "prompts", "ph", "What is 2+2?");
-          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
-          yield* writeBlob(dir, "system", "cfg", "Be concise.");
+          yield* putBlob(dir, "prompts", PH, "What is 2+2?");
+          yield* putBlob(dir, "scorers", sh, stableStringify(SCORER));
+          yield* putBlob(dir, "system", v2Header, "Be concise.");
           const body = [
             v2Header,
             line("a", 1),
@@ -182,7 +206,7 @@ describe("writeDetails", () => {
             .map((l) => JSON.stringify(l))
             .join("\n");
           yield* Effect.promise(() => writeFile(file, `${body}\n`));
-          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }], pinnedToDisk);
         }),
         NodeContext.layer,
       ),
@@ -191,6 +215,8 @@ describe("writeDetails", () => {
     expect(detail.items.map((i: { item_id: string }) => i.item_id)).toEqual(["a", "b"]);
     expect(detail.items[0].samples).toEqual([2, 3]);
     expect(detail.items[1].samples).toBeUndefined();
+    // A line written before timing capture carries only wall time and tokens.
+    expect(detail.items[1].timing).toEqual({ wall_sec: 0, prompt_tokens: 1, generation_tokens: 1 });
   });
 
   it("marks turn units with parent, turn and whether the model's own previous turn passed", async () => {
@@ -198,7 +224,7 @@ describe("writeDetails", () => {
     const row = (itemId: string, extra: Record<string, unknown>, score: number) => ({
       itemId,
       promptName: itemId,
-      promptHash: "ph",
+      promptHash: PH,
       itemHash: "ih",
       scorerHash: sh,
       executedAt: "t",
@@ -227,13 +253,13 @@ describe("writeDetails", () => {
       Effect.provide(
         Effect.gen(function* () {
           const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
-          yield* writeBlob(dir, "prompts", "ph", "q");
-          yield* writeBlob(dir, "scorers", sh, JSON.stringify(SCORER));
-          yield* writeBlob(dir, "system", "cfg", "s");
+          yield* putBlob(dir, "prompts", PH, "What is 2+2?");
+          yield* putBlob(dir, "scorers", sh, stableStringify(SCORER));
+          yield* putBlob(dir, "system", v2Header, "Be concise.");
           yield* Effect.promise(() =>
             writeFile(file, [v2Header, ...rows].map((r) => JSON.stringify(r)).join("\n")),
           );
-          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }]);
+          return yield* writeDetails(out, [{ attemptId: "att-x", sourcePath: file }], pinnedToDisk);
         }),
         NodeContext.layer,
       ),
@@ -261,7 +287,11 @@ describe("writeDetails", () => {
         Effect.gen(function* () {
           const { writeFile } = yield* Effect.promise(() => import("node:fs/promises"));
           yield* Effect.promise(() => writeFile(file, `${JSON.stringify(v1Header)}\n`));
-          return yield* writeDetails(out, [{ attemptId: "att-v1", sourcePath: file }]);
+          return yield* writeDetails(
+            out,
+            [{ attemptId: "att-v1", sourcePath: file }],
+            pinnedToDisk,
+          );
         }),
         NodeContext.layer,
       ),

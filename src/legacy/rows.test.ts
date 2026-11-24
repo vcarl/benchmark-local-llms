@@ -65,15 +65,38 @@ const C1: SetChallenge = {
   version: 1,
   challengeHash: "h1",
   items: [
-    { itemId: "i1", itemHash: "ih-i1", family: "f1", scope: "core" },
-    { itemId: "i2", itemHash: "ih-i2", family: "f2", scope: "stretch" },
+    {
+      itemId: "i1",
+      itemHash: "ih-i1",
+      promptHash: "ph-i1",
+      scorerHash: "sh-i1",
+      family: "f1",
+      scope: "core",
+    },
+    {
+      itemId: "i2",
+      itemHash: "ih-i2",
+      promptHash: "ph-i2",
+      scorerHash: "sh-i2",
+      family: "f2",
+      scope: "stretch",
+    },
   ],
 };
 const C2: SetChallenge = {
   id: "c2",
   version: 1,
   challengeHash: "h2",
-  items: [{ itemId: "j1", itemHash: "ih-j1", family: "g1", scope: "core" }],
+  items: [
+    {
+      itemId: "j1",
+      itemHash: "ih-j1",
+      promptHash: "ph-j1",
+      scorerHash: "sh-j1",
+      family: "g1",
+      scope: "core",
+    },
+  ],
 };
 
 const input = (attempts: LoadedAttempt[], over: Partial<RowsInput> = {}): RowsInput => ({
@@ -81,14 +104,16 @@ const input = (attempts: LoadedAttempt[], over: Partial<RowsInput> = {}): RowsIn
   challengeSet: [C1, C2],
   dataset: {
     label: "main",
+    title: "main",
     archiveDir: "a",
     challengesDir: "c",
     release: null,
     version: null,
     errata: [],
+    ranked: false,
+    legacy: true,
   },
   legacyHardware: { id: "local-hw" },
-  generatedAt: T(9),
   ...over,
 });
 
@@ -129,6 +154,25 @@ describe("buildRows selection", () => {
     expect(row.cells["c1"]?.passed).toBe(1);
     expect(row.cells["c1"]?.executedFrom).toBe(T(3, 1));
     expect(row.cells["c1"]?.sourceAttempts).toEqual(["att-new"]);
+  });
+
+  it("an executed line beats a newer errored one; an errored line stands only alone", () => {
+    const errored = {
+      output: "",
+      error: "HTTP 500",
+      score: 0,
+      failureKind: "execution_error" as const,
+    };
+    const row = only([
+      attempt({ attemptId: "att-ok" }, [line("i1"), line("i2", errored)]),
+      attempt({ attemptId: "att-err", startedAt: T(3), finishedAt: T(3, 9) }, [
+        line("i1", { ...errored, executedAt: T(3, 1) }),
+        line("i2", { ...errored, executedAt: T(3, 2) }),
+      ]),
+    ]);
+    // i1: the day-1 success outranks the day-3 error; i2: errored both times, the newest stands.
+    expect(row.cells["c1"]?.passed).toBe(1);
+    expect([...(row.cells["c1"]?.sourceAttempts ?? [])].sort()).toEqual(["att-err", "att-ok"]);
   });
 
   it("provenance comes from the executing attempt, not the replay header", () => {
@@ -181,7 +225,7 @@ describe("buildRows cell status and headline", () => {
   it("classifies stale_hash, interrupted, and not_run; missing items count as fails", () => {
     const row = only([
       attempt({ attemptId: "att-stale", challengeHash: "h0" }, [
-        line("i1", { itemHash: "ih-old" }),
+        line("i1", { promptHash: "ph-old", itemHash: "ih-old" }),
         line("i2"),
       ]),
       attempt(
@@ -233,10 +277,49 @@ describe("buildRows cell status and headline", () => {
     expect(row.completeness.state).toBe("complete");
   });
 
+  it("counts a line graded under an earlier scorer, at its current-scorer grade", () => {
+    const seen: string[] = [];
+    const row = only(
+      [
+        attempt({ attemptId: "a" }, [
+          line("i1", { itemHash: "ih-old", scorerHash: "sh-old", score: 0 }),
+          line("i2", { scorerHash: "sh-i2", score: 1 }),
+        ]),
+      ],
+      {
+        challengeSet: [C1],
+        grade: (l, { item }) => {
+          seen.push(item.itemId);
+          return l.scorerHash === item.scorerHash ? l : { score: 1, failureKind: null };
+        },
+      },
+    );
+    expect(row.cells["c1"]?.status).toBe("scored");
+    expect(row.cells["c1"]?.passed).toBe(2);
+    expect(seen.sort()).toEqual(["i1", "i2"]);
+  });
+
+  it("prefers a re-stamped copy (current scorer) over its original at the same executedAt", () => {
+    const row = only(
+      [
+        attempt({ attemptId: "orig" }, [
+          line("i1", { itemHash: "ih-old", scorerHash: "sh-old", score: 0 }),
+        ]),
+        attempt({ attemptId: "re", restampedFrom: "orig" }, [
+          line("i1", { scorerHash: "sh-i1", score: 1 }),
+        ]),
+      ],
+      { challengeSet: [{ ...C1, items: [C1.items[0] as SetChallenge["items"][number]] }] },
+    );
+    expect(row.cells["c1"]?.passed).toBe(1);
+  });
+
   it("computes the CR1 family SE from SCORING.md at 5+ clusters", () => {
     const items = ["a", "b", "c", "d", "e"].map((x) => ({
       itemId: x,
       itemHash: `ih-${x}`,
+      promptHash: `ph-${x}`,
+      scorerHash: `sh-${x}`,
       family: x,
       scope: "core" as const,
     }));
@@ -358,9 +441,25 @@ describe("buildRows model identity and cost", () => {
       ]),
     ]);
     const c = row.cells["c1"];
-    expect(c?.cost).toEqual({ tokens: 25, wallSec: 4, peakMemoryGb: 7, genTps: 30 });
+    // genTps: 45 tokens over 10/20 + 30/40 + 5/30 decode seconds.
+    expect(c?.cost).toEqual({
+      tokens: 25,
+      wallSec: 4,
+      peakMemoryGb: 7,
+      genTps: 45 / (0.5 + 0.75 + 5 / 30),
+    });
     expect(c?.scopeFamilies).toEqual({ core: { f1: [1, 0.5] }, stretch: { f2: [1, 1] } });
     expect(row.cells["c2"]?.cost).toBeNull();
     expect(row.cells["c2"]?.scopeFamilies).toEqual({ core: { g1: [1, 0] } });
+  });
+
+  it("genTps is total tokens over total decode time, ignoring lines with no measured speed", () => {
+    const row = only([
+      attempt({ attemptId: "a" }, [
+        line("i1", { generationTokens: 0, generationTps: 0, error: "boom", score: 0 }),
+        line("i2", { generationTokens: 40, generationTps: 20 }),
+      ]),
+    ]);
+    expect(row.cells["c1"]?.cost?.genTps).toBe(20);
   });
 });
