@@ -1,7 +1,6 @@
-// Scratch authoring space — edit the scenarios, run `npx tsx
-// scripts/author/draft.ts`, read the computed answers + the paste-ready
-// exact_match YAML. WE author the scenario; the helpers do the bookkeeping.
-// Nothing here is written to challenges/ automatically.
+// Authoring source for the draft's generated suites. Edit the scenarios here and
+// run `npx tsx scripts/author/draft.ts`: it writes the suites to
+// releases/draft/challenges/ and prints the computed answers. Never edit the YAML.
 
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,8 +36,11 @@ import {
 } from "./econ.js";
 import {
   type AuthoredItem,
+  chainItem,
   decimalPattern,
   exactItem,
+  INT_EXTRACT,
+  type NearMiss,
   orderedItem,
   percentNearMiss,
   regexItem,
@@ -89,10 +91,9 @@ import {
 } from "./repeated.js";
 import { bestPathTrust, type Edge, pathsAbove, reachableAbove } from "./webOfTrust.js";
 
-const CHALLENGES_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../challenges",
-);
+const RELEASES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../releases");
+/** The next release's complete set (the report's `draft` dataset). */
+const DRAFT_CHALLENGES_DIR = path.join(RELEASES_DIR, "draft", "challenges");
 
 // ── Trust & alignment from a history of actions ──────────────────────────────
 const town: History = {
@@ -238,7 +239,7 @@ const econItems: AuthoredItem[] = [
       `Your private value for the item is $80. What single bid is your weakly dominant strategy, in dollars? ` +
       `Reply with only that number and no other figures.`,
     expected: "80",
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Truthful bidding is weakly dominant in a second-price auction — bid your value, 80. Shading down only risks losing a profitable win; bidding up only risks overpaying.",
     tags: ["TODO", "economics", "auctions"],
   }),
@@ -292,7 +293,7 @@ const financialItems: AuthoredItem[] = [
       `price at which NO division ends any of the 24 months with a negative balance? ` +
       `Reply with only that number and no other figures.`,
     expected: String(sysBreak),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why:
       `At $${(sysBreak ?? 1) - 1}, Flagship survives only by underpaying Supply (best-effort), so the ` +
       `shortfall cascades and ${trap.entity} goes negative by month ${trap.month}. $${sysBreak} funds the ` +
@@ -390,7 +391,7 @@ const econMoreItems: AuthoredItem[] = [
       `unit is: unit 1 $3, unit 2 $5, unit 3 $7, unit 4 $9, unit 5 $11, unit 6 $13. How many units should ` +
       `it produce to maximise profit? Reply with only that number and no other figures.`,
     expected: String(marginalQty),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Produce each unit whose marginal cost ≤ $10: units 1–4 ($3,5,7,9) qualify; unit 5 ($11) exceeds MR. Optimal quantity 4.",
     tags: ["TODO", "economics", "marginal-analysis"],
   }),
@@ -579,7 +580,7 @@ const entryItems: AuthoredItem[] = [
       `Solving by backward induction, what profit (in $ thousands) does the ENTRANT earn at the ` +
       `subgame-perfect equilibrium? Reply with only that number and no other figures.`,
     expected: String(entrantSpePayoff),
-    extract: "(-?\\d+)",
+    extract: INT_EXTRACT,
     why: "Anticipating Accommodate, the Entrant compares Enter (40) vs Stay Out (0) and enters. SPE = (Enter, Accommodate), so the Entrant earns 40.",
     tags: ["TODO", "game-theory", "backward-induction"],
   }),
@@ -592,7 +593,7 @@ const entryItems: AuthoredItem[] = [
       `At the subgame-perfect equilibrium, what profit (in $ thousands) does the INCUMBENT earn? ` +
       `Reply with only that number and no other figures.`,
     expected: String(incumbentSpePayoff),
-    extract: "(-?\\d+)",
+    extract: INT_EXTRACT,
     why: "At the SPE (Enter, Accommodate) the Incumbent accommodates and earns 50 — not the 120 it would keep if its non-credible Fight threat actually deterred entry.",
     tags: ["TODO", "game-theory", "backward-induction"],
   }),
@@ -606,7 +607,7 @@ const entryItems: AuthoredItem[] = [
       `meant to produce (the Entrant stays out) than in the subgame-perfect equilibrium it actually gets? ` +
       `Reply with only that number and no other figures.`,
     expected: String(threatGap),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Stay-Out leaves the Incumbent 120; the SPE leaves it 50. The commitment value of a CREDIBLE deterrent would be 120 − 50 = 70.",
     tags: ["TODO", "game-theory", "backward-induction"],
   }),
@@ -636,7 +637,7 @@ const cournotItems: AuthoredItem[] = [
       `In the Cournot–Nash equilibrium, how many units does FIRM 1 produce? ` +
       `Reply with only that number and no other figures.`,
     expected: String(cq1),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "q1 = (a − 2c1 + c2)/(3b) = (120 − 40 + 40)/3 = 40 (reaction functions q1=(100−q2)/2, q2=(80−q1)/2 give q1=40, q2=20).",
     tags: ["TODO", "economics", "cournot", "oligopoly"],
   }),
@@ -649,7 +650,7 @@ const cournotItems: AuthoredItem[] = [
       `In the Cournot–Nash equilibrium, how many units does FIRM 2 produce? ` +
       `Reply with only that number and no other figures.`,
     expected: String(cq2),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "q2 = (a − 2c2 + c1)/(3b) = (120 − 80 + 20)/3 = 20 — the higher-cost firm produces less.",
     tags: ["TODO", "economics", "cournot", "oligopoly"],
   }),
@@ -661,7 +662,7 @@ const cournotItems: AuthoredItem[] = [
       `${cournotScenario}\n\n` +
       `What is the equilibrium market price? Reply with only that number and no other figures.`,
     expected: String(cPrice),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Q = q1 + q2 = 40 + 20 = 60, so P = 120 − 60 = 60.",
     tags: ["TODO", "economics", "cournot", "oligopoly"],
   }),
@@ -673,7 +674,7 @@ const cournotItems: AuthoredItem[] = [
       `${cournotScenario}\n\n` +
       `What is FIRM 1's equilibrium profit? Reply with only that number and no other figures.`,
     expected: String(cProfit1),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Profit1 = (P − c1)·q1 = (60 − 20)·40 = 1600.",
     tags: ["TODO", "economics", "cournot", "oligopoly"],
   }),
@@ -712,7 +713,7 @@ const taxItems: AuthoredItem[] = [
       `${taxScenario}\n\n` +
       `What is the quantity traded after the tax is imposed? Reply with only that number and no other figures.`,
     expected: String(taxQt),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Pre-tax P*=(100−20)/4=20, Q*=80. The tax cuts quantity by ΔQ=βδt/(β+δ)=3·8/4=6, so Q_t=74 (Qd(26)=Qs(18)=74).",
     tags: ["TODO", "economics", "tax-incidence"],
   }),
@@ -724,7 +725,7 @@ const taxItems: AuthoredItem[] = [
       `${taxScenario}\n\n` +
       `What price do buyers pay after the tax? Reply with only that number and no other figures.`,
     expected: String(taxPb),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Pb = P* + t·δ/(β+δ) = 20 + 8·0.75 = 26.",
     tags: ["TODO", "economics", "tax-incidence"],
   }),
@@ -736,7 +737,7 @@ const taxItems: AuthoredItem[] = [
       `${taxScenario}\n\n` +
       `What price do sellers receive (net of the tax)? Reply with only that number and no other figures.`,
     expected: String(taxPs),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Ps = P* − t·β/(β+δ) = 20 − 8·0.25 = 18 (check Pb − Ps = 26 − 18 = 8 = t).",
     tags: ["TODO", "economics", "tax-incidence"],
   }),
@@ -762,7 +763,7 @@ const taxItems: AuthoredItem[] = [
       `${taxScenario}\n\n` +
       `What is the deadweight loss caused by the tax, in dollars? Reply with only that number and no other figures.`,
     expected: String(taxDwl),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "DWL = ½·t²·βδ/(β+δ) = ½·64·(3/4) = 24 (the Harberger triangle ½·t·ΔQ = ½·8·6).",
     tags: ["TODO", "economics", "tax-incidence", "deadweight-loss"],
   }),
@@ -774,7 +775,7 @@ const taxItems: AuthoredItem[] = [
       `${taxScenario}\n\n` +
       `How much tax revenue does the government collect, in dollars? Reply with only that number and no other figures.`,
     expected: String(taxRevenue),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Revenue = t·Q_t = 8·74 = 592.",
     tags: ["TODO", "economics", "tax-incidence"],
   }),
@@ -801,7 +802,7 @@ const monopolyItems: AuthoredItem[] = [
       `${monopolyScenario}\n\n` +
       `What output maximises the monopolist's profit? Reply with only that number and no other figures.`,
     expected: String(mQ),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Set MR = MC: 100 − 2Q = 10 + Q ⇒ Q* = (a−e)/(2b+f) = 90/3 = 30. (Setting P=MC instead gives the wrong 45.)",
     tags: ["TODO", "economics", "monopoly"],
   }),
@@ -813,7 +814,7 @@ const monopolyItems: AuthoredItem[] = [
       `${monopolyScenario}\n\n` +
       `What price does the monopolist charge? Reply with only that number and no other figures.`,
     expected: String(mP),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "P* = 100 − Q* = 100 − 30 = 70 (read off the demand curve, not MR).",
     tags: ["TODO", "economics", "monopoly"],
   }),
@@ -825,7 +826,7 @@ const monopolyItems: AuthoredItem[] = [
       `${monopolyScenario}\n\n` +
       `What is the monopolist's profit? Reply with only that number and no other figures.`,
     expected: String(mProfit),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Profit = P·Q − (eQ + ½fQ²) = 70·30 − (10·30 + ½·900) = 2100 − 750 = 1350.",
     tags: ["TODO", "economics", "monopoly"],
   }),
@@ -838,7 +839,7 @@ const monopolyItems: AuthoredItem[] = [
       `If this market were perfectly competitive instead (price equal to marginal cost), what quantity ` +
       `would be produced? Reply with only that number and no other figures.`,
     expected: String(mQc),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "P = MC: 100 − Q = 10 + Q ⇒ Qc = (a−e)/(b+f) = 90/2 = 45 (more than the monopoly's 30).",
     tags: ["TODO", "economics", "monopoly", "welfare"],
   }),
@@ -851,7 +852,7 @@ const monopolyItems: AuthoredItem[] = [
       `What is the deadweight loss of the monopoly relative to perfect competition, in dollars? ` +
       `Reply with only that number and no other figures.`,
     expected: String(mDwl),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: "Triangle between demand and MC over [30, 45]: ½·(45−30)·(P(30)−MC(30)) = ½·15·(70−40) = 225.",
     tags: ["TODO", "economics", "monopoly", "deadweight-loss"],
   }),
@@ -900,7 +901,7 @@ const financialMoreItems: AuthoredItem[] = [
       `If the one-time injection at the start goes to Source, what is the smallest whole-dollar amount that ` +
       `keeps every division's balance non-negative for all 18 months? Reply with only that number and no other figures.`,
     expected: String(bailoutAmount),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Source nets −$10/month and pays $30/month = −$40/month effective; over 18 months that is −$720 against a $50 start, so it needs $${bailoutAmount} more to never dip below zero.`,
     tags: ["TODO", "financial-model", "cascade", "bailout"],
   }),
@@ -939,7 +940,7 @@ const waterfallItems: AuthoredItem[] = [
     tier: 2,
     prompt: `${waterfallScene}\n\nHow many dollars does the Senior tranche receive? Reply with only that number and no other figures.`,
     expected: String(wf.payouts.Senior),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Senior is paid first and its $520 claim is fully covered by the $${wfPool} pool, so it receives $${wf.payouts.Senior}.`,
     tags: ["TODO", "financial-model", "waterfall", "tranche-priority"],
   }),
@@ -949,7 +950,7 @@ const waterfallItems: AuthoredItem[] = [
     tier: 3,
     prompt: `${waterfallScene}\n\nHow many dollars does the Mezzanine tranche receive? Reply with only that number and no other figures.`,
     expected: String(wf.payouts.Mezzanine),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `After Senior takes $520, only $${wfPool - 520} of the pool remains, so Mezzanine is partially filled at $${wf.payouts.Mezzanine} against its $310 claim — the discriminating partial-fill figure.`,
     tags: ["TODO", "financial-model", "waterfall", "tranche-priority"],
   }),
@@ -959,7 +960,7 @@ const waterfallItems: AuthoredItem[] = [
     tier: 2,
     prompt: `${waterfallScene}\n\nHow many dollars are left for the Equity tranche? Reply with only that number and no other figures.`,
     expected: String(wf.payouts.Equity),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `The pool is exhausted partway through Mezzanine, so Junior and Equity both receive $0; Equity gets $${wf.payouts.Equity}.`,
     tags: ["TODO", "financial-model", "waterfall", "residual"],
   }),
@@ -980,7 +981,7 @@ const waterfallItems: AuthoredItem[] = [
       `${waterfallScene}\n\nIgnore the specific $${wfPool} figure for this part. At or below what total cash ` +
       `pool size (in dollars) do the Equity holders receive nothing? Reply with only that number and no other figures.`,
     expected: String(wf.equityZeroThreshold),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Equity gets a positive residual only once every senior claim is fully paid, i.e. above the sum of all non-equity claims 520+310+185 = $${wf.equityZeroThreshold}. At or below $${wf.equityZeroThreshold}, equity gets $0.`,
     tags: ["TODO", "financial-model", "waterfall", "capstone", "breakpoint"],
   }),
@@ -1040,7 +1041,7 @@ const contagionItems: AuthoredItem[] = [
     tier: 3,
     prompt: `${contagionScene}\n\nHow many banks fail in total? Reply with only that number and no other figures.`,
     expected: String(cascade.failedCount),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `A, B, C and E default; D survives — ${cascade.failedCount} failures.`,
     tags: ["TODO", "financial-model", "contagion", "count"],
   }),
@@ -1052,7 +1053,7 @@ const contagionItems: AuthoredItem[] = [
       `${contagionScene}\n\nWhat is the smallest whole-dollar increase to bank B's buffer alone that ` +
       `reduces the total number of banks that fail? Reply with only that number and no other figures.`,
     expected: String(bumpB ?? 0),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `B's incoming loss is exactly $100; raising its buffer from $80 to $100 (a +$${bumpB} bump) stops B defaulting, so the cascade halts after A — only 1 failure instead of 4.`,
     tags: ["TODO", "financial-model", "contagion", "capstone", "buffer"],
   }),
@@ -1106,7 +1107,7 @@ const covenantItems: AuthoredItem[] = [
     tier: 4,
     prompt: `${covenantScene}\n\nIn which month does the DSCR first fall below 1.25? Reply with only the month number.`,
     expected: String(covBreachMonth),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Months 1–6 clear their tiers (month 4: 130·1.02³/110 ≈ 1.25+); the month-7 step-up to $140 binds: NOI₇ = 130·1.02⁶ ≈ 146.4, /140 ≈ 1.046 < 1.25. First breach = month ${covBreachMonth}.`,
     tags: ["TODO", "financial-model", "covenant", "capstone", "breach-timing"],
   }),
@@ -1270,7 +1271,7 @@ const amortItems: AuthoredItem[] = [
       `${amortScene}\n\nIn which month is the loan fully paid off, given the $100 extra principal each ` +
       `month? Reply with only the month number.`,
     expected: String(amortPayoff),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `The extra principal accelerates payoff: the balance reaches zero in month ${amortPayoff} (vs the scheduled 60).`,
     tags: ["TODO", "financial-model", "amortization", "capstone", "payoff"],
   }),
@@ -1372,7 +1373,7 @@ const bayesItems: AuthoredItem[] = [
       `Starting from this same history, how many consecutive corroborated (good) reports are needed for ` +
       `the probability that Sable is Honest to reach 90%? Reply with only that whole number.`,
     expected: String(b1ToNinety),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why:
       `Each good report multiplies the odds by s/(1−t) = 8/3. From 2.751994: ` +
       `1 → 7.339 (P 0.880); 2 → 19.570 (P 0.951 ≥ 0.9). Answer ${b1ToNinety}.`,
@@ -1408,7 +1409,7 @@ const folkItems: AuthoredItem[] = [
       `In a single season, by how much does Undercutting beat Honouring when the rival Honours, before ` +
       `any future punishment is considered? Reply with only that whole number.`,
     expected: String(b2Temptation),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Temptation minus reward, T − R = 9 − 5 = ${b2Temptation}.`,
     tags: ["TODO", "trust", "folk-theorem"],
   }),
@@ -1446,7 +1447,7 @@ const folkItems: AuthoredItem[] = [
       `${b2Scenario}\n\n` +
       `If both shippers Honour every season, what does each earn per season? Reply with only that whole number.`,
     expected: String(b2Coop),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Mutual cooperation pays the reward R = ${b2Coop} each per season.`,
     tags: ["TODO", "trust", "folk-theorem"],
   }),
@@ -1507,7 +1508,7 @@ const moralHazardItems: AuthoredItem[] = [
       `Setting the bonus to that minimum Δ with the participation constraint binding, what is the ` +
       `workshop's expected profit? Reply with only that whole number.`,
     expected: String(b3Profit),
-    extract: "(-?\\d+)",
+    extract: INT_EXTRACT,
     why:
       `With participation binding the expected wage equals c_H = 10, so profit = ` +
       `p_H·V_good + (1−p_H)·V_bad − c_H = 0.8·100 − 10 = ${b3Profit}.`,
@@ -1594,7 +1595,7 @@ const webOfTrustItems: AuthoredItem[] = [
       `How many distinct directed chains from S to T have a product strictly above 0.4? ` +
       `Reply with only that whole number.`,
     expected: String(b4PathsAbove),
-    extract: "(\\d+)",
+    extract: INT_EXTRACT,
     why: `Products 0.648, 0.63, 0.475 exceed 0.4; 0.27 does not — ${b4PathsAbove} chains.`,
     tags: ["TODO", "trust", "web-of-trust"],
   }),
@@ -1915,10 +1916,201 @@ console.log(
   `| Q<Qc? ${mQ < mQc}`,
 );
 
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║ MULTI-TURN CHAINS (→ releases/draft/challenges)                          ║
+// ║ The same solver-backed scenarios as the single-shot batteries above,     ║
+// ║ decomposed into incremental turns. Turn k is asked after turns 1..k-1     ║
+// ║ with their GOLD answers in history, so each turn scores one step. The     ║
+// ║ single-shot batteries stay as the comparison baseline; each chain's turn  ║
+// ║ 1 prompt is identical to its baseline counterpart.                        ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+const cents = (n: number): string => n.toFixed(2);
+const dollarsTurn = (
+  name: string,
+  prompt: string,
+  value: number,
+  why: string,
+  nearMisses?: NearMiss[],
+) =>
+  regexItem({
+    name,
+    category: "",
+    tier: 0,
+    prompt,
+    pattern: decimalPattern(value),
+    label: `equals ${value}`,
+    nearMisses,
+    why,
+  });
+const integerTurn = (name: string, prompt: string, value: number, why: string) =>
+  exactItem({
+    name,
+    category: "",
+    tier: 0,
+    prompt,
+    expected: String(value),
+    extract: "(\\d+)",
+    why,
+  });
+const ONLY_NUMBER = "Reply with only that number and no other figures.";
+const TO_CENT = "Give your answer in dollars to the nearest cent.";
+
+const chainItems: AuthoredItem[] = [
+  chainItem({
+    name: "chain_amortization",
+    category: "financial",
+    tier: 4,
+    why: "Amortization schedule built one step at a time: payment → balance → payoff → interest.",
+    tags: ["TODO", "financial-model", "amortization", "chain"],
+    turns: [
+      {
+        turn: dollarsTurn(
+          "t",
+          `${amortScene}\n\nWhat is the scheduled monthly payment (ignoring the extra principal)? ${TO_CENT}`,
+          amortPayment,
+          `A = 20000·0.005 / (1 − 1.005^−60) = $${amortPayment}.`,
+        ),
+        answer: cents(amortPayment),
+      },
+      {
+        turn: dollarsTurn(
+          "t",
+          `Using that scheduled payment plus the $100 extra each month, what is the outstanding balance ` +
+            `immediately after the 12th monthly payment? ${TO_CENT}`,
+          amortBal12,
+          `12 months of the schedule with $100 extra leaves $${amortBal12}.`,
+          slipNearMiss("round-at-end", amortBal12, amortSlip.schedule[11]?.balance ?? 0),
+        ),
+        answer: cents(amortBal12),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `Continuing the same schedule, in which month is the loan fully paid off? Reply with only the month number.`,
+          amortPayoff,
+          `The balance reaches zero in month ${amortPayoff} (vs the scheduled 60).`,
+        ),
+        answer: String(amortPayoff),
+      },
+      {
+        turn: dollarsTurn(
+          "t",
+          `What is the total interest paid over the life of the loan, through that final payment? ${TO_CENT}`,
+          amortTotalInterest,
+          `Summing each month's interest through month ${amortPayoff} gives $${amortTotalInterest}.`,
+          slipNearMiss("round-at-end", amortTotalInterest, amortSlip.totalInterest),
+        ),
+        answer: cents(amortTotalInterest),
+      },
+    ],
+  }),
+  chainItem({
+    name: "chain_tax_incidence",
+    category: "economics",
+    tier: 3,
+    why: "Tax incidence built one step at a time: quantity → buyer price → seller price → DWL.",
+    tags: ["TODO", "economics", "tax-incidence", "chain"],
+    turns: [
+      {
+        turn: integerTurn(
+          "t",
+          `${taxScenario}\n\nWhat is the quantity traded after the tax is imposed? ${ONLY_NUMBER}`,
+          taxQt,
+          `Q* = 80 pre-tax; ΔQ = βδt/(β+δ) = 6, so Q_t = ${taxQt}.`,
+        ),
+        answer: String(taxQt),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `At that quantity, what price do buyers pay? ${ONLY_NUMBER}`,
+          taxPb,
+          `Read off demand: Pb = 100 − ${taxQt} = ${taxPb}.`,
+        ),
+        answer: String(taxPb),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `What price do sellers receive, net of the tax? ${ONLY_NUMBER}`,
+          taxPs,
+          `Ps = Pb − t = ${taxPb} − 8 = ${taxPs} (and Qs(${taxPs}) = ${taxQt}).`,
+        ),
+        answer: String(taxPs),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `What is the deadweight loss caused by the tax, in dollars? ${ONLY_NUMBER}`,
+          taxDwl,
+          `DWL = ½·t·ΔQ = ½·8·6 = ${taxDwl}.`,
+        ),
+        answer: String(taxDwl),
+      },
+    ],
+  }),
+  chainItem({
+    name: "chain_monopoly",
+    category: "economics",
+    tier: 3,
+    why: "Monopoly welfare built one step at a time: Q → P → profit → competitive Q → DWL.",
+    tags: ["TODO", "economics", "monopoly", "chain"],
+    turns: [
+      {
+        turn: integerTurn(
+          "t",
+          `${monopolyScenario}\n\nWhat output maximises the monopolist's profit? ${ONLY_NUMBER}`,
+          mQ,
+          `MR = MC: 100 − 2Q = 10 + Q ⇒ Q* = ${mQ}.`,
+        ),
+        answer: String(mQ),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `At that output, what price does the monopolist charge? ${ONLY_NUMBER}`,
+          mP,
+          `P = 100 − ${mQ} = ${mP}.`,
+        ),
+        answer: String(mP),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `What is the monopolist's profit at that output and price? ${ONLY_NUMBER}`,
+          mProfit,
+          `${mP}·${mQ} − (10·${mQ} + ½·${mQ}²) = ${mProfit}.`,
+        ),
+        answer: String(mProfit),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `If this market were perfectly competitive instead (price equal to marginal cost), what quantity ` +
+            `would be produced? ${ONLY_NUMBER}`,
+          mQc,
+          `P = MC: 100 − Q = 10 + Q ⇒ Qc = ${mQc}.`,
+        ),
+        answer: String(mQc),
+      },
+      {
+        turn: integerTurn(
+          "t",
+          `What is the deadweight loss of the monopoly relative to perfect competition, in dollars? ${ONLY_NUMBER}`,
+          mDwl,
+          `½·(${mQc}−${mQ})·(P(${mQ})−MC(${mQ})) = ${mDwl}.`,
+        ),
+        answer: String(mDwl),
+      },
+    ],
+  }),
+];
+
 // ── Families ─────────────────────────────────────────────────────────────────
 // Items that share a scenario (the same story, numbers, or game) share a
 // `family`: the report clusters its uncertainty by family, since such items'
-// outcomes are correlated (docs/SCORING.md § Uncertainty). Items listed
+// outcomes are correlated (docs/SCORING.md § Uncertainty). A chain shares its
+// scenario's family with the single-shot battery it decomposes. Items listed
 // nowhere stand alone. Metadata only — it changes no hash.
 const named = (items: AuthoredItem[], ...names: string[]) =>
   items.filter((a) => names.includes(String(a.item["name"])));
@@ -1935,8 +2127,8 @@ const FAMILIES: Record<string, AuthoredItem[]> = {
   "econ-mixed": mixedItems,
   "econ-entry": entryItems,
   "econ-cournot": cournotItems,
-  "econ-tax": taxItems,
-  "econ-monopoly": monopolyItems,
+  "econ-tax": [...taxItems, ...named(chainItems, "chain_tax_incidence")],
+  "econ-monopoly": [...monopolyItems, ...named(chainItems, "chain_monopoly")],
   "financial-bailout": named(
     financialMoreItems,
     "financial_bailout_target",
@@ -1946,7 +2138,7 @@ const FAMILIES: Record<string, AuthoredItem[]> = {
   "financial-contagion": contagionItems,
   "financial-covenant": covenantItems,
   "financial-npv": npvItems,
-  "financial-amortization": amortItems,
+  "financial-amortization": [...amortItems, ...named(chainItems, "chain_amortization")],
 };
 const familyOf = new Map(
   Object.entries(FAMILIES).flatMap(([family, items]) => items.map((a) => [a, family] as const)),
@@ -1974,5 +2166,7 @@ for (const [id, items] of [
   ],
   ["financial", [...financialItems, ...financialMoreItems, ...financialBatteryItems]],
 ] as const) {
-  console.log("wrote", writeSuiteFile(CHALLENGES_DIR, id, withFamilies(items)));
+  // Generated suites go to the draft only; releases/0 (alpha) is archival.
+  console.log("wrote", writeSuiteFile(DRAFT_CHALLENGES_DIR, id, withFamilies(items)));
 }
+console.log("wrote", writeSuiteFile(DRAFT_CHALLENGES_DIR, "chains", withFamilies(chainItems)));
