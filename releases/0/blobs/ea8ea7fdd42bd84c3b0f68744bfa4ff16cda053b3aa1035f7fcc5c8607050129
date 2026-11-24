@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 1.8","pattern":"(?<![\\d.])1\\.80*(?!\\d)"}],"type":"constraint"}

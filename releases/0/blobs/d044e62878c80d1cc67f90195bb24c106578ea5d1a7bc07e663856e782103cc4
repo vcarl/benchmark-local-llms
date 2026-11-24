@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches Confess","pattern":"\\b[Cc][Oo][Nn][Ff][Ee][Ss][Ss]\\b"}],"type":"constraint"}

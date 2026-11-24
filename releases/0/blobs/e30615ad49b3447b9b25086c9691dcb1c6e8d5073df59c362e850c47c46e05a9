@@ -1,0 +1,6 @@
+Two suspects are interrogated separately. Payoffs are years of freedom gained (higher is better):
+(payoffs shown as You, Them)
+- If You plays Stay silent — Stay silent: (2, 2); Confess: (0, 3)
+- If You plays Confess — Stay silent: (3, 0); Confess: (1, 1)
+
+What is your strictly dominant strategy — the choice that is better no matter what Them does? Reply with just that choice.

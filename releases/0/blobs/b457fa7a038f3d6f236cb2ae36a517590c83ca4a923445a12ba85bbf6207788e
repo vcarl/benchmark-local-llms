@@ -1,0 +1,3 @@
+Write a Python function `caesar_cipher(text: str, shift: int) -> str` that applies a Caesar cipher. Only shift a-z and A-Z, leave other characters unchanged. Support negative shifts.
+
+Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.

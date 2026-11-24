@@ -1,0 +1,1 @@
+{"expected":"9","extract":"ANSWER:\\s*(-?\\d[\\d,]*)(?:\\.0+(?!\\d))?","type":"exact_match"}

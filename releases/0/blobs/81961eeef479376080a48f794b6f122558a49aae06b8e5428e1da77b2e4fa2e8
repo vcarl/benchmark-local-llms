@@ -1,0 +1,1 @@
+{"testCode":"result = two_sum([2, 7, 11, 15], 9)\nassert sorted(result) == [0, 1]\nresult = two_sum([3, 2, 4], 6)\nassert sorted(result) == [1, 2]\nresult = two_sum([3, 3], 6)\nassert sorted(result) == [0, 1]\n","type":"code_exec"}

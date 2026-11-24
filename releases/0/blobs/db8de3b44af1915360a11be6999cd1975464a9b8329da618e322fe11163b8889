@@ -1,0 +1,1 @@
+{"constraints":[{"check":"valid_json","name":"valid JSON"},{"check":"regex","name":"offer function","pattern":"(?i)\"offer\"\\s*:\\s*\"Queue\\.offer\""},{"check":"regex","name":"take function","pattern":"(?i)\"take\"\\s*:\\s*\"Queue\\.take\""}],"type":"constraint"}

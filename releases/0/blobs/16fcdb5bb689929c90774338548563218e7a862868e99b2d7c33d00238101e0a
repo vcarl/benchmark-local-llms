@@ -1,0 +1,8 @@
+Three divisions are linked by FIXED monthly obligations each must pay every month:
+- Source: starts with $50, earns $60/month in other revenue, spends $70/month.
+- Mid: starts with $30, earns $30/month in other revenue, spends $40/month.
+- Tail: starts with $20, earns $20/month in other revenue, spends $35/month.
+- Each month, Source pays $30 to Mid.
+- Each month, Mid pays $20 to Tail.
+
+If the one-time injection at the start goes to Source, what is the smallest whole-dollar amount that keeps every division's balance non-negative for all 18 months? Reply with only that number and no other figures.

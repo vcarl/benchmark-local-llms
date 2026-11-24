@@ -1,0 +1,5 @@
+Two brokers, Vale and Pell, each carry six chronological feedback marks, listed from most recent (0 rounds ago) to oldest (5 rounds ago); each mark is either kept (good) or broken (bad). A recency-weighted reputation discounts each mark by λ raised to its age in rounds, with λ = 0.6, then applies Laplace smoothing: with decayed kept-mass P and broken-mass N, reputation = (P + 1)/(P + N + 2).
+Vale, newest to oldest: broken, broken, kept, kept, kept, kept.
+Pell, newest to oldest: kept, kept, kept, broken, broken, broken.
+
+Ignoring timing entirely, what fraction of Vale's marks were kept? Answer as a decimal to 6 places.

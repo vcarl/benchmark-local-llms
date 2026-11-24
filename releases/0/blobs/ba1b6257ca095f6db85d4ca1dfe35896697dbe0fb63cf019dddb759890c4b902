@@ -1,0 +1,1 @@
+{"expected":"12","extract":"\"result\"\\s*:\\s*(\\d+)","type":"exact_match"}

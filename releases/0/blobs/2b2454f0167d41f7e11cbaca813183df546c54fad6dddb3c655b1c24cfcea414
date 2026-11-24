@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches no","pattern":"\\b[Nn][Oo]\\b"}],"type":"constraint"}

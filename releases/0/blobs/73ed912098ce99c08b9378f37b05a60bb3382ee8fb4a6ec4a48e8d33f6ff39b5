@@ -1,0 +1,13 @@
+Complete this function:
+
+```python
+def fibonacci(n: int) -> int:
+    """Return the nth Fibonacci number.
+
+    fibonacci(0) = 0
+    fibonacci(1) = 1
+    fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)
+    """
+```
+
+Output only the complete function (def line + docstring + body) — no markdown, no commentary.

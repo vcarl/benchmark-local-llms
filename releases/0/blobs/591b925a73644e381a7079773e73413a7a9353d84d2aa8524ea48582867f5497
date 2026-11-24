@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 0.4","pattern":"(?<![\\d.])0?\\.40*(?!\\d)"}],"type":"constraint"}

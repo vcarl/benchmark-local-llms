@@ -1,0 +1,1 @@
+{"testCode":"assert is_palindrome(\"racecar\") == True\nassert is_palindrome(\"hello\") == False\nassert is_palindrome(\"\") == True\nassert is_palindrome(\"A man a plan a canal Panama\") == True\nassert is_palindrome(\"Was it a car or a cat I saw\") == True\nassert is_palindrome(\"No lemon, no melon\") == True\nassert is_palindrome(\"abc\") == False\n","type":"code_exec"}

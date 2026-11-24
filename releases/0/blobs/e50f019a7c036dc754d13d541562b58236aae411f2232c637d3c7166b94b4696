@@ -1,0 +1,3 @@
+A workshop hires a risk-neutral artisan who privately chooses high or low effort. High effort costs the artisan 10 in disutility, low effort costs 2. The commission turns out good with probability 0.8 under high effort and 0.5 under low effort; a good piece is worth 100 to the workshop and a bad piece 0. The contract pays a base wage on a bad outcome and the base wage plus a bonus Δ on a good outcome. The artisan maximises expected wage minus effort cost, and the workshop sets the base so the artisan's participation constraint binds at a reservation utility of 0.
+
+Compared with paying a flat wage and accepting low effort, is the workshop better off paying the minimum bonus Δ for high effort? Answer yes or no.

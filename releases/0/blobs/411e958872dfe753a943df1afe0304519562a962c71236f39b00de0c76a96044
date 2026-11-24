@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 142.99","pattern":"(?<![\\d.])142\\.990*(?!\\d)"}],"type":"constraint"}

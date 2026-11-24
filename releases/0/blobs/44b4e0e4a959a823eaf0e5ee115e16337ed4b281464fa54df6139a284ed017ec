@@ -1,0 +1,1 @@
+{"constraints":[{"check":"valid_json","name":"valid JSON"},{"check":"json_has_keys","keys":["name","age","city"],"name":"has required keys"},{"check":"json_all_string_values","name":"all values are strings"}],"type":"constraint"}

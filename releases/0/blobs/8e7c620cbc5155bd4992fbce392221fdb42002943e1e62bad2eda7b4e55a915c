@@ -1,0 +1,5 @@
+Given this input: {"items": ["apple", "banana", "cherry"]}
+
+Transform it to: {"items": [{"name": "<item>", "length": <char_count>}], "count": <total>}
+
+Output only the transformed JSON.

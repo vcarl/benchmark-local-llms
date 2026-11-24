@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 15230.38","pattern":"(?<![\\d.])15230\\.380*(?!\\d)"}],"type":"constraint"}

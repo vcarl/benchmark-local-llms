@@ -1,0 +1,8 @@
+Three divisions are linked by FIXED monthly obligations each must pay every month:
+- Source: starts with $50, earns $60/month in other revenue, spends $70/month.
+- Mid: starts with $30, earns $30/month in other revenue, spends $40/month.
+- Tail: starts with $20, earns $20/month in other revenue, spends $35/month.
+- Each month, Source pays $30 to Mid.
+- Each month, Mid pays $20 to Tail.
+
+You may give a one-time cash injection at the start to exactly ONE division. Which division must receive it so that no division ever ends a month with a negative balance over 18 months? Reply with just the division name.

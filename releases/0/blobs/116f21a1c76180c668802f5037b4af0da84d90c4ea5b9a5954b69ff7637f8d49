@@ -1,0 +1,1 @@
+You are playing tit-for-tat: cooperate in round 1, then in each later round copy what your opponent did in the PREVIOUS round. Over rounds 1–5 your opponent played: C, C, D, C, D (C = cooperate, D = defect). What do you play in round 6 — cooperate or defect?

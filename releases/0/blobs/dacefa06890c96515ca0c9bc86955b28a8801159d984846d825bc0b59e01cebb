@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches Pell","pattern":"\\b[Pp][Ee][Ll][Ll]\\b"}],"type":"constraint"}

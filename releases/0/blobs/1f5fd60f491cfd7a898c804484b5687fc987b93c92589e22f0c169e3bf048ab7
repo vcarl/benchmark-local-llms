@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches Rell","pattern":"\\b[Rr][Ee][Ll][Ll]\\b"}],"type":"constraint"}

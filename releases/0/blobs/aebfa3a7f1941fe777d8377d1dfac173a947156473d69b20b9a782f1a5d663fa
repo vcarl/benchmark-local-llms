@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches firm 1","pattern":"\\b[Ff][Ii][Rr][Mm]\\s+1\\b"}],"type":"constraint"}

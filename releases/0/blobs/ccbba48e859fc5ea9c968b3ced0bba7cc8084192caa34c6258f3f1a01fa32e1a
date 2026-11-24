@@ -1,0 +1,1 @@
+{"constraints":[{"check":"valid_json","name":"valid JSON"},{"check":"regex","name":"mentions interface","pattern":"(?i)interface"},{"check":"regex","name":"mentions tag","pattern":"(?i)tag"},{"check":"regex","name":"mentions implementation or layer","pattern":"(?i)(implement|layer|live)"}],"type":"constraint"}

@@ -1,0 +1,3 @@
+Write a Python function `is_palindrome(s: str) -> bool` that returns True if the string is a palindrome (case-insensitive, ignoring non-alphanumeric characters).
+
+Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.
