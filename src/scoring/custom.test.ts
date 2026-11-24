@@ -1,4 +1,5 @@
-import { CommandExecutor, FileSystem } from "@effect/platform";
+import { CommandExecutor } from "@effect/platform";
+import { SystemError } from "@effect/platform/Error";
 import { NodeContext } from "@effect/platform-node";
 import { Cause, Effect, Exit, Layer } from "effect";
 import { describe, expect, it } from "vitest";
@@ -6,18 +7,9 @@ import { ScorerSpawnFailed } from "../errors/index.js";
 import { scoreCustom } from "./custom.js";
 
 const withScript = <A, E>(
-  body: string,
-  run: (path: string) => Effect.Effect<A, E, NodeContext.NodeContext>,
-) =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const dir = yield* fs.makeTempDirectoryScoped();
-      const path = `${dir}/scorer.py`;
-      yield* fs.writeFileString(path, body);
-      return yield* run(path);
-    }),
-  ).pipe(Effect.provide(NodeContext.layer), Effect.runPromise);
+  source: string,
+  run: (source: string) => Effect.Effect<A, E, NodeContext.NodeContext>,
+) => run(source).pipe(Effect.provide(NodeContext.layer), Effect.runPromise);
 
 describe("scoreCustom", () => {
   it("returns the score the script prints", () =>
@@ -29,19 +21,45 @@ describe("scoreCustom", () => {
         ),
     ));
 
-  it("surfaces ScorerSpawnFailed when the interpreter binary does not exist", () =>
-    Effect.gen(function* () {
-      const result = yield* scoreCustom(
-        "hello",
-        "/nonexistent/scorer.py",
-        {},
-        {
-          pythonBin: "definitely-not-a-real-binary-xyz",
-        },
-      ).pipe(Effect.flip);
-      expect(result._tag).toBe("ScorerSpawnFailed");
-      expect(result instanceof ScorerSpawnFailed).toBe(true);
-    }).pipe(Effect.provide(NodeContext.layer), Effect.runPromise));
+  it("runs the script in the sandbox: non-root, no network, read-only root", () =>
+    withScript(
+      `${[
+        "import sys, json, os, socket",
+        "d = json.load(sys.stdin)",
+        "assert os.getuid() == 65534",
+        "try:",
+        "    socket.create_connection(('1.1.1.1', 53), timeout=2)",
+        "    sys.exit('network reachable')",
+        "except OSError:",
+        "    pass",
+        "try:",
+        "    open('/scorer.py', 'w')",
+        "    sys.exit('root writable')",
+        "except OSError:",
+        "    pass",
+        "print(json.dumps({'score': 0.5}))",
+      ].join("\n")}\n`,
+      (path) =>
+        scoreCustom("x", path, {}).pipe(
+          Effect.tap((s) => Effect.sync(() => expect(s.score).toBe(0.5))),
+        ),
+    ));
+
+  it("surfaces ScorerSpawnFailed when the docker binary does not exist", async () => {
+    const missingDocker = Layer.succeed(
+      CommandExecutor.CommandExecutor,
+      CommandExecutor.makeExecutor(() =>
+        Effect.fail(new SystemError({ reason: "NotFound", module: "Command", method: "spawn" })),
+      ),
+    );
+    const result = await scoreCustom("hello", "print(1)", {}).pipe(
+      Effect.flip,
+      Effect.provide(missingDocker),
+      Effect.runPromise,
+    );
+    expect(result._tag).toBe("ScorerSpawnFailed");
+    expect(result instanceof ScorerSpawnFailed).toBe(true);
+  });
 
   it("defect inside collect propagates as die, not CodeExecFailed", async () => {
     // Regression: catchAllCause previously folded every non-typed-failure cause
@@ -60,7 +78,7 @@ describe("scoreCustom", () => {
       CommandExecutor.makeExecutor(() => Effect.die(DEFECT)),
     );
 
-    const exit = await scoreCustom("anything", "/some/scorer.py", {}).pipe(
+    const exit = await scoreCustom("anything", "print(1)", {}).pipe(
       Effect.provide(dyingExecutorLayer),
       Effect.exit,
       Effect.runPromise,

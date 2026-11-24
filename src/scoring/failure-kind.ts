@@ -8,8 +8,8 @@ type Classifiable = Pick<ItemResult, "score" | "error" | "output" | "reasoning" 
 /**
  * oMLX, when the budget runs out mid-thinking, streams the unclosed reasoning
  * as `content` too. Such an output is no answer: scoring it would grep the
- * chain of thought. Shared by the runner (new results) and `bench score`
- * (archived ones), so both drop it the same way (erratum 0.6).
+ * chain of thought. Shared by the runner (new results) and the score-record
+ * computation (`rules.ts`), so both drop it the same way (erratum 0.6).
  */
 export const echoesTruncatedReasoning = (r: {
   output: string;
@@ -18,20 +18,13 @@ export const echoesTruncatedReasoning = (r: {
 }): boolean => r.stopReason === "length" && r.output === r.reasoning;
 
 /**
- * An archived item with its echoed-reasoning output dropped (see
- * {@link echoesTruncatedReasoning}); `rawOutput` keeps the content. Returns
- * `item` itself when there is nothing to drop.
- */
-export const dropEchoedReasoning = (item: ItemResult): ItemResult =>
-  item.output !== "" && echoesTruncatedReasoning(item) ? { ...item, output: "" } : item;
-
-/**
  * Why an item fell short of a full pass, or `null` when it scored 1. A pure
  * function of the stored item fields plus the scorer's outcome (`undefined`
  * when the item was not scored), so re-scoring an archive reproduces it.
  * First matching rule wins:
  *
  *   error "thinking_truncated"          → thinking_truncated (inline think block never closed)
+ *   error "context_exceeded"            → context_exceeded (prompt does not fit the context window)
  *   any other error                     → execution_error (transport, timeout, malformed response)
  *   a declared near miss matched        → near_miss
  *   stopReason "loop"                   → loop (repetition detector cancelled the stream)
@@ -49,6 +42,7 @@ export const classifyFailure = (
 ): FailureKind | null => {
   if (item.score === 1) return null;
   if (item.error === "thinking_truncated") return "thinking_truncated";
+  if (item.error === "context_exceeded") return "context_exceeded";
   if (item.error !== null) return "execution_error";
   // The scored output earned declared partial credit, however generation ended.
   if (scored?.nearMiss !== undefined) return "near_miss";
@@ -60,23 +54,4 @@ export const classifyFailure = (
   if (scored?.failure === "scorer_error") return "scorer_error";
   if (empty || scored?.failure === "no_answer") return "no_answer";
   return "wrong";
-};
-
-/**
- * Stamp a scorer outcome onto an item: `score` (0 when the execution errored),
- * `breakdown`, `scoreDetails`, and `failureKind`. Pass `undefined` for an item
- * whose execution errored — it is not scored. Stale scoring fields on `row` are
- * always dropped first.
- */
-export const applyScore = (row: ItemResult, scored: PromptScore | undefined): ItemResult => {
-  const { breakdown: _b, failureKind: _f, scoreDetails: _d, nearMiss: _n, ...rest } = row;
-  const s = rest.error === null ? scored : undefined;
-  const base = { ...rest, score: s?.score ?? 0 };
-  return {
-    ...base,
-    ...(s?.breakdown === undefined ? {} : { breakdown: s.breakdown }),
-    ...(s === undefined ? {} : { scoreDetails: s.details }),
-    ...(s?.nearMiss === undefined ? {} : { nearMiss: s.nearMiss }),
-    failureKind: classifyFailure(base, s),
-  };
 };

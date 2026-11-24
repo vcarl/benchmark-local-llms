@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import type { ConstraintConfig } from "../schema/scorer.js";
 import { evaluateConstraint } from "./constraint-checks.js";
 import type { ConstraintBreakdown, PromptScore } from "./score-result.js";
+import { scoreToolCalls, type ToolCallsOutcome } from "./tool-calls.js";
 
 /**
  * constraint scorer (requirements §4.3 / runner.py:_score_constraints).
@@ -26,8 +27,26 @@ export const scoreConstraints = (
     const passed: string[] = [];
     const failed: string[] = [];
     const errored: string[] = [];
+    // `tool_calls` outcomes: their credit may be partial, and their details are kept.
+    const calls: ToolCallsOutcome[] = [];
+    let partial = 0;
 
     for (const def of config.constraints) {
+      if (def.check === "tool_calls") {
+        const r = yield* Effect.either(
+          Effect.try({ try: () => scoreToolCalls(output, def), catch: (e) => e }),
+        );
+        if (r._tag === "Left") errored.push(def.name);
+        else {
+          calls.push(r.right);
+          if (r.right.credit === 1) passed.push(def.name);
+          else {
+            failed.push(def.name);
+            partial += r.right.credit;
+          }
+        }
+        continue;
+      }
       const result = yield* Effect.either(evaluateConstraint(output, def));
       if (result._tag === "Right") {
         if (result.right) passed.push(def.name);
@@ -38,10 +57,19 @@ export const scoreConstraints = (
     }
 
     const total = config.constraints.length;
-    const score = total > 0 ? passed.length / total : 0;
+    const score = total > 0 ? (passed.length + partial) / total : 0;
     const breakdown: ConstraintBreakdown = { passed, failed, errored };
 
-    const details = formatDetails(passed.length, total, failed, errored);
+    const details = [
+      formatDetails(passed.length, total, failed, errored),
+      ...calls.map((c) => c.details),
+    ].join("; ");
+    const marks = {
+      ...(score === 0 && calls.some((c) => c.noAnswer) ? { failure: "no_answer" as const } : {}),
+      ...(score < 1 && calls.some((c) => c.explicitDefaults.length > 0)
+        ? { nearMiss: "explicit-default" }
+        : {}),
+    };
     for (const n of score < 1 ? (config.nearMisses ?? []) : []) {
       const hit = yield* Effect.either(
         evaluateConstraint(output, { check: "regex", name: n.slip, pattern: n.pattern }),
@@ -56,7 +84,7 @@ export const scoreConstraints = (
         };
       }
     }
-    return { kind: "prompt", score, details, breakdown };
+    return { kind: "prompt", score, details, breakdown, ...marks };
   });
 
 const formatDetails = (

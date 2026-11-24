@@ -8,7 +8,7 @@
  *      (`^[A-Z][a-z].*[.:]$`), or end of input.
  *   3. Otherwise: use the whole trimmed output.
  *
- * This is intentionally a no-effect pure function; the subprocess invocation
+ * This is intentionally a no-effect pure function; the subprocess call
  * layer wraps execution separately.
  */
 

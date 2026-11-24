@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { ConstraintEvalError } from "../errors/scorer.js";
 import type { ConstraintDef } from "../schema/constraints.js";
 import { translateInlineFlags } from "./regex-flags.js";
+import { scoreToolCalls } from "./tool-calls.js";
 
 /**
  * Pure per-constraint evaluators, ported byte-for-byte from
@@ -123,7 +124,7 @@ const JSON_FENCES_RE = /```[a-zA-Z0-9_-]*[ \t]*\r?\n([\s\S]*?)```/g;
  * a model that drafts or echoes a schema first states its answer at the end.
  * A parsed block's nested blocks are skipped, so the result is top-level.
  */
-const extractAnswerJson = (text: string): unknown | null => {
+export const extractAnswerJson = (text: string): unknown | null => {
   const whole = parseOrNull(text.trim());
   if (whole !== null) return whole;
 
@@ -156,7 +157,7 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
  * compares `obj.get(key) == value`; since the schema allows `Unknown`
  * expected values, we implement a JSON-structural deep equals.
  */
-const deepEqual = (a: unknown, b: unknown): boolean => {
+export const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
   if (Array.isArray(a) && Array.isArray(b)) {
@@ -273,6 +274,9 @@ export const evaluateConstraint = (
           const answer = extractAnswerJson(output);
           return answer !== null && deepEqual(answer, def.value);
         }
+
+        case "tool_calls":
+          return scoreToolCalls(output, def).credit === 1;
 
         case "numbered_lines": {
           // Python: rf"^{from}[.):\s]" with re.MULTILINE, both must match.

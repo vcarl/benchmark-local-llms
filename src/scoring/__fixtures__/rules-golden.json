@@ -1,0 +1,1123 @@
+{
+  "cases": [
+    {
+      "name": "exact pass",
+      "execution": {
+        "item": "golden/case",
+        "output": "work... ANSWER: 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "exact pass, commas stripped",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 4,2",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*([\\d,]+)"
+      }
+    },
+    {
+      "name": "exact last match wins",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42 then ANSWER: 43",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "exact wrong",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 43",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "exact no marker → no_answer",
+      "execution": {
+        "item": "golden/case",
+        "output": "the answer is 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "exact fallback → format flaw",
+      "execution": {
+        "item": "golden/case",
+        "output": "the answer is 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)",
+        "fallbackExtract": "(\\d+)\\s*$"
+      }
+    },
+    {
+      "name": "exact fallback wrong → no_answer",
+      "execution": {
+        "item": "golden/case",
+        "output": "the answer is 43",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)",
+        "fallbackExtract": "(\\d+)\\s*$"
+      }
+    },
+    {
+      "name": "exact marker beats fallback",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 43 so 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)",
+        "fallbackExtract": "(\\d+)\\s*$"
+      }
+    },
+    {
+      "name": "exact declared near miss",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 41",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)",
+        "nearMisses": [
+          {
+            "slip": "off-by-one",
+            "credit": 0.5,
+            "expected": "41"
+          }
+        ]
+      }
+    },
+    {
+      "name": "exact empty output → no_answer",
+      "execution": {
+        "item": "golden/case",
+        "output": "",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "exact whitespace output → no_answer",
+      "execution": {
+        "item": "golden/case",
+        "output": "  \n",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "constraint all pass",
+      "execution": {
+        "item": "golden/case",
+        "output": "{\"metal\": \"gold\"}",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "valid JSON",
+            "check": "valid_json"
+          },
+          {
+            "name": "says gold",
+            "check": "contains",
+            "value": "gold"
+          }
+        ]
+      }
+    },
+    {
+      "name": "constraint partial → wrong",
+      "execution": {
+        "item": "golden/case",
+        "output": "gold, not JSON",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "valid JSON",
+            "check": "valid_json"
+          },
+          {
+            "name": "says gold",
+            "check": "contains",
+            "value": "gold"
+          }
+        ]
+      }
+    },
+    {
+      "name": "constraint none pass",
+      "execution": {
+        "item": "golden/case",
+        "output": "silver",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "valid JSON",
+            "check": "valid_json"
+          },
+          {
+            "name": "says gold",
+            "check": "contains",
+            "value": "gold"
+          }
+        ]
+      }
+    },
+    {
+      "name": "constraint near miss",
+      "execution": {
+        "item": "golden/case",
+        "output": "It is Lyon.",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "says Paris",
+            "check": "contains",
+            "value": "Paris"
+          }
+        ],
+        "nearMisses": [
+          {
+            "slip": "capital confusion",
+            "credit": 0.25,
+            "pattern": "Lyon"
+          }
+        ]
+      }
+    },
+    {
+      "name": "constraint pass beats near miss",
+      "execution": {
+        "item": "golden/case",
+        "output": "Paris, not Lyon.",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "says Paris",
+            "check": "contains",
+            "value": "Paris"
+          }
+        ],
+        "nearMisses": [
+          {
+            "slip": "capital confusion",
+            "credit": 0.25,
+            "pattern": "Lyon"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_calls exact",
+      "execution": {
+        "item": "golden/case",
+        "output": "[{\"name\":\"get_weather_forecast\",\"arguments\":{\"location\":\"Denver\",\"days\":7}}]",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "calls forecast",
+            "check": "tool_calls",
+            "value": [
+              {
+                "name": "get_weather_forecast",
+                "arguments": {
+                  "location": "Denver",
+                  "days": 7
+                },
+                "optional": {
+                  "units": "celsius"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_calls explicit default",
+      "execution": {
+        "item": "golden/case",
+        "output": "[{\"name\":\"get_weather_forecast\",\"arguments\":{\"location\":\"Denver\",\"days\":7,\"units\":\"celsius\"}}]",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "calls forecast",
+            "check": "tool_calls",
+            "value": [
+              {
+                "name": "get_weather_forecast",
+                "arguments": {
+                  "location": "Denver",
+                  "days": 7
+                },
+                "optional": {
+                  "units": "celsius"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_calls wrong args",
+      "execution": {
+        "item": "golden/case",
+        "output": "[{\"name\":\"get_weather_forecast\",\"arguments\":{\"location\":\"Boise\",\"days\":7}}]",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "calls forecast",
+            "check": "tool_calls",
+            "value": [
+              {
+                "name": "get_weather_forecast",
+                "arguments": {
+                  "location": "Denver",
+                  "days": 7
+                },
+                "optional": {
+                  "units": "celsius"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_calls no JSON",
+      "execution": {
+        "item": "golden/case",
+        "output": "I would call the forecast tool.",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "constraint",
+        "constraints": [
+          {
+            "name": "calls forecast",
+            "check": "tool_calls",
+            "value": [
+              {
+                "name": "get_weather_forecast",
+                "arguments": {
+                  "location": "Denver",
+                  "days": 7
+                },
+                "optional": {
+                  "units": "celsius"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "set exact",
+      "execution": {
+        "item": "golden/case",
+        "output": "Alice and Bob",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "set_match",
+        "vocabulary": ["Alice", "Bob", "Carol"],
+        "expected": ["Alice", "Bob"]
+      }
+    },
+    {
+      "name": "set case-insensitive",
+      "execution": {
+        "item": "golden/case",
+        "output": "alice and bob",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "set_match",
+        "vocabulary": ["Alice", "Bob", "Carol"],
+        "expected": ["Alice", "Bob"]
+      }
+    },
+    {
+      "name": "set partial",
+      "execution": {
+        "item": "golden/case",
+        "output": "Alice and Carol",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "set_match",
+        "vocabulary": ["Alice", "Bob", "Carol"],
+        "expected": ["Alice", "Bob"]
+      }
+    },
+    {
+      "name": "set none named → no_answer",
+      "execution": {
+        "item": "golden/case",
+        "output": "nobody",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "set_match",
+        "vocabulary": ["Alice", "Bob", "Carol"],
+        "expected": ["Alice", "Bob"]
+      }
+    },
+    {
+      "name": "ordered exact",
+      "execution": {
+        "item": "golden/case",
+        "output": "red, then green, then blue",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "ordered_match",
+        "vocabulary": ["red", "green", "blue"],
+        "expected": ["red", "green", "blue"]
+      }
+    },
+    {
+      "name": "ordered swapped",
+      "execution": {
+        "item": "golden/case",
+        "output": "green, red, blue",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "ordered_match",
+        "vocabulary": ["red", "green", "blue"],
+        "expected": ["red", "green", "blue"]
+      }
+    },
+    {
+      "name": "ordered missing",
+      "execution": {
+        "item": "golden/case",
+        "output": "red then blue",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "ordered_match",
+        "vocabulary": ["red", "green", "blue"],
+        "expected": ["red", "green", "blue"]
+      }
+    },
+    {
+      "name": "ordered none named → no_answer",
+      "execution": {
+        "item": "golden/case",
+        "output": "no colors",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "ordered_match",
+        "vocabulary": ["red", "green", "blue"],
+        "expected": ["red", "green", "blue"]
+      }
+    },
+    {
+      "name": "unknown scorer → scorer_error",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "game",
+        "gameScorer": "absent",
+        "scorerParams": {}
+      }
+    },
+    {
+      "name": "error thinking_truncated",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": null,
+        "error": "thinking_truncated",
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "error context_exceeded",
+      "execution": {
+        "item": "golden/case",
+        "output": "",
+        "reasoning": null,
+        "error": "context_exceeded",
+        "stopReason": null
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "error transport → execution_error",
+      "execution": {
+        "item": "golden/case",
+        "output": "",
+        "reasoning": null,
+        "error": "HTTP 500",
+        "stopReason": null
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "loop",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 43 43 43",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "loop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "loop but correct",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "loop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "length cutoff",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 4",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "length, empty, reasoning → thinking_truncated",
+      "execution": {
+        "item": "golden/case",
+        "output": "",
+        "reasoning": "hmm",
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "length, empty, no reasoning → length_cutoff",
+      "execution": {
+        "item": "golden/case",
+        "output": "",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "length but correct",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "near miss beats length",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 41",
+        "reasoning": null,
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)",
+        "nearMisses": [
+          {
+            "slip": "off-by-one",
+            "credit": 0.5,
+            "expected": "41"
+          }
+        ]
+      }
+    },
+    {
+      "name": "echoed truncated reasoning dropped",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": "ANSWER: 42",
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "echo without length kept",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": "ANSWER: 42",
+        "error": null,
+        "stopReason": "stop"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "different reasoning kept",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 42",
+        "reasoning": "thinking",
+        "error": null,
+        "stopReason": "length"
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    },
+    {
+      "name": "null stop reason",
+      "execution": {
+        "item": "golden/case",
+        "output": "ANSWER: 43",
+        "reasoning": null,
+        "error": null,
+        "stopReason": null
+      },
+      "scorer": {
+        "type": "exact_match",
+        "expected": "42",
+        "extract": "ANSWER:\\s*(\\d+)"
+      }
+    }
+  ],
+  "results": [
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "correct: 42",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "correct: 42",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "wrong",
+      "details": "expected 42, got 43",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "wrong",
+      "details": "expected 42, got 43",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0.75,
+      "failureKind": "near_miss",
+      "details": "format flaw (no answer marker): correct: 42",
+      "nearMiss": "format-flaw",
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "wrong",
+      "details": "expected 42, got 43",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0.5,
+      "failureKind": "near_miss",
+      "details": "near miss (off-by-one): expected 42, got 41",
+      "nearMiss": "off-by-one",
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "2/2: all passed",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": ["valid JSON", "says gold"],
+        "failed": [],
+        "errored": []
+      }
+    },
+    {
+      "score": 0.5,
+      "failureKind": "wrong",
+      "details": "1/2: failed [valid JSON]",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": ["says gold"],
+        "failed": ["valid JSON"],
+        "errored": []
+      }
+    },
+    {
+      "score": 0,
+      "failureKind": "wrong",
+      "details": "0/2: failed [valid JSON, says gold]",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": [],
+        "failed": ["valid JSON", "says gold"],
+        "errored": []
+      }
+    },
+    {
+      "score": 0.25,
+      "failureKind": "near_miss",
+      "details": "near miss (capital confusion): 0/1: failed [says Paris]",
+      "nearMiss": "capital confusion",
+      "breakdown": {
+        "passed": [],
+        "failed": ["says Paris"],
+        "errored": []
+      }
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "1/1: all passed",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": ["says Paris"],
+        "failed": [],
+        "errored": []
+      }
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "1/1: all passed; 1/1 calls matched: get_weather_forecast: matched",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": ["calls forecast"],
+        "failed": [],
+        "errored": []
+      }
+    },
+    {
+      "score": 0.75,
+      "failureKind": "near_miss",
+      "details": "0/1: failed [calls forecast]; 1/1 calls matched: get_weather_forecast: matched (explicit default units)",
+      "nearMiss": "explicit-default",
+      "breakdown": {
+        "passed": [],
+        "failed": ["calls forecast"],
+        "errored": []
+      }
+    },
+    {
+      "score": 0,
+      "failureKind": "wrong",
+      "details": "0/1: failed [calls forecast]; no assignment matches every call; get_weather_forecast: wrong-arg location=\"Boise\"",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": [],
+        "failed": ["calls forecast"],
+        "errored": []
+      }
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "0/1: failed [calls forecast]; no parseable JSON answer",
+      "nearMiss": null,
+      "breakdown": {
+        "passed": [],
+        "failed": ["calls forecast"],
+        "errored": []
+      }
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "F1=1.00 precision=1.00 recall=1.00 matched [Alice, Bob] missing [] extra []",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "F1=1.00 precision=1.00 recall=1.00 matched [Alice, Bob] missing [] extra []",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0.5,
+      "failureKind": "wrong",
+      "details": "F1=0.50 precision=0.50 recall=0.50 matched [Alice] missing [Bob] extra [Carol]",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "F1=0.00 precision=0.00 recall=0.00 matched [] missing [Alice, Bob] extra []",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "LCS=3/3 predicted [red → green → blue] expected [red → green → blue]",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0.6666666666666666,
+      "failureKind": "wrong",
+      "details": "LCS=2/3 predicted [green → red → blue] expected [red → green → blue]",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0.6666666666666666,
+      "failureKind": "wrong",
+      "details": "LCS=2/3 predicted [red → blue] expected [red → green → blue]",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "no_answer",
+      "details": "LCS=0/3 predicted [] expected [red → green → blue]",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "scorer_error",
+      "details": "scorer error: {\"scorerName\":\"absent\",\"_tag\":\"ScorerNotFound\"}",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "thinking_truncated",
+      "details": null,
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "context_exceeded",
+      "details": null,
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "execution_error",
+      "details": null,
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "loop",
+      "details": "expected 42, got 43",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "correct: 42",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "length_cutoff",
+      "details": "expected 42, got 4",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "thinking_truncated",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "length_cutoff",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "correct: 42",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0.5,
+      "failureKind": "near_miss",
+      "details": "near miss (off-by-one): expected 42, got 41",
+      "nearMiss": "off-by-one",
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "thinking_truncated",
+      "details": "no match for pattern in output",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "correct: 42",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 1,
+      "failureKind": null,
+      "details": "correct: 42",
+      "nearMiss": null,
+      "breakdown": null
+    },
+    {
+      "score": 0,
+      "failureKind": "wrong",
+      "details": "expected 42, got 43",
+      "nearMiss": null,
+      "breakdown": null
+    }
+  ],
+  "history": {
+    "2": "302fd38161231c4bba0d6be60e7cf2f008b77cddf203a16b2de8260df1f52e43"
+  }
+}

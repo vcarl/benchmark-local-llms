@@ -1,23 +1,26 @@
 /**
  * `code_exec` scorer — runs the model's Python output against a test file
- * in a sandboxed subprocess and returns 1.0 on pass, 0.0 on fail.
+ * in the isolated runner (`sandbox.ts`) and returns 1.0 on pass, 0.0 on fail.
  *
- * Mirrors `runner.py:run_code_with_tests`: concatenates generated code with
- * the scenario's test_code plus a "ALL_TESTS_PASSED" marker, runs it via
- * `python3 -c`, and classifies the outcome by exit status + marker presence.
+ * Concatenates generated code with the scenario's test_code plus an
+ * "ALL_TESTS_PASSED" marker, feeds it to `python3 -` in the sandbox, and
+ * classifies the outcome by exit status + marker presence.
  *
- * Errors that represent tool failures (subprocess launch failure, timeout)
- * bubble up as typed errors; the run loop decides whether they're fatal
- * or produce a 0 score with an error note.
+ * Submitted code that outlives its budget scores 0 like code that raises.
+ * Errors that represent tool failures (runner unavailable, a sandbox fault)
+ * bubble up as typed errors; `scoreOrFold` folds them into a `scorer_error` 0.
  */
-import { Command, type CommandExecutor } from "@effect/platform";
-import { Effect, Stream } from "effect";
-import { CodeExecFailed, CodeExecTimeout } from "../errors/index.js";
+import type { CommandExecutor } from "@effect/platform";
+import { Effect } from "effect";
+import type { CodeExecFailed, ScorerSpawnFailed } from "../errors/index.js";
 import { extractCode } from "./extract-code.js";
-import type { PromptScore } from "./score-result.js";
+import { runSandboxed } from "./sandbox.js";
+import { asFormatFlaw, type PromptScore } from "./score-result.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const TESTS_PASSED_MARKER = "ALL_TESTS_PASSED";
+/** SIGKILL: the memory limit, or a payload that ignored the timeout's SIGTERM. */
+const KILLED_EXIT = 137;
 
 const buildProgram = (extracted: string, testCode: string): string =>
   `${extracted}\n\n${testCode}\nprint('${TESTS_PASSED_MARKER}')\n`;
@@ -25,13 +28,22 @@ const buildProgram = (extracted: string, testCode: string): string =>
 const escapeRegExp = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
 
 /**
- * Submission mode: the first ```<lang> fenced block, else the first unlabeled
- * fence, else the whole trimmed output — bound as a Python string, never run.
+ * Submission mode: the first ```<lang> fenced block, as asked. Any looser
+ * reading is a format flaw: the text after the tag on a ```<lang> fence line
+ * (through the closing fence), else the first unlabeled fence, else the whole
+ * trimmed output. Bound as a Python string, never run.
  */
-export const extractSubmission = (output: string, lang: string): string => {
-  const fence = (tag: string) => new RegExp(`\`\`\`${tag}[ \\t]*\\r?\\n([\\s\\S]*?)\`\`\``);
-  const m = fence(escapeRegExp(lang)).exec(output) ?? fence("").exec(output);
-  return (m?.[1] ?? output).trim();
+export const extractSubmission = (
+  output: string,
+  lang: string,
+): { readonly text: string; readonly formatFlaw: boolean } => {
+  const tag = escapeRegExp(lang);
+  const fenced = new RegExp(`\`\`\`${tag}[ \\t]*\\r?\\n([\\s\\S]*?)\`\`\``).exec(output)?.[1];
+  if (fenced !== undefined) return { text: fenced.trim(), formatFlaw: false };
+  const loose =
+    new RegExp(`\`\`\`${tag}[ \\t]+(\\S[\\s\\S]*?)\`\`\``).exec(output) ??
+    /```[ \t]*\r?\n([\s\S]*?)```/.exec(output);
+  return { text: (loose?.[1] ?? output).trim(), formatFlaw: true };
 };
 
 /**
@@ -40,7 +52,8 @@ export const extractSubmission = (output: string, lang: string): string => {
  */
 const bindSubmission = (submission: string): string => `SUBMISSION = ${JSON.stringify(submission)}`;
 
-const classifyFailure = (stdout: string, stderr: string): string => {
+const classifyFailure = (stdout: string, stderr: string, exitCode: number): string => {
+  if (exitCode === KILLED_EXIT) return "killed: memory limit or ignored timeout";
   const lines = stderr.trim().split(/\r?\n/);
   const last = lines[lines.length - 1] ?? "";
   const truncated = last.slice(0, 120);
@@ -54,67 +67,49 @@ const classifyFailure = (stdout: string, stderr: string): string => {
 
 export interface CodeExecOptions {
   readonly timeoutMs?: number;
-  readonly pythonBin?: string;
   /** Submission mode: bind the output's `<lang>` block to `SUBMISSION` instead of executing it. */
   readonly submission?: string | undefined;
 }
 
 /**
  * Score a model output against its paired test code. Returns a `PromptScore`
- * with 1.0 on pass / 0.0 on fail, and a details string describing the outcome.
+ * with 1.0 on pass / 0.0 on fail (a passing submission read through a looser
+ * fallback is a format flaw), and a details string describing the outcome.
  */
 export const scoreCodeExec = (
   output: string,
   testCode: string,
   options: CodeExecOptions = {},
-): Effect.Effect<PromptScore, CodeExecTimeout | CodeExecFailed, CommandExecutor.CommandExecutor> =>
+): Effect.Effect<
+  PromptScore,
+  CodeExecFailed | ScorerSpawnFailed,
+  CommandExecutor.CommandExecutor
+> =>
   Effect.gen(function* () {
-    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const pythonBin = options.pythonBin ?? "python3";
-    const extracted =
-      options.submission === undefined
-        ? extractCode(output)
-        : bindSubmission(extractSubmission(output, options.submission));
-    const program = buildProgram(extracted, testCode);
-
-    const cmd = Command.make(pythonBin, "-c", program);
-
-    const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8").decode(bytes);
-
-    const collect = Effect.scoped(
-      Effect.gen(function* () {
-        const process = yield* Command.start(cmd);
-        const stdoutP = Stream.runCollect(process.stdout).pipe(
-          Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
-        );
-        const stderrP = Stream.runCollect(process.stderr).pipe(
-          Effect.map((chunks) => Array.from(chunks).map(decode).join("")),
-        );
-        const [stdout, stderr, exitCode] = yield* Effect.all([stdoutP, stderrP, process.exitCode], {
-          concurrency: "unbounded",
-        });
-        return { stdout, stderr, exitCode };
-      }),
-    );
-
-    const raced = yield* Effect.timeout(collect, timeoutMs).pipe(
-      Effect.map((ok) => ({ tag: "ok" as const, ...ok })),
-      Effect.catchTag("TimeoutException", () => Effect.succeed({ tag: "timeout" as const })),
-      Effect.catchAll((cause) =>
-        Effect.succeed({ tag: "launch-fail" as const, cause: String(cause) }),
+    const lang = options.submission;
+    const sub = lang === undefined ? undefined : extractSubmission(output, lang);
+    const scored = yield* runSandboxed({
+      command: ["python3", "-"],
+      stdin: buildProgram(
+        sub === undefined ? extractCode(output) : bindSubmission(sub.text),
+        testCode,
+      ),
+      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    }).pipe(
+      Effect.map(
+        ({ stdout, stderr, exitCode }): PromptScore =>
+          exitCode === 0 && stdout.includes(TESTS_PASSED_MARKER)
+            ? { kind: "prompt", score: 1.0, details: "all tests passed" }
+            : { kind: "prompt", score: 0.0, details: classifyFailure(stdout, stderr, exitCode) },
+      ),
+      // Submitted code that ran past its budget failed at runtime, like one that raised.
+      Effect.catchTag("CodeExecTimeout", (e) =>
+        Effect.succeed<PromptScore>({
+          kind: "prompt",
+          score: 0.0,
+          details: `timed out after ${e.timeoutSec}s`,
+        }),
       ),
     );
-
-    if (raced.tag === "timeout") {
-      return yield* Effect.fail(new CodeExecTimeout({ timeoutSec: timeoutMs / 1000 }));
-    }
-    if (raced.tag === "launch-fail") {
-      return yield* Effect.fail(new CodeExecFailed({ exitCode: -1, stderr: raced.cause }));
-    }
-
-    const { stdout, stderr, exitCode } = raced;
-    if (exitCode === 0 && stdout.includes(TESTS_PASSED_MARKER)) {
-      return { kind: "prompt", score: 1.0, details: "all tests passed" };
-    }
-    return { kind: "prompt", score: 0.0, details: classifyFailure(stdout, stderr) };
+    return sub?.formatFlaw === true ? asFormatFlaw(scored, `no \`\`\`${lang} block`) : scored;
   });

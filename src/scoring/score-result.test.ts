@@ -23,7 +23,6 @@ const baseResult: ExecutionResult = {
   reasoning: null,
   rawOutput: "",
   error: null,
-  promptHash: "hash",
   scenarioHash: null,
   scenarioName: null,
   terminationReason: null,
@@ -43,7 +42,6 @@ describe("scoreExecution", () => {
       system: { key: "direct", text: "" },
       promptText: "what is 42",
       scorer: { type: "exact_match", expected: "42", extract: "answer is (\\d+)" },
-      promptHash: "hash",
     };
     const out = await Effect.runPromise(
       scoreExecution(result, entry).pipe(Effect.provide(NodeContext.layer)),
@@ -66,7 +64,6 @@ describe("scoreExecution", () => {
         type: "constraint",
         constraints: [{ check: "contains", name: "has_abc", value: "abc" }],
       },
-      promptHash: "hash",
     };
     const out = await Effect.runPromise(
       scoreExecution(result, entry).pipe(Effect.provide(NodeContext.layer)),
