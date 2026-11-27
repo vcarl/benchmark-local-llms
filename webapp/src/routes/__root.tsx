@@ -220,7 +220,7 @@ function Shell({ index }: { index: IndexEntry[] }) {
         <Sashay
           ref={panes}
           layout={view.layout}
-          defaultLayout={[2 / 3, 1]} // chart 2/3 | list 1/3, details closed
+          defaultLayout={[1 / 2, 1]} // chart 1:1 list, details closed
           onLayoutChange={setLayout}
         >
           <Pane
@@ -255,9 +255,8 @@ function Shell({ index }: { index: IndexEntry[] }) {
           <Pane
             id="list"
             title="Results"
-            focus={1 / 4}
+            focus={2 / 5}
             minWidth={150}
-            maxWidth={460}
             bar={{
               title: "Filters",
               height: 360,
@@ -293,10 +292,10 @@ function Shell({ index }: { index: IndexEntry[] }) {
             <Pane
               id="details"
               title="Details"
-              focus={1 / 3}
+              focus={1 / 5}
               minWidth={180}
               maxWidth={560}
-              opensTo={[1 / 6, 2 / 3]} // 1:3:2
+              opensTo={[2 / 5, 4 / 5]} // 2:2:1
               onClose={closeDetails}
             >
               <div className={styles.detailsLane}>
