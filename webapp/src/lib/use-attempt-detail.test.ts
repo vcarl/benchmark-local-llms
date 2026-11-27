@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { promptsUrl } from "./snapshots";
 import { type AttemptDetail, classifyDetailResponse, withPrompts } from "./use-attempt-detail";
 
 const jsonHeaders = { "content-type": "application/json" };
@@ -52,7 +53,7 @@ describe("withPrompts", () => {
       await withPrompts(detail({ prompts: "d1" }));
       expect(a.items.map((i) => i.prompt_text)).toEqual(["px", "py"]);
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock).toHaveBeenCalledWith("./snapshots/prompts/d1.json");
+      expect(fetchMock).toHaveBeenCalledWith(promptsUrl("d1"));
     } finally {
       vi.unstubAllGlobals();
     }
