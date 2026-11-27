@@ -2,6 +2,8 @@
 // report's selected rows. The webapp reads only this: it sums cells and
 // displays, and never chooses evidence.
 
+import type { Timing } from "./timing";
+
 export type Counts = Record<string, [number, number]>;
 export type CellStatus = "scored" | "stale_hash" | "interrupted" | "not_run";
 
@@ -111,6 +113,8 @@ export interface RowsDataset {
   challengeSet: { id: string; version: number; hash: string; items: number; scopes: Record<string, number> }[];
   hardware: Record<string, HardwareProfile>;
   rows: Row[];
+  /** Evaluation timing disclosure; absent in older snapshots. */
+  timing?: Timing;
 }
 
 /** `Apple M5 Max 128GB`; the id itself when the profile is unknown. */
