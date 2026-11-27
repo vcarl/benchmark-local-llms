@@ -1,14 +1,18 @@
 // The report's data: `snapshots/index.json` lists every dataset, and a dataset's
 // snapshot (`snapshots/<digest>.json`) is fetched when it is selected.
-// URLs are document-relative so the deploy base path is honored.
+// URLs sit under Vite's base: document-relative (`./`) by default, or the absolute
+// data origin a deploy builds with (`PAGES_ORIGIN`, docs/DEPLOY.md), so a page
+// served through a proxy still fetches its data straight from that origin.
 import { useEffect, useState } from "react";
 import { compareReleases } from "../../../src/config/release-order";
 import type { RowsDataset } from "./rows";
 
-export const INDEX_URL = "./snapshots/index.json";
-export const snapshotUrl = (digest: string) => `./snapshots/${digest}.json`;
-export const detailUrl = (id: string) => `./snapshots/details/${id}.json`;
-export const promptsUrl = (digest: string) => `./snapshots/prompts/${digest}.json`;
+// `import.meta.env` is Vite's; under plain node (the llms generator) it is absent.
+const BASE: string = import.meta.env?.BASE_URL ?? "./";
+export const INDEX_URL = `${BASE}snapshots/index.json`;
+export const snapshotUrl = (digest: string) => `${BASE}snapshots/${digest}.json`;
+export const detailUrl = (id: string) => `${BASE}snapshots/details/${id}.json`;
+export const promptsUrl = (digest: string) => `${BASE}snapshots/prompts/${digest}.json`;
 
 export interface IndexEntry {
   dataset: string;

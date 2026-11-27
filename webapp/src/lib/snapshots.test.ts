@@ -30,10 +30,11 @@ const entry = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("snapshot urls", () => {
-  it("are document-relative", () => {
-    expect(INDEX_URL).toBe("./snapshots/index.json");
-    expect(snapshotUrl("abc")).toBe("./snapshots/abc.json");
-    expect(detailUrl("id1")).toBe("./snapshots/details/id1.json");
+  it("sit under Vite's base", () => {
+    const base = import.meta.env.BASE_URL;
+    expect(INDEX_URL).toBe(`${base}snapshots/index.json`);
+    expect(snapshotUrl("abc")).toBe(`${base}snapshots/abc.json`);
+    expect(detailUrl("id1")).toBe(`${base}snapshots/details/id1.json`);
   });
 });
 
