@@ -113,8 +113,8 @@ export interface RowsDataset {
   challengeSet: { id: string; version: number; hash: string; items: number; scopes: Record<string, number> }[];
   hardware: Record<string, HardwareProfile>;
   rows: Row[];
-  /** Evaluation timing disclosure; absent in older snapshots. */
-  timing?: Timing;
+  /** Evaluation timing disclosure; null for alpha and draft datasets, absent in older snapshots. */
+  timing?: Timing | null;
 }
 
 /** `Apple M5 Max 128GB`; the id itself when the profile is unknown. */

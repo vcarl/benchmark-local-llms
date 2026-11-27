@@ -43,7 +43,7 @@ import { challengeDrift, loadRelease, type Release } from "../release/release.js
 import type { AttemptManifest, ItemResult } from "../schema/attempt.js";
 import { digestOf, sha256Hex } from "../store/digest.js";
 import { modelKeyOverrides } from "./model-key.js";
-import { loadTimingInputs, type Timing, timingOf } from "./timing.js";
+import { frozenAt, hasTiming, loadTimingInputs, type Timing, timingOf } from "./timing.js";
 import { gradersOf, scoredExecutions, v4RowsOf, writeV4Details } from "./v4-rows.js";
 
 export interface ReportOptions {
@@ -72,8 +72,11 @@ export interface ReportOptions {
 /** A snapshot file's content (D11). */
 export interface Snapshot extends RowsDataset {
   readonly schemaVersion: 4;
-  /** Evaluation timing beside the rows (never in them): label counts per row and the dates behind them. */
-  readonly timing: Timing;
+  /**
+   * Evaluation timing beside the rows (never in them): label counts per row and
+   * the dates behind them. Null for a dataset on release `0` or `draft`.
+   */
+  readonly timing: Timing | null;
   /** The release's `release.json` without its items: label, dates, commitment. */
   readonly releaseFile: Omit<Release["file"], "items">;
   readonly inputs: {
@@ -91,7 +94,7 @@ export interface Snapshot extends RowsDataset {
      * stored score (alpha). The scorer digests are `release.json`'s at the eval version.
      */
     readonly scoringRules: ReadonlyArray<number>;
-    /** SHA-256 of `item-dates.json` and `model-dates.yaml`; null when absent. */
+    /** SHA-256 of `item-dates.json` and `model-dates.yaml`; null when absent or unused (no timing). */
     readonly itemDates: string | null;
     readonly modelDates: string | null;
     /** The harness commit; suffixed `-dirty` when `harnessDirty`. */
@@ -328,6 +331,22 @@ const checkedChallengeSet = (release: Release) =>
     return set;
   });
 
+/** Prompt digest → `committedAt` of the earliest frozen release under `releasesDir` holding it. */
+const frozenReleases = (releasesDir: string) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const names = yield* fs
+      .readDirectory(releasesDir)
+      .pipe(Effect.mapError(io(releasesDir, "list")));
+    const files = [];
+    for (const name of names.filter(hasTiming).sort()) {
+      const p = path.join(releasesDir, name, "release.json");
+      if (!(yield* fs.exists(p).pipe(Effect.mapError(io(p, "stat"))))) continue;
+      files.push((yield* loadRelease(path.join(releasesDir, name))).file);
+    }
+    return frozenAt(files);
+  });
+
 /** Build one dataset's snapshot in memory. */
 export const buildSnapshot = (manifestPath: string, opts: ReportOptions) =>
   Effect.gen(function* () {
@@ -358,12 +377,16 @@ export const buildSnapshot = (manifestPath: string, opts: ReportOptions) =>
       );
     }
     const { items: _, ...releaseFile } = release.file;
-    const dates = yield* loadTimingInputs(opts.itemDatesPath, opts.modelDatesPath);
+    const dates = hasTiming(manifest.release)
+      ? yield* loadTimingInputs(opts.itemDatesPath, opts.modelDatesPath)
+      : { items: null, models: null };
     const snapshot: Snapshot = {
       schemaVersion: 4,
       releaseFile,
       ...built.rows,
-      timing: timingOf(built.rows.rows, set.challenges, dates),
+      timing: hasTiming(manifest.release)
+        ? timingOf(built.rows.rows, set.challenges, dates, yield* frozenReleases(opts.releasesDir))
+        : null,
       inputs: {
         manifest: yield* sha256Of(manifestPath),
         release: yield* sha256Of(path.join(releaseDir, "release.json")),

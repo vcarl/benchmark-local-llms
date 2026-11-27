@@ -92,10 +92,20 @@ export const timingLabel = (
 export interface Timing {
   /** `item-dates.json`'s `asOf` and `source`; null without the file (every item unknown). */
   readonly itemDates: { readonly asOf: string; readonly source: string } | null;
-  /** `<challenge>/<item>` → its public date and evidence; null when not public. Absent: unknown. */
+  /**
+   * `<challenge>/<item>` → `publishedAt`, its effective publication date: the
+   * later of its first public push (`pushedAt`, with `evidence`) and the
+   * `committedAt` of the earliest frozen release holding its prompt
+   * (`frozenAt`). Null when not public; absent: unknown.
+   */
   readonly items: Record<
     string,
-    { readonly publishedAt: string; readonly evidence: string } | null
+    {
+      readonly publishedAt: string;
+      readonly pushedAt: string;
+      readonly frozenAt: string | null;
+      readonly evidence: string;
+    } | null
   >;
   /** modelKey → its dates (sources and notes kept), for the rows' modelKeys that have an entry. */
   readonly models: Record<string, ModelDate>;
@@ -149,11 +159,37 @@ export const loadTimingInputs = (itemDatesPath?: string, modelDatesPath?: string
   });
 export type TimingInputs = Effect.Effect.Success<ReturnType<typeof loadTimingInputs>>;
 
-/** The timing block of `rows` over the challenge set. */
+/** Whether a dataset's release carries timing labels: only a frozen `YYYY.N` release does, never `0` (alpha) or `draft`. */
+export const hasTiming = (release: string): boolean => release !== "0" && release !== "draft";
+
+/**
+ * Prompt digest → `committedAt` of the earliest frozen release holding it.
+ * Release `0` and `draft` are not frozen releases here.
+ */
+export const frozenAt = (
+  releases: ReadonlyArray<{
+    readonly release: string;
+    readonly committedAt?: string | undefined;
+    readonly items: Readonly<Record<string, { readonly prompt: string }>>;
+  }>,
+): Map<string, string> => {
+  const at = new Map<string, string>();
+  for (const r of releases) {
+    if (!hasTiming(r.release) || r.committedAt === undefined) continue;
+    for (const { prompt } of Object.values(r.items)) {
+      const prior = at.get(prompt);
+      if (prior === undefined || r.committedAt < prior) at.set(prompt, r.committedAt);
+    }
+  }
+  return at;
+};
+
+/** The timing block of `rows` over the challenge set, items dated by the later of push and freeze. */
 export const timingOf = (
   rows: ReadonlyArray<Row>,
   challenges: ReadonlyArray<ResolvedChallenge>,
   { items: itemDates, models: modelDates }: TimingInputs,
+  frozen: ReadonlyMap<string, string>,
 ): Timing => {
   const items: Timing["items"] = {};
   const day: Record<string, string | null | undefined> = {};
@@ -161,9 +197,20 @@ export const timingOf = (
     for (const i of c.items) {
       const key = `${c.id}/${i.itemId}`;
       if (itemDates === null) continue;
-      const e = itemDates.value.items[sha256Hex(promptContent(i.prompt))];
-      items[key] = e ?? null;
-      day[key] = e === undefined ? null : e.publishedAt.slice(0, 10);
+      const digest = sha256Hex(promptContent(i.prompt));
+      const e = itemDates.value.items[digest];
+      const f = frozen.get(digest) ?? null;
+      const publishedAt =
+        e === undefined
+          ? null
+          : f !== null && Date.parse(f) > Date.parse(e.publishedAt)
+            ? f
+            : e.publishedAt;
+      items[key] =
+        e === undefined || publishedAt === null
+          ? null
+          : { publishedAt, pushedAt: e.publishedAt, frozenAt: f, evidence: e.evidence };
+      day[key] = publishedAt === null ? null : new Date(publishedAt).toISOString().slice(0, 10);
     }
   const models: Record<string, ModelDate> = {};
   const counts: Timing["rows"] = {};

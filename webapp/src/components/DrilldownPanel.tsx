@@ -123,7 +123,7 @@ function TimingSection({ timing, modelKey, rowId, ids }: { timing: Timing; model
               </summary>
               {d.items.map(({ item, date }) => (
                 <div key={item} className={styles.timingNote}>
-                  {item}: {date === null ? "not public" : `${date.publishedAt.slice(0, 10)} — ${date.evidence}`}
+                  {item}: {date === null ? "not public" : `${date.publishedAt.slice(0, 10)}${date.frozenAt === null ? "" : ` (pushed ${date.pushedAt.slice(0, 10)}, frozen ${date.frozenAt.slice(0, 10)})`} — ${date.evidence}`}
                 </div>
               ))}
             </details>
@@ -238,7 +238,7 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
           />
           <Stat label="Contributor" value={list(p.submitters)} />
         </div>
-        {dataset.timing !== undefined && (
+        {dataset.timing && (
           <TimingSummary timing={dataset.timing} rowId={row.rowId} challenges={ids} />
         )}
 
@@ -251,7 +251,7 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
           {mixedWhy.length > 0 && <Stat label="Mixed" value={mixedWhy.join(" · ")} />}
         </div>
       </div>
-      {dataset.timing !== undefined && (
+      {dataset.timing && (
         <TimingSection timing={dataset.timing} modelKey={row.modelKey} rowId={row.rowId} ids={cells.map(([id]) => id)} />
       )}
 

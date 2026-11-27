@@ -18,7 +18,8 @@ export interface ModelDates {
 
 export interface Timing {
   itemDates: { asOf: string; source: string } | null;
-  items: Record<string, { publishedAt: string; evidence: string } | null>;
+  /** `publishedAt`: the later of the first public push (`pushedAt`) and the first frozen release's `committedAt` (`frozenAt`). */
+  items: Record<string, { publishedAt: string; pushedAt: string; frozenAt: string | null; evidence: string } | null>;
   models: Record<string, ModelDates>;
   rows: Record<string, Record<string, TimingCounts>>;
 }

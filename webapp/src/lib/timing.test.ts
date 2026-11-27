@@ -6,8 +6,8 @@ const z = { unpublished: 0, predates: 0, "cutoff-claimed": 0, exposable: 0, unkn
 const timing: Timing = {
   itemDates: { asOf: "2026-11-01", source: "x" },
   items: {
-    "a/1": { publishedAt: "2024-05-01", evidence: "e" },
-    "a/2": { publishedAt: "2025-01-02", evidence: "e" },
+    "a/1": { publishedAt: "2024-05-01", pushedAt: "2024-05-01", frozenAt: null, evidence: "e" },
+    "a/2": { publishedAt: "2025-01-02", pushedAt: "2025-01-02", frozenAt: null, evidence: "e" },
     "a/3": null,
   },
   models: {},
