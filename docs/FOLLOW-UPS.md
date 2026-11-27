@@ -11,6 +11,7 @@ Known open work, in no particular order. Each entry says what is missing and whe
 ## Data integrity
 
 - **Errata hardening.** A released item changes only via a published erratum ([ERRATA.md](ERRATA.md)). Nothing yet proves after the fact that a release's items match what its results were run against beyond `release.json` digests and `./bench release verify`. Scope is open.
+- **Model release dates.** 50 of the 61 `model-dates.yaml` keys date their release by the original Hugging Face repo's `createdAt`, which can precede the real public release and so errs toward `predates` ([EVAL-TIMING.md](EVAL-TIMING.md)). Replace them with vendor-stated dates when labels near an item's publication date start to matter: start with the models whose date is within about a month of an item's effective publication date.
 - **Requested sample count is not recorded.** A bundle header doesn't carry the sample count a run asked for, so the completeness check ([SCORING.md § Report rows](SCORING.md#report-rows)) can catch a gap (samples 1–2 without 0) but not a missing trailing sample. Record `samples` per item (it can differ per item via `--items`) in the header and check it.
 - **Converted rows after their reruns.** The 39 converted draft configs are being rerun with weights recorded. Each rerun is a new config version (`weights <hex>`), shown beside its converted row (`weights unknown`). Decide whether a converted bundle leaves `datasets/draft.yaml` once its rerun lands.
 
