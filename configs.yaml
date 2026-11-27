@@ -1822,8 +1822,8 @@
 # Inkling 2 Mini (Thinking Machines, looped MoE, 26.4B / 3.4B active). The card
 # (huggingface.co/thinkingmachines/Inkling-2-Mini) gives no sampling advice;
 # generation_config.json sets temperature 1.0 only. The template defaults to
-# reasoning_effort "high" (thinking on), so no chatTemplateKwargs. Both entries
-# are inactive until a release supports the architecture.
+# reasoning_effort "high" (thinking on), so no chatTemplateKwargs. llama.cpp
+# supports the inkling2_loop arch from 1.1.0 (build 12774; PRs #32694, #32704).
 - id: inkling-2-mini-mlx
   artifact: mlx-community/Inkling-2-Mini-4bit
   runtime: mlx
@@ -1842,9 +1842,6 @@
   temperature: 1.0
   systemPrompt: default
   maxTokens: 32768
-  # llama.cpp build 12359 lacks the inkling2_loop arch. Revisit when a release
-  # supports it.
-  active: false
 
 # Spark-X2.6-1.7B (XHToken, spark2_5 dense, Apache-2.0). Card
 # (huggingface.co/XHToken/Spark-X2.6-1.7B): temperature 1.0, top_p 0.95,
