@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"days":3,"location":"Perth"},"name":"get_weather_forecast","optional":{"hourly":false,"units":"celsius"}}]}],"type":"constraint"},"rules":2}

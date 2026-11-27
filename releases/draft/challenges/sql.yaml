@@ -1,0 +1,651 @@
+id: sql
+version: 1
+passThreshold: 0.8
+items:
+  # reference: SELECT COUNT(*), SUM(amount) FROM orders WHERE status = 'shipped' AND placed_on LIKE '2023-07-%';
+  - name: sql_filter_aggregate_s0
+    family: sql_filter_aggregate
+    seed: 0
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, status TEXT,
+      amount INTEGER, placed_on TEXT);
+
+      INSERT INTO orders VALUES (101, 'Greta Lind', 'shipped', 479,
+      '2023-07-31');
+
+      INSERT INTO orders VALUES (102, 'Bilal Khan', 'shipped', 35,
+      '2023-06-30');
+
+      INSERT INTO orders VALUES (103, 'Femi Adeyemi', 'pending', 302,
+      '2023-06-29');
+
+      INSERT INTO orders VALUES (104, 'Hugo Martin', 'pending', 74,
+      '2023-07-19');
+
+      INSERT INTO orders VALUES (105, 'Hugo Martin', 'cancelled', 189,
+      '2023-06-07');
+
+      INSERT INTO orders VALUES (106, 'Carmen Ortiz', 'cancelled', 468,
+      '2023-06-05');
+
+      INSERT INTO orders VALUES (107, 'Isla Grant', 'shipped', 351,
+      '2023-07-19');
+
+      INSERT INTO orders VALUES (108, 'Carmen Ortiz', 'shipped', 473,
+      '2023-07-09');
+
+      INSERT INTO orders VALUES (109, 'Hugo Martin', 'pending', 411,
+      '2023-06-12');
+
+      INSERT INTO orders VALUES (110, 'Jun Park', 'shipped', 209, '2023-08-19');
+
+      INSERT INTO orders VALUES (111, 'Carmen Ortiz', 'cancelled', 67,
+      '2023-07-15');
+
+      INSERT INTO orders VALUES (112, 'Femi Adeyemi', 'shipped', 43,
+      '2023-08-07');
+
+      INSERT INTO orders VALUES (113, 'Greta Lind', 'pending', 340,
+      '2023-08-01');
+
+      INSERT INTO orders VALUES (114, 'Elena Petrova', 'shipped', 188,
+      '2023-07-03');
+
+      INSERT INTO orders VALUES (115, 'Jun Park', 'shipped', 446, '2023-06-17');
+
+      INSERT INTO orders VALUES (116, 'Ada Brooks', 'shipped', 437,
+      '2023-07-08');
+
+      ```
+
+
+      Dates in placed_on are YYYY-MM-DD text. For orders with status 'shipped'
+      placed in July 2023, return one row with two columns: the number of such
+      orders, then their total amount.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_filter_aggregate_s0.test.py
+  # reference: SELECT COUNT(*), SUM(amount) FROM orders WHERE status = 'shipped' AND placed_on LIKE '2022-09-%';
+  - name: sql_filter_aggregate_s1
+    family: sql_filter_aggregate
+    seed: 1
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, status TEXT,
+      amount INTEGER, placed_on TEXT);
+
+      INSERT INTO orders VALUES (101, 'Bilal Khan', 'shipped', 320,
+      '2022-09-30');
+
+      INSERT INTO orders VALUES (102, 'Hugo Martin', 'shipped', 142,
+      '2022-09-14');
+
+      INSERT INTO orders VALUES (103, 'Carmen Ortiz', 'cancelled', 270,
+      '2022-09-12');
+
+      INSERT INTO orders VALUES (104, 'Femi Adeyemi', 'shipped', 281,
+      '2022-10-24');
+
+      INSERT INTO orders VALUES (105, 'Femi Adeyemi', 'pending', 416,
+      '2022-09-07');
+
+      INSERT INTO orders VALUES (106, 'Femi Adeyemi', 'pending', 385,
+      '2022-09-14');
+
+      INSERT INTO orders VALUES (107, 'Jun Park', 'shipped', 220, '2022-10-24');
+
+      INSERT INTO orders VALUES (108, 'Hugo Martin', 'shipped', 151,
+      '2022-08-16');
+
+      INSERT INTO orders VALUES (109, 'Carmen Ortiz', 'shipped', 139,
+      '2022-09-26');
+
+      INSERT INTO orders VALUES (110, 'Elena Petrova', 'shipped', 431,
+      '2022-09-08');
+
+      INSERT INTO orders VALUES (111, 'Dev Patel', 'cancelled', 88,
+      '2022-09-23');
+
+      INSERT INTO orders VALUES (112, 'Jun Park', 'pending', 367, '2022-10-27');
+
+      INSERT INTO orders VALUES (113, 'Isla Grant', 'shipped', 378,
+      '2022-09-20');
+
+      INSERT INTO orders VALUES (114, 'Elena Petrova', 'cancelled', 124,
+      '2022-09-11');
+
+      ```
+
+
+      Dates in placed_on are YYYY-MM-DD text. For orders with status 'shipped'
+      placed in September 2022, return one row with two columns: the number of
+      such orders, then their total amount.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_filter_aggregate_s1.test.py
+  # reference: SELECT COUNT(*), SUM(amount) FROM orders WHERE status = 'shipped' AND placed_on LIKE '2025-06-%';
+  - name: sql_filter_aggregate_s2
+    family: sql_filter_aggregate
+    seed: 2
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, status TEXT,
+      amount INTEGER, placed_on TEXT);
+
+      INSERT INTO orders VALUES (101, 'Elena Petrova', 'shipped', 227,
+      '2025-06-30');
+
+      INSERT INTO orders VALUES (102, 'Jun Park', 'shipped', 75, '2025-06-14');
+
+      INSERT INTO orders VALUES (103, 'Isla Grant', 'cancelled', 163,
+      '2025-05-16');
+
+      INSERT INTO orders VALUES (104, 'Hugo Martin', 'shipped', 320,
+      '2025-05-28');
+
+      INSERT INTO orders VALUES (105, 'Hugo Martin', 'shipped', 113,
+      '2025-06-30');
+
+      INSERT INTO orders VALUES (106, 'Dev Patel', 'shipped', 184,
+      '2025-07-20');
+
+      INSERT INTO orders VALUES (107, 'Ada Brooks', 'shipped', 365,
+      '2025-05-07');
+
+      INSERT INTO orders VALUES (108, 'Greta Lind', 'cancelled', 458,
+      '2025-06-29');
+
+      INSERT INTO orders VALUES (109, 'Jun Park', 'shipped', 38, '2025-05-22');
+
+      INSERT INTO orders VALUES (110, 'Jun Park', 'pending', 267, '2025-06-25');
+
+      INSERT INTO orders VALUES (111, 'Elena Petrova', 'shipped', 307,
+      '2025-06-29');
+
+      INSERT INTO orders VALUES (112, 'Carmen Ortiz', 'cancelled', 221,
+      '2025-06-09');
+
+      INSERT INTO orders VALUES (113, 'Ada Brooks', 'cancelled', 159,
+      '2025-06-16');
+
+      INSERT INTO orders VALUES (114, 'Bilal Khan', 'shipped', 232,
+      '2025-05-26');
+
+      ```
+
+
+      Dates in placed_on are YYYY-MM-DD text. For orders with status 'shipped'
+      placed in June 2025, return one row with two columns: the number of such
+      orders, then their total amount.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_filter_aggregate_s2.test.py
+  # reference: SELECT DISTINCT c.name FROM customers c JOIN orders o ON o.customer_id = c.id WHERE c.city = 'Graz' AND o.amount > 170 ORDER BY c.name;
+  - name: sql_join_s0
+    family: sql_join
+    seed: 0
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city TEXT);
+
+      CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER
+      REFERENCES customers(id), amount INTEGER);
+
+      INSERT INTO customers VALUES (1, 'Ada Brooks', 'Graz');
+
+      INSERT INTO customers VALUES (2, 'Bilal Khan', 'Graz');
+
+      INSERT INTO customers VALUES (3, 'Carmen Ortiz', 'Graz');
+
+      INSERT INTO customers VALUES (4, 'Dev Patel', 'Graz');
+
+      INSERT INTO customers VALUES (5, 'Elena Petrova', 'Ghent');
+
+      INSERT INTO customers VALUES (6, 'Femi Adeyemi', 'Tartu');
+
+      INSERT INTO customers VALUES (7, 'Greta Lind', 'Ghent');
+
+      INSERT INTO customers VALUES (8, 'Hugo Martin', 'Tartu');
+
+      INSERT INTO orders VALUES (1001, 4, 170);
+
+      INSERT INTO orders VALUES (1002, 3, 191);
+
+      INSERT INTO orders VALUES (1003, 7, 52);
+
+      INSERT INTO orders VALUES (1004, 1, 123);
+
+      INSERT INTO orders VALUES (1005, 1, 239);
+
+      INSERT INTO orders VALUES (1006, 3, 205);
+
+      INSERT INTO orders VALUES (1007, 7, 145);
+
+      INSERT INTO orders VALUES (1008, 1, 233);
+
+      INSERT INTO orders VALUES (1009, 2, 273);
+
+      INSERT INTO orders VALUES (1010, 7, 311);
+
+      INSERT INTO orders VALUES (1011, 6, 156);
+
+      INSERT INTO orders VALUES (1012, 3, 234);
+
+      INSERT INTO orders VALUES (1013, 7, 158);
+
+      INSERT INTO orders VALUES (1014, 2, 314);
+
+      INSERT INTO orders VALUES (1015, 1, 235);
+
+      INSERT INTO orders VALUES (1016, 4, 50);
+
+      ```
+
+
+      Return the names of customers in Graz who have at least one order with an
+      amount greater than 170. One column (name), each name once, sorted
+      alphabetically.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_join_s0.test.py
+  # reference: SELECT DISTINCT c.name FROM customers c JOIN orders o ON o.customer_id = c.id WHERE c.city = 'Graz' AND o.amount > 280 ORDER BY c.name;
+  - name: sql_join_s1
+    family: sql_join
+    seed: 1
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city TEXT);
+
+      CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER
+      REFERENCES customers(id), amount INTEGER);
+
+      INSERT INTO customers VALUES (1, 'Ada Brooks', 'Graz');
+
+      INSERT INTO customers VALUES (2, 'Bilal Khan', 'Graz');
+
+      INSERT INTO customers VALUES (3, 'Carmen Ortiz', 'Graz');
+
+      INSERT INTO customers VALUES (4, 'Dev Patel', 'Graz');
+
+      INSERT INTO customers VALUES (5, 'Elena Petrova', 'Bergen');
+
+      INSERT INTO customers VALUES (6, 'Femi Adeyemi', 'Tartu');
+
+      INSERT INTO customers VALUES (7, 'Greta Lind', 'Tartu');
+
+      INSERT INTO customers VALUES (8, 'Hugo Martin', 'Bergen');
+
+      INSERT INTO orders VALUES (1001, 2, 280);
+
+      INSERT INTO orders VALUES (1002, 5, 468);
+
+      INSERT INTO orders VALUES (1003, 8, 80);
+
+      INSERT INTO orders VALUES (1004, 6, 132);
+
+      INSERT INTO orders VALUES (1005, 3, 159);
+
+      INSERT INTO orders VALUES (1006, 3, 140);
+
+      INSERT INTO orders VALUES (1007, 1, 545);
+
+      INSERT INTO orders VALUES (1008, 5, 474);
+
+      INSERT INTO orders VALUES (1009, 1, 80);
+
+      INSERT INTO orders VALUES (1010, 1, 152);
+
+      INSERT INTO orders VALUES (1011, 5, 458);
+
+      INSERT INTO orders VALUES (1012, 4, 350);
+
+      INSERT INTO orders VALUES (1013, 7, 481);
+
+      INSERT INTO orders VALUES (1014, 7, 263);
+
+      INSERT INTO orders VALUES (1015, 5, 412);
+
+      INSERT INTO orders VALUES (1016, 1, 541);
+
+      ```
+
+
+      Return the names of customers in Graz who have at least one order with an
+      amount greater than 280. One column (name), each name once, sorted
+      alphabetically.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_join_s1.test.py
+  # reference: SELECT DISTINCT c.name FROM customers c JOIN orders o ON o.customer_id = c.id WHERE c.city = 'Porto' AND o.amount > 100 ORDER BY c.name;
+  - name: sql_join_s2
+    family: sql_join
+    seed: 2
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city TEXT);
+
+      CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER
+      REFERENCES customers(id), amount INTEGER);
+
+      INSERT INTO customers VALUES (1, 'Ada Brooks', 'Porto');
+
+      INSERT INTO customers VALUES (2, 'Bilal Khan', 'Porto');
+
+      INSERT INTO customers VALUES (3, 'Carmen Ortiz', 'Porto');
+
+      INSERT INTO customers VALUES (4, 'Dev Patel', 'Porto');
+
+      INSERT INTO customers VALUES (5, 'Elena Petrova', 'Bergen');
+
+      INSERT INTO customers VALUES (6, 'Femi Adeyemi', 'Bergen');
+
+      INSERT INTO customers VALUES (7, 'Greta Lind', 'Bergen');
+
+      INSERT INTO customers VALUES (8, 'Hugo Martin', 'Bergen');
+
+      INSERT INTO orders VALUES (1001, 1, 100);
+
+      INSERT INTO orders VALUES (1002, 2, 30);
+
+      INSERT INTO orders VALUES (1003, 6, 71);
+
+      INSERT INTO orders VALUES (1004, 8, 142);
+
+      INSERT INTO orders VALUES (1005, 6, 64);
+
+      INSERT INTO orders VALUES (1006, 2, 125);
+
+      INSERT INTO orders VALUES (1007, 1, 53);
+
+      INSERT INTO orders VALUES (1008, 8, 60);
+
+      INSERT INTO orders VALUES (1009, 7, 155);
+
+      INSERT INTO orders VALUES (1010, 6, 107);
+
+      INSERT INTO orders VALUES (1011, 4, 123);
+
+      INSERT INTO orders VALUES (1012, 5, 143);
+
+      INSERT INTO orders VALUES (1013, 3, 72);
+
+      INSERT INTO orders VALUES (1014, 3, 148);
+
+      INSERT INTO orders VALUES (1015, 2, 142);
+
+      INSERT INTO orders VALUES (1016, 7, 180);
+
+      ```
+
+
+      Return the names of customers in Porto who have at least one order with an
+      amount greater than 100. One column (name), each name once, sorted
+      alphabetically.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_join_s2.test.py
+  # reference: SELECT category, SUM(quantity) AS total FROM sales GROUP BY category HAVING SUM(quantity) >= 61 ORDER BY total DESC;
+  - name: sql_group_having_s0
+    family: sql_group_having
+    seed: 0
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE sales (id INTEGER PRIMARY KEY, category TEXT, quantity
+      INTEGER);
+
+      INSERT INTO sales VALUES (1, 'audio', 23);
+
+      INSERT INTO sales VALUES (2, 'garden', 24);
+
+      INSERT INTO sales VALUES (3, 'toys', 25);
+
+      INSERT INTO sales VALUES (4, 'audio', 19);
+
+      INSERT INTO sales VALUES (5, 'audio', 23);
+
+      INSERT INTO sales VALUES (6, 'toys', 20);
+
+      INSERT INTO sales VALUES (7, 'books', 1);
+
+      INSERT INTO sales VALUES (8, 'toys', 16);
+
+      INSERT INTO sales VALUES (9, 'sports', 19);
+
+      INSERT INTO sales VALUES (10, 'books', 24);
+
+      INSERT INTO sales VALUES (11, 'sports', 15);
+
+      INSERT INTO sales VALUES (12, 'books', 7);
+
+      INSERT INTO sales VALUES (13, 'audio', 3);
+
+      INSERT INTO sales VALUES (14, 'garden', 6);
+
+      INSERT INTO sales VALUES (15, 'audio', 9);
+
+      INSERT INTO sales VALUES (16, 'audio', 18);
+
+      INSERT INTO sales VALUES (17, 'books', 20);
+
+      INSERT INTO sales VALUES (18, 'books', 19);
+
+      ```
+
+
+      For each category whose total quantity sold is at least 61, return the
+      category and its total quantity (two columns), ordered by total quantity
+      from highest to lowest.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_group_having_s0.test.py
+  # reference: SELECT category, SUM(quantity) AS total FROM sales GROUP BY category HAVING SUM(quantity) >= 56 ORDER BY total DESC;
+  - name: sql_group_having_s1
+    family: sql_group_having
+    seed: 1
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE sales (id INTEGER PRIMARY KEY, category TEXT, quantity
+      INTEGER);
+
+      INSERT INTO sales VALUES (1, 'toys', 6);
+
+      INSERT INTO sales VALUES (2, 'books', 25);
+
+      INSERT INTO sales VALUES (3, 'toys', 25);
+
+      INSERT INTO sales VALUES (4, 'garden', 9);
+
+      INSERT INTO sales VALUES (5, 'sports', 7);
+
+      INSERT INTO sales VALUES (6, 'sports', 23);
+
+      INSERT INTO sales VALUES (7, 'garden', 9);
+
+      INSERT INTO sales VALUES (8, 'garden', 13);
+
+      INSERT INTO sales VALUES (9, 'books', 3);
+
+      INSERT INTO sales VALUES (10, 'books', 22);
+
+      INSERT INTO sales VALUES (11, 'sports', 23);
+
+      INSERT INTO sales VALUES (12, 'toys', 22);
+
+      INSERT INTO sales VALUES (13, 'sports', 19);
+
+      INSERT INTO sales VALUES (14, 'toys', 16);
+
+      INSERT INTO sales VALUES (15, 'kitchen', 15);
+
+      INSERT INTO sales VALUES (16, 'kitchen', 20);
+
+      INSERT INTO sales VALUES (17, 'garden', 25);
+
+      ```
+
+
+      For each category whose total quantity sold is at least 56, return the
+      category and its total quantity (two columns), ordered by total quantity
+      from highest to lowest.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_group_having_s1.test.py
+  # reference: SELECT category, SUM(quantity) AS total FROM sales GROUP BY category HAVING SUM(quantity) >= 41 ORDER BY total DESC;
+  - name: sql_group_having_s2
+    family: sql_group_having
+    seed: 2
+    scope: core
+    category: sql
+    tier: 2
+    prompt: >-
+      The SQLite database below is created by these statements:
+
+
+      ```sql
+
+      CREATE TABLE sales (id INTEGER PRIMARY KEY, category TEXT, quantity
+      INTEGER);
+
+      INSERT INTO sales VALUES (1, 'audio', 4);
+
+      INSERT INTO sales VALUES (2, 'audio', 1);
+
+      INSERT INTO sales VALUES (3, 'audio', 4);
+
+      INSERT INTO sales VALUES (4, 'sports', 19);
+
+      INSERT INTO sales VALUES (5, 'kitchen', 18);
+
+      INSERT INTO sales VALUES (6, 'books', 8);
+
+      INSERT INTO sales VALUES (7, 'audio', 18);
+
+      INSERT INTO sales VALUES (8, 'audio', 10);
+
+      INSERT INTO sales VALUES (9, 'garden', 21);
+
+      INSERT INTO sales VALUES (10, 'kitchen', 15);
+
+      INSERT INTO sales VALUES (11, 'kitchen', 16);
+
+      INSERT INTO sales VALUES (12, 'audio', 4);
+
+      INSERT INTO sales VALUES (13, 'garden', 6);
+
+      INSERT INTO sales VALUES (14, 'sports', 4);
+
+      INSERT INTO sales VALUES (15, 'garden', 19);
+
+      INSERT INTO sales VALUES (16, 'sports', 2);
+
+      ```
+
+
+      For each category whose total quantity sold is at least 41, return the
+      category and its total quantity (two columns), ordered by total quantity
+      from highest to lowest.
+
+
+      Write one SQLite SELECT statement that returns exactly the requested
+      columns, in the order given. Reply with only the query in a ```sql fenced
+      block.
+    scorer: code_exec
+    submission: sql
+    testFile: sql_group_having_s2.test.py

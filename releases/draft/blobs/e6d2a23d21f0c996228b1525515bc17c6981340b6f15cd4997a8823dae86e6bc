@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"deployment":"checkout-api","replicas":13},"name":"kube.scale_deployment","optional":{"namespace":"default"}}]}],"type":"constraint"},"rules":2}

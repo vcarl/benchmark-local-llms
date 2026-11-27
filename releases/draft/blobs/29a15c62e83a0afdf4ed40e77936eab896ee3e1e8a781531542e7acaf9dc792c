@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"role":"editor","userId":37247},"name":"updateUserRole","optional":{"notifyUser":true}}]}],"type":"constraint"},"rules":2}

@@ -25,6 +25,27 @@ export interface PromptScore {
   readonly nearMiss?: string;
 }
 
+/** Credit for a correct answer that ignored the requested answer format. */
+export const FORMAT_FLAW_CREDIT = 0.75;
+/** The near-miss slip a format flaw carries (`failureKind` `near_miss`). */
+export const FORMAT_FLAW = "format-flaw";
+
+/**
+ * Downgrade a full-credit score that was reached only through a looser
+ * fallback reading of the output (no answer marker, wrong fence) to
+ * {@link FORMAT_FLAW_CREDIT}, tagged `nearMiss: format-flaw`. Any other score
+ * passes through: a fallback never lifts a wrong answer.
+ */
+export const asFormatFlaw = (s: PromptScore, flaw: string): PromptScore =>
+  s.score === 1
+    ? {
+        ...s,
+        score: FORMAT_FLAW_CREDIT,
+        details: `format flaw (${flaw}): ${s.details}`,
+        nearMiss: FORMAT_FLAW,
+      }
+    : s;
+
 export interface ScenarioScore {
   readonly kind: "scenario";
   readonly value: number; // raw, from finalPlayerStats[scoreField]; no coercion

@@ -18,6 +18,7 @@ import { Command, type CommandExecutor, type HttpClient } from "@effect/platform
 import { Clock, Effect } from "effect";
 import type {
   HealthCheckTimeout,
+  ModelLoadError,
   ServerSpawnError,
   TemplateVerificationError,
 } from "../../errors/index.js";
@@ -56,7 +57,7 @@ export const admiralServer = (
   // TemplateVerificationError flows from the shared supervisor's error
   // channel; the admiral server never supplies a verifyTemplate descriptor,
   // so it cannot occur at runtime, but the union must admit it to typecheck.
-  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError | ModelLoadError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {

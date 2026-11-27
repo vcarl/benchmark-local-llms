@@ -2,7 +2,7 @@
  * llama.cpp server supervisor. Spawns `llama-server`, waits for /health,
  * forks the exit watcher, and terminates on scope close.
  *
- * Invocation mirrors `runner.py::start_llamacpp_server` (lines 335-350):
+ * The launch command mirrors `runner.py::start_llamacpp_server` (lines 335-350):
  *   llama-server
  *     -m <artifact>
  *     --host 127.0.0.1
@@ -39,6 +39,7 @@ import { Command, type CommandExecutor, type HttpClient } from "@effect/platform
 import { Effect } from "effect";
 import type {
   HealthCheckTimeout,
+  ModelLoadError,
   ServerSpawnError,
   TemplateVerificationError,
 } from "../../errors/index.js";
@@ -117,7 +118,7 @@ export const llamacppServer = (
   cfg: LlamacppConfig,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError | ModelLoadError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -132,5 +133,9 @@ export const llamacppServer = (
       ...(cfg.healthTimeoutSec !== undefined ? { healthTimeoutSec: cfg.healthTimeoutSec } : {}),
       // After health, verify the chat template via /props + /apply-template.
       verifyTemplate: { runtime: "llamacpp", port },
+      // llama-server loads weights before health passes, so this only proves
+      // the model generates (e.g. a compute-buffer allocation that fails on
+      // first decode). One token after the load is quick.
+      warmup: { model: cfg.artifactPath, timeoutSec: 120 },
     });
   });

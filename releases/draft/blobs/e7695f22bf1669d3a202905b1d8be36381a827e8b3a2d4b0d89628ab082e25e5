@@ -1,0 +1,174 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "kube.get_pod_logs",
+    "description": "Fetch the most recent log lines of one pod's container, optionally from its previous crashed run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pod": {
+          "type": "string",
+          "description": "Full pod name, exactly as listed, e.g. 'checkout-api-7d9f8-x2kqp'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return, counted from the end of the log.",
+          "default": 100
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "Read the log of the previous, terminated container instance.",
+          "default": false
+        }
+      },
+      "required": [
+        "pod"
+      ]
+    }
+  },
+  {
+    "name": "Movies_3_FindMovies",
+    "description": "Retrieves a list of movies based on the specified director, genre, and cast. The default behavior without parameters is to find a wide range of movies without specific preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directed_by": {
+          "type": "string",
+          "description": "The name of the movie's director. Use 'dontcare' to ignore this filter.",
+          "default": "dontcare"
+        },
+        "genre": {
+          "type": "string",
+          "description": "The genre category of the movie. Use 'dontcare' for no specific genre preference.",
+          "enum": [
+            "Offbeat",
+            "Fantasy",
+            "World",
+            "Mystery",
+            "Thriller",
+            "Comedy",
+            "Comedy-drama",
+            "Horror",
+            "Animation",
+            "Sci-fi",
+            "Cult",
+            "Drama",
+            "Anime",
+            "Family",
+            "Action",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "cast": {
+          "type": "string",
+          "description": "A comma-separated list of actors in the movie. Use 'dontcare' to ignore this filter.",
+          "default": "dontcare"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "calendar_event_create",
+    "description": "Creates a new calendar event for the user and returns the details of the event in JSON format. The event can be a single occurrence or follow a specified recurrence pattern.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "The start date of the event in the format 'YYYY-MM-DD'."
+        },
+        "start_time": {
+          "type": "string",
+          "description": "The start time of the event in 24-hour format 'HH:MM'."
+        },
+        "duration": {
+          "type": "integer",
+          "description": "The duration of the event in minutes."
+        },
+        "rrule": {
+          "type": "string",
+          "description": "A string specifying the recurrence pattern for repeating events, following the iCalendar (RFC 5545) specification.",
+          "default": "Does not repeat"
+        }
+      },
+      "required": [
+        "start_date",
+        "start_time",
+        "duration"
+      ]
+    }
+  },
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  },
+  {
+    "name": "kube.list_pods",
+    "description": "List the pods in a namespace with their status, restart counts and owning deployment.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "status": {
+          "type": "string",
+          "description": "Only list pods in this phase.",
+          "enum": [
+            "Running",
+            "Pending",
+            "Failed",
+            "Succeeded"
+          ]
+        },
+        "labels": {
+          "type": "object",
+          "description": "Only list pods carrying all of these labels.",
+          "properties": {
+            "app": {
+              "type": "string",
+              "description": "Value of the pod's 'app' label."
+            },
+            "tier": {
+              "type": "string",
+              "description": "Value of the pod's 'tier' label."
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    }
+  }
+]
+
+Request: List the pods in the prod namespace whose status is Failed.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

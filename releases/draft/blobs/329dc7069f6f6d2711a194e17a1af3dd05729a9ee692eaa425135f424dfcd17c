@@ -1,0 +1,272 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "Services_4_BookAppointment",
+    "description": "Books an appointment with a selected therapist for a specified date and time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "therapist_name": {
+          "type": "string",
+          "description": "The full name of the therapist with whom the appointment is to be booked."
+        },
+        "appointment_time": {
+          "type": "string",
+          "description": "The desired time for the appointment, in 24-hour format (e.g., '14:00' for 2 PM)."
+        },
+        "appointment_date": {
+          "type": "string",
+          "description": "The desired date for the appointment, in the format of 'YYYY-MM-DD' (e.g., '2023-04-15')."
+        }
+      },
+      "required": [
+        "therapist_name",
+        "appointment_time",
+        "appointment_date"
+      ]
+    }
+  },
+  {
+    "name": "calculate_tax",
+    "description": "Calculates the applicable sales tax for a given purchase amount and jurisdiction. The function returns the total amount with tax.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "purchase_amount": {
+          "type": "number",
+          "description": "The total purchase amount in dollars."
+        },
+        "state": {
+          "type": "string",
+          "description": "The U.S. state abbreviation where the purchase is made, such as 'CA' for California or 'NY' for New York."
+        },
+        "county": {
+          "type": "string",
+          "description": "The county within the state where the purchase is made. This is optional and used to calculate local tax rates."
+        },
+        "city": {
+          "type": "string",
+          "description": "The city within the county for local tax rates. Optional and only used if the county is provided."
+        },
+        "tax_exempt": {
+          "type": "boolean",
+          "description": "Indicates whether the purchase is tax-exempt.",
+          "default": false
+        },
+        "discount_rate": {
+          "type": "number",
+          "description": "The discount rate as a percentage if applicable. Optional.",
+          "default": 0
+        },
+        "apply_special_tax": {
+          "type": "boolean",
+          "description": "A flag to apply special tax rules based on item type or promotions. Optional.",
+          "default": false
+        }
+      },
+      "required": [
+        "purchase_amount",
+        "state"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  },
+  {
+    "name": "search_messages",
+    "description": "Searches for messages that match the given query parameters and returns a paginated response.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Authentication token to validate user access."
+        },
+        "query": {
+          "type": "string",
+          "description": "The search query string to find specific messages."
+        },
+        "count": {
+          "type": "integer",
+          "description": "The number of messages to return per page. Default is 25, maximum is 100.",
+          "default": 25
+        },
+        "highlight": {
+          "type": "boolean",
+          "description": "Specifies whether to highlight the matching query terms in the response. Default is false.",
+          "default": false
+        },
+        "page": {
+          "type": "integer",
+          "description": "The page number of the search results to return. Starts from 1.",
+          "default": 1
+        },
+        "sort": {
+          "type": "string",
+          "description": "The field by which to sort the search results.",
+          "enum": [
+            "date",
+            "relevance"
+          ],
+          "default": "relevance"
+        },
+        "sort_dir": {
+          "type": "string",
+          "description": "The direction of sorting, either ascending or descending.",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "required": [
+        "token",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "Music_3_PlayMedia",
+    "description": "Plays a specified track on a designated media player device.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "track": {
+          "type": "string",
+          "description": "The title of the song to be played."
+        },
+        "artist": {
+          "type": "string",
+          "description": "The name of the artist performing the song. If unspecified, any artist is acceptable.",
+          "default": "dontcare"
+        },
+        "device": {
+          "type": "string",
+          "description": "The media player device where the song will be played.",
+          "enum": [
+            "Living room",
+            "Kitchen",
+            "Patio"
+          ],
+          "default": "Living room"
+        },
+        "album": {
+          "type": "string",
+          "description": "The album where the song is featured. If unspecified, any album is acceptable.",
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "track"
+      ]
+    }
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  }
+]
+
+Request: What's happening with my order ORD-635505?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

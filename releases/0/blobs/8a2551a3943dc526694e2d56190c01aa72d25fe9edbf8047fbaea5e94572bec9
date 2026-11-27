@@ -1,0 +1,1 @@
+In Effect-TS, what function do you use to wrap a Promise-based API call into an Effect? Reply with just the function name like `Effect.xxx`.

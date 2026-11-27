@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"userId":37247},"name":"resetPassword"}]}],"type":"constraint"},"rules":2}

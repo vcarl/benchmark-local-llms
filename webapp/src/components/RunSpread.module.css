@@ -28,3 +28,35 @@
 .table th { font-weight: 400; font-size: var(--fz-10); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
 .runs { color: var(--text-muted); }
 .note { margin: 0; color: var(--text-muted); font-size: var(--fz-11); line-height: 1.5; }
+
+.charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
+.section { min-width: 0; }
+.table { max-width: 100%; }
+.table th, .table td { overflow-wrap: normal; }
+.table td:first-child { overflow-wrap: break-word; }
+/* Both charts side by side once each gets ~200px (pane >= 460px). */
+@container (min-width: 460px) {
+  .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+/* SVG text scales with the chart, so grow it in user units as the pane shrinks
+   to keep the rendered size legible. Below ~260px the labels cannot fit around
+   25 columns / 9 spokes, so they drop out; the challenge list and the table
+   below carry the same names and values. */
+@container (max-width: 380px) {
+  .label, .axisZero { font-size: 13px; }
+  .tick { font-size: 13px; }
+  .legend { gap: var(--space-2) var(--space-4); }
+  .table th, .table td { padding: var(--space-1) var(--space-2); }
+}
+@container (max-width: 260px) {
+  .label, .axisZero { display: none; }
+  .tick { font-size: 18px; }
+  .table { table-layout: fixed; width: 100%; }
+  .table th:first-child { width: 32%; }
+  .table th, .table td { padding: var(--space-1) 2px; overflow-wrap: anywhere; letter-spacing: 0; }
+}
+/* Side by side, each chart is about half the pane. */
+@container (min-width: 460px) and (max-width: 560px) {
+  .label, .axisZero { font-size: 14px; }
+  .tick { font-size: 13px; }
+}

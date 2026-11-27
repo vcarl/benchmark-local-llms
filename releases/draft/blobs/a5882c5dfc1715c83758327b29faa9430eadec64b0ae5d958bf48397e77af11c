@@ -1,0 +1,26 @@
+The SQLite database below is created by these statements:
+
+```sql
+CREATE TABLE sales (id INTEGER PRIMARY KEY, category TEXT, quantity INTEGER);
+INSERT INTO sales VALUES (1, 'toys', 6);
+INSERT INTO sales VALUES (2, 'books', 25);
+INSERT INTO sales VALUES (3, 'toys', 25);
+INSERT INTO sales VALUES (4, 'garden', 9);
+INSERT INTO sales VALUES (5, 'sports', 7);
+INSERT INTO sales VALUES (6, 'sports', 23);
+INSERT INTO sales VALUES (7, 'garden', 9);
+INSERT INTO sales VALUES (8, 'garden', 13);
+INSERT INTO sales VALUES (9, 'books', 3);
+INSERT INTO sales VALUES (10, 'books', 22);
+INSERT INTO sales VALUES (11, 'sports', 23);
+INSERT INTO sales VALUES (12, 'toys', 22);
+INSERT INTO sales VALUES (13, 'sports', 19);
+INSERT INTO sales VALUES (14, 'toys', 16);
+INSERT INTO sales VALUES (15, 'kitchen', 15);
+INSERT INTO sales VALUES (16, 'kitchen', 20);
+INSERT INTO sales VALUES (17, 'garden', 25);
+```
+
+For each category whose total quantity sold is at least 56, return the category and its total quantity (two columns), ordered by total quantity from highest to lowest.
+
+Write one SQLite SELECT statement that returns exactly the requested columns, in the order given. Reply with only the query in a ```sql fenced block.

@@ -1,0 +1,162 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "get_weather_forecast",
+    "description": "Get the daily weather forecast for a city, starting tomorrow, for up to ten days ahead.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "days": {
+          "type": "integer",
+          "description": "Number of days to forecast, from 1 to 10, starting with tomorrow."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "hourly": {
+          "type": "boolean",
+          "description": "Break each forecast day into hourly values instead of a daily summary.",
+          "default": false
+        },
+        "fields": {
+          "type": "array",
+          "description": "Forecast fields to return, in any order; all fields when left out.",
+          "items": {
+            "type": "string",
+            "description": "One forecast field.",
+            "enum": [
+              "temperature",
+              "precipitation",
+              "wind",
+              "humidity",
+              "uv_index"
+            ]
+          }
+        }
+      },
+      "required": [
+        "location",
+        "days"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  }
+]
+
+Request: Where is my parcel? It's with DHL, tracking number 505850884006.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

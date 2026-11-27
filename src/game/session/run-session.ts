@@ -362,7 +362,6 @@ const buildResult = (
     reasoning: null,
     rawOutput: "",
     error,
-    promptHash: input.scenario.scenarioHash,
     scenarioHash: input.scenario.scenarioHash,
     scenarioName: input.scenario.name,
     terminationReason: termination,

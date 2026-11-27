@@ -1,0 +1,19 @@
+The CSV below has a header row followed by one row per order.
+
+Compute the revenue per region, counting only orders whose status is "completed". An order's revenue is units × unit_price. Reply with only a JSON object mapping each region to its revenue as a number rounded to 2 decimal places, e.g. {"North": 1234.5}. Leave out regions with no completed orders.
+
+```csv
+order_id,region,status,units,unit_price
+5003,East,pending,1,17.78
+5006,Central,completed,8,45.31
+5007,North,refunded,6,2.96
+5008,North,completed,8,46.08
+5011,East,completed,5,48.01
+5014,East,completed,4,8.30
+5017,East,completed,2,3.56
+5020,East,refunded,9,39.67
+5021,East,completed,4,49.48
+5022,North,completed,4,31.75
+5023,Central,completed,5,5.78
+5024,East,refunded,2,35.62
+```

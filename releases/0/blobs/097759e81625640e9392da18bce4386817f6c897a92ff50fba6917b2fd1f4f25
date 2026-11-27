@@ -1,0 +1,1 @@
+In Effect-TS, why is it wrong to call `Effect.runPromise` inside an `Effect.gen` block? Reply in one or two sentences.

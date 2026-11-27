@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pairedDiff, passRateSE, type Cluster } from "./stats";
+import { pairedDiff, passRateSE, tCrit, type Cluster } from "./stats";
 
 const clusters = (ys: number[], n = 10): Map<string, Cluster> =>
   new Map(ys.map((y, i) => [`c${i}`, { n, y }]));
@@ -20,6 +20,16 @@ describe("passRateSE", () => {
   });
 });
 
+describe("tCrit", () => {
+  it("is the two-sided 95% Student-t critical value, tending to 1.96", () => {
+    expect(tCrit(4)).toBe(2.776);
+    expect(tCrit(30)).toBe(2.042);
+    expect(tCrit(60)).toBeCloseTo(2.0, 2);
+    expect(tCrit(120)).toBeCloseTo(1.98, 2);
+    expect(tCrit(1e6)).toBeCloseTo(1.96, 4);
+  });
+});
+
 describe("pairedDiff", () => {
   it("matches the hand-computed paired difference and CI", () => {
     // d = [1,0,1,0,2], D = 4/50; residuals d − 0.8·… Σ² = 2.8; √(5/4·2.8)/50
@@ -27,8 +37,10 @@ describe("pairedDiff", () => {
     const se = Math.sqrt(3.5) / 50;
     expect(p?.diff).toBeCloseTo(0.08, 10);
     expect(p?.se).toBeCloseTo(se, 10);
-    expect(p?.lo).toBeCloseTo(0.08 - 1.96 * se, 10);
-    expect(p!.lo).toBeGreaterThan(0);
+    // 5 clusters → t with 4 df (2.776), not z = 1.96: this gap is not resolved.
+    expect(p?.lo).toBeCloseTo(0.08 - 2.776 * se, 10);
+    expect(p?.hi).toBeCloseTo(0.08 + 2.776 * se, 10);
+    expect(p!.lo).toBeLessThan(0);
   });
 
   it("a noisy small gap's interval includes 0", () => {

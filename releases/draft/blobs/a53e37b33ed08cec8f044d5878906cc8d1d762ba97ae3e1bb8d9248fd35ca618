@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":["/api/cart","/api/search","/api/orders"]}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"limit":31,"path":"/var/log"},"name":"listFiles","optional":{"includeHidden":false,"recursive":false,"sortBy":"name"}}]}],"type":"constraint"},"rules":2}

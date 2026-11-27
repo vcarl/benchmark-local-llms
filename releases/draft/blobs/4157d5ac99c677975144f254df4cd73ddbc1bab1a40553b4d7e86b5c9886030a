@@ -1,0 +1,10 @@
+Classify the product review below by the reviewer's final verdict. Allowed labels:
+- positive: they would keep it, buy it again or recommend it
+- negative: they would not (returning it, would not buy it again, not worth it)
+- neutral: they say they are undecided or indifferent
+
+"""
+I've had this smart speaker for a month. The companion app is fantastic. Customer support was terrible when I had a question. All things considered, I wouldn't buy it again.
+"""
+
+Choose exactly one label. End your reply with a final line of the form `Label: <label>`, with the label written exactly as listed.

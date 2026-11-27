@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"date":"2025-09-16","flight_number":"BA635"},"name":"Flights_2_GetFlightStatus"},{"arguments":{"date":"2026-03-23","flight_number":"LH396"},"name":"Flights_2_GetFlightStatus"}]}],"type":"constraint"},"rules":2}

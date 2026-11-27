@@ -1,0 +1,195 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "connectBluetooth",
+    "description": "Establishes a connection to a Bluetooth device using its name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "device_name": {
+          "type": "string",
+          "description": "The name of the Bluetooth device to connect to."
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "The number of seconds to attempt a connection before timing out.",
+          "default": 30
+        },
+        "auto_reconnect": {
+          "type": "boolean",
+          "description": "Whether to automatically attempt to reconnect if the connection is lost.",
+          "default": false
+        }
+      },
+      "required": [
+        "device_name"
+      ]
+    }
+  },
+  {
+    "name": "Messaging_1_ShareLocation",
+    "description": "Shares the current geographical location with a specified contact.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The current location to share, expressed in the format 'Latitude, Longitude' (e.g., '34.052235, -118.243683')."
+        },
+        "contact_name": {
+          "type": "string",
+          "description": "The full name of the contact to whom the location will be sent."
+        }
+      },
+      "required": [
+        "location",
+        "contact_name"
+      ]
+    }
+  },
+  {
+    "name": "calendar.delete_event",
+    "description": "Delete one event from the calendar by its id; attendees can be told that it was cancelled.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "description": "Event id exactly as returned by calendar.list_events, e.g. 'evt_3k9w'."
+        },
+        "notify_attendees": {
+          "type": "boolean",
+          "description": "Email the attendees a cancellation notice.",
+          "default": true
+        }
+      },
+      "required": [
+        "event_id"
+      ]
+    }
+  },
+  {
+    "name": "get_current_weather",
+    "description": "Get the current weather conditions (temperature, wind, precipitation) for a city, as observed right now.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "include_air_quality": {
+          "type": "boolean",
+          "description": "Also return the current air quality index and dominant pollutant.",
+          "default": false
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "get_weather_forecast",
+    "description": "Get the daily weather forecast for a city, starting tomorrow, for up to ten days ahead.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "days": {
+          "type": "integer",
+          "description": "Number of days to forecast, from 1 to 10, starting with tomorrow."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "hourly": {
+          "type": "boolean",
+          "description": "Break each forecast day into hourly values instead of a daily summary.",
+          "default": false
+        },
+        "fields": {
+          "type": "array",
+          "description": "Forecast fields to return, in any order; all fields when left out.",
+          "items": {
+            "type": "string",
+            "description": "One forecast field.",
+            "enum": [
+              "temperature",
+              "precipitation",
+              "wind",
+              "humidity",
+              "uv_index"
+            ]
+          }
+        }
+      },
+      "required": [
+        "location",
+        "days"
+      ]
+    }
+  },
+  {
+    "name": "get_historical_weather",
+    "description": "Get the weather that was recorded in a city on a past date: temperatures, rainfall and wind.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "date": {
+          "type": "string",
+          "description": "The past date to look up, formatted as YYYY-MM-DD."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "granularity": {
+          "type": "string",
+          "description": "Return one summary for the day or one value per hour.",
+          "enum": [
+            "daily",
+            "hourly"
+          ],
+          "default": "daily"
+        }
+      },
+      "required": [
+        "location",
+        "date"
+      ]
+    }
+  }
+]
+
+Request: What will the weather be like over the next 10 days?
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

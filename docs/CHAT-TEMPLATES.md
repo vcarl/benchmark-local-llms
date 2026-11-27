@@ -1,7 +1,5 @@
 # Chat Templates
 
-> _Last verified: 2026-06-25 against `f12b589` (llama.cpp build b9780, mlx-lm current)._
-
 A chat template is the Jinja2 program that turns a structured `[{role, content}]`
 message list into the exact token sequence a model was fine-tuned on. It is the
 seam between "what the harness sends" and "what the model actually reads." A
@@ -207,6 +205,35 @@ not transfer. Setting `chatTemplate` on a `runtime: mlx` entry is therefore
 rejected at config decode rather than silently ignored; use `extraArgs` (e.g.
 `--chat-template`, `--chat-template-args`) for mlx-side template control.
 
+## Thinking mode and the mlx_lm override
+
+Hybrid-thinking templates read an `enable_thinking` variable and pick a default
+when it is unset. The default varies by model: Qwen3.5-9B and larger, Qwen3.6
+and Qwen3.8 open `<think>` unless `enable_thinking` is false; Qwen3.5-0.8B/2B and
+Gemma 4 run non-thinking unless it is true (Qwen emits an empty
+`<think></think>`, Gemma omits `<|think|>` from the system turn).
+
+The harness runs each model in that default mode on every runtime:
+
+| Runtime | Unset `enable_thinking` | What a config does |
+|---|---|---|
+| llamacpp | Template default (`--jinja`) | Leaves it unset. |
+| omlx | Template default | Leaves it unset. |
+| mlx | `mlx_lm` sets `enable_thinking = has_thinking` (`tokenizer_utils.py`, `TokenizerWrapper.apply_chat_template`): `true` for any vocabulary with `<think>`/`</think>` or `<|channel>`/`<channel|>` | Pins `chatTemplateKwargs.enable_thinking` to the template default. |
+
+`chatTemplateKwargs` reaches every runtime as the request body's
+`chat_template_kwargs` (`src/llm/chat-completion.ts`). `mlx_lm.server` merges it
+over `--chat-template-args` before rendering; oMLX merges it over its model
+settings; llama.cpp applies it to the Jinja template. Without the pin, an mlx
+entry for a non-thinking-default model (Qwen3.5-0.8B/2B, Gemma 4) is silently
+forced to think, under a budget and sampler chosen for non-thinking. Templates
+that never read `enable_thinking` (DeepSeek-R1, Qwen3-Coder, LFM2.5) ignore the
+injected value.
+
+To check a model, render its template with and without the kwarg through
+`mlx_lm.tokenizer_utils.load(path).apply_chat_template(..., tokenize=False,
+add_generation_prompt=True)` and compare against the raw HF tokenizer's render.
+
 ## Why fidelity matters for scoring
 
 Template faults bias scores **systematically**, not randomly, which is what makes
@@ -220,12 +247,24 @@ them invalidate cross-model comparison:
 | Leaked template literals | Raw `<|im_start|>`, `[INST]`, `{{ }}` in output | Exact-match / regex graders fail despite correct substance |
 | Double BOS | No visible marker; subtly worse coherence | Uniformly lowers quality with no error — blamed on the model |
 
+### Empty `tools` list (`tools is not none` templates)
+
+llama.cpp renders every request with `tools=[]` when the request carries no tools,
+while the HF reference renderer passes `None`. A template that tests
+`tools is not none` therefore emits its tool block for every prompt. The embedded
+Llama-3.1-Nemotron-Nano-8B-v1 template rendered `<AVAILABLE_TOOLS>[]</AVAILABLE_TOOLS>`
+into the system turn, and the model answered with an empty `<TOOLCALL>[]</TOOLCALL>`
+on about one item in ten. The vendored `templates/nemotron-nano-8b-v1.jinja` is the
+embedded template with the test changed to `if tools`; its `/apply-template` render
+matches the HF render with `tools=None`. Check any new llamacpp template for
+`tools is not none` before adding it active.
+
 ## Startup verification gate
 
 Every model backend is template-verified at boot. After the server passes health,
 the supervisor runs an assertion step before handing the server to the caller; a
 failure aborts the boot with a typed `TemplateVerificationError` rather than
-letting a malformed template reach a scored run. Verification is opt-in per caller
+letting a malformed template reach a scored attempt. Verification is opt-in per caller
 (`src/llm/servers/template-verification.ts`) — only the model backends request it,
 so internal HTTP servers that reuse the supervisor are not gated.
 
@@ -293,6 +332,7 @@ gguf-dump --no-tensors --json model.gguf | jq '.metadata | has("tokenizer.chat_t
 | Model(s) | Backend | Template handling | Status |
 |---|---|---|---|
 | `magistral-small-2509-llamacpp` | llamacpp | Vendored `mistral-v7-tekken.jinja` via `chatTemplate` | Handled |
+| `nemotron-nano-8b-llamacpp` | llamacpp | Vendored `nemotron-nano-8b-v1.jinja`: the embedded template with `if tools is not none` → `if tools` | Handled |
 | `gemma-4-*-llamacpp` (e4b, 26b-a4b, 31b, 31b-q8) | llamacpp | Embedded GGUF template; b9780 logs the outdated-template warning | Benign for our request shape; confirm via `/apply-template` |
 | `mistral-small-3.2-24b-llamacpp` | llamacpp | Embedded (bartowski GGUF) | Expected OK; verify with `gguf-dump` |
 | `hunyuan-a13b-mlx`, `kimi-linear-48b-a3b-mlx` | mlx | Embedded HF template; `--trust-remote-code` via `extraArgs` | Handled |

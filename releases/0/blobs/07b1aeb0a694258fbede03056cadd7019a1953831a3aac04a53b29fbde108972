@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex_count_min","min":2,"name":"mentions at least 2 schedule types","pattern":"Schedule\\.\\w+"}],"type":"constraint"}

@@ -1,0 +1,10 @@
+Write the function that makes these tests pass:
+
+```python
+assert is_palindrome("racecar") == True
+assert is_palindrome("hello") == False
+assert is_palindrome("A man a plan a canal Panama") == True
+assert is_palindrome("") == True
+```
+
+Output only the function — no tests, no markdown, no commentary. Start directly with `def `.

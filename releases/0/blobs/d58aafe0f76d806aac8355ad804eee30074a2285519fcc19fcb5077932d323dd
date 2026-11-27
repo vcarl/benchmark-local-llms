@@ -1,0 +1,3 @@
+A borrower takes a $20,000 loan at 6% annual interest compounded monthly (a 0.5% monthly rate) on a 60-month level-payment schedule. On top of the scheduled payment, the borrower pays an extra $100 of principal every month starting in month 1. Each month interest accrues on the outstanding balance first, then the scheduled payment and the extra $100 are applied to principal. Work to exact cents; the final payment is whatever amount clears the remaining balance.
+
+What is the scheduled monthly payment (ignoring the extra principal)? Give your answer in dollars to the nearest cent.

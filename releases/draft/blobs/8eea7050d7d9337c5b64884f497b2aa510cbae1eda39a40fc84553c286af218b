@@ -1,0 +1,11 @@
+Assign a priority to the incident report below using these rules:
+- P1: production system, all users affected, and no workaround
+- P2: production system, only some users affected, and no workaround
+- P3: anything else (a non-production system, or a workaround exists)
+Allowed labels: P1, P2, P3.
+
+"""
+Emergency, please escalate. Since this morning, checkout has been failing on our staging site (customers never see staging). Every user is affected. There is no workaround.
+"""
+
+Choose exactly one label. End your reply with a final line of the form `Label: <label>`, with the label written exactly as listed.

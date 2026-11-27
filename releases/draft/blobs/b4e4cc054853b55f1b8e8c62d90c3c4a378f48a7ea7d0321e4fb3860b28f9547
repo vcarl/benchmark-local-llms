@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"chen":150,"dmitri":123,"elif":109}}],"type":"constraint"},"rules":2}

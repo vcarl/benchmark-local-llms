@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"says Context.Tag or Effect.Service","pattern":"(?i)(Context\\.(Generic)?Tag|Effect\\.Service)"}],"type":"constraint"}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"path":"/mnt/shared/finance/invoice-20250812.pdf","permanent":true},"name":"deleteFile"}]}],"type":"constraint"},"rules":2}

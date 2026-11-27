@@ -2,6 +2,7 @@
   padding: var(--space-6) var(--space-8);
   color: var(--text-primary);
   font-size: var(--fz-12);
+  overflow-wrap: break-word;
 }
 .empty { color: var(--text-faint); padding: var(--space-8); text-align: center; }
 .challengeRow {
@@ -19,9 +20,10 @@
   font: inherit;
 }
 .challengeRow:hover { background: var(--surface-hover); }
-.challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; white-space: nowrap; }
-.challengeScore { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
-.challengeCoverage { color: var(--text-muted); font-size: var(--fz-11); }
+.nowrap { white-space: nowrap; }
+.challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; white-space: nowrap; flex: none; }
+.challengeScore { flex: none; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
+.challengeCoverage { color: var(--text-muted); font-size: var(--fz-11); min-width: 0; overflow-wrap: anywhere; }
 /* Cells that count as 0 (stale, interrupted, not run). Listed so the source of
    the score penalty is visible; not clickable. */
 .challengeRowMissing { cursor: default; opacity: 0.6; }
@@ -74,7 +76,7 @@
   margin-top: var(--space-3);
 }
 .debugGroup:first-of-type { margin-top: var(--space-2); }
-.debugStat { display: flex; flex-direction: column; gap: 1px; }
+.debugStat { display: flex; flex-direction: column; gap: 1px; min-width: 0; max-width: 100%; }
 .debugStatLabel {
   color: var(--text-faint);
   font-size: var(--fz-10);
@@ -82,6 +84,8 @@
   letter-spacing: 0.05em;
 }
 .debugStatValue {
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: var(--fz-11);
   color: var(--text-secondary);
@@ -108,3 +112,16 @@
   user-select: none;
 }
 .thinkingEmpty { color: var(--text-faint); font-size: var(--fz-11); font-style: italic; margin: var(--space-2) 0; }
+
+/* A cell whose scores an erratum changed since <release>.0. */
+.erratumMark { color: var(--warn-orange); cursor: help; }
+
+/* Narrow pane: stack each challenge row (key, coverage, score) and give targets room. */
+@container (max-width: 300px) {
+  .panel { padding: var(--space-4); }
+  .challengeRow { flex-wrap: wrap; row-gap: var(--space-1); min-height: 32px; }
+  .challengeKey { white-space: normal; }
+  .challengeCoverage { order: 3; flex-basis: 100%; }
+  .debugGroup { flex-direction: column; }
+  .attempt { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+}

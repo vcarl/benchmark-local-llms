@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"city":"Melbourne","company":"Quarry Lane Studios","email":"jonas.zhou@quarrylane.co","name":"Jonas Zhou","phone":"+15095551709","title":"Senior Data Engineer"}}],"type":"constraint"},"rules":2}

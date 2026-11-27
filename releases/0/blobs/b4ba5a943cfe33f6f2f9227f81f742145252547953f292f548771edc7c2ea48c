@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"mentions running the yielded Effect or binding out its value","pattern":"(?i)((unwrap|extract|bind|resolv|delegat|compos|await)[a-z]*|(run|execut|perform)[a-z]*\\b[^.]{0,30}\\beffect|(get|obtain|produc|yield|return)[a-z]*\\b[^.]{0,40}\\b(value|result))"},{"check":"min_length","length":20,"name":"is a sentence"}],"type":"constraint"}

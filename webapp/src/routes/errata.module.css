@@ -11,7 +11,7 @@
 .doc .back { display: inline-block; margin-top: var(--space-8); font-size: var(--fz-12); color: var(--text-muted); text-decoration: none; }
 .doc .back:hover { color: var(--text-primary); text-decoration: underline; }
 
-.baseline { color: var(--text-muted); font-size: var(--fz-12); }
+.evalLine { color: var(--text-muted); font-size: var(--fz-12); }
 .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-6); }
 .entry { border: 1px solid var(--border-subtle); border-radius: var(--r-4); background: var(--surface-raised); padding: var(--space-6) var(--space-8); }
 .entry p { margin: var(--space-3) 0; font-size: var(--fz-13); }
@@ -23,3 +23,8 @@
 .items { margin-top: var(--space-3); font-size: var(--fz-12); color: var(--text-muted); }
 .items summary { cursor: pointer; }
 .items ul { margin: var(--space-3) 0 0; }
+
+/* Release notes. */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-8); margin: 0 0 var(--space-6); font-size: var(--fz-13); }
+.facts dt { color: var(--text-muted); }
+.facts dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }

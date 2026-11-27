@@ -1,7 +1,7 @@
 // Scope → per-row score, ranking and grouping. Every number is summed from the
 // row's cells (src/report/rows.ts); the report already chose the evidence.
 import type { CellCost, Row } from "./rows";
-import { type Cluster, pairedDiff, passRateSE, type PairedDiff } from "./stats";
+import { ci95, type Cluster, pairedDiff, passRateSE, type PairedDiff } from "./stats";
 
 export type ItemScope = "all" | "core" | "stretch";
 export type SortKey = "score" | "efficiency" | "speed" | "memory" | "recent";
@@ -25,7 +25,16 @@ export interface ScopedRow {
   challenges: [number, number];
   complete: boolean;
   se: number | null;
+  /** 95% CI half-width of `score`: t with (families − 1) df times `se`. */
+  ci: number | null;
+  /** Family clusters of every in-scope cell, a missing cell's items counting 0 passed (the `se` of `score`). */
   clusters: Map<string, Cluster>;
+  /**
+   * Family clusters of the scored cells only, keyed by family and the scored
+   * challenges in it: within one dataset a scored cell ran exactly the set's
+   * items, so equal keys mean equal items. Paired tests use these.
+   */
+  paired: Map<string, Cluster>;
   /** Cost of the scored cells in scope; null when none. */
   cost: CellCost | null;
   /** Generation tokens per item over the scored cells (all their items: cost is not split by scope). */
@@ -82,6 +91,7 @@ export const scopeRow = (row: Row, scope: Scope): ScopedRow => {
   let scored = 0;
   let total = 0;
   const clusters = new Map<string, Cluster>();
+  const scoredFams = new Map<string, Cluster & { ch: string[] }>();
   const costs: CellCost[] = [];
   let costItems = 0;
   let executedTo: string | null = null;
@@ -99,6 +109,10 @@ export const scopeRow = (row: Row, scope: Scope): ScopedRow => {
       clusters.set(f, { n: (k?.n ?? 0) + fn, y: (k?.y ?? 0) + fy });
     }
     if (c.status !== "scored") continue;
+    for (const [f, [fn, fy]] of Object.entries(fams)) {
+      const k = scoredFams.get(f);
+      scoredFams.set(f, { n: (k?.n ?? 0) + fn, y: (k?.y ?? 0) + fy, ch: [...(k?.ch ?? []), id] });
+    }
     scored++;
     scoredItems += n;
     if (c.cost !== null) {
@@ -110,6 +124,10 @@ export const scopeRow = (row: Row, scope: Scope): ScopedRow => {
   const score = items === 0 ? 0 : passed / items;
   const tokens = costs.reduce((s, c) => s + c.tokens, 0);
   const tokensPerItem = costItems === 0 ? null : tokens / costItems;
+  const se = passRateSE(clusters);
+  // Total tokens over total decode time; a cell with no measured speed (0) drops out.
+  const timed = costs.filter((c) => c.genTps > 0);
+  const decodeSec = timed.reduce((s, c) => s + c.tokens / c.genTps, 0);
   return {
     row,
     passed,
@@ -118,8 +136,10 @@ export const scopeRow = (row: Row, scope: Scope): ScopedRow => {
     running: scoredItems === 0 ? null : passed / scoredItems,
     challenges: [scored, total],
     complete: scored === total,
-    se: passRateSE(clusters),
+    se,
+    ci: se === null ? null : ci95(se, clusters.size),
     clusters,
+    paired: new Map([...scoredFams].map(([f, { n, y, ch }]) => [`${f}\u0000${ch.sort().join(",")}`, { n, y }])),
     cost:
       costs.length === 0
         ? null
@@ -127,7 +147,7 @@ export const scopeRow = (row: Row, scope: Scope): ScopedRow => {
             tokens,
             wallSec: costs.reduce((s, c) => s + c.wallSec, 0),
             peakMemoryGb: Math.max(...costs.map((c) => c.peakMemoryGb)),
-            genTps: costs.reduce((s, c) => s + c.genTps, 0) / costs.length,
+            genTps: decodeSec === 0 ? 0 : timed.reduce((s, c) => s + c.tokens, 0) / decodeSec,
           },
     tokensPerItem,
     wallPerItem: costItems === 0 ? null : costs.reduce((s, c) => s + c.wallSec, 0) / costItems,
@@ -192,8 +212,12 @@ export interface Group {
   tier?: Tier;
 }
 
-/** Groups in the order of their first (best) row; a group is named by its shortest model name. */
-export const groupRows = (sorted: ScopedRow[], by: GroupBy, sort: SortKey): Group[] => {
+/**
+ * Groups in the order of their first (best) row; a group is named by its shortest
+ * model name.
+ * An unranked dataset (`ranked` false) gets no tiers.
+ */
+export const groupRows = (sorted: ScopedRow[], by: GroupBy, sort: SortKey, ranked = true): Group[] => {
   const groups = new Map<string, Group>();
   for (const r of sorted) {
     const key = by === "model" ? r.row.modelKey : r.row.rowId;
@@ -205,13 +229,14 @@ export const groupRows = (sorted: ScopedRow[], by: GroupBy, sort: SortKey): Grou
     }
   }
   const out = [...groups.values()];
-  if (sort !== "score") return out;
-  const lead = (i: number) => (out[i] as Group).rows[0] as ScopedRow;
+  if (sort !== "score" || !ranked) return out;
+  const tiered = out;
+  const lead = (i: number) => (tiered[i] as Group).rows[0] as ScopedRow;
   let head = 0;
   let n = 1;
-  out.forEach((g, i) => {
+  tiered.forEach((g, i) => {
     const ref = head + 1;
-    const vsHead = i === head ? null : pairedDiff(lead(head).clusters, lead(i).clusters);
+    const vsHead = i === head ? null : pairedDiff(lead(head).paired, lead(i).paired);
     const start = i === 0 || (vsHead !== null && vsHead.lo > 0);
     if (start && i > 0) {
       n++;
@@ -221,7 +246,7 @@ export const groupRows = (sorted: ScopedRow[], by: GroupBy, sort: SortKey): Grou
       n,
       start,
       head: head + 1,
-      vsAbove: i === 0 ? null : pairedDiff(lead(i - 1).clusters, lead(i).clusters),
+      vsAbove: i === 0 ? null : pairedDiff(lead(i - 1).paired, lead(i).paired),
       vsHead,
       ref,
     };

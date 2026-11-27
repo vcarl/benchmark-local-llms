@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"body":"Please bring your revised numbers to Thursday's review.","cc":["priya.n@example.org"],"priority":"high","subject":"Q3 budget review","to":["ana.ruiz@example.com"]},"name":"send_email","unordered":["to","cc"]}]}],"type":"constraint"},"rules":2}

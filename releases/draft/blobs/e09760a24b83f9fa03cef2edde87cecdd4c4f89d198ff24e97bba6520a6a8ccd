@@ -1,0 +1,1 @@
+{"config":{"expected":"Dov","extract":"\\b(Ada|Bram|Cleo|Dario|Edda|Fenn|Greta|Hugo|Ines|Joss|Kira|Lars|Mila|Nico|Orla|Pavel|Quin|Rosa|Sven|Tilda|Ugo|Vera|Wim|Xenia|Yara|Zeno|Alma|Boris|Carys|Dov)\\b","type":"exact_match"},"rules":2}

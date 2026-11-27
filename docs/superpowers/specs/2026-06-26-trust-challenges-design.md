@@ -1,5 +1,7 @@
 # Trust challenges — deeper-reasoning battery design
 
+> Design record (2026-06-26). Not maintained; current behavior is in [docs/](../../) — see [SCORING.md](../../SCORING.md) and the generator `scripts/author/draft.ts`.
+
 ## Orientation
 
 The trust domain is the weakest in the suite: every current item reduces to counting rows in a
@@ -14,7 +16,7 @@ not need per-item weights to get graded difficulty — but every scenario is bui
 (1-of-2 yes/no, 1-of-3) dimensions are a minority of the item count** and the wide, computed
 dimensions dominate. Every scenario carries exactly one **wide-numeric capstone** (an open decimal
 or count that is effectively non-guessable). One dimension (scenario 4's strongest *path*) uses the
-ordered/set scorer, which is now implemented and committed (`scorer: ordered_match`) — it ships as
+ordered/set scorer, which is implemented (`scorer: ordered_match`) — it ships as
 the ordered node sequence; the single-name fallback is no longer needed.
 
 The intent in one line: **no more counting.** The same visible counts must yield different answers

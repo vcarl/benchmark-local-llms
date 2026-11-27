@@ -1,0 +1,34 @@
+The SQLite database below is created by these statements:
+
+```sql
+CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city TEXT);
+CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), amount INTEGER);
+INSERT INTO customers VALUES (1, 'Ada Brooks', 'Graz');
+INSERT INTO customers VALUES (2, 'Bilal Khan', 'Graz');
+INSERT INTO customers VALUES (3, 'Carmen Ortiz', 'Graz');
+INSERT INTO customers VALUES (4, 'Dev Patel', 'Graz');
+INSERT INTO customers VALUES (5, 'Elena Petrova', 'Ghent');
+INSERT INTO customers VALUES (6, 'Femi Adeyemi', 'Tartu');
+INSERT INTO customers VALUES (7, 'Greta Lind', 'Ghent');
+INSERT INTO customers VALUES (8, 'Hugo Martin', 'Tartu');
+INSERT INTO orders VALUES (1001, 4, 170);
+INSERT INTO orders VALUES (1002, 3, 191);
+INSERT INTO orders VALUES (1003, 7, 52);
+INSERT INTO orders VALUES (1004, 1, 123);
+INSERT INTO orders VALUES (1005, 1, 239);
+INSERT INTO orders VALUES (1006, 3, 205);
+INSERT INTO orders VALUES (1007, 7, 145);
+INSERT INTO orders VALUES (1008, 1, 233);
+INSERT INTO orders VALUES (1009, 2, 273);
+INSERT INTO orders VALUES (1010, 7, 311);
+INSERT INTO orders VALUES (1011, 6, 156);
+INSERT INTO orders VALUES (1012, 3, 234);
+INSERT INTO orders VALUES (1013, 7, 158);
+INSERT INTO orders VALUES (1014, 2, 314);
+INSERT INTO orders VALUES (1015, 1, 235);
+INSERT INTO orders VALUES (1016, 4, 50);
+```
+
+Return the names of customers in Graz who have at least one order with an amount greater than 170. One column (name), each name once, sorted alphabetically.
+
+Write one SQLite SELECT statement that returns exactly the requested columns, in the order given. Reply with only the query in a ```sql fenced block.

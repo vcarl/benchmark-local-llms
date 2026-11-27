@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches Source","pattern":"\\b[Ss][Oo][Uu][Rr][Cc][Ee]\\b"}],"type":"constraint"}

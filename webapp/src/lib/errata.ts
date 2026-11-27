@@ -1,7 +1,7 @@
 // The /errata page: a markdown subset for docs/ERRATA-PROCESS.md (headings,
 // paragraphs, `- ` lists; **bold**, `code`, [links](url) inline) and the
 // labels for the errata.yaml entries the report emits.
-import type { Erratum } from "./rows";
+import type { Erratum, Row, RowsDataset } from "./rows";
 
 export type Block =
   | { type: "h"; level: number; text: string }
@@ -51,8 +51,9 @@ export const KIND_LABEL: Record<Erratum["kind"], string> = {
 export const errataOnRelease = (errata: Erratum[], release: string): Erratum[] =>
   errata.filter((e) => e.id.startsWith(`${release}.`));
 
-/** How a release reads in prose: `0` is the pre-release baseline. */
-export const releaseName = (release: string): string => (release === "0" ? "pre-release" : `release ${release}`);
+/** How a release reads in prose: `0` is the alpha challenge set. */
+export const releaseName = (release: string): string =>
+  release === "0" ? "alpha challenge set" : release === "draft" ? "pre-release" : `release ${release}`;
 
 /** Whether the change is in effect, or waits on a release. Prompt wording only for prompt fixes. */
 export const releaseStatusLabel = (e: Erratum): string => {
@@ -61,10 +62,44 @@ export const releaseStatusLabel = (e: Erratum): string => {
     case "none":
       return prompt ? "No prompt fix planned" : "In effect now";
     case "next-release":
-      return prompt ? "Prompt fix pending next release" : "In effect now · joins the baseline at the next release";
+      return prompt ? "Prompt fix pending next release" : "In effect now · ships in the next release";
     case "released":
       return prompt
         ? `Prompt fixed in ${releaseName(e.releasedIn ?? "a release")}`
-        : `In the baseline since ${releaseName(e.releasedIn ?? "a release")}`;
+        : `Shipped in ${releaseName(e.releasedIn ?? "a release")}`;
   }
 };
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** The erratum's measured effect on recorded results: scores changed, or results a retirement dropped. */
+export const scoresChangedLabel = (e: Erratum): string => {
+  const { lines, configs } = e.scoresChanged;
+  const [verb, one, many] =
+    e.kind === "retired" ? ["Dropped", "recorded result", "recorded results"] : ["Changed", "score", "scores"];
+  if (lines === 0) return e.kind === "retired" ? "Dropped no recorded results" : "Changed no recorded scores";
+  return `${verb} ${count(lines, one, many)} across ${count(configs, "config", "configs")}`;
+};
+
+const challengeOf = (item: string) => item.split("/")[0];
+
+/**
+ * The row's cells of challenges whose items a scoring erratum on the release
+ * changed since `<release>.0`, each with those errata ids: the challenge's items
+ * changed, not necessarily this row's score.
+ */
+export const changedCells = (row: Row, ds: RowsDataset): Map<string, string[]> => {
+  const release = ds.dataset.release;
+  const errata = release === null ? [] : errataOnRelease(ds.dataset.errata, release);
+  const touching = (id: string, list: Erratum[]) => list.filter((e) => e.items.some((i) => challengeOf(i) === id)).map((e) => e.id);
+  const cells = new Map<string, string[]>();
+  const scoring = errata.filter((e) => e.scorerChange && e.scoresChanged.lines > 0);
+  for (const id of Object.keys(row.cells)) {
+    const ids = touching(id, scoring);
+    if (ids.length > 0) cells.set(id, ids);
+  }
+  return cells;
+};
+
+export const changedCellTitle = (ids: string[], release: string): string =>
+  `Erratum ${ids.join(", ")} changed scoring of this challenge's items since ${release}.0`;

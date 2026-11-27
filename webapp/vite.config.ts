@@ -4,44 +4,29 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "node:path";
 import fs from "node:fs";
 
-// Serves webapp/src/data/data.js at /data.js and webapp/src/data/events/*.json
-// at /events/*.json in dev; copies both to dist/ at build time. `./bench
-// report --output webapp/src/data` writes both. The build fails loudly if
-// data.js is missing so a stale deploy is impossible.
-function dataJsPlugin(): Plugin {
-  const srcDir = path.resolve(__dirname, "src/data");
-  const srcDataJs = path.join(srcDir, "data.js");
-  const srcEventsDir = path.join(srcDir, "events");
+// Deploy URLs (docs/DEPLOY.md; scripts/deploy-pages.sh sets both).
+// PAGES_ORIGIN: where the bundle and snapshots are served from. Unset, the base
+// is relative (`./`) and the dist/ works at any mount point; set, every asset
+// and data URL is absolute, so a page proxied from another host still loads its
+// bytes from this origin.
+// SITE_URL: the page's public URL, used for the canonical link and the llms.txt
+// pointers in index.html; unset, they are relative.
+const pagesOrigin = process.env.PAGES_ORIGIN;
+const siteUrl = process.env.SITE_URL ?? "./";
+
+// webapp/public/snapshots/ (written by `./bench report`) is plain static
+// content; the build fails loudly if its index is missing so a stale or empty
+// deploy is impossible. `%SITE_URL%` in index.html becomes the site URL.
+function siteBuildPlugin(): Plugin {
+  const snapshotIndex = path.resolve(__dirname, "public/snapshots/index.json");
   return {
-    name: "data-js",
-    configureServer(server) {
-      server.middlewares.use("/data.js", (_req, res, next) => {
-        if (!fs.existsSync(srcDataJs)) return next();
-        res.setHeader("Content-Type", "application/javascript");
-        fs.createReadStream(srcDataJs).pipe(res);
-      });
-      server.middlewares.use("/events", (req, res, next) => {
-        // Strip leading /events from req.url; default to "/" so we 404 on bare prefix.
-        const rel = (req.url ?? "/").replace(/^\/+/, "");
-        if (rel === "" || rel.includes("..") || rel.includes("/")) return next();
-        const filePath = path.join(srcEventsDir, rel);
-        if (!fs.existsSync(filePath)) return next();
-        res.setHeader("Content-Type", "application/json");
-        fs.createReadStream(filePath).pipe(res);
-      });
-    },
-    writeBundle(options) {
-      if (!fs.existsSync(srcDataJs)) {
-        throw new Error(
-          "data.js missing — run './bench report --output webapp/src/data' before building",
-        );
-      }
-      const outDir = options.dir ?? "dist";
-      fs.copyFileSync(srcDataJs, path.resolve(outDir, "data.js"));
-      if (fs.existsSync(srcEventsDir)) {
-        fs.cpSync(srcEventsDir, path.resolve(outDir, "events"), { recursive: true });
+    name: "snapshots-and-site-url",
+    buildStart() {
+      if (!fs.existsSync(snapshotIndex)) {
+        throw new Error("snapshots/index.json missing — run './bench report' before building");
       }
     },
+    transformIndexHtml: (html) => html.replaceAll("%SITE_URL%", siteUrl),
   };
 }
 
@@ -49,13 +34,11 @@ export default defineConfig({
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     viteReact(),
-    dataJsPlugin(),
+    siteBuildPlugin(),
   ],
-  // Relative base — emits ./assets/... so the dist/ is portable across mount
-  // points. Combined with hash routing in report-entry.tsx, the same bundle
-  // works at /benchmark-local-llms/ or /benchmark-local-llms/reports/<id>/
-  // without rebuild.
-  base: "./",
+  // Hash routing (report-entry.tsx) keeps every route under `#`, so either base
+  // serves every route from the one index.html.
+  base: pagesOrigin ?? "./",
   build: {
     outDir: "dist",
     emptyOutDir: true,

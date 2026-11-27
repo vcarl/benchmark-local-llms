@@ -33,8 +33,14 @@ interface BaseFields {
   why: string;
 }
 
+/** A whole-number answer, read through thousands separators and a zero-cents
+ *  tail ("$1,331.00"), so the last match stays the integer (erratum 0.7). */
+export const INT_EXTRACT = "(-?\\d[\\d,]*)(?:\\.0+(?!\\d))?";
+
 /** An exact_match item — best for numeric answers. */
-export function exactItem(f: BaseFields & { expected: string; extract: string }): AuthoredItem {
+export function exactItem(
+  f: BaseFields & { expected: string; extract: string; fallbackExtract?: string },
+): AuthoredItem {
   return {
     why: f.why,
     item: {
@@ -45,6 +51,7 @@ export function exactItem(f: BaseFields & { expected: string; extract: string })
       scorer: "exact_match",
       expected: f.expected,
       extract: f.extract,
+      ...(f.fallbackExtract === undefined ? {} : { fallbackExtract: f.fallbackExtract }),
       tags: f.tags ?? ["TODO"],
     },
   };
@@ -234,6 +241,31 @@ export function regexItem(
       scorer: "constraint",
       constraints: [{ name: f.label, check: "regex", pattern: f.pattern }],
       ...(nearMisses.length === 0 ? {} : { nearMisses }),
+      tags: f.tags ?? ["TODO"],
+    },
+  };
+}
+
+/**
+ * A multi-turn item: each turn is an item built by one of the helpers above
+ * (its own prompt + scorer) plus `answer`, the gold assistant message injected
+ * as history before every later turn. The chain's name/category/tier/tags
+ * apply to every turn, so each turn's own copies are dropped; the turns' `why`
+ * lines are folded into the chain's comment.
+ */
+export function chainItem(
+  f: Omit<BaseFields, "prompt"> & { turns: { turn: AuthoredItem; answer: string }[] },
+): AuthoredItem {
+  return {
+    why: [f.why, ...f.turns.map(({ turn }, i) => `t${i + 1}: ${turn.why}`)].join("\n"),
+    item: {
+      name: f.name,
+      category: f.category,
+      tier: f.tier,
+      turns: f.turns.map(({ turn, answer }) => {
+        const { name: _n, category: _c, tier: _t, tags: _g, prompt, ...scorer } = turn.item;
+        return { prompt, answer, ...scorer };
+      }),
       tags: f.tags ?? ["TODO"],
     },
   };

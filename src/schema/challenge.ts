@@ -41,6 +41,7 @@ const ExactMatchItem = Schema.Struct({
   scorer: Schema.Literal("exact_match"),
   expected: Schema.String,
   extract: Schema.String,
+  fallbackExtract: Schema.optional(Schema.String),
   nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
   ...meta,
 });
@@ -66,6 +67,17 @@ const CodeExecItem = Schema.Struct({
   testFile: Schema.String,
   /** Submission mode language (see `CodeExecConfig.submission`). */
   submission: Schema.optional(Schema.String),
+  ...meta,
+});
+
+const CustomItem = Schema.Struct({
+  name: Schema.String,
+  category: Schema.String,
+  tier: Schema.Number,
+  prompt: Schema.String,
+  scorer: Schema.Literal("custom"),
+  /** Path to the Python scorer script, resolved relative to the challenge file's dir and inlined as the scorer's `source`. */
+  script: Schema.String,
   ...meta,
 });
 
@@ -116,6 +128,7 @@ export const Turn = Schema.Union(
     scorer: Schema.Literal("exact_match"),
     expected: Schema.String,
     extract: Schema.String,
+    fallbackExtract: Schema.optional(Schema.String),
     nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
   }),
   Schema.Struct({
@@ -148,6 +161,7 @@ export const SingleItem = Schema.Union(
   GameItem,
   SetMatchItem,
   OrderedMatchItem,
+  CustomItem,
 );
 export type SingleItem = typeof SingleItem.Type;
 

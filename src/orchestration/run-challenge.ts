@@ -1,51 +1,85 @@
 /**
- * Challenge orchestrator: runs one `(config × challenge)` attempt end-to-end.
+ * Challenge orchestrator: one config × challenge on an already-booted server,
+ * written as a v4 bundle into the store.
  *
- * Boots the LLM server for the configuration (reusing the LlmServerFactory from
- * RunModelDeps), runs each challenge item through `runPrompt`, scores each item
- * via `scoreOrFold` (scorer errors yield a classified score 0, not a crashed attempt),
- * aggregates to `{ score, passed }`, and writes the per-attempt archive
- * (header → item lines → finalize).
+ * The header goes to an open file (or the run continues the open file of the
+ * same config, hardware, release and challenge). The cell is skipped whole
+ * when one sealed bundle already holds, with no harness failure, every item × sample
+ * 0..k-1 at the current prompt; otherwise every item × sample is executed and
+ * appended (a resumed open file keeps what it already holds). At the end the
+ * open file is sealed into `bundles/<digest>.jsonl` and the score records of
+ * its executions are appended to `scores/<digest>.jsonl`. A skipped cell is
+ * still scored, for the console summary only.
  *
- * Server acquisition is inside `Effect.scoped`, exactly mirroring `run-model.ts`.
- * `ChatCompletion` is required in the environment and provided by the caller —
- * `runChallenge` does not construct it.
+ * `ChatCompletion` is required in the environment and provided by the caller.
  */
-
-import type { CommandExecutor, FileSystem, HttpClient, Path } from "@effect/platform";
+import { type CommandExecutor, FileSystem, type HttpClient, type Path } from "@effect/platform";
 import { Clock, Effect, Random } from "effect";
-import { appendItem, finalizeAttempt, writeAttemptHeader } from "../archive/attempt-writer.js";
-import { findCachedSamples } from "../archive/cache.js";
-import { scorerHash, writeBlob } from "../archive/content-store.js";
-import { promptContent, type ResolvedChallenge, type ResolvedItem } from "../config/challenges.js";
+import type { ResolvedChallenge, ResolvedItem } from "../config/challenges.js";
 import type { ResolvedConfiguration } from "../config/configurations.js";
-import { stableStringify } from "../config/hashing.js";
-import type { FileIOError, JsonlCorruptLine } from "../errors/index.js";
-import type { ChatCompletion } from "../llm/chat-completion.js";
+import {
+  type BundleConflict,
+  type BundleInvalid,
+  FileIOError,
+  type JsonlCorruptLine,
+} from "../errors/index.js";
+import { type ChatCompletion, chatMessages } from "../llm/chat-completion.js";
 import { LLAMACPP_FIXED_FLAGS } from "../llm/servers/llamacpp.js";
 import type { ServerHandle } from "../llm/servers/supervisor.js";
-import {
-  type AttemptAggregate,
-  type AttemptManifest,
-  groupSamples,
-  type ItemResult,
-  passFraction,
-} from "../schema/attempt.js";
+import { type AttemptAggregate, groupSamples, passFraction } from "../schema/attempt.js";
 import type { ModelConfig } from "../schema/model.js";
-import type { RunEnv } from "../schema/run-manifest.js";
-import { scoreOrFold } from "../scoring/dispatch.js";
-import { applyScore } from "../scoring/failure-kind.js";
-import type { RunModelDeps } from "./run-model.js";
+import { scoreFields, scoreRecord } from "../scoring/rules.js";
+import {
+  appendExecution,
+  type BundleConfig,
+  type BundleEnv,
+  type BundleHeader,
+  bundlePath,
+  createOpenBundle,
+  type Execution,
+  readBundle,
+  sealBundle,
+} from "../store/bundle.js";
+import { digestOf } from "../store/digest.js";
+import { appendScores, type ScoreRecord } from "../store/scores.js";
+import { executionKey, findOpenBundle, type Held, heldOf } from "../store/store-index.js";
 import { runPrompt } from "./run-prompt.js";
 
-// ── Pure helper ────────────────────────────────────────────────────────────
+/** The machine and harness part of a bundle's `env`. */
+export type RunEnv = Pick<
+  BundleEnv,
+  "platform" | "runtimeVersion" | "nodeVersion" | "harnessGitSha" | "hardware" | "hardwareId"
+>;
+
+export interface RunChallengeInput {
+  readonly config: ResolvedConfiguration;
+  readonly challenge: ResolvedChallenge;
+  readonly store: string;
+  /** Release of the challenge directory (`releaseOfChallengesDir`). */
+  readonly release: string;
+  readonly runId: string;
+  readonly contributor: string;
+  readonly env: RunEnv;
+  readonly weightsDigest: string | null;
+  /** Each sealed bundle's held executions (`loadPresent`). */
+  readonly present: ReadonlyArray<Held>;
+  /** Execute the whole cell, even when a sealed bundle already holds it. */
+  readonly noSkip?: boolean;
+  /** Samples per item, `0..k-1`; default 1. */
+  readonly samplesOf?: (item: ResolvedItem) => number;
+}
+
+export interface ChallengeOutcome {
+  /** Digest of the sealed bundle; null when nothing was executed. */
+  readonly bundle: string | null;
+  readonly executed: number;
+  readonly skipped: number;
+  readonly aggregate: AttemptAggregate;
+}
 
 /**
- * Aggregate item results into a pass/fail score.
- * `score` = mean over items of each item's pass fraction (its samples scoring
- * exactly 1, over its samples); with one sample per item that is the count of
- * items with score === 1 divided by total items. Partial credit (0 < score < 1)
- * does NOT count as a pass. Empty items → `{ score: 0, passed: false }`.
+ * Mean over items of each item's pass fraction (samples scoring exactly 1);
+ * `passed` when it meets the challenge's threshold. Empty → `{ 0, false }`.
  */
 export const aggregate = (
   lines: ReadonlyArray<{ itemId: string; score: number }>,
@@ -57,34 +91,7 @@ export const aggregate = (
   return { score, passed: score >= passThreshold };
 };
 
-// ── Input types ────────────────────────────────────────────────────────────
-
-export interface RunChallengeInput {
-  readonly config: ResolvedConfiguration;
-  readonly challenge: ResolvedChallenge;
-  readonly attemptId: string;
-  /** Directory scanned for cross-run cache hits (the archive root). */
-  readonly archiveDir: string;
-  readonly archivePath: string;
-  readonly env: RunEnv;
-  /** Shared by every attempt of one `./bench run` invocation. */
-  readonly invocationId?: string;
-  /** Who produced the attempt (`BENCH_SUBMITTER`, default `local`). */
-  readonly submitter?: string;
-  /** When true, bypass the cross-run cache and always execute. Default false (cache ON). */
-  readonly noCache?: boolean;
-  /** Samples (generations) to hold per item; default 1. Samples already cached are reused. */
-  readonly samplesOf?: (item: ResolvedItem) => number;
-  /** Same deps bundle submit.ts builds; only `.llmServer` is used here. */
-  readonly deps: RunModelDeps;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Build the `ModelConfig` shape the LLM-server factory + runPrompt expect.
- * Uses conditional spreads for optional fields to satisfy `exactOptionalPropertyTypes: true`.
- */
+/** The `ModelConfig` shape the LLM-server factory and runPrompt expect. */
 export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   artifact: c.artifact,
   runtime: c.runtime,
@@ -96,198 +103,128 @@ export const modelFromConfig = (c: ResolvedConfiguration): ModelConfig => ({
   ...(c.extraArgs !== undefined ? { extraArgs: c.extraArgs } : {}),
 });
 
-/** Configuration fields copied verbatim onto the manifest as provenance, when set. */
-const PROVENANCE_FIELDS = [
+const SAMPLING_KEYS = [
   "topP",
   "topK",
   "minP",
   "presencePenalty",
+  "presenceContextSize",
   "repetitionPenalty",
   "repetitionContextSize",
-  "chatTemplateKwargs",
-  "ctxSize",
-  "chatTemplate",
-  "chatTemplateSha",
-] as const satisfies ReadonlyArray<keyof ResolvedConfiguration & keyof AttemptManifest>;
+] as const;
 
-const provenance = (c: ResolvedConfiguration): Partial<AttemptManifest> => ({
-  ...Object.fromEntries(PROVENANCE_FIELDS.flatMap((k) => (c[k] === undefined ? [] : [[k, c[k]]]))),
-  // extraArgs reaches only the mlx/omlx servers (see cli/deps.ts); record it where it applied.
-  ...(c.runtime === "llamacpp"
-    ? { serverFlags: LLAMACPP_FIXED_FLAGS }
-    : c.extraArgs === undefined
-      ? {}
-      : { extraArgs: c.extraArgs }),
+const sampling = (c: ResolvedConfiguration) =>
+  Object.fromEntries(SAMPLING_KEYS.flatMap((k) => (c[k] === undefined ? [] : [[k, c[k]]])));
+
+/** The config digest's preimage. */
+export const bundleConfig = (
+  c: ResolvedConfiguration,
+  weightsDigest: string | null,
+): BundleConfig => ({
+  artifact: c.artifact,
+  weightsDigest,
+  runtime: c.runtime,
+  ...(c.quant === undefined ? {} : { quant: c.quant }),
+  temperature: c.temperature,
+  maxTokens: c.maxTokens,
+  sampling: sampling(c),
+  ...(c.chatTemplateKwargs === undefined ? {} : { chatTemplateKwargs: c.chatTemplateKwargs }),
+  chatTemplateDigest: c.chatTemplateDigest ?? null,
+  systemPrompt: c.systemPromptText,
 });
 
-export const baseHeader = (input: RunChallengeInput, startedAt: string): AttemptManifest => ({
-  schemaVersion: 3,
-  attemptId: input.attemptId,
-  startedAt,
-  finishedAt: null,
-  interrupted: true,
-  configId: input.config.id,
-  configHash: input.config.configHash,
-  artifact: input.config.artifact,
-  runtime: input.config.runtime,
-  temperature: input.config.temperature,
-  systemPrompt: input.config.systemPrompt,
-  maxTokens: input.config.maxTokens,
-  challengeId: input.challenge.id,
-  challengeVersion: input.challenge.version,
-  challengeHash: input.challenge.challengeHash,
-  passThreshold: input.challenge.passThreshold,
-  ...(input.invocationId === undefined ? {} : { invocationId: input.invocationId }),
-  ...(input.submitter === undefined ? {} : { submitter: input.submitter }),
-  env: input.env,
-  aggregate: { score: 0, passed: false },
-  ...(input.config.quant !== undefined ? { quant: input.config.quant } : {}),
-  ...provenance(input.config),
-});
+export const bundleHeader = (input: RunChallengeInput, startedAt: string): BundleHeader => {
+  const c = input.config;
+  const config = bundleConfig(c, input.weightsDigest);
+  return {
+    schemaVersion: 4,
+    configId: c.id,
+    config,
+    configDigest: digestOf(config),
+    release: input.release,
+    challenge: input.challenge.id,
+    run: { id: input.runId, contributor: input.contributor, startedAt, finishedAt: null },
+    env: {
+      ...input.env,
+      ...(c.ctxSize === undefined ? {} : { ctxSize: c.ctxSize }),
+      // extraArgs reaches only the mlx/omlx servers (see cli/deps.ts); record it where it applied.
+      ...(c.runtime === "llamacpp"
+        ? { serverFlags: LLAMACPP_FIXED_FLAGS }
+        : c.extraArgs === undefined
+          ? {}
+          : { extraArgs: c.extraArgs }),
+      ...(c.chatTemplate === undefined ? {} : { chatTemplate: c.chatTemplate }),
+    },
+    executions: null,
+  };
+};
 
-// ── Per-item helper ────────────────────────────────────────────────────────
+const iso = (ms: number): string => new Date(ms).toISOString();
 
-/**
- * Resolve one challenge item to its `ItemResult` lines, one per sample
- * `0..samplesOf(item)-1`: each sample is a cross-run cache hit (copied
- * verbatim — original executedAt/tokens/wallTime preserved so efficiency still
- * reflects true measured cost) or a fresh model execution stamped with
- * `itemHash`, its `sample` index (omitted for sample 0, so a one-sample line is
- * today's line), and the random `seed` sent with the request. Does NOT append
- * or aggregate — the caller owns archive writes.
- *
- * Before the cache lookup, writes the per-item prompt and scorer blobs to the
- * content store so the store is complete regardless of cache hit or miss.
- *
- * Cache-hit stamps: a hit carries `cachedFrom` (the executing attempt, set by
- * the cache lookup), and a hit whose cached row has no `scorerHash` (v1 archive)
- * has it set. These are the two sanctioned exceptions to the "cache hit =
- * verbatim copy" invariant; measured-cost fields (executedAt, tokens, tps,
- * peakMemory, wallTime) are preserved verbatim.
- */
-export const executeOrCacheItem = (
-  input: RunChallengeInput,
-  item: ResolvedItem,
-  peakRssKb?: Effect.Effect<number>,
-): Effect.Effect<
-  ItemResult[],
-  FileIOError | JsonlCorruptLine,
-  | FileSystem.FileSystem
-  | Path.Path
-  | CommandExecutor.CommandExecutor
-  | HttpClient.HttpClient
-  | ChatCompletion
-> =>
-  Effect.gen(function* () {
-    const sh = scorerHash(item.scorer);
-    yield* writeBlob(input.archiveDir, "prompts", item.promptHash, promptContent(item.prompt));
-    yield* writeBlob(input.archiveDir, "scorers", sh, stableStringify(item.scorer));
-
-    const cached =
-      input.noCache === true
-        ? new Map<number, ItemResult>()
-        : yield* findCachedSamples(input.archiveDir, {
-            configHash: input.config.configHash,
-            challengeId: input.challenge.id,
-            challengeVersion: input.challenge.version,
-            itemHash: item.itemHash,
-            ...(input.env.hardwareId === undefined ? {} : { hardwareId: input.env.hardwareId }),
-          });
-
-    const rows: ItemResult[] = [];
-    const samples = input.samplesOf?.(item) ?? 1;
-    for (let sample = 0; sample < samples; sample++) {
-      const hit = cached.get(sample);
-      if (hit !== undefined) {
-        rows.push(hit.scorerHash === undefined ? { ...hit, scorerHash: sh } : hit);
-        continue;
-      }
-      rows.push(yield* executeSample(input, item, sh, sample, peakRssKb));
-    }
-    return rows;
+const messagesOf = (input: RunChallengeInput, item: ResolvedItem) =>
+  chatMessages({
+    systemPrompt: input.config.systemPromptText,
+    userPrompt: item.prompt.promptText,
+    ...(item.prompt.history === undefined ? {} : { history: item.prompt.history }),
   });
 
+/** Execute one sample of one item: the execution line D3 describes. */
 const executeSample = (
   input: RunChallengeInput,
   item: ResolvedItem,
-  sh: string,
   sample: number,
-  peakRssKb: Effect.Effect<number> | undefined,
-) =>
+  messagesDigest: string,
+  peakRssKb: Effect.Effect<number>,
+): Effect.Effect<Execution, never, ChatCompletion> =>
   Effect.gen(function* () {
+    const c = input.config;
     const seed = yield* Random.nextIntBetween(0, 2 ** 31 - 1);
     const exec = yield* runPrompt({
-      archiveId: input.attemptId,
-      runId: input.attemptId,
-      model: modelFromConfig(input.config),
+      archiveId: input.runId,
+      runId: input.runId,
+      model: modelFromConfig(c),
       prompt: item.prompt,
-      systemPrompt: input.config.systemPromptText,
-      temperature: input.config.temperature,
-      maxTokens: input.config.maxTokens,
+      systemPrompt: c.systemPromptText,
+      temperature: c.temperature,
+      maxTokens: c.maxTokens,
       seed,
-      ...(input.config.repetitionPenalty === undefined
-        ? {}
-        : { repetitionPenalty: input.config.repetitionPenalty }),
-      ...(input.config.repetitionContextSize === undefined
-        ? {}
-        : { repetitionContextSize: input.config.repetitionContextSize }),
-      ...(input.config.topP === undefined ? {} : { topP: input.config.topP }),
-      ...(input.config.topK === undefined ? {} : { topK: input.config.topK }),
-      ...(input.config.minP === undefined ? {} : { minP: input.config.minP }),
-      ...(input.config.presencePenalty === undefined
-        ? {}
-        : { presencePenalty: input.config.presencePenalty }),
-      ...(input.config.chatTemplateKwargs === undefined
-        ? {}
-        : { chatTemplateKwargs: input.config.chatTemplateKwargs }),
-      ...(peakRssKb !== undefined ? { peakRssKb } : {}),
+      ...sampling(c),
+      ...(c.chatTemplateKwargs === undefined ? {} : { chatTemplateKwargs: c.chatTemplateKwargs }),
+      peakRssKb,
     });
-
-    const row: ItemResult = {
-      itemId: item.itemId,
-      promptName: item.itemId,
-      promptHash: item.promptHash,
-      itemHash: item.itemHash,
-      scorerHash: sh,
-      ...(item.parentItemId === undefined ? {} : { parentItemId: item.parentItemId }),
-      ...(item.turn === undefined ? {} : { turn: item.turn }),
-      ...(sample === 0 ? {} : { sample }),
+    return {
+      item: `${input.challenge.id}/${item.itemId}`,
+      sample,
       seed,
+      messagesDigest,
       executedAt: exec.executedAt,
-      promptTokens: exec.promptTokens,
-      generationTokens: exec.generationTokens,
-      promptTps: exec.promptTps,
-      generationTps: exec.generationTps,
-      peakMemoryGb: exec.peakMemoryGb,
-      wallTimeSec: exec.wallTimeSec,
       output: exec.output,
       reasoning: exec.reasoning,
       rawOutput: exec.rawOutput,
       error: exec.error,
-      ...(exec.stopReason === undefined ? {} : { stopReason: exec.stopReason }),
-      score: 0,
+      stopReason: exec.stopReason ?? null,
+      measured: {
+        promptTokens: exec.promptTokens,
+        generationTokens: exec.generationTokens,
+        promptTps: exec.promptTps,
+        generationTps: exec.generationTps,
+        peakMemoryGb: exec.peakMemoryGb,
+        wallTimeSec: exec.wallTimeSec,
+        ...exec.timing,
+      },
     };
-    // An errored execution is not scored: it records score 0 and its failureKind.
-    const scored =
-      exec.error === null
-        ? yield* scoreOrFold(exec.output, item.scorer, { promptName: item.itemId })
-        : undefined;
-    return applyScore(row, scored);
   });
 
-// ── Main entry ─────────────────────────────────────────────────────────────
-
 /**
- * Inner body of a challenge run. Accepts an already-booted `ServerHandle` so
- * server lifetime can be hoisted to per-configuration in the matrix runner.
- * Does NOT acquire or release the server scope.
+ * Run one config × challenge on a booted server and seal its bundle. Does not
+ * acquire or release the server.
  */
 export const runChallengeWithServer = (
   input: RunChallengeInput,
   server: ServerHandle,
 ): Effect.Effect<
-  AttemptManifest,
-  FileIOError | JsonlCorruptLine,
+  ChallengeOutcome,
+  FileIOError | BundleInvalid | BundleConflict | JsonlCorruptLine,
   | FileSystem.FileSystem
   | Path.Path
   | CommandExecutor.CommandExecutor
@@ -295,54 +232,112 @@ export const runChallengeWithServer = (
   | ChatCompletion
 > =>
   Effect.gen(function* () {
-    const startedMs = yield* Clock.currentTimeMillis;
-    const header = baseHeader(input, new Date(startedMs).toISOString());
-    yield* writeAttemptHeader(input.archivePath, header);
-    yield* writeBlob(
-      input.archiveDir,
-      "system",
-      input.config.configHash,
-      input.config.systemPromptText,
-    );
-    const scored: ItemResult[] = [];
-    for (const item of input.challenge.items) {
-      for (const row of yield* executeOrCacheItem(input, item, server.peakRssKb)) {
-        yield* appendItem(input.archivePath, row);
-        scored.push(row);
-      }
-    }
-    const agg = aggregate(scored, input.challenge.passThreshold);
-    const replayed = scored.filter((r) => r.cachedFrom !== undefined).length;
-    const lines = { generated: scored.length - replayed, replayed };
-    const finishedMs = yield* Clock.currentTimeMillis;
-    const finishedAt = new Date(finishedMs).toISOString();
-    yield* finalizeAttempt(input.archivePath, finishedAt, agg, { lines });
-    return { ...header, finishedAt, interrupted: false, aggregate: agg, lines };
-  });
+    const { store, challenge } = input;
+    const fresh = bundleHeader(input, iso(yield* Clock.currentTimeMillis));
+    const plan = challenge.items.flatMap((item) => {
+      const messagesDigest = digestOf(messagesOf(input, item));
+      return Array.from({ length: input.samplesOf?.(item) ?? 1 }, (_, sample) => ({
+        item,
+        sample,
+        messagesDigest,
+        key: executionKey({
+          configDigest: fresh.configDigest,
+          hardwareId: fresh.env.hardwareId,
+          item: `${challenge.id}/${item.itemId}`,
+          messagesDigest,
+          sample,
+        }),
+      }));
+    });
 
-/**
- * Run one `(config × challenge)` attempt end-to-end.
- *
- * Thin wrapper: boots the LLM server within an `Effect.scoped` then delegates
- * to `runChallengeWithServer`. Error channel: `FileIOError` (archive I/O) +
- * `JsonlCorruptLine` (cache scan). Scorer errors fold to score 0 per item.
- * LLM server failures are hard defects (`orDie`). `ChatCompletion` is required
- * in the environment — the caller provides it.
- */
-export const runChallenge = (
-  input: RunChallengeInput,
-): Effect.Effect<
-  AttemptManifest,
-  FileIOError | JsonlCorruptLine,
-  | FileSystem.FileSystem
-  | Path.Path
-  | CommandExecutor.CommandExecutor
-  | HttpClient.HttpClient
-  | ChatCompletion
-> =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const server = yield* input.deps.llmServer(modelFromConfig(input.config)).pipe(Effect.orDie);
-      return yield* runChallengeWithServer(input, server);
-    }),
-  );
+    // The whole cell is skipped only when one sealed bundle already holds all of it.
+    const complete =
+      input.noSkip === true
+        ? undefined
+        : input.present.find((h) => plan.every((p) => h.has(p.key)));
+    if (complete !== undefined) {
+      const graded: Array<{ itemId: string; score: number }> = [];
+      for (const p of plan) {
+        const held = complete.get(p.key);
+        if (held === undefined) continue; // unreachable: `complete` holds every key
+        const f = yield* scoreFields(held, p.item.scorer);
+        graded.push({ itemId: p.item.itemId, score: f.score });
+      }
+      return {
+        bundle: null,
+        executed: 0,
+        skipped: plan.length,
+        aggregate: aggregate(graded, challenge.passThreshold),
+      };
+    }
+
+    const adopted = yield* findOpenBundle(store, {
+      configDigest: fresh.configDigest,
+      hardwareId: fresh.env.hardwareId,
+      release: fresh.release,
+      challenge: fresh.challenge,
+    });
+    let openPath: string;
+    // What the adopted open file already holds: a resumed run continues it.
+    let resumed: Held = new Map();
+    if (adopted === undefined) {
+      openPath = yield* createOpenBundle(store, fresh);
+    } else {
+      openPath = adopted.path;
+      resumed = heldOf(adopted.header, adopted.executions);
+      yield* Effect.logInfo(
+        `resuming ${openPath} (${adopted.executions.length} executions already written)`,
+      );
+    }
+    const stamp = () =>
+      Effect.map(Clock.currentTimeMillis, (ms) => ({
+        harnessGitSha: input.env.harnessGitSha,
+        scoredAt: iso(ms),
+      }));
+
+    const graded: Array<{ itemId: string; score: number; sample: number }> = [];
+    const records = new Map<string, ScoreRecord>();
+    let executed = 0;
+    let skipped = 0;
+    for (const { item, sample, messagesDigest, key } of plan) {
+      const held = input.noSkip === true ? undefined : resumed.get(key);
+      if (held !== undefined) {
+        skipped += 1;
+        const f = yield* scoreFields(held, item.scorer);
+        graded.push({ itemId: item.itemId, sample, score: f.score });
+        continue;
+      }
+      const e = yield* executeSample(input, item, sample, messagesDigest, server.peakRssKb);
+      yield* appendExecution(openPath, e);
+      executed += 1;
+      const r = yield* scoreRecord(e, item.scorer, yield* stamp());
+      records.set(r.execution, r);
+      graded.push({ itemId: item.itemId, sample, score: r.score });
+    }
+    const agg = aggregate(graded, challenge.passThreshold);
+
+    // Nothing generated: no bundle, and the header-only open file goes.
+    if (executed === 0 && (adopted?.executions.length ?? 0) === 0) {
+      const fs = yield* FileSystem.FileSystem;
+      yield* fs
+        .remove(openPath)
+        .pipe(
+          Effect.mapError(
+            (cause) => new FileIOError({ path: openPath, operation: "remove open bundle", cause }),
+          ),
+        );
+      return { bundle: null, executed, skipped, aggregate: agg };
+    }
+    const digest = yield* sealBundle(store, openPath, iso(yield* Clock.currentTimeMillis));
+    const sealed = yield* readBundle(bundlePath(store, digest));
+    const scorers = new Map(challenge.items.map((i) => [`${challenge.id}/${i.itemId}`, i.scorer]));
+    const toAppend: ScoreRecord[] = [];
+    for (const e of sealed.executions) {
+      const r = records.get(digestOf(e));
+      const scorer = scorers.get(e.item);
+      if (r !== undefined) toAppend.push(r);
+      else if (scorer !== undefined) toAppend.push(yield* scoreRecord(e, scorer, yield* stamp()));
+    }
+    yield* appendScores(store, digest, toAppend);
+    return { bundle: digest, executed, skipped, aggregate: agg };
+  });

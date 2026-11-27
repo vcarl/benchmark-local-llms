@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches Borland","pattern":"\\b[Bb][Oo][Rr][Ll][Aa][Nn][Dd]\\b"}],"type":"constraint"},"rules":2}

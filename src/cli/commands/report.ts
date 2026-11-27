@@ -1,116 +1,85 @@
 /**
- * `report` subcommand — loads attempt archives and emits the webapp's
- * `data.js` file. Delegates to `runReport` (D2) in `src/report/`.
+ * `report` subcommand: one snapshot per dataset manifest, written with its
+ * detail files and the index into `--output` (D11). Delegates to `runReport`
+ * in `src/report/`. A snapshot names the harness commit that built it, so the
+ * build refuses a tree with tracked changes under the paths its rows depend
+ * on; `--allow-dirty` builds anyway and marks the snapshot `harnessDirty`.
  */
-import path from "node:path";
 import { Command, Options } from "@effect/cli";
-import { FileSystem } from "@effect/platform";
-import { Effect, Option } from "effect";
-import { FileIOError } from "../../errors/index.js";
-import { hardwareId, probeHardware } from "../../orchestration/hardware.js";
+import { Command as Proc } from "@effect/platform";
+import { Effect, Either } from "effect";
+import { ConfigError } from "../../errors/index.js";
+import { gitSha } from "../../orchestration/run-loop.js";
 import { type ReportSummary, runReport } from "../../report/index.js";
 import { makeLoggerLayer } from "../logger.js";
 
-/**
- * Emit the audit block for a completed report run.
- *
- * Always prints — even when all counters are zero — so operators have a clear
- * read on what was loaded, what was dropped and why, and what was written.
- *
- * Line 1: how many attempts were loaded
- * Line 2: how many results were dropped (and why)
- * Line 3: where data.js was written, then one line per dataset
- */
-export const logAuditBlock = (summary: ReportSummary): Effect.Effect<void> =>
+/** One line per snapshot, then the detail and index counts. */
+export const logSummary = (summary: ReportSummary): Effect.Effect<void> =>
   Effect.gen(function* () {
-    yield* Effect.logInfo(`report: loaded ${summary.attemptsLoaded} attempts`);
-    yield* Effect.logInfo(
-      `report: dropped ${summary.dropped.incomplete} (incomplete), ${summary.dropped.duplicate} (duplicate)`,
-    );
-    yield* Effect.logInfo(`report: wrote ${summary.outputPath}`);
-    for (const d of summary.datasets)
+    for (const { entry: e, written } of summary.snapshots)
       yield* Effect.logInfo(
-        `report: dataset ${d.dataset.label}: ${d.rows.length} rows over ${d.challengeSet.length} challenges`,
+        `report: ${e.dataset}${e.evalVersion === null ? "" : ` @ ${e.evalVersion}`}: ${e.rows} rows over ${e.challenges} challenges → ${e.digest}.json${written ? "" : " (unchanged)"}`,
       );
     yield* Effect.logInfo(
-      `report: details ${summary.detailsWritten} written, ${summary.detailsSkipped} skipped (v1/no-store)`,
+      `report: details ${summary.detailsWritten} written, ${summary.detailsSkipped} skipped (v1/no-store), ${summary.detailsPruned} pruned; index keeps ${summary.kept} earlier snapshot(s)`,
     );
   });
 
-/**
- * True when a {@link FileIOError} indicates the archive directory itself is
- * missing (rather than a per-file load failure). The archive-dir read is the
- * first filesystem op `runReport` performs; ENOENT / NotFound here usually
- * means the operator hasn't run `./bench migrate` yet.
- */
-export const isMissingArchiveDirError = (err: FileIOError): boolean =>
-  err.operation === "readDirectory" && /ENOENT|NotFound/i.test(String(err.cause));
+/** Tracked paths a snapshot's rows depend on. */
+const HARNESS_PATHS = ["src", "releases", "datasets", "configs.yaml", "system-prompts.yaml"];
 
-export const missingArchiveDirHint = (archiveDir: string): string =>
-  `No archive directory at '${archiveDir}'. Run './bench migrate' to create ` +
-  "archives from benchmark-execution/, or pass --archive-dir to point at an existing directory.";
-
-const archiveDir = Options.directory("archive-dir").pipe(
-  Options.withDescription("Archive directory to scan"),
-  Options.withDefault("./benchmark-archive"),
+/** `git status --porcelain` lines of tracked changes under {@link HARNESS_PATHS}; a failed check counts as a change. */
+const trackedChanges = Proc.lines(
+  Proc.make("git", "status", "--porcelain", "--untracked-files=no", "--", ...HARNESS_PATHS),
+).pipe(
+  Effect.map((lines) => lines.filter((l) => l.trim() !== "")),
+  Effect.catchAll(() => Effect.succeed(["(git status failed)"])),
 );
 
+/** Refuse a dirty harness tree unless `allowDirty`, which marks the snapshot instead. */
+export const harnessTree = (
+  dirty: ReadonlyArray<string>,
+  allowDirty: boolean,
+): Either.Either<{ harnessDirty: boolean }, ConfigError> =>
+  dirty.length === 0 || allowDirty
+    ? Either.right({ harnessDirty: dirty.length > 0 })
+    : Either.left(
+        new ConfigError({
+          path: ".",
+          message: `tracked changes the snapshot's rows depend on, so harnessGitSha would not reproduce it:\n${dirty.join("\n")}\ncommit them, or pass --allow-dirty for a development build marked harnessDirty`,
+        }),
+      );
+
+const datasetsDir = Options.directory("datasets-dir").pipe(
+  Options.withDescription("Directory of dataset manifests; one snapshot per manifest"),
+  Options.withDefault("datasets"),
+);
+const store = Options.directory("store").pipe(
+  Options.withDescription("Store holding bundles/ and scores/"),
+  Options.withDefault("store"),
+);
+const releasesDir = Options.directory("releases-dir").pipe(
+  Options.withDescription("Directory holding the release directories"),
+  Options.withDefault("releases"),
+);
+const legacyRoot = Options.directory("legacy-root").pipe(
+  Options.withDescription("Directory holding the legacy archives the manifests name"),
+  Options.withDefault("."),
+);
 const output = Options.directory("output").pipe(
-  Options.withDescription("Output directory for data.js (e.g. webapp/src/data)"),
-  Options.withDefault("./webapp/src/data"),
+  Options.withDescription("Snapshot directory (index.json, <digest>.json, details/)"),
+  Options.withDefault("webapp/public/snapshots"),
 );
-
-const challengesDir = Options.directory("challenges-dir").pipe(
-  Options.withDescription("Challenge YAML directory the item families are read from"),
-  Options.withDefault("challenges"),
+const configsFile = Options.file("configs-file").pipe(
+  Options.withDescription("configs.yaml whose modelKey overrides apply"),
+  Options.withDefault("configs.yaml"),
 );
-
-const datasetLabel = Options.text("dataset-label").pipe(
+const allowDirty = Options.boolean("allow-dirty").pipe(
   Options.withDescription(
-    "Name of the dataset the rows describe (default: main for ./challenges, else the challenges dir name)",
-  ),
-  Options.optional,
-);
-
-const legacyHardware = Options.text("legacy-hardware").pipe(
-  Options.withDescription(
-    "Machine for attempts without a hardware profile: 'local' (this machine), 'unknown', or a hardwareId",
-  ),
-  Options.withDefault("local"),
-);
-
-/** `--legacy-hardware` → the machine pre-schemaVersion-3 attempts are attributed to. */
-export const resolveLegacyHardware = (value: string) =>
-  value === "local"
-    ? Effect.map(probeHardware, (profile) => ({ id: hardwareId(profile), profile }))
-    : Effect.succeed({ id: value });
-
-const noPilot = Options.boolean("no-pilot").pipe(
-  Options.withDescription(
-    "Emit only the main dataset (default: also <archive-dir>-next scored against <challenges-dir>-next as pilot1, when both exist)",
+    "Build from a tree with tracked changes; the snapshot records harnessDirty: true and a -dirty sha",
   ),
   Options.withDefault(false),
 );
-
-/** Label of the pilot dataset `bench report` adds beside the main one. */
-export const PILOT_LABEL = "pilot1";
-
-/** The pilot dataset: `<archive-dir>-next` against `<challenges-dir>-next`, when both exist. */
-export const pilotSource = (archiveDir: string, challengesDir: string) =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const strip = (d: string) => d.replace(/\/+$/, "");
-    const pilot = {
-      archiveDir: `${strip(archiveDir)}-next`,
-      challengesDir: `${strip(challengesDir)}-next`,
-      label: PILOT_LABEL,
-    };
-    const exists = (d: string) => fs.exists(d).pipe(Effect.orElseSucceed(() => false));
-    return (yield* exists(pilot.archiveDir)) && (yield* exists(pilot.challengesDir))
-      ? pilot
-      : undefined;
-  });
-
 const verbose = Options.boolean("verbose").pipe(
   Options.withAlias("v"),
   Options.withDefault(false),
@@ -119,35 +88,20 @@ const verbose = Options.boolean("verbose").pipe(
 
 export const reportCommand = Command.make(
   "report",
-  { archiveDir, output, challengesDir, datasetLabel, legacyHardware, noPilot, verbose },
+  { datasetsDir, store, releasesDir, legacyRoot, output, configsFile, allowDirty, verbose },
   (args) =>
     Effect.gen(function* () {
-      const outputPath = path.join(args.output, "data.js");
-      const pilot = args.noPilot
-        ? undefined
-        : yield* pilotSource(args.archiveDir, args.challengesDir);
-
+      const { harnessDirty } = yield* harnessTree(yield* trackedChanges, args.allowDirty);
       const summary = yield* runReport({
-        archiveDir: args.archiveDir,
-        outputPath,
-        challengesDir: args.challengesDir,
-        ...Option.match(args.datasetLabel, {
-          onNone: () => ({}),
-          onSome: (datasetLabel) => ({ datasetLabel }),
-        }),
-        legacyHardware: yield* resolveLegacyHardware(args.legacyHardware),
-        ...(pilot === undefined ? {} : { pilot }),
-      }).pipe(
-        Effect.tapError((err) =>
-          err instanceof FileIOError && isMissingArchiveDirError(err)
-            ? Effect.logError(missingArchiveDirHint(args.archiveDir))
-            : Effect.void,
-        ),
-      );
-
-      if (summary.loadIssues.length > 0) {
-        yield* Effect.logWarning(`report: ${summary.loadIssues.length} archive load issue(s)`);
-      }
-      yield* logAuditBlock(summary);
+        datasetsDir: args.datasetsDir,
+        store: args.store,
+        releasesDir: args.releasesDir,
+        legacyRoot: args.legacyRoot,
+        output: args.output,
+        configsPath: args.configsFile,
+        harnessGitSha: yield* gitSha,
+        harnessDirty,
+      });
+      yield* logSummary(summary);
     }).pipe(Effect.provide(makeLoggerLayer(args.verbose))),
-).pipe(Command.withDescription("Generate webapp report data from archive files"));
+).pipe(Command.withDescription("Build one snapshot per dataset manifest for the webapp"));

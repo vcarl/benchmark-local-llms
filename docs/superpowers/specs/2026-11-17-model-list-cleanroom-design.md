@@ -1,5 +1,9 @@
 # Model list and filter column
 
+> Design record (2026-11-17). Not maintained; current behavior is in [docs/](../../) — see [SCORING.md § Report rows](../../SCORING.md#report-rows).
+>
+> The `data.js` / `--archive-dir` report interface below is superseded by dataset manifests and snapshots ([archive data model design](./2026-11-17-archive-data-model-design.md)).
+
 ## Problem
 
 The webapp ranks configurations it assembles itself from a flat attempt list: it guesses runs, picks a challenge universe, and groups by the raw artifact string. The report now selects evidence into rows (`__BENCHMARK_ROWS`, see `2026-11-17-run-provenance-and-rows-design.md`). The model list, the scatter and the drilldown read only those rows. The webapp sums cells and displays; it never chooses evidence.
@@ -33,7 +37,7 @@ Every number is recomputed from the row's cells under the current scope:
 
 - **Efficiency** = adjusted score · (1000 / tokens per item)^0.25, tokens per item over the scored cells (docs/SCORING.md § Efficiency). Shown ×100 in the `eff` column.
 
-The list ranks by the adjusted score. A complete row displays it. An incomplete row displays its running score muted, with its completeness: `86% · 5/11`. The tooltip says `ranked at 47%: 86% over the 5 of 11 challenges run; missing challenges count as fails`. A higher displayed % can therefore sit below a lower one, and the muted figure tells the reader why. Rank numbers count list entries.
+The list ranks by the adjusted score. A complete row displays it. An incomplete row displays its partial pass rate muted, with its completeness: `86% · 5/11`. The tooltip says `Ranked at 47%. Partial pass rate 86% over the 5 of 11 challenges run; missing challenges count as fails.`. A higher displayed % can therefore sit below a lower one, and the muted figure tells the reader why. Rank numbers count list entries.
 
 **Tiers, not ties.** Under the score sort the list is cut into tiers: a tier runs from its head until an entry whose paired 95% CI against the head excludes 0, and that entry heads the next tier. A thin rule marks each boundary (`Tier 2 · below #1 at 95%`); there is no per-rank `≈`. Marking every entry whose CI against its neighbour includes 0 marked 19 of the top 20 on the main set, because adjacent entries are a point apart with 10–20-point paired intervals; it said nothing. An equivalence criterion (paired CI inside ±2, ±3 points) marks none. Tiers mark where the data does separate entries: on the default view, boundaries before #9 and #17, so two rules and no `≈` in the top 20. Tiers chain from heads, not neighbours, so an entry can sit in a lower tier than one it is not resolved from; the drilldown shows the paired difference against the entry above and against the head it was tested against.
 

@@ -1,0 +1,28 @@
+Below is a web server access log. Each line is: timestamp, HTTP method, path, status code, latency. Lines starting with # are comments, not requests.
+
+Count the requests per path and status code, using only requests with timestamps from 09:00:00 to 09:59:59 inclusive (all methods). Reply with only a JSON object mapping each path to an object that maps each status code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}. Leave out paths and status codes with no requests in the window.
+
+```
+# access.log for 2025-06-19, rotated at 00:00:00
+2025-06-19T08:53:17Z GET /api/users 200 501ms
+2025-06-19T08:59:53Z POST /api/users 500 387ms
+2025-06-19T08:59:59Z POST /health 204 563ms
+2025-06-19T09:00:00Z POST /api/users 201 737ms
+2025-06-19T09:01:41Z POST /api/users 204 236ms
+2025-06-19T09:03:37Z GET /health 503 99ms
+2025-06-19T09:08:11Z POST /api/users 200 266ms
+2025-06-19T09:14:44Z GET /api/orders 404 807ms
+2025-06-19T09:15:04Z GET /api/orders 204 729ms
+2025-06-19T09:19:22Z GET /api/users 204 109ms
+2025-06-19T09:21:02Z GET /api/orders 500 111ms
+2025-06-19T09:27:39Z GET /api/orders 304 708ms
+2025-06-19T09:34:15Z POST /api/users 304 351ms
+2025-06-19T09:38:53Z GET /health 304 141ms
+2025-06-19T09:40:28Z GET /api/orders 503 159ms
+2025-06-19T09:41:41Z GET /health 404 62ms
+2025-06-19T09:44:42Z GET /api/orders 200 123ms
+2025-06-19T09:46:01Z GET /api/users 204 320ms
+2025-06-19T09:59:59Z GET /api/users 200 713ms
+2025-06-19T10:00:00Z GET /health 503 868ms
+2025-06-19T10:05:52Z GET /api/users 304 40ms
+```

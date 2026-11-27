@@ -1,0 +1,23 @@
+The SQLite database below is created by these statements:
+
+```sql
+CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, status TEXT, amount INTEGER, placed_on TEXT);
+INSERT INTO orders VALUES (101, 'Elena Petrova', 'shipped', 227, '2025-06-30');
+INSERT INTO orders VALUES (102, 'Jun Park', 'shipped', 75, '2025-06-14');
+INSERT INTO orders VALUES (103, 'Isla Grant', 'cancelled', 163, '2025-05-16');
+INSERT INTO orders VALUES (104, 'Hugo Martin', 'shipped', 320, '2025-05-28');
+INSERT INTO orders VALUES (105, 'Hugo Martin', 'shipped', 113, '2025-06-30');
+INSERT INTO orders VALUES (106, 'Dev Patel', 'shipped', 184, '2025-07-20');
+INSERT INTO orders VALUES (107, 'Ada Brooks', 'shipped', 365, '2025-05-07');
+INSERT INTO orders VALUES (108, 'Greta Lind', 'cancelled', 458, '2025-06-29');
+INSERT INTO orders VALUES (109, 'Jun Park', 'shipped', 38, '2025-05-22');
+INSERT INTO orders VALUES (110, 'Jun Park', 'pending', 267, '2025-06-25');
+INSERT INTO orders VALUES (111, 'Elena Petrova', 'shipped', 307, '2025-06-29');
+INSERT INTO orders VALUES (112, 'Carmen Ortiz', 'cancelled', 221, '2025-06-09');
+INSERT INTO orders VALUES (113, 'Ada Brooks', 'cancelled', 159, '2025-06-16');
+INSERT INTO orders VALUES (114, 'Bilal Khan', 'shipped', 232, '2025-05-26');
+```
+
+Dates in placed_on are YYYY-MM-DD text. For orders with status 'shipped' placed in June 2025, return one row with two columns: the number of such orders, then their total amount.
+
+Write one SQLite SELECT statement that returns exactly the requested columns, in the order given. Reply with only the query in a ```sql fenced block.

@@ -1,0 +1,28 @@
+Below is a web server access log. Each line is: timestamp, HTTP method, path, status code, latency. Lines starting with # are comments, not requests.
+
+Count the requests per path and status code, using only requests with timestamps from 16:00:00 to 16:59:59 inclusive (all methods). Reply with only a JSON object mapping each path to an object that maps each status code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}. Leave out paths and status codes with no requests in the window.
+
+```
+# access.log for 2025-02-10, rotated at 00:00:00
+2025-02-10T15:54:19Z GET /api/users 200 466ms
+2025-02-10T15:59:59Z GET /api/search 500 349ms
+2025-02-10T16:00:00Z GET /api/search 404 589ms
+2025-02-10T16:01:03Z GET /api/search 404 241ms
+2025-02-10T16:06:41Z GET /api/users 200 171ms
+2025-02-10T16:22:35Z POST /api/cart 404 879ms
+2025-02-10T16:24:20Z GET /api/search 304 342ms
+2025-02-10T16:24:58Z GET /api/users 503 878ms
+2025-02-10T16:28:25Z GET /api/users 204 791ms
+2025-02-10T16:32:31Z GET /api/search 500 565ms
+2025-02-10T16:34:50Z POST /api/cart 204 753ms
+2025-02-10T16:37:55Z GET /api/search 201 573ms
+2025-02-10T16:41:43Z GET /api/cart 200 39ms
+2025-02-10T16:50:11Z GET /api/search 200 842ms
+2025-02-10T16:53:37Z GET /api/cart 204 163ms
+2025-02-10T16:54:34Z GET /api/users 200 88ms
+2025-02-10T16:55:33Z GET /api/cart 304 107ms
+2025-02-10T16:59:59Z GET /api/search 200 494ms
+2025-02-10T17:00:00Z GET /api/search 400 235ms
+2025-02-10T17:10:19Z GET /api/users 200 68ms
+2025-02-10T17:13:17Z GET /api/users 200 289ms
+```

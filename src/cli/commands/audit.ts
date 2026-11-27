@@ -14,11 +14,11 @@ import {
   latestPerConfig,
   toObservations,
 } from "../../audit/stats.js";
-import { loadAttemptArchives } from "../../report/load-attempts.js";
+import { loadAttemptArchives } from "../../legacy/load-attempts.js";
 import { makeLoggerLayer } from "../logger.js";
 
 const archiveDir = Options.directory("archive-dir").pipe(
-  Options.withDescription("Archive directory to scan"),
+  Options.withDescription("Legacy attempt archive directory to scan"),
   Options.withDefault("./benchmark-archive"),
 );
 const challenge = Options.text("challenge").pipe(

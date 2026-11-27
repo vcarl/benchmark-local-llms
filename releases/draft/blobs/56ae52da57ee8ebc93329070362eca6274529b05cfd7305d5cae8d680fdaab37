@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"date":"2026-11-04","flight_number":"AF75"},"name":"Flights_2_GetFlightStatus"}]}],"type":"constraint"},"rules":2}

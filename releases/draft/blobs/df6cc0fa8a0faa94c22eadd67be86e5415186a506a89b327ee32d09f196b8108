@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"line_items":["label printer"],"total":205.92}}],"type":"constraint"},"rules":2}

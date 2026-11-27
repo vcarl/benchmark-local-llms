@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"namespace":"prod","status":"Failed"},"name":"kube.list_pods"}]}],"type":"constraint"},"rules":2}

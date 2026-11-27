@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"notifyUser":false,"role":"viewer","userId":22562},"name":"updateUserRole"},{"arguments":{"includeInactive":true,"query":"Tanaka"},"name":"searchUsers","optional":{"limit":10}}]}],"type":"constraint"},"rules":2}

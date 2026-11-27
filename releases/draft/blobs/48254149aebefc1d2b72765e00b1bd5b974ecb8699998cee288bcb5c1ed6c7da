@@ -1,0 +1,17 @@
+Write a Python regular expression that matches an IPv4 address: four decimal octets from 0 to 255 separated by dots, with no leading zeros (0 is fine, 01 is not), and nothing before or after.
+
+It will be tested with re.fullmatch (so anchors are optional) against held-out strings: it must match every valid string and reject every invalid one. Examples (shown as JSON strings):
+
+Must match:
+  "255.255.8.16"
+  "10.0.0.1"
+  "72.255.233.2"
+  "255.255.255.255"
+
+Must not match:
+  "255.139.8.007"
+  "148.20.255"
+  "0.0.255.1000"
+  "256.1.1.1"
+
+Reply with only the pattern in a ```regex fenced block.

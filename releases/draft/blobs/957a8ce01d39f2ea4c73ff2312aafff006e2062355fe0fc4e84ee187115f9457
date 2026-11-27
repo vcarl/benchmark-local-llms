@@ -1,0 +1,17 @@
+Write a Python regular expression that matches an order ID: the prefix "SO-", then exactly 2 uppercase ASCII letters, a hyphen, and exactly 7 digits, optionally followed by a revision suffix "-R" and one digit from 1 to 9.
+
+It will be tested with re.fullmatch (so anchors are optional) against held-out strings: it must match every valid string and reject every invalid one. Examples (shown as JSON strings):
+
+Must match:
+  "SO-QK-3803268"
+  "SO-BQ-6161378"
+  "SO-HM-0000000"
+  "SO-KN-6878481-R8"
+
+Must not match:
+  "SO-DC7387914"
+  "SO-VP-0166706 "
+  "SO-JK-521236"
+  "XSO-AJ-4655914"
+
+Reply with only the pattern in a ```regex fenced block.

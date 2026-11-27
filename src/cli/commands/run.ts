@@ -3,14 +3,15 @@
  *
  * Selects configurations (by id glob) and challenges (by file-stem glob) and
  * runs the full cross product via `runMatrix`: one model boot per configuration,
- * reused across that configuration's challenges. Prints a live per-cell line as
- * each cell resolves and an end-of-run grid, then regenerates the webapp report
- * unless `--no-report`. Lives under `src/cli/`, so `console.*` and `Date.now()`
- * are allowed here.
+ * reused across that configuration's challenges. Each config × challenge (cell)
+ * runs whole (every item × sample 0..k-1) into one v4 bundle in `--store`,
+ * with its score records. A cell is skipped only when one sealed bundle already
+ * holds all of it at the current prompts; `--no-skip` runs it anyway.
+ * Prints a live per-cell line as each cell resolves and an end-of-run grid.
+ * Lives under `src/cli/`, so `console.*` is allowed here.
  */
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { Command, Options } from "@effect/cli";
 import { NodeHttpClient } from "@effect/platform-node";
 import { Effect, Layer, Option } from "effect";
@@ -22,12 +23,12 @@ import { ChatCompletionLive } from "../../llm/chat-completion.js";
 import { defaultRunEnv } from "../../orchestration/run-loop.js";
 import { type MatrixChallenge, runMatrix } from "../../orchestration/run-matrix.js";
 import type { RunModelDeps } from "../../orchestration/run-model.js";
-import { runReport } from "../../report/index.js";
+import { releaseOfChallengesDir } from "../../store/bundle.js";
+import { loadPresent } from "../../store/store-index.js";
 import { makeRunDeps } from "../deps.js";
 import { makeLoggerLayer } from "../logger.js";
 import { formatCellLine, formatMatrixGrid } from "../matrix-format.js";
 import { DEFAULT_SYSTEM_PROMPTS_PATH } from "../paths.js";
-import { logAuditBlock } from "./report.js";
 
 const printLine = (line: string): Effect.Effect<void> =>
   Effect.sync(() => {
@@ -40,10 +41,8 @@ export interface SweepArgs {
   readonly challengesDir: string;
   readonly configsFile: string;
   readonly systemPromptsFile: string;
-  readonly archiveDir: string;
-  readonly output: string;
-  readonly noCache: boolean;
-  readonly noReport: boolean;
+  readonly store: string;
+  readonly noSkip: boolean;
   /** Samples per item (default 1); with `items`, only matching items get more than one. */
   readonly samples?: number;
   /** `challengeId/itemName` globs selecting the items `samples` applies to. */
@@ -56,9 +55,16 @@ export const parseItemsArg = (value: string): string[] =>
     .map((l) => l.replace(/#.*/, "").trim())
     .filter((l) => l.length > 0);
 
-/** Core sweep: select → load → runMatrix (live lines) → grid → report. Returns the grid. */
+/** Core sweep: select → load → runMatrix (live lines) → grid. Returns the grid. */
 export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
   Effect.gen(function* () {
+    const release = releaseOfChallengesDir(args.challengesDir);
+    if (release === "0") {
+      return yield* Effect.dieMessage(
+        `release 0 is the alpha challenge set, which is closed: no new bundle may name it ('${args.challengesDir}')`,
+      );
+    }
+
     const systemPrompts = yield* loadSystemPrompts(args.systemPromptsFile);
     const registryLayer = Layer.succeed(SystemPromptRegistry, systemPrompts);
     const allConfigs = yield* loadConfigurations(args.configsFile).pipe(
@@ -101,22 +107,25 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
     }
     const selectedItem = items === undefined ? () => true : itemMatcher(items);
 
-    const submitter = process.env["BENCH_SUBMITTER"]?.trim() || "local";
-    if (submitter.includes("@")) {
+    const contributor = process.env["BENCH_CONTRIBUTOR"]?.trim() || "local";
+    if (contributor.includes("@")) {
       return yield* Effect.dieMessage(
-        `BENCH_SUBMITTER must be a public handle, not an email address (got '${submitter}')`,
+        `BENCH_CONTRIBUTOR must be a public handle, not an email address (got '${contributor}')`,
       );
     }
     const env = yield* defaultRunEnv();
+    const present = args.noSkip ? [] : yield* loadPresent(args.store);
     const cells = yield* runMatrix({
       configs,
       challenges,
-      archiveDir: args.archiveDir,
+      store: args.store,
+      release,
+      runId: randomUUID(),
+      contributor,
       env,
-      invocationId: randomUUID(),
-      submitter,
+      present,
       deps,
-      noCache: args.noCache,
+      noSkip: args.noSkip,
       samplesOf: (challengeId, item) => (selectedItem(challengeId, item) ? samples : 1),
       onCell: (cell, i, total) => printLine(formatCellLine(cell, i, total)),
     });
@@ -128,19 +137,6 @@ export const runSweep = (args: SweepArgs, deps: RunModelDeps) =>
     );
     yield* printLine("");
     yield* printLine(grid);
-
-    if (!args.noReport) {
-      const outputPath = path.join(args.output, "data.js");
-      const summary = yield* runReport({
-        archiveDir: args.archiveDir,
-        outputPath,
-        challengesDir: args.challengesDir,
-        ...(env.hardwareId === undefined || env.hardware === undefined
-          ? {}
-          : { legacyHardware: { id: env.hardwareId, profile: env.hardware } }),
-      });
-      yield* logAuditBlock(summary);
-    }
     return grid;
   });
 
@@ -153,8 +149,10 @@ const challengesOpt = Options.text("challenges").pipe(
   Options.withDescription("Glob over challenge file stems. Default: all in --challenges-dir."),
 );
 const challengesDirOpt = Options.directory("challenges-dir").pipe(
-  Options.withDefault("challenges"),
-  Options.withDescription("Directory of challenge YAMLs"),
+  Options.withDefault("releases/draft/challenges"),
+  Options.withDescription(
+    "Directory of challenge YAMLs; releases/<name>/challenges names release <name>, any other directory the draft",
+  ),
 );
 const systemPromptsFileOpt = Options.file("system-prompts-file").pipe(
   Options.withDefault(DEFAULT_SYSTEM_PROMPTS_PATH),
@@ -164,27 +162,23 @@ const configsFileOpt = Options.file("configs-file").pipe(
   Options.withDefault("configs.yaml"),
   Options.withDescription("Path to configs YAML"),
 );
-const archiveDirOpt = Options.directory("archive-dir").pipe(
-  Options.withDefault("benchmark-archive"),
-  Options.withDescription("Directory for archive output"),
-);
-const outputOpt = Options.directory("output").pipe(
-  Options.withDefault("./webapp/src/data"),
-  Options.withDescription("Output dir for the post-sweep report's data.js"),
+const storeOpt = Options.directory("store").pipe(
+  Options.withDefault("store"),
+  Options.withDescription("Execution store: bundles/, open/, scores/"),
 );
 const verboseOpt = Options.boolean("verbose").pipe(
   Options.withAlias("v"),
   Options.withDefault(false),
   Options.withDescription("Enable debug-level log output"),
 );
-const noCacheOpt = Options.boolean("no-cache").pipe(
+const noSkipOpt = Options.boolean("no-skip").pipe(
   Options.withDefault(false),
-  Options.withDescription("Bypass the cross-attempt item cache"),
+  Options.withDescription("Run every cell, even ones a sealed bundle already holds complete"),
 );
 const samplesOpt = Options.integer("samples").pipe(
   Options.withDefault(1),
   Options.withDescription(
-    "Generations per item (cached samples are reused; sample 0 is the single-run result)",
+    "Generations per item, samples 0..k-1; a cell no bundle holds with all of them runs whole",
   ),
 );
 const itemsOpt = Options.text("items").pipe(
@@ -192,10 +186,6 @@ const itemsOpt = Options.text("items").pipe(
   Options.withDescription(
     "Items --samples applies to: a file of challengeId/itemName globs (one per line) or a comma list; others run once",
   ),
-);
-const noReportOpt = Options.boolean("no-report").pipe(
-  Options.withDefault(false),
-  Options.withDescription("Skip the end-of-sweep report regeneration"),
 );
 
 export const runCommand = Command.make(
@@ -206,11 +196,9 @@ export const runCommand = Command.make(
     challengesDir: challengesDirOpt,
     systemPromptsFile: systemPromptsFileOpt,
     configsFile: configsFileOpt,
-    archiveDir: archiveDirOpt,
-    output: outputOpt,
+    store: storeOpt,
     verbose: verboseOpt,
-    noCache: noCacheOpt,
-    noReport: noReportOpt,
+    noSkip: noSkipOpt,
     samples: samplesOpt,
     items: itemsOpt,
   },
@@ -222,10 +210,8 @@ export const runCommand = Command.make(
         challengesDir: o.challengesDir,
         configsFile: o.configsFile,
         systemPromptsFile: o.systemPromptsFile,
-        archiveDir: o.archiveDir,
-        output: o.output,
-        noCache: o.noCache,
-        noReport: o.noReport,
+        store: o.store,
+        noSkip: o.noSkip,
         samples: o.samples,
         items: Option.getOrUndefined(Option.map(o.items, parseItemsArg)),
       },

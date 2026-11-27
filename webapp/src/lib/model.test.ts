@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { groupRows, scopeRow, sortRows, withEfficiency } from "./model";
+import type { RowsDataset } from "./rows";
 import type { Cell, Row } from "./rows";
+import { tCrit } from "./stats";
 
 const cell = (o: Partial<Cell> & { items: number; passed: number }): Cell => ({
   status: "scored",
@@ -46,7 +48,7 @@ const row = (rowId: string, cells: Record<string, Cell>, o: Partial<Row> = {}): 
 const ALL = { items: "all" as const, challenges: [] };
 
 describe("scopeRow", () => {
-  it("an incomplete row shows its running score but ranks by the coverage-adjusted one", () => {
+  it("an incomplete row shows its partial pass rate but ranks by the coverage-adjusted one", () => {
     // Complete: 70/100. Incomplete: 45/50 run (90%), the other 50 items missing → 45%.
     const complete = scopeRow(row("a", { c1: cell({ items: 50, passed: 35 }), c2: cell({ items: 50, passed: 35 }) }), ALL);
     const partial = scopeRow(row("b", { c1: cell({ items: 50, passed: 45 }), c2: missing(50) }), ALL);
@@ -77,6 +79,13 @@ describe("scopeRow", () => {
     expect(scopeRow(row("a", cells), ALL).se).not.toBeNull();
     expect(scopeRow(row("a", cells), { items: "all", challenges: ["c1", "c2"] }).se).toBeNull();
   });
+
+  it("the 95% CI half-width uses t with (families − 1) df", () => {
+    const cells = Object.fromEntries([1, 2, 3, 4, 5].map((i) => [`c${i}`, cell({ items: 10 + i, passed: i })]));
+    const r = scopeRow(row("a", cells), ALL);
+    expect(r.ci).toBeCloseTo(tCrit(4) * r.se!, 12);
+    expect(scopeRow(row("a", cells), { items: "all", challenges: ["c1", "c2"] }).ci).toBeNull();
+  });
 });
 
 describe("sortRows / groupRows", () => {
@@ -96,6 +105,19 @@ describe("sortRows / groupRows", () => {
       ["b1", ["b1"]],
     ]);
     expect(groupRows(sortRows([a, b, c], "score"), "none", "score")).toHaveLength(3);
+  });
+
+  it("two config versions of one model are two rows in one group, ordered by score", () => {
+    const old = { ...a, row: { ...a.row, rowId: "a0" } };
+    const g = groupRows(sortRows([old, b, c], "score"), "model", "score");
+    const m = g.find((x) => x.key === "m");
+    expect(m?.rows.map((r) => r.row.rowId).sort()).toEqual(["a0", "a2"]);
+    expect(m?.rows.map((r) => r.score)).toEqual([...(m?.rows.map((r) => r.score) ?? [])].sort((x, y) => y - x));
+    expect(g.every((x) => x.tier !== undefined)).toBe(true);
+  });
+
+  it("an unranked dataset gets no tiers", () => {
+    expect(groupRows(sortRows([a, b], "score"), "model", "score", false).map((x) => x.tier)).toEqual([undefined, undefined]);
   });
 });
 
@@ -125,6 +147,13 @@ describe("efficiency", () => {
     const r = scopeRow(row("a", { c1: cell({ items: 10, passed: 5, cost: { tokens: 100, wallSec: 20, peakMemoryGb: 4, genTps: 10 } }), c2: cell({ items: 30, passed: 5, cost: { tokens: 300, wallSec: 40, peakMemoryGb: 9, genTps: 30 } }) }), ALL);
     expect(r).toMatchObject({ tokensPerItem: 10, wallPerItem: 1.5 });
     expect(r.cost).toMatchObject({ genTps: 20, peakMemoryGb: 9 });
+  });
+
+  it("tok/s is total tokens over total decode time across cells; a cell without a measured speed drops out", () => {
+    const cost = (tokens: number, genTps: number) => ({ tokens, wallSec: 1, peakMemoryGb: 1, genTps });
+    const r = scopeRow(row("a", { c1: cell({ items: 1, passed: 1, cost: cost(100, 10) }), c2: cell({ items: 1, passed: 1, cost: cost(100, 30) }), c3: cell({ items: 1, passed: 1, cost: cost(50, 0) }) }), ALL);
+    // 200 tokens over 10 s + 3.33 s; c3 has no decode measurement.
+    expect(r.cost!.genTps).toBeCloseTo(15, 12);
   });
 
   it("a row at the pool's best on every input has g = 1 (S^1.7); the worst has g = 0.05 on each", () => {
@@ -180,6 +209,27 @@ describe("tiers", () => {
     expect(g[3]!.tier).toMatchObject({ head: 4, ref: 1 });
     expect(g[4]!.tier).toMatchObject({ head: 4, ref: 4 });
     expect(g[1]!.tier!.vsAbove).not.toBeNull();
+  });
+
+  it("paired tests use only families both rows scored: a missing challenge is not a deficit", () => {
+    const f = (k: number[], fam = "f") => Object.fromEntries(k.map((x, i): [string, [number, number]] => [`${fam}${i}`, [10, x]]));
+    const c = cell({ items: 50, passed: 49, families: f([10, 10, 10, 10, 9]) });
+    const a = scopeRow(row("a", { c, c2: cell({ items: 50, passed: 50, families: f([10, 10, 10, 10, 10], "g") }) }), ALL);
+    const b = scopeRow(row("b", { c, c2: { ...missing(50), families: f([0, 0, 0, 0, 0], "g") } }), ALL);
+    const g = groupRows(sortRows([a, b], "score"), "none", "score");
+    expect(g.map((x) => x.key)).toEqual(["a", "b"]);
+    expect(g[1]!.tier).toMatchObject({ n: 1, start: false });
+    expect(g[1]!.tier!.vsHead!.diff).toBe(0);
+  });
+
+  it("a family spanning challenges pairs only when both rows scored the same challenges in it", () => {
+    const f = (k: number[]) => Object.fromEntries(k.map((x, i): [string, [number, number]] => [`f${i}`, [10, x]]));
+    const c = cell({ items: 50, passed: 50, families: f([10, 10, 10, 10, 10]) });
+    // Family x: 2 items in c1 and 2 different items in c2. a scored only c1, b only c2.
+    const a = scopeRow(row("a", { c, c1: cell({ items: 2, passed: 2, families: { x: [2, 2] } }), c2: { ...missing(2), families: { x: [2, 0] } } }), ALL);
+    const b = scopeRow(row("b", { c, c1: { ...missing(2), families: { x: [2, 0] } }, c2: cell({ items: 2, passed: 0, families: { x: [2, 0] } }) }), ALL);
+    const g = groupRows(sortRows([a, b], "score"), "none", "score");
+    expect(g[1]!.tier!.vsHead!.diff).toBe(0);
   });
 
   it("only the score sort has tiers", () => {

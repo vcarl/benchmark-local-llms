@@ -1,0 +1,497 @@
+id: ifeval
+version: 1
+passThreshold: 0.8
+items:
+  # Seeded IFEval stack (ifeval_stack2); rules: words, commas.
+  # gold:
+  # The lake below the cabin was frozen solid. Snow fell softly through most of the first night. The cabin stood at the end of a snowy track. Thick blankets lay folded on every chair. Tracks of a fox crossed the yard in the morning. Evenings passed with cards by the stove. The pantry held soup and bread and tea. The drive home was slow on the icy road.
+  - name: ifeval_stack2
+    category: instruction-following
+    tier: 3
+    prompt: >-
+      Write a short piece about a weekend in a winter cabin. Follow every rule
+      below.
+
+
+      1. Use between 60 and 70 words in total.
+
+      2. Do not use any commas.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: 60-70 words
+        check: regex
+        pattern: ^\s*(?:\S+\s+){59,69}\S+\s*$
+      - name: no commas
+        check: not_contains_char
+        char: ","
+    tags:
+      - instruction-following
+    family: ifeval_stack2
+    seed: 0
+    scope: core
+  # Seeded IFEval stack (ifeval_stack2); rules: include, ends.
+  # gold:
+  # The drive home was slow on the icy road. Snow fell softly through most of the first night. The pantry held soup and bread and tea. The lake below the cabin was frozen solid. Tracks of a fox crossed the yard in the morning. Thick blankets lay folded on every chair. The cabin stood at the end of a snowy track. A wood stove kept the main room warm. More soon.
+  - name: ifeval_stack2_s1
+    category: instruction-following
+    tier: 3
+    prompt: >-
+      Write a short piece about a weekend in a winter cabin. Follow every rule
+      below.
+
+
+      1. Include the word "below" at least once.
+
+      2. End the response with the exact phrase "More soon." and nothing after
+      it.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: includes below
+        check: regex
+        pattern: \b[Bb][Ee][Ll][Oo][Ww]\b
+      - name: ends with phrase
+        check: regex
+        pattern: More soon\.\s*$
+    tags:
+      - instruction-following
+    family: ifeval_stack2
+    seed: 1
+    scope: core
+  # Seeded IFEval stack (ifeval_stack2); rules: case, exactly.
+  # gold:
+  # EACH EVENING THE BEDS NEED A GENTLE WATERING. WEEDS APPEAR ALMOST AS FAST AS THE SEEDLINGS. BEES VISIT THE FLOWERS AT THE EDGE OF THE GARDEN. PEAS CLIMB THE WIRE FENCE ALONG THE NORTH SIDE. BY LATE SPRING THE GARDEN IS GREEN AND FULL.
+  - name: ifeval_stack2_s2
+    category: instruction-following
+    tier: 3
+    prompt: >-
+      Write a short piece about a vegetable garden in spring. Follow every rule
+      below.
+
+
+      1. Write the entire response in capital letters; no lowercase letters at
+      all.
+
+      2. Use the word "garden" exactly twice.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: no lowercase letters
+        check: regex
+        pattern: ^[^a-z]*$
+      - name: garden x2
+        check: word_count_exact
+        word: garden
+        count: 2
+    tags:
+      - instruction-following
+    family: ifeval_stack2
+    seed: 2
+    scope: core
+  # Seeded IFEval stack (ifeval_stack3); rules: format, forbid, exactly.
+  # gold:
+  # - A heron stood still near the far bank.
+  # - A wooden bridge crossed the river near the old mill.
+  # - The air smelled of wet grass and cold stone.
+  - name: ifeval_stack3
+    category: instruction-following
+    tier: 4
+    prompt: >-
+      Write a short piece about a morning walk along a river. Follow every rule
+      below.
+
+
+      1. Format the response as exactly 3 bullet points, each line starting with
+      "- ".
+
+      2. Do not use the word "from" anywhere.
+
+      3. Use the word "near" exactly twice.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: exactly 3 bullet points
+        check: regex
+        pattern: (?m)(?<![\s\S])(?=(?:[\s\S]*?^[-*] ){3})(?!(?:[\s\S]*?^[-*] ){4})
+      - name: avoids from
+        check: regex
+        pattern: (?i)^(?![\s\S]*\bfrom\b)
+      - name: near x2
+        check: word_count_exact
+        word: near
+        count: 2
+    tags:
+      - instruction-following
+    family: ifeval_stack3
+    seed: 0
+    scope: core
+  # Seeded IFEval stack (ifeval_stack3); rules: case, commas, exactly.
+  # gold:
+  # THE CABIN STOOD AT THE END OF A SNOWY TRACK. THE DRIVE HOME WAS SLOW ON THE ICY ROAD. A WOOD STOVE KEPT THE MAIN ROOM WARM. THE LAKE BELOW THE CABIN WAS FROZEN SOLID. EVENINGS PASSED WITH CARDS BY THE STOVE.
+  - name: ifeval_stack3_s1
+    category: instruction-following
+    tier: 4
+    prompt: >-
+      Write a short piece about a weekend in a winter cabin. Follow every rule
+      below.
+
+
+      1. Write the entire response in capital letters; no lowercase letters at
+      all.
+
+      2. Do not use any commas.
+
+      3. Use the word "stove" exactly twice.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: no lowercase letters
+        check: regex
+        pattern: ^[^a-z]*$
+      - name: no commas
+        check: not_contains_char
+        char: ","
+      - name: stove x2
+        check: word_count_exact
+        word: stove
+        count: 2
+    tags:
+      - instruction-following
+    family: ifeval_stack3
+    seed: 1
+    scope: core
+  # Seeded IFEval stack (ifeval_stack3); rules: sentences, forbid, exactly.
+  # gold:
+  # The pool was quiet in the early evening. Kicking from the hips made the legs work better. Goggles made it easier to keep calm underwater. Fear of deep water faded with practice. The first lesson took place in the shallow end. The instructor showed how to breathe out slowly.
+  - name: ifeval_stack3_s2
+    category: instruction-following
+    tier: 4
+    prompt: >-
+      Write a short piece about learning to swim as an adult. Follow every rule
+      below.
+
+
+      1. Write exactly 6 sentences as a single paragraph.
+
+      2. Do not use the word "felt" anywhere.
+
+      3. Use the word "made" exactly twice.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: exactly 6 sentences
+        check: regex
+        pattern: ^\s*(?:[^.!?\s][^.!?]*[.!?]+\s*){6}$
+      - name: avoids felt
+        check: regex
+        pattern: (?i)^(?![\s\S]*\bfelt\b)
+      - name: made x2
+        check: word_count_exact
+        word: made
+        count: 2
+    tags:
+      - instruction-following
+    family: ifeval_stack3
+    seed: 2
+    scope: core
+  # Seeded IFEval stack (ifeval_stack4); rules: ends, format, forbid, commas.
+  # gold:
+  # 1. The librarian knows most regular visitors by name.
+  # 2. Old maps of the town hang near the front desk.
+  # 3. The building was once a grain store.
+  # 4. Children gather on the rug for stories each week.
+  # 5. A reading room at the back faces a small garden.
+  #
+  # Thank you for reading.
+  - name: ifeval_stack4
+    category: instruction-following
+    tier: 5
+    prompt: >-
+      Write a short piece about a small town library. Follow every rule below.
+
+
+      1. End the response with the exact phrase "Thank you for reading." and
+      nothing after it.
+
+      2. Format the response as a numbered list of exactly 5 items (1. 2. 3. …).
+
+      3. Do not use the word "library" anywhere.
+
+      4. Do not use any commas.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: ends with phrase
+        check: regex
+        pattern: Thank you for reading\.\s*$
+      - name: numbered 1..5
+        check: numbered_lines
+        from: 1
+        to: 5
+      - name: no item 6
+        check: no_numbered_line
+        line: 6
+      - name: avoids library
+        check: regex
+        pattern: (?i)^(?![\s\S]*\blibrary\b)
+      - name: no commas
+        check: not_contains_char
+        char: ","
+    tags:
+      - instruction-following
+    family: ifeval_stack4
+    seed: 0
+    scope: core
+  # Seeded IFEval stack (ifeval_stack4); rules: format, forbid, include, case.
+  # gold:
+  # {
+  #   "mood": "families walk along the harbour wall after shopping.",
+  #   "summary": "gulls circle above the crowd looking for scraps.",
+  #   "details": "stalls sell fruit and cheese and fresh flowers."
+  # }
+  - name: ifeval_stack4_s1
+    category: instruction-following
+    tier: 5
+    prompt: >-
+      Write a short piece about a weekend market by a harbour. Follow every rule
+      below.
+
+
+      1. Respond with only a JSON object with exactly these keys: "mood",
+      "summary", "details". Every value must be a string.
+
+      2. Do not use the word "market" anywhere.
+
+      3. Include the word "scraps" at least once.
+
+      4. Write the entire response in lowercase letters; no capital letters at
+      all.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: json has keys
+        check: json_has_keys
+        keys:
+          - mood
+          - summary
+          - details
+      - name: json values are strings
+        check: json_all_string_values
+      - name: avoids market
+        check: regex
+        pattern: (?i)^(?![\s\S]*\bmarket\b)
+      - name: includes scraps
+        check: regex
+        pattern: \b[Ss][Cc][Rr][Aa][Pp][Ss]\b
+      - name: no uppercase letters
+        check: regex
+        pattern: ^[^A-Z]*$
+    tags:
+      - instruction-following
+    family: ifeval_stack4
+    seed: 1
+    scope: core
+  # Seeded IFEval stack (ifeval_stack4); rules: heading, forbid, ends, commas.
+  # gold:
+  # # Learning to Swim
+  #
+  # The instructor showed how to breathe out slowly. The first lesson took place in the shallow end. More soon.
+  - name: ifeval_stack4_s2
+    category: instruction-following
+    tier: 5
+    prompt: >-
+      Write a short piece about learning to swim as an adult. Follow every rule
+      below.
+
+
+      1. Begin with a markdown heading line of the form "# Title".
+
+      2. Do not use the word "felt" anywhere.
+
+      3. End the response with the exact phrase "More soon." and nothing after
+      it.
+
+      4. Do not use any commas.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: starts with heading
+        check: regex
+        pattern: ^\s*# \S
+      - name: avoids felt
+        check: regex
+        pattern: (?i)^(?![\s\S]*\bfelt\b)
+      - name: ends with phrase
+        check: regex
+        pattern: More soon\.\s*$
+      - name: no commas
+        check: not_contains_char
+        char: ","
+    tags:
+      - instruction-following
+    family: ifeval_stack4
+    seed: 2
+    scope: core
+  # Seeded IFEval stack (ifeval_format_switch); rules: format, forbid.
+  # gold:
+  # {
+  #   "title": "Learning to Swim",
+  #   "details": "Goggles made it easier to keep calm underwater."
+  # }
+  #
+  # - Fear of deep water faded with practice.
+  # - The instructor showed how to breathe out slowly.
+  # - The pool was quiet in the early evening.
+  # - The first lesson took place in the shallow end.
+  - name: ifeval_format_switch
+    category: instruction-following
+    tier: 2
+    prompt: >-
+      Write a short piece about learning to swim as an adult. Follow every rule
+      below.
+
+
+      1. First, a JSON object with exactly these keys: "title", "details". Every
+      value must be a string.
+
+      2. Then, after a blank line, exactly 4 bullet points, each line starting
+      with "- ".
+
+      3. Do not use the word "felt" anywhere.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: json has keys
+        check: json_has_keys
+        keys:
+          - title
+          - details
+      - name: json values are strings
+        check: json_all_string_values
+      - name: exactly 4 bullet points
+        check: regex
+        pattern: (?m)(?<![\s\S])(?=(?:[\s\S]*?^[-*] ){4})(?!(?:[\s\S]*?^[-*] ){5})
+      - name: avoids felt
+        check: regex
+        pattern: (?i)^(?![\s\S]*\bfelt\b)
+    tags:
+      - instruction-following
+    family: ifeval_format_switch
+    seed: 0
+    scope: core
+  # Seeded IFEval stack (ifeval_format_switch); rules: format, include.
+  # gold:
+  # {
+  #   "title": "A Winter Cabin",
+  #   "mood": "Thick blankets lay folded on every chair."
+  # }
+  #
+  # - The pantry held soup and bread and tea.
+  # - The drive home was slow on the icy road.
+  # - The lake below the cabin was frozen solid.
+  - name: ifeval_format_switch_s1
+    category: instruction-following
+    tier: 2
+    prompt: >-
+      Write a short piece about a weekend in a winter cabin. Follow every rule
+      below.
+
+
+      1. First, a JSON object with exactly these keys: "title", "mood". Every
+      value must be a string.
+
+      2. Then, after a blank line, exactly 3 bullet points, each line starting
+      with "- ".
+
+      3. Include the word "drive" at least once.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: json has keys
+        check: json_has_keys
+        keys:
+          - title
+          - mood
+      - name: json values are strings
+        check: json_all_string_values
+      - name: exactly 3 bullet points
+        check: regex
+        pattern: (?m)(?<![\s\S])(?=(?:[\s\S]*?^[-*] ){3})(?!(?:[\s\S]*?^[-*] ){4})
+      - name: includes drive
+        check: regex
+        pattern: \b[Dd][Rr][Ii][Vv][Ee]\b
+    tags:
+      - instruction-following
+    family: ifeval_format_switch
+    seed: 1
+    scope: core
+  # Seeded IFEval stack (ifeval_format_switch); rules: format, forbid.
+  # gold:
+  # {
+  #   "title": "A Morning Walk",
+  #   "details": "A heron stood still near the far bank."
+  # }
+  #
+  # - The air smelled of wet grass and cold stone.
+  # - Two joggers passed by with a friendly nod.
+  - name: ifeval_format_switch_s2
+    category: instruction-following
+    tier: 2
+    prompt: >-
+      Write a short piece about a morning walk along a river. Follow every rule
+      below.
+
+
+      1. First, a JSON object with exactly these keys: "title", "details". Every
+      value must be a string.
+
+      2. Then, after a blank line, exactly 2 bullet points, each line starting
+      with "- ".
+
+      3. Do not use the word "from" anywhere.
+
+
+      Output only the piece itself.
+    scorer: constraint
+    constraints:
+      - name: json has keys
+        check: json_has_keys
+        keys:
+          - title
+          - details
+      - name: json values are strings
+        check: json_all_string_values
+      - name: exactly 2 bullet points
+        check: regex
+        pattern: (?m)(?<![\s\S])(?=(?:[\s\S]*?^[-*] ){2})(?!(?:[\s\S]*?^[-*] ){3})
+      - name: avoids from
+        check: regex
+        pattern: (?i)^(?![\s\S]*\bfrom\b)
+    tags:
+      - instruction-following
+    family: ifeval_format_switch
+    seed: 2
+    scope: core

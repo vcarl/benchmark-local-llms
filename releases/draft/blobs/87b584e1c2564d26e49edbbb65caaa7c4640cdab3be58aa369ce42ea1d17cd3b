@@ -1,0 +1,49 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "home.set_thermostat",
+    "description": "Set the target temperature and operating mode of the thermostat in one zone of the house.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "zone": {
+          "type": "string",
+          "description": "Heating and cooling zone the thermostat controls.",
+          "enum": [
+            "living_room",
+            "bedroom",
+            "office",
+            "kitchen"
+          ]
+        },
+        "target_temp_c": {
+          "type": "number",
+          "description": "Target temperature in degrees Celsius, between 10 and 30."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Operating mode: heat only, cool only, or switch automatically.",
+          "enum": [
+            "heat",
+            "cool",
+            "auto"
+          ],
+          "default": "auto"
+        },
+        "hold_until": {
+          "type": "string",
+          "description": "Keep this setting until the given local time HH:MM, then resume the schedule."
+        }
+      },
+      "required": [
+        "zone",
+        "target_temp_c"
+      ]
+    }
+  }
+]
+
+Request: Set the living room thermostat (zone living_room) to 23.6 degrees.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

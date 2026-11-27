@@ -22,6 +22,12 @@ describe("classifyFailure", () => {
       undefined,
       "execution_error",
     ],
+    [
+      "prompt longer than the context window",
+      { error: "context_exceeded", output: "" },
+      undefined,
+      "context_exceeded",
+    ],
     ["loop abort", { stopReason: "loop", output: "" }, undefined, "loop"],
     [
       "split-reasoning budget spent thinking",

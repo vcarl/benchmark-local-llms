@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"line_count","count":4,"name":"exactly 4 lines"},{"check":"word_count_exact","count":1,"name":"moon appears once","word":"moon"},{"check":"all_lines_word_count","max":12,"min":5,"name":"lines have 5-12 words"}],"type":"constraint"},"rules":2}

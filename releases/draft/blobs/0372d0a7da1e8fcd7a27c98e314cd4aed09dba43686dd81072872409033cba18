@@ -1,0 +1,10 @@
+Classify the product review below by the reviewer's final verdict. Allowed labels:
+- positive: they would keep it, buy it again or recommend it
+- negative: they would not (returning it, would not buy it again, not worth it)
+- neutral: they say they are undecided or indifferent
+
+"""
+I've had this e-reader for a month. Its size is perfect for travel. The build quality is impressive for the price. The battery life is excellent. The case scratches easily, which is disappointing. I have no strong feeling either way about it.
+"""
+
+Choose exactly one label. End your reply with a final line of the form `Label: <label>`, with the label written exactly as listed.

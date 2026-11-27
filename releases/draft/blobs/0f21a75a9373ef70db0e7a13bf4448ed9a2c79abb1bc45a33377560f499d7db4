@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"account_type":"savings","amount":180,"memo":"Tuition","recipient_account":"NL69BANK0585777410"},"name":"Banking_1_TransferMoney"}]}],"type":"constraint"},"rules":2}

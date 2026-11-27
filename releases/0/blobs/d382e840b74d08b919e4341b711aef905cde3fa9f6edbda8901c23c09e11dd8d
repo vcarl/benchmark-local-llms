@@ -1,0 +1,1 @@
+{"constraints":[{"check":"contains_exact","name":"mentions Sink module","value":"Sink"},{"check":"regex","name":"mentions collectAll or collect","pattern":"(?i)(collectAll|collect)"},{"check":"regex","name":"mentions consuming/processing a stream","pattern":"(?i)(consum|process|receiv|terminal|fold|accumulat|run)"}],"type":"constraint"}

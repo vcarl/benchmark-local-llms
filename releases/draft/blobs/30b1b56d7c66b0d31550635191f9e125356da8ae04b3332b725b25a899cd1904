@@ -1,0 +1,149 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Buses_3_BuyBusTicket",
+    "description": "This function processes the purchase of bus tickets from a departure city to a destination city on a specified date and time. It also accounts for the number of passengers and additional luggage options.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_city": {
+          "type": "string",
+          "description": "The city where the journey begins, in the format of 'City, State', such as 'New York, NY'."
+        },
+        "to_city": {
+          "type": "string",
+          "description": "The destination city for the trip, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The departure date in 'YYYY-MM-DD' format, for example, '2023-04-21'."
+        },
+        "departure_time": {
+          "type": "string",
+          "description": "The time of departure in 24-hour format 'HH:MM', such as '14:30' for 2:30 PM."
+        },
+        "num_passengers": {
+          "type": "integer",
+          "description": "The number of passengers for whom the tickets are being purchased. Must be a positive integer."
+        },
+        "additional_luggage": {
+          "type": "boolean",
+          "description": "Indicates whether additional luggage will be carried on the bus.",
+          "default": false
+        }
+      },
+      "required": [
+        "from_city",
+        "to_city",
+        "departure_date",
+        "departure_time",
+        "num_passengers"
+      ]
+    }
+  },
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "Movies_1_BuyMovieTickets",
+    "description": "Purchase tickets for a specific movie showing, including the number of tickets, show date and time, and location.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "movie_name": {
+          "type": "string",
+          "description": "The title of the movie for which tickets are being purchased."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The total number of tickets to be bought."
+        },
+        "show_date": {
+          "type": "string",
+          "description": "The date on which the movie is showing, in the format 'YYYY-MM-DD'."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city in which the movie theater is located, in the format of 'City, State', such as 'Los Angeles, CA'."
+        },
+        "show_time": {
+          "type": "string",
+          "description": "The start time of the movie showing, in 24-hour format 'HH:MM'.",
+          "default": "20:00"
+        },
+        "show_type": {
+          "type": "string",
+          "description": "The format of the movie showing.",
+          "enum": [
+            "regular",
+            "3d",
+            "imax"
+          ],
+          "default": "regular"
+        }
+      },
+      "required": [
+        "movie_name",
+        "number_of_tickets",
+        "location"
+      ]
+    }
+  }
+]
+
+Request: Log my swimming session (indoors): 4.5 km in 129 minutes. Heart rate averaged 156 bpm and peaked at 169 bpm.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

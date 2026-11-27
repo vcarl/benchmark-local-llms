@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"category":"billing","customer":"Priya Rossi","order_id":"ORD-307706","product":"Shelfwise","severity":"low","ticket_id":"T-48020"}}],"type":"constraint"},"rules":2}

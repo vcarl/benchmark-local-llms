@@ -1,0 +1,815 @@
+id: transform
+version: 1
+passThreshold: 0.8
+items:
+  # 16 of 21 requests fall in 16:00:00–16:59:59; key: {"/api/cart":{"200":3,"204":1,"400":1,"404":1,"500":1,"503":2},"/health":{"200":3,"201":1,"500":1},"/api/orders":{"200":1,"400":1}}
+  - name: transform_status_counts_s0
+    family: transform_status_counts
+    seed: 0
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      Below is a web server access log. Each line is: timestamp, HTTP method,
+      path, status code, latency. Lines starting with # are comments, not
+      requests.
+
+
+      Count the requests per path and status code, using only requests with
+      timestamps from 16:00:00 to 16:59:59 inclusive (all methods). Reply with
+      only a JSON object mapping each path to an object that maps each status
+      code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}.
+      Leave out paths and status codes with no requests in the window.
+
+
+      ```
+
+      # access.log for 2025-04-16, rotated at 00:00:00
+
+      2025-04-16T15:53:01Z GET /api/orders 200 482ms
+
+      2025-04-16T15:58:11Z GET /api/cart 503 874ms
+
+      2025-04-16T15:59:59Z POST /health 304 56ms
+
+      2025-04-16T16:00:00Z POST /api/cart 204 300ms
+
+      2025-04-16T16:01:52Z GET /health 201 251ms
+
+      2025-04-16T16:05:59Z POST /health 500 263ms
+
+      2025-04-16T16:08:54Z GET /api/cart 200 771ms
+
+      2025-04-16T16:12:30Z POST /api/cart 404 716ms
+
+      2025-04-16T16:15:38Z GET /api/cart 200 158ms
+
+      2025-04-16T16:17:37Z GET /api/cart 503 166ms
+
+      2025-04-16T16:20:33Z GET /api/orders 400 444ms
+
+      2025-04-16T16:33:43Z POST /api/cart 200 96ms
+
+      2025-04-16T16:34:54Z POST /api/cart 500 318ms
+
+      2025-04-16T16:35:08Z POST /api/cart 400 157ms
+
+      2025-04-16T16:36:35Z GET /api/cart 503 862ms
+
+      2025-04-16T16:45:04Z POST /health 200 612ms
+
+      2025-04-16T16:46:35Z GET /health 200 164ms
+
+      2025-04-16T16:57:08Z GET /health 200 157ms
+
+      2025-04-16T16:59:59Z POST /api/orders 200 11ms
+
+      2025-04-16T17:00:00Z GET /api/orders 503 239ms
+
+      2025-04-16T17:10:42Z GET /health 503 172ms
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          /api/cart:
+            "200": 3
+            "204": 1
+            "400": 1
+            "404": 1
+            "500": 1
+            "503": 2
+          /health:
+            "200": 3
+            "201": 1
+            "500": 1
+          /api/orders:
+            "200": 1
+            "400": 1
+  # 16 of 21 requests fall in 19:00:00–19:59:59; key: {"/api/users":{"304":1,"404":2,"503":2},"/api/search":{"200":1,"404":1,"503":2},"/health":{"200":1,"201":1,"204":1,"500":1,"503":3}}
+  - name: transform_status_counts_s1
+    family: transform_status_counts
+    seed: 1
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      Below is a web server access log. Each line is: timestamp, HTTP method,
+      path, status code, latency. Lines starting with # are comments, not
+      requests.
+
+
+      Count the requests per path and status code, using only requests with
+      timestamps from 19:00:00 to 19:59:59 inclusive (all methods). Reply with
+      only a JSON object mapping each path to an object that maps each status
+      code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}.
+      Leave out paths and status codes with no requests in the window.
+
+
+      ```
+
+      # access.log for 2025-02-15, rotated at 00:00:00
+
+      2025-02-15T18:48:14Z POST /api/search 500 272ms
+
+      2025-02-15T18:58:11Z GET /api/users 200 895ms
+
+      2025-02-15T18:59:59Z POST /health 200 515ms
+
+      2025-02-15T19:00:00Z GET /api/users 503 498ms
+
+      2025-02-15T19:10:14Z POST /api/search 503 160ms
+
+      2025-02-15T19:12:11Z GET /health 503 239ms
+
+      2025-02-15T19:17:30Z GET /api/search 200 309ms
+
+      2025-02-15T19:17:35Z GET /health 500 725ms
+
+      2025-02-15T19:20:38Z GET /api/search 503 250ms
+
+      2025-02-15T19:27:07Z POST /health 204 690ms
+
+      2025-02-15T19:30:21Z GET /api/search 404 753ms
+
+      2025-02-15T19:31:12Z GET /api/users 503 409ms
+
+      2025-02-15T19:31:36Z GET /health 201 141ms
+
+      2025-02-15T19:36:42Z POST /health 503 214ms
+
+      2025-02-15T19:40:22Z GET /api/users 304 139ms
+
+      2025-02-15T19:42:39Z GET /api/users 404 458ms
+
+      2025-02-15T19:55:35Z POST /api/users 404 786ms
+
+      2025-02-15T19:58:51Z GET /health 200 690ms
+
+      2025-02-15T19:59:59Z GET /health 503 321ms
+
+      2025-02-15T20:00:00Z GET /api/search 200 290ms
+
+      2025-02-15T20:09:52Z GET /api/users 200 370ms
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          /api/users:
+            "304": 1
+            "404": 2
+            "503": 2
+          /api/search:
+            "200": 1
+            "404": 1
+            "503": 2
+          /health:
+            "200": 1
+            "201": 1
+            "204": 1
+            "500": 1
+            "503": 3
+  # 16 of 21 requests fall in 16:00:00–16:59:59; key: {"/api/search":{"200":2,"201":1,"304":1,"404":2,"500":1},"/api/users":{"200":2,"204":1,"503":1},"/api/cart":{"200":1,"204":2,"304":1,"404":1}}
+  - name: transform_status_counts_s2
+    family: transform_status_counts
+    seed: 2
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      Below is a web server access log. Each line is: timestamp, HTTP method,
+      path, status code, latency. Lines starting with # are comments, not
+      requests.
+
+
+      Count the requests per path and status code, using only requests with
+      timestamps from 16:00:00 to 16:59:59 inclusive (all methods). Reply with
+      only a JSON object mapping each path to an object that maps each status
+      code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}.
+      Leave out paths and status codes with no requests in the window.
+
+
+      ```
+
+      # access.log for 2025-02-10, rotated at 00:00:00
+
+      2025-02-10T15:54:19Z GET /api/users 200 466ms
+
+      2025-02-10T15:59:59Z GET /api/search 500 349ms
+
+      2025-02-10T16:00:00Z GET /api/search 404 589ms
+
+      2025-02-10T16:01:03Z GET /api/search 404 241ms
+
+      2025-02-10T16:06:41Z GET /api/users 200 171ms
+
+      2025-02-10T16:22:35Z POST /api/cart 404 879ms
+
+      2025-02-10T16:24:20Z GET /api/search 304 342ms
+
+      2025-02-10T16:24:58Z GET /api/users 503 878ms
+
+      2025-02-10T16:28:25Z GET /api/users 204 791ms
+
+      2025-02-10T16:32:31Z GET /api/search 500 565ms
+
+      2025-02-10T16:34:50Z POST /api/cart 204 753ms
+
+      2025-02-10T16:37:55Z GET /api/search 201 573ms
+
+      2025-02-10T16:41:43Z GET /api/cart 200 39ms
+
+      2025-02-10T16:50:11Z GET /api/search 200 842ms
+
+      2025-02-10T16:53:37Z GET /api/cart 204 163ms
+
+      2025-02-10T16:54:34Z GET /api/users 200 88ms
+
+      2025-02-10T16:55:33Z GET /api/cart 304 107ms
+
+      2025-02-10T16:59:59Z GET /api/search 200 494ms
+
+      2025-02-10T17:00:00Z GET /api/search 400 235ms
+
+      2025-02-10T17:10:19Z GET /api/users 200 68ms
+
+      2025-02-10T17:13:17Z GET /api/users 200 289ms
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          /api/search:
+            "200": 2
+            "201": 1
+            "304": 1
+            "404": 2
+            "500": 1
+          /api/users:
+            "200": 2
+            "204": 1
+            "503": 1
+          /api/cart:
+            "200": 1
+            "204": 2
+            "304": 1
+            "404": 1
+  # 16 of 21 requests fall in 18:00:00–18:59:59; key: {"/api/cart":{"201":1,"404":1,"503":1},"/api/users":{"200":1,"201":1,"204":1,"404":1},"/api/orders":{"200":3,"201":1,"204":1,"304":2,"400":2}}
+  - name: transform_status_counts_s3
+    family: transform_status_counts
+    seed: 3
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      Below is a web server access log. Each line is: timestamp, HTTP method,
+      path, status code, latency. Lines starting with # are comments, not
+      requests.
+
+
+      Count the requests per path and status code, using only requests with
+      timestamps from 18:00:00 to 18:59:59 inclusive (all methods). Reply with
+      only a JSON object mapping each path to an object that maps each status
+      code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}.
+      Leave out paths and status codes with no requests in the window.
+
+
+      ```
+
+      # access.log for 2025-04-13, rotated at 00:00:00
+
+      2025-04-13T17:53:54Z GET /api/cart 404 621ms
+
+      2025-04-13T17:59:59Z GET /api/cart 200 86ms
+
+      2025-04-13T18:00:00Z GET /api/cart 404 458ms
+
+      2025-04-13T18:02:37Z GET /api/users 200 177ms
+
+      2025-04-13T18:21:00Z GET /api/orders 204 297ms
+
+      2025-04-13T18:21:21Z POST /api/users 204 105ms
+
+      2025-04-13T18:21:23Z GET /api/users 201 337ms
+
+      2025-04-13T18:26:59Z GET /api/orders 200 386ms
+
+      2025-04-13T18:31:05Z GET /api/orders 201 654ms
+
+      2025-04-13T18:34:43Z GET /api/cart 503 295ms
+
+      2025-04-13T18:41:23Z GET /api/orders 200 413ms
+
+      2025-04-13T18:42:29Z GET /api/orders 400 773ms
+
+      2025-04-13T18:52:32Z GET /api/cart 201 144ms
+
+      2025-04-13T18:56:40Z GET /api/orders 400 700ms
+
+      2025-04-13T18:58:18Z GET /api/orders 304 824ms
+
+      2025-04-13T18:59:26Z GET /api/users 404 773ms
+
+      2025-04-13T18:59:28Z POST /api/orders 304 618ms
+
+      2025-04-13T18:59:59Z POST /api/orders 200 680ms
+
+      2025-04-13T19:00:00Z GET /api/cart 304 776ms
+
+      2025-04-13T19:10:12Z GET /api/cart 404 350ms
+
+      2025-04-13T19:12:04Z POST /api/orders 304 284ms
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          /api/cart:
+            "201": 1
+            "404": 1
+            "503": 1
+          /api/users:
+            "200": 1
+            "201": 1
+            "204": 1
+            "404": 1
+          /api/orders:
+            "200": 3
+            "201": 1
+            "204": 1
+            "304": 2
+            "400": 2
+  # key: {"West":210.44,"East":286.26,"North":246.04}
+  - name: transform_group_sum_s0
+    family: transform_group_sum
+    seed: 0
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below has a header row followed by one row per order.
+
+
+      Compute the revenue per region, counting only orders whose status is
+      "completed". An order's revenue is units × unit_price. Reply with only a
+      JSON object mapping each region to its revenue as a number rounded to 2
+      decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+      completed orders.
+
+
+      ```csv
+
+      order_id,region,status,units,unit_price
+
+      5003,West,completed,4,7.48
+
+      5006,East,completed,4,31.91
+
+      5007,North,completed,8,21.92
+
+      5010,West,completed,7,21.61
+
+      5012,North,completed,2,35.34
+
+      5014,East,completed,2,30.44
+
+      5017,West,refunded,1,43.61
+
+      5020,East,refunded,3,36.17
+
+      5023,West,completed,9,3.25
+
+      5024,East,completed,6,16.29
+
+      5026,North,refunded,2,21.56
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          West: 210.44
+          East: 286.26
+          North: 246.04
+  # key: {"Central":391.38,"North":495.64,"East":478.29}
+  - name: transform_group_sum_s1
+    family: transform_group_sum
+    seed: 1
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below has a header row followed by one row per order.
+
+
+      Compute the revenue per region, counting only orders whose status is
+      "completed". An order's revenue is units × unit_price. Reply with only a
+      JSON object mapping each region to its revenue as a number rounded to 2
+      decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+      completed orders.
+
+
+      ```csv
+
+      order_id,region,status,units,unit_price
+
+      5003,East,pending,1,17.78
+
+      5006,Central,completed,8,45.31
+
+      5007,North,refunded,6,2.96
+
+      5008,North,completed,8,46.08
+
+      5011,East,completed,5,48.01
+
+      5014,East,completed,4,8.30
+
+      5017,East,completed,2,3.56
+
+      5020,East,refunded,9,39.67
+
+      5021,East,completed,4,49.48
+
+      5022,North,completed,4,31.75
+
+      5023,Central,completed,5,5.78
+
+      5024,East,refunded,2,35.62
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          Central: 391.38
+          North: 495.64
+          East: 478.29
+  # key: {"South":278.45,"North":454.57}
+  - name: transform_group_sum_s2
+    family: transform_group_sum
+    seed: 2
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below has a header row followed by one row per order.
+
+
+      Compute the revenue per region, counting only orders whose status is
+      "completed". An order's revenue is units × unit_price. Reply with only a
+      JSON object mapping each region to its revenue as a number rounded to 2
+      decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+      completed orders.
+
+
+      ```csv
+
+      order_id,region,status,units,unit_price
+
+      5001,North,pending,2,33.23
+
+      5003,South,pending,8,31.73
+
+      5005,South,completed,7,8.03
+
+      5008,North,completed,8,15.23
+
+      5009,South,completed,1,9.48
+
+      5012,North,completed,4,28.81
+
+      5015,West,pending,8,33.17
+
+      5017,North,refunded,5,18.31
+
+      5018,North,pending,3,5.57
+
+      5020,South,completed,6,35.46
+
+      5022,North,completed,7,31.07
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          South: 278.45
+          North: 454.57
+  # key: {"East":173.41,"North":609.15,"Central":131.18}
+  - name: transform_group_sum_s3
+    family: transform_group_sum
+    seed: 3
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below has a header row followed by one row per order.
+
+
+      Compute the revenue per region, counting only orders whose status is
+      "completed". An order's revenue is units × unit_price. Reply with only a
+      JSON object mapping each region to its revenue as a number rounded to 2
+      decimal places, e.g. {"North": 1234.5}. Leave out regions with no
+      completed orders.
+
+
+      ```csv
+
+      order_id,region,status,units,unit_price
+
+      5002,East,completed,6,20.69
+
+      5004,North,completed,4,37.51
+
+      5007,Central,completed,7,18.74
+
+      5009,East,pending,5,46.76
+
+      5011,Central,refunded,2,19.78
+
+      5014,East,completed,1,7.55
+
+      5015,East,completed,2,20.86
+
+      5017,North,completed,7,16.99
+
+      5020,North,completed,9,17.64
+
+      5022,North,completed,5,17.60
+
+      5023,North,completed,9,6.17
+
+      5025,North,completed,9,4.21
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          East: 173.41
+          North: 609.15
+          Central: 131.18
+  # totals: chen=319, dmitri=164, gustavo=132
+  - name: transform_top_k_s0
+    family: transform_top_k
+    seed: 0
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below logs study sessions: a header row, then one row per session.
+
+
+      Rank users by their total minutes across all sessions and list the top 3,
+      highest first (break ties alphabetically). Reply with only a JSON array of
+      the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+      ```csv
+
+      date,user,minutes
+
+      2025-02-03,dmitri,8
+
+      2025-02-05,chen,78
+
+      2025-02-06,bongani,65
+
+      2025-02-09,elif,6
+
+      2025-02-13,hiroshi,11
+
+      2025-02-13,gustavo,31
+
+      2025-02-15,bongani,27
+
+      2025-02-16,chen,91
+
+      2025-02-18,dmitri,33
+
+      2025-02-18,hiroshi,17
+
+      2025-02-21,dmitri,24
+
+      2025-02-22,dmitri,99
+
+      2025-02-22,gustavo,101
+
+      2025-02-23,chen,115
+
+      2025-02-24,elif,109
+
+      2025-02-28,chen,35
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          - chen
+          - dmitri
+          - gustavo
+  # totals: chen=501, hiroshi=263, elif=252
+  - name: transform_top_k_s1
+    family: transform_top_k
+    seed: 1
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below logs study sessions: a header row, then one row per session.
+
+
+      Rank users by their total minutes across all sessions and list the top 3,
+      highest first (break ties alphabetically). Reply with only a JSON array of
+      the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+      ```csv
+
+      date,user,minutes
+
+      2025-10-01,dmitri,59
+
+      2025-10-02,bongani,14
+
+      2025-10-02,elif,42
+
+      2025-10-05,hiroshi,87
+
+      2025-10-09,bongani,41
+
+      2025-10-10,hiroshi,91
+
+      2025-10-12,elif,53
+
+      2025-10-13,chen,80
+
+      2025-10-16,chen,113
+
+      2025-10-16,elif,73
+
+      2025-10-18,chen,109
+
+      2025-10-19,dmitri,50
+
+      2025-10-20,gustavo,108
+
+      2025-10-20,elif,16
+
+      2025-10-22,chen,80
+
+      2025-10-28,elif,68
+
+      2025-10-28,chen,119
+
+      2025-10-28,hiroshi,85
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          - chen
+          - hiroshi
+          - elif
+  # totals: bongani=269, elif=169, hiroshi=121
+  - name: transform_top_k_s2
+    family: transform_top_k
+    seed: 2
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below logs study sessions: a header row, then one row per session.
+
+
+      Rank users by their total minutes across all sessions and list the top 3,
+      highest first (break ties alphabetically). Reply with only a JSON array of
+      the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+      ```csv
+
+      date,user,minutes
+
+      2025-11-03,hiroshi,91
+
+      2025-11-04,bongani,82
+
+      2025-11-06,farah,38
+
+      2025-11-08,dmitri,24
+
+      2025-11-11,farah,8
+
+      2025-11-11,bongani,56
+
+      2025-11-12,elif,21
+
+      2025-11-14,bongani,39
+
+      2025-11-15,bongani,92
+
+      2025-11-18,farah,34
+
+      2025-11-22,chen,12
+
+      2025-11-23,elif,41
+
+      2025-11-23,elif,30
+
+      2025-11-24,elif,77
+
+      2025-11-27,hiroshi,30
+
+      2025-11-28,chen,6
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          - bongani
+          - elif
+          - hiroshi
+  # totals: gustavo=471, hiroshi=298, farah=153
+  - name: transform_top_k_s3
+    family: transform_top_k
+    seed: 3
+    scope: core
+    category: transformation
+    tier: 2
+    prompt: >-
+      The CSV below logs study sessions: a header row, then one row per session.
+
+
+      Rank users by their total minutes across all sessions and list the top 3,
+      highest first (break ties alphabetically). Reply with only a JSON array of
+      the 3 user names, e.g. ["ann", "bo", "cy"].
+
+
+      ```csv
+
+      date,user,minutes
+
+      2025-07-01,gustavo,68
+
+      2025-07-03,gustavo,75
+
+      2025-07-05,hiroshi,114
+
+      2025-07-08,farah,78
+
+      2025-07-10,elif,61
+
+      2025-07-11,chen,30
+
+      2025-07-12,farah,68
+
+      2025-07-14,gustavo,93
+
+      2025-07-15,gustavo,88
+
+      2025-07-19,chen,109
+
+      2025-07-20,hiroshi,76
+
+      2025-07-20,gustavo,36
+
+      2025-07-21,farah,7
+
+      2025-07-24,gustavo,106
+
+      2025-07-24,bongani,18
+
+      2025-07-24,gustavo,5
+
+      2025-07-24,hiroshi,108
+
+      ```
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          - gustavo
+          - hiroshi
+          - farah

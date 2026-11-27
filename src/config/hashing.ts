@@ -1,20 +1,8 @@
 import { createHash } from "node:crypto";
 
-/**
- * Compute the 12-char SHA-256 prefix hash used as part of the cross-run
- * prompt cache key and the scenario hash (§2.2 / §2.3). Matches the Python
- * prototype's `compute_prompt_hash` / `compute_scenario_hash` output width
- * exactly so archive keys stay stable across the rewrite boundary.
- */
-export const shortSha256 = (input: string): string =>
+/** 12-char SHA-256 prefix; the scenario hash's width (legacy archive identities live in src/legacy/identity.ts). */
+const shortSha256 = (input: string): string =>
   createHash("sha256").update(input, "utf8").digest("hex").slice(0, 12);
-
-/**
- * Hash of what the model sees on every run: user prompt text joined with the
- * resolved system prompt text. A change in either invalidates the cache.
- */
-export const computePromptHash = (promptText: string, systemText: string): string =>
-  shortSha256(`${promptText}|${systemText}`);
 
 /**
  * Hash of the scenario inputs that determine the run. Excludes `name` so that

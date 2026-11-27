@@ -1,0 +1,185 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "adjust_inventory",
+    "description": "Record a relative change in stock for one SKU, with the reason, for the warehouse audit trail.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Stock-keeping unit, exactly as written, including leading zeros."
+        },
+        "delta": {
+          "type": "integer",
+          "description": "Change in units: positive adds stock, negative removes it."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the stock changed.",
+          "enum": [
+            "sale",
+            "return",
+            "damage",
+            "restock"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "description": "Free-form labels for the audit trail, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Label"
+          }
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse code the change applies to.",
+          "default": "MAIN"
+        }
+      },
+      "required": [
+        "sku",
+        "delta",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "Trains_1_FindTrains",
+    "description": "Finds available train options for a specified route on a given date, allowing users to select a preferred travel class.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "_from": {
+          "type": "string",
+          "description": "The city where the train journey will start. Eg: 'Berkeley, CA'. State names must be abbreviated."
+        },
+        "to": {
+          "type": "string",
+          "description": "The destination city for the train journey. Eg: 'Berkeley, CA'. State names must be abbreviated."
+        },
+        "date_of_journey": {
+          "type": "string",
+          "description": "The date of the train journey, in the format of 'YYYY-MM-DD'."
+        },
+        "_class": {
+          "type": "string",
+          "description": "The fare class for the train reservation.",
+          "enum": [
+            "Value",
+            "Flexible",
+            "Business"
+          ],
+          "default": "Value"
+        },
+        "number_of_adults": {
+          "type": "integer",
+          "description": "The number of adults to reserve train tickets for.",
+          "default": 1
+        }
+      },
+      "required": [
+        "_from",
+        "to",
+        "date_of_journey"
+      ]
+    }
+  },
+  {
+    "name": "ChaDri.change_drink",
+    "description": "Modifies the existing drink order to accommodate the customer's new request, ensuring the drink is updated according to the specified preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "drink_id": {
+          "type": "string",
+          "description": "The unique identifier of the drink to be changed.",
+          "default": "0000-0000-0000"
+        },
+        "new_preferences": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "string",
+              "description": "The size of the drink the customer prefers.",
+              "enum": [
+                "small",
+                "medium",
+                "large"
+              ],
+              "default": "medium"
+            },
+            "temperature": {
+              "type": "string",
+              "description": "The temperature at which the drink should be served.",
+              "enum": [
+                "cold",
+                "warm",
+                "hot"
+              ],
+              "default": "cold"
+            },
+            "sweetness_level": {
+              "type": "string",
+              "description": "The sweetness level the customer requests for the drink.",
+              "enum": [
+                "none",
+                "light",
+                "regular",
+                "extra"
+              ],
+              "default": "regular"
+            },
+            "milk_type": {
+              "type": "string",
+              "description": "The type of milk to be used in the drink, if applicable.",
+              "enum": [
+                "regular",
+                "soy",
+                "almond",
+                "coconut"
+              ],
+              "default": "regular"
+            },
+            "special_instructions": {
+              "type": "string",
+              "description": "Any additional instructions provided by the customer for the drink preparation.",
+              "default": ""
+            }
+          },
+          "required": [],
+          "description": "The updated preferences for the drink order."
+        }
+      },
+      "required": [
+        "new_preferences"
+      ]
+    }
+  },
+  {
+    "name": "Weather_1_GetWeather",
+    "description": "Retrieves the current or historical weather data for a specified city on a given date.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The name of the city for which to retrieve weather data."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date for which to retrieve the weather, in the format 'YYYY-MM-DD'. A default value of 'null' indicates the current date."
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  }
+]
+
+Request: Record a stock change of +30 units on SKU 001944, reason: return, in warehouse EAST-2. Tag it "q4" and "online".
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"duration_minutes":90,"reminder_minutes":60,"start":"2026-06-27T15:00","title":"Budget sync"},"name":"calendar.create_event","optional":{"visibility":"default"}}]}],"type":"constraint"},"rules":2}

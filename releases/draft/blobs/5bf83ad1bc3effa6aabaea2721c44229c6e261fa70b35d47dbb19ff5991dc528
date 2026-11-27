@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"destinationPath":"/srv/archive/notes.md","overwrite":true,"sourcePath":"/home/dev/Downloads/notes.md"},"name":"moveFile"}]}],"type":"constraint"},"rules":2}

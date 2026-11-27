@@ -1,5 +1,7 @@
 # Set & ordered-sequence scorers — design
 
+> Design record (2026-06-26). Not maintained; current behavior is in [docs/](../../) — see [SCORING.md § Check catalog](../../SCORING.md#check-catalog).
+
 ## Problem
 
 New benchmark challenges grade answers that are a **set** (e.g. which actors are

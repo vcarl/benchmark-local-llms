@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"order_id":"ORD-716247","reason":"arrives_too_late","refund_method":"store_credit"},"name":"cancel_order"}]}],"type":"constraint"},"rules":2}

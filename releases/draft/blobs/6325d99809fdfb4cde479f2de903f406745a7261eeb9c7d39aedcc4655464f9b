@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches Orin","pattern":"\\b[Oo][Rr][Ii][Nn]\\b"}],"type":"constraint"},"rules":2}

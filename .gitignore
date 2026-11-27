@@ -6,9 +6,8 @@ llama.cpp/
 models/
 *-backup*/
 benchmark-results/
-webapp/src/data/data.js
+webapp/public/snapshots/
 webapp/src/data/events/
-webapp/public/details/
 .git-gh-pages/
 .run-state.json
 
@@ -36,3 +35,6 @@ v7-archive/
 v8-archive/
 
 benchmark-archive*
+
+# Execution store (bundles, score records, open runs)
+/store/

@@ -1,0 +1,3 @@
+Write a Python function `two_sum(nums: list[int], target: int) -> list[int]` that returns the indices of two numbers that add up to target. Each input has exactly one solution.
+
+Output only the function — no explanations, no examples, no tests, no markdown. Start directly with `def `.

@@ -1,0 +1,12 @@
+A franchise group shares cash between four divisions each month.
+- Flagship: starts with $300, earns $0/month in other revenue, spends $600/month. It sells 50 units/month at a set price.
+- Supply: starts with $100, earns $30/month in other revenue, spends $50/month.
+- Brand: starts with $50, earns $20/month in other revenue, spends $60/month.
+- Outlet: starts with $150, earns $130/month in other revenue, spends $80/month.
+- Each month Outlet sends $35 to Flagship, but only as much as it can afford that month.
+- Each month Flagship sends $75 to Supply, but only as much as it can afford that month.
+- Each month Supply sends $50 to Brand, but only as much as it can afford that month.
+
+Resolve each month in this order: every division first books its other revenue and any sales income and pays its costs; then the transfers happen in the order listed above. A balance is checked at the end of the month.
+
+Flagship sells 50 units/month; its price is yours to set. What is the lowest whole-dollar price at which NO division ends any of the 24 months with a negative balance? Reply with only that number and no other figures.

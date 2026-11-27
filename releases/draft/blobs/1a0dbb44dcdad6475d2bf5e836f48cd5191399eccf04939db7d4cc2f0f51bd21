@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"amount":571.51,"recipient_account":"NL768205124295147429"},"name":"Banking_1_TransferMoney","optional":{"account_type":"checking"}}]}],"type":"constraint"},"rules":2}

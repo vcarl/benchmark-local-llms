@@ -1,14 +1,12 @@
 # Guarantees
 
-> _Last verified: 2026-06-20 against `9a651b2`._
-
-The harness runs work as **attempts** — one `(configuration × challenge)` pairing executed by `run`. Around that unit it commits to a small set of invariants. Each section names an invariant, explains what it means today, and points at the canonical implementation. For the on-disk shape these guarantees protect, see [ARCHIVE-FORMAT.md](./ARCHIVE-FORMAT.md).
+The harness runs work as **bundles**: one `(configuration × challenge)` pairing executed within a run (one `./bench run`). The schemaVersion 1–3 predecessor of a bundle is an **attempt**; those archives are read-only. Around that unit it commits to a small set of invariants. Each section states the promise, links to the doc that owns its mechanism where another doc does, and points at the canonical implementation.
 
 ## Scope-managed resources
 
-Every subprocess, HTTP session, and SSE connection is acquired inside an `Effect.Scope`. Closing the scope runs all registered finalizers in LIFO order, so acquisition implies guaranteed release — no path through completion or interruption leaves a resource live. An attempt runs entirely inside `Effect.scoped`, and the LLM server is acquired within that scope. Its shutdown finalizer is installed **before** the health wait, so even a boot-time health timeout escalates termination cleanly instead of orphaning a half-started server.
+Every subprocess, HTTP session, and SSE connection is acquired inside an `Effect.Scope`. Closing the scope runs all registered finalizers in LIFO order, so acquisition implies guaranteed release — no path through completion or interruption leaves a resource live. Each configuration's server is acquired inside an `Effect.scoped` region that also covers every bundle written against it. The server's shutdown finalizer is installed **before** the health wait, so even a boot-time health timeout escalates termination cleanly instead of orphaning a half-started server.
 
-Ref: `src/orchestration/run-challenge.ts`, `src/llm/servers/supervisor.ts`.
+Ref: `src/orchestration/run-matrix.ts`, `src/llm/servers/supervisor.ts`.
 
 ## Graceful shutdown: SIGTERM → SIGKILL
 
@@ -18,61 +16,97 @@ Ref: `src/llm/servers/supervisor.ts`, `src/cli/subprocess-registry.ts`.
 
 ## Interruption safety
 
-An attempt's header is written in an open state — `interrupted: true`, `finishedAt: null` — and is flipped to completed (`interrupted: false`, `finishedAt` set, aggregate filled) only on a clean finish. Any interrupt or failure path leaves the header in its open state, and the report ignores such attempts. Resume re-runs only the items missing from the partial body.
+An interrupted run never leaves a sealed bundle, and readers never see a partial one: a bundle reaches `store/bundles/` only when its run seals it. Re-running `./bench run` resumes the cell's open file, keeping what it already holds. Mechanism: [ARCHIVE-FORMAT.md § Lifecycle](./ARCHIVE-FORMAT.md#lifecycle-open-to-sealed).
 
-Ref: `src/archive/attempt-writer.ts`, `src/orchestration/run-challenge.ts`.
+Ref: `src/store/bundle.ts` (`createOpenBundle`, `appendExecution`, `readOpenBundle`), `src/orchestration/run-challenge.ts`.
 
-## Archive atomicity
+## Resume identity safety
 
-Line 1 — the manifest — is overwritten exactly once at finalize, via a header-only rewrite that re-encodes the first line and re-appends the body bytes verbatim. Appended item lines are never modified once written. The one path that rewrites a whole archive in place, in-place re-scoring (`score`), is **atomic**: it encodes to a sibling temp file and `rename`s over the target (an atomic replace on the same filesystem), so a partial or failed write never corrupts the existing archive — the target is untouched until the rename lands.
+Executions are never appended onto a bundle with a different identity: an open file is adopted only when its config digest, `hardwareId`, release and challenge all match the run's. Mechanism: [ARCHIVE-FORMAT.md § Lifecycle](./ARCHIVE-FORMAT.md#lifecycle-open-to-sealed).
 
-Ref: `src/archive/attempt-writer.ts` (`writeAttemptHeader` / `appendItem` / `finalizeAttempt` / `rewriteAttempt`).
+Ref: `src/store/store-index.ts` (`findOpenBundle`), `src/orchestration/run-challenge.ts`.
 
-## Self-sufficient archives
+## Store immutability and sealing
 
-Every archive carries a content store: the resolved system prompt, each item's full prompt text, and each item's scorer config, written as blobs keyed by `configHash` / `promptHash` / `scorerHash`. Given only the `.jsonl` plus its referenced blobs, the harness can reconstruct the exact prompt, system prompt, and scorer behind every recorded result — with no corpus or challenge YAML on disk. Reconstruction is all-or-nothing per attempt: a missing blob or an item without a `scorerHash` fails the whole reconstruction with a typed `NotReconstructible` result rather than degrading.
+A sealed bundle is never modified and never overwritten: it is named by the SHA-256 of its canonical bytes, and a different file under the same name fails with `BundleConflict`. Mechanism: [ARCHIVE-FORMAT.md § Lifecycle](./ARCHIVE-FORMAT.md#lifecycle-open-to-sealed).
 
-Ref: `src/archive/content-store.ts`, `src/report/reconstruct.ts`. See [ARCHIVE-FORMAT.md#content-store](./ARCHIVE-FORMAT.md#content-store).
+Ref: `src/store/bundle.ts` (`sealBundle`, `createOpenBundle`).
 
-## Cross-attempt cache validity
+## Verifying reader
 
-When executing an item, the harness reuses a previous result only from a **completed** attempt (`finishedAt` set and `interrupted: false`) whose header matches `(configHash, challengeId, challengeVersion)`, that ran on the same machine (`env.hardwareId`; an attempt without one predates hardware profiles and counts as local), and that contains an item with the same `itemHash` and sample index (`sample`, absent = 0). Among matches, the most recent `executedAt` wins per sample. A hit is copied **verbatim** — original timestamp, token counts, throughput, and wall time preserved — so measured efficiency always reflects real cost, never a cache artifact. The copy gains exactly two stamps: `cachedFrom`, naming the attempt that executed it, and `scorerHash` when the cached line lacks one. A replay therefore never reads as a fresh execution, and never carries another machine's measurements. `--no-cache` bypasses the lookup and forces fresh execution.
+Every sealed bundle is read by re-deriving instead of trusting: canonical lines, re-derived digests, no duplicates, a file that hashes to its name; any failure is a `BundleInvalid` naming the check. `./bench verify` additionally pins a bundle to its release and writes nothing. Mechanism: [ARCHIVE-FORMAT.md § Verifying reader](./ARCHIVE-FORMAT.md#verifying-reader).
 
-Ref: `src/archive/cache.ts` (`findCachedSamples`), `src/orchestration/run-challenge.ts`.
+Ref: `src/store/bundle.ts` (`readBundle`), `src/cli/commands/verify.ts`.
+
+## Complete-run skip
+
+A cell's results are always those of one real run on one machine: `./bench run` skips a cell only when a single complete bundle already holds all of it, and otherwise runs the whole cell; nothing is copied from another bundle. Mechanism: [SCORING.md § Report rows](./SCORING.md#report-rows) (run skip).
+
+Ref: `src/store/store-index.ts`, `src/orchestration/run-challenge.ts`.
+
+## Score log: append-only, checked for nondeterminism
+
+Grading never calls the model, never changes a bundle and never rewrites a score record; a scorer or rules change adds records under a new scorer digest. A nondeterministic scorer, or an execution with no record at the dataset's eval version, fails the snapshot build. A golden corpus fails `npm test` on any scoring-rules behaviour change until `SCORING_RULES` is bumped. Mechanism: [SCORING.md § Scorer digest and score records](./SCORING.md#scorer-digest-and-score-records), [§ Scoring rules version](./SCORING.md#scoring-rules-version); format: [ARCHIVE-FORMAT.md § Score log](./ARCHIVE-FORMAT.md#score-log).
+
+Ref: `src/store/scores.ts` (`appendScores`, `conflicts`), `src/report/v4-rows.ts` (`scoredExecutions`), `src/scoring/rules.ts`, `src/scoring/rules-golden.test.ts`.
+
+## Release freezing and verification
+
+A frozen release's items are public and fixed: anyone holding the release directory recomputes its item-set digest with `./bench release verify`, and a released item changes only through a published erratum. The draft has no item-set digest, and `npm test` fails when its `release.json` is out of sync with `challenges/`. Mechanism: [ARCHIVE-FORMAT.md § Releases](./ARCHIVE-FORMAT.md#releases), [ERRATA.md § The coverage check](./ERRATA.md#the-coverage-check).
+
+Ref: `src/release/release.ts` (`commitment`, `verifyRelease`, `loadRelease`), `src/config/errata.ts` (`coverageGaps`).
+
+## Snapshot determinism and immutability
+
+Anyone holding a snapshot's inputs (manifest, release, harness at its git sha, and the bundles) rebuilds it byte for byte: it carries no build timestamp and is named by the SHA-256 of its bytes, and a snapshot file is never rewritten. The bundles and archives are unpublished, so a reader verifies the release (`./bench release verify`) and cites the snapshot digest. Mechanism: [ARCHIVE-FORMAT.md § Snapshots](./ARCHIVE-FORMAT.md#snapshots), [ARCHITECTURE.md § Report pipeline](./ARCHITECTURE.md#report-pipeline).
+
+Ref: `src/report/index.ts` (`buildSnapshot`, `snapshotFile`, `runReport`).
+
+## Dataset membership
+
+A dataset is exactly what its manifest lists. A v4 manifest names sealed bundles by digest, and every listed bundle must belong to the manifest's release; no directory scan, config list or naming convention decides membership. Rows never mix datasets: one snapshot is one manifest scored against one release's challenges at one eval version.
+
+Ref: `src/dataset/manifest.ts`, `src/report/v4-rows.ts`. See [SCORING.md § Report rows](./SCORING.md#report-rows).
+
+## Provenance before reuse
+
+We maintain data provenance for every evaluation result. A result recorded in an older format is reused in a newer one only when its provenance is proven while converting it; otherwise the evaluation is rerun. Each dataset holds exactly one format. `./bench legacy convert` is the only path from a legacy archive into a v4 dataset. Mechanism: [ARCHIVE-FORMAT.md § Converting a legacy dataset](./ARCHIVE-FORMAT.md#converting-a-legacy-dataset).
+
+Ref: `src/legacy/convert.ts`, `src/cli/commands/legacy.ts`.
+
+## Legacy pins
+
+The schemaVersion 1–3 archives are read-only and reproducible: a legacy manifest pins every attempt file and content-store blob by SHA-256, the reader reads only pinned bytes, and reconstruction is all-or-nothing per attempt. Legacy lines are graded into the score log, never by rewriting the archive. Release 0 is closed at eval version `0.7` and archival; its manifest's `rowsDigest` fails any build that would change its rows. Mechanism: [ARCHIVE-FORMAT.md § Pinned reads](./ARCHIVE-FORMAT.md#pinned-reads), [§ Verification](./ARCHIVE-FORMAT.md#verification); grading: [SCORING.md § Scorer digest and score records](./SCORING.md#scorer-digest-and-score-records).
+
+Ref: `src/legacy/pinned.ts`, `src/legacy/content-store.ts`, `src/legacy/reconstruct.ts`, `src/cli/commands/score.ts`.
 
 ## Run provenance and privacy
 
-Every attempt one `./bench run` writes shares an `invocationId`, records its `submitter`, and counts the item lines it generated and replayed. The header's `env.hardware` and `env.hardwareId` identify the machine by its specification only: no hostname, serial number, username, or email is written, and a `BENCH_SUBMITTER` containing `@` is refused before any model starts. The hardware probe never fails a run; a field it cannot read is left out.
+Every bundle one run writes shares its `run.id` and records its contributor in `run.contributor` (`BENCH_CONTRIBUTOR`, default `local`). The header's `env.hardware` and `env.hardwareId` identify the machine by its specification only: no hostname, serial number, username, or email is written, and a `BENCH_CONTRIBUTOR` containing `@` is refused before any model starts. The hardware probe never fails a run; a field it cannot read is left out.
 
 Ref: `src/orchestration/hardware.ts`, `src/orchestration/run-loop.ts`, `src/cli/commands/run.ts`.
 
 ## Report row selection
 
-A report row counts, per `(item, sample)`, the most recent execution at the set's current `itemHash` among completed attempts of that configuration on that machine — the cache's own rule — so a replay collapses into its original and a later single-sample replay never drops earlier resamples. Execution provenance (runtime, git sha, dates, submitter) comes from the executing attempt, never the replay. Rows never mix datasets: one report is one archive directory scored against one challenge directory.
+A cell counts exactly one complete run, the most recent; items are never pooled across runs, an incomplete run never counts, and rows from different contributors never merge. Mechanism: [SCORING.md § Report rows](./SCORING.md#report-rows).
 
-Ref: `src/report/rows.ts`. See [SCORING.md § Report rows](./SCORING.md#report-rows).
+Ref: `src/report/v4-rows.ts`, `src/legacy/rows.ts`.
 
-## Resume identity safety
+## Scorer isolation
 
-Resuming an attempt re-resolves the configuration and challenge, then validates the resolved hashes against the partial archive's header. A disagreement on `configHash` or `challengeHash` fails loudly with `ResumeMismatchError` and leaves the archive untouched — mismatched items are never appended onto an attempt with a different identity.
+Code scorers (`code_exec` programs and `custom` scripts) never execute on the host, so running `score` over a contributed bundle cannot reach the maintainer's files or network. There is no host fallback: without Docker the item is a `scorer_error`. Mechanism: [SCORING.md § Isolated runner](./SCORING.md#isolated-runner).
 
-Ref: `src/orchestration/run-challenge.ts` (`resumeChallenge`).
-
-## Re-scoring stability and identity preservation
-
-`score` re-applies scorers to recorded outputs and never calls the model. By default it re-scores from the content store, needing no corpus or challenge YAML; `--corpus` instead resolves the current on-disk challenge and scores against it. The store path never rewrites identity. The corpus path rewrites identity in exactly one case — a scorer-only change: the attempt is complete, its challenge id and version match, and its items map 1:1 onto the resolved items with identical `promptHash`. Then it re-stamps `challengeHash`, every item's `itemHash` and `scorerHash`, and the `attemptId` (and so the filename) to the current values, writes the current prompt and scorer blobs to the content store first, and records the original `attemptId` in `restampedFrom`. The re-stamped file is written atomically under its new name and the old file is removed, so no duplicate attempt remains; an interruption between the two leaves only the still-stale original, which the next pass re-stamps to the same name. `configHash`, `env`, and every per-item measurement stay as written. Both paths blank one recorded field: a `length`-stopped `output` identical to its `reasoning` becomes `""` (as a new run records it; `rawOutput` keeps the content). Any other difference re-scores with identity kept as recorded. In the corpus path a guard keeps the stored score for any item whose `promptHash` has drifted from the resolved corpus, so only genuinely matching items are re-applied.
-
-Ref: `src/cli/commands/score.ts`, `src/orchestration/run-challenge.ts` (`aggregate`).
+Ref: `src/scoring/sandbox.ts`.
 
 ## Fail-fast config
 
-All YAML loaders fully decode at startup. Malformed configurations, challenges, or prompts, unknown `system:` keys, unknown constraint `check` discriminators, and duplicate prompt names all surface as typed failures before any model spawns — never at execution time.
+All YAML loaders fully decode at startup. Malformed configurations, challenges, or system prompts, a configuration naming an unknown system prompt, unknown constraint `check` discriminators, and duplicate item names all surface as typed failures before any model spawns — never at execution time.
 
-Ref: `src/config/configurations.ts`, `src/config/challenges.ts`, `src/config/prompt-corpus.ts`, `src/config/system-prompts.ts`.
+Ref: `src/config/configurations.ts`, `src/config/challenges.ts`, `src/config/system-prompts.ts`, `src/config/scenario-corpus.ts`.
 
 ## Error-channel discipline
 
-Every fallible operation returns `Effect<A, TaggedError, R>`. Tagged errors live in `src/errors/<domain>.ts` (`config`, `game`, `io`, `llm`, `scorer`, `server`, `sse`) and are re-exported from the barrel. `scripts/lint-strict.sh` (run via `npm run lint`) enforces this by banning three patterns with explicit allowlists:
+Every fallible operation returns `Effect<A, TaggedError, R>`. Tagged errors live in `src/errors/<domain>.ts` (`config`, `game`, `io`, `llm`, `scorer`, `server`, `sse`, `store`) and are re-exported from the barrel. `scripts/lint-strict.sh` (run via `npm run lint`) enforces this by banning three patterns with explicit allowlists:
 
 - `try {` — allowed only in `src/cli/main.ts`, `src/cli/subprocess-registry.ts`, and `src/interop/`.
 - `throw ` — allowed only in `src/interop/` and `*.test.ts` files.

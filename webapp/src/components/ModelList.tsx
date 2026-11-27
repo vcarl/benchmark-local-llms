@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./ModelList.module.css";
 import { ScatterGlyph } from "./ScatterGlyph";
-import { modelFamily, splitArtifact } from "../lib/artifact";
+import { modelFamily } from "../lib/artifact";
 import { scoreBand } from "../lib/constants";
 import type { TpsDomain } from "../lib/encoding";
 import { formatWallTime } from "../lib/format";
 import type { Group, ScopedRow } from "../lib/model";
-import { hardwareLabel, type Row, type RowsDataset } from "../lib/rows";
-import { type PairedDiff, Z95 } from "../lib/stats";
+import type { Row, RowsDataset } from "../lib/rows";
+import { variantLine, variantTitle } from "../lib/variant-line";
+import type { PairedDiff } from "../lib/stats";
 
 interface Props {
   groups: Group[];
   dataset: RowsDataset;
+  /** False: no rank numbers. */
+  ranked: boolean;
   tpsDomain: TpsDomain;
   hovered: string | null;
   /** The highlighted row (URL `sel`). */
@@ -22,30 +25,19 @@ interface Props {
 
 const pct = (f: number, digits = 0) => `${(f * 100).toFixed(digits)}%`;
 
-const SHOWN_VARIANT_KEYS = new Set(["runtime", "quant", "temperature"]);
-
-/** `org · runtime · quant · t0.7`, plus any other knob or machine that tells sibling rows apart. */
-export const variantLine = (row: Row, ds: RowsDataset): string => {
-  const org = splitArtifact(row.artifact).prefix;
-  const extra = Object.entries(row.variant)
-    .filter(([k]) => !SHOWN_VARIANT_KEYS.has(k))
-    .map(([k, v]) => (k === "hardware" ? hardwareLabel(ds, row.hardwareId) : `${k} ${v}`));
-  return [org, row.runtime, row.quant ?? "—", `t${row.temperature}`, ...extra]
-    .filter((s) => s !== null && s !== "")
-    .join(" · ");
-};
+export { variantLine };
 
 const scoreTitle = (r: ScopedRow): string => {
   if (r.complete)
-    return r.se === null ? pct(r.score, 1) : `${pct(r.score, 1)} ± ${(Z95 * r.se * 100).toFixed(1)} (95% CI)`;
+    return r.ci === null ? pct(r.score, 1) : `${pct(r.score, 1)} ± ${(r.ci * 100).toFixed(1)} (95% CI)`;
   const [done, total] = r.challenges;
-  return `Ranked at ${pct(r.score, 1)}: ${r.running === null ? "nothing" : pct(r.running, 1)} over the ${done} of ${total} challenges run; missing challenges count as fails.`;
+  return `Ranked at ${pct(r.score, 1)}. Partial pass rate ${r.running === null ? "—" : pct(r.running, 1)} over the ${done} of ${total} challenges run; missing challenges count as fails.`;
 };
 
 const effTitle = (r: ScopedRow): string =>
   r.efficiency === null || r.tokensPerItem === null
     ? "No cost data in scope"
-    : `Efficiency ${(r.efficiency * 100).toFixed(0)}: score ${pct(r.score, 1)}, ${r.tokensPerItem.toFixed(0)} tokens and ${(r.wallPerItem ?? 0).toFixed(1)} s per item, relative to the other rows in the set`;
+    : `Efficiency ${(r.efficiency * 100).toFixed(0)}: pass rate ${pct(r.score, 1)}, ${r.tokensPerItem.toFixed(0)} tokens and ${(r.wallPerItem ?? 0).toFixed(1)} s per item, relative to the other rows in the set`;
 
 const signedPts = (d: number) => `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1)}`;
 
@@ -100,7 +92,7 @@ function ListRow({
         </span>
         <span className={styles.rank}>{rank}</span>
         <span className={styles.model}>
-          <span className={styles.name}>
+          <span className={styles.name} title={sub ? variantTitle(row, props.dataset) : undefined}>
             {title}
             {row.provenance.mixed && (
               <span className={styles.mixed} title={mixedTitle(row)} aria-label="mixed evidence">
@@ -108,7 +100,11 @@ function ListRow({
               </span>
             )}
           </span>
-          {!sub && <span className={styles.meta}>{variantLine(row, props.dataset)}</span>}
+          {!sub && (
+            <span className={styles.meta} title={variantTitle(row, props.dataset)}>
+              {variantLine(row, props.dataset)}
+            </span>
+          )}
         </span>
         <span className={styles.score} title={scoreTitle(r)}>
           {r.complete ? (
@@ -160,8 +156,8 @@ export function ModelList(props: Props) {
         <span />
         <span className={styles.rank}>#</span>
         <span>Model</span>
-        <span className={styles.score}>Score</span>
-        <span className={styles.stat} title="Score per token cost; see docs/SCORING.md">eff</span>
+        <span className={styles.score}>Pass rate</span>
+        <span className={styles.stat} title="Pass rate per token cost; see docs/SCORING.md">eff</span>
         <span className={styles.stat}>tok</span>
         <span className={styles.stat}>tok/s</span>
         <span className={styles.stat}>GB</span>
@@ -185,7 +181,7 @@ export function ModelList(props: Props) {
             )}
             <ListRow
               r={lead}
-              rank={String(i + 1)}
+              rank={props.ranked ? String(i + 1) : ""}
               title={g.name}
               sub={false}
               props={props}

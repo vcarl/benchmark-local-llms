@@ -1,0 +1,135 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "game_rewards.get",
+    "description": "Retrieve information about different types of rewards that a player can receive when playing a specific game across various platforms.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "description": "The exact name of the game for which reward information is being retrieved."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The gaming platform for which reward information is being retrieved, such as 'Xbox', 'PlayStation', or 'PC'."
+        },
+        "mission": {
+          "type": "string",
+          "description": "The specific mission within the game for which rewards are being queried. If omitted, rewards for the entire game will be returned.",
+          "default": "All Missions"
+        },
+        "trophy": {
+          "type": "string",
+          "description": "The trophy level, such as 'bronze', 'silver', 'gold', or 'platinum', for which rewards information is sought. If omitted, rewards for all trophy levels will be returned.",
+          "enum": [
+            "bronze",
+            "silver",
+            "gold",
+            "platinum",
+            "all levels"
+          ],
+          "default": "all levels"
+        }
+      },
+      "required": [
+        "game",
+        "platform"
+      ]
+    }
+  },
+  {
+    "name": "telemetry.flowrules.interfaceInfo.get",
+    "description": "Retrieves specified telemetry information for a network interface within a given fabric, node, and pod, filtered by the interface and information types.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fabricName": {
+          "type": "string",
+          "description": "The name of the fabric to limit the nodes pertaining to the given fabric name."
+        },
+        "nodeId": {
+          "type": "integer",
+          "description": "The identifier of the node to limit the results pertaining to the given node ID."
+        },
+        "podId": {
+          "type": "integer",
+          "description": "The identifier of the pod to limit the results pertaining to the given pod ID."
+        },
+        "interfaceType": {
+          "type": "string",
+          "description": "The type of the interface to limit the results pertaining to the given interface type.",
+          "enum": [
+            "svi",
+            "ethernet",
+            "loopback",
+            "port-channel"
+          ]
+        },
+        "infoType": {
+          "type": "string",
+          "description": "The type of information to retrieve about the interface.",
+          "enum": [
+            "interfaces",
+            "status",
+            "statistics",
+            "errors"
+          ]
+        }
+      },
+      "required": [
+        "fabricName",
+        "nodeId",
+        "podId",
+        "interfaceType",
+        "infoType"
+      ]
+    }
+  },
+  {
+    "name": "listFiles",
+    "description": "List the entries of a directory on the file server with their sizes and modification times.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the directory to list, e.g. '/var/log'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Descend into subdirectories and list their entries too.",
+          "default": false
+        },
+        "includeHidden": {
+          "type": "boolean",
+          "description": "Include dotfiles and other hidden entries in the listing.",
+          "default": false
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Field the listing is sorted by.",
+          "enum": [
+            "name",
+            "size",
+            "modified"
+          ],
+          "default": "name"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of entries to return in one response.",
+          "default": 100
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  }
+]
+
+Request: List what's in /home/dev/projects, including everything in its subdirectories, with hidden dotfiles shown too, sorted by last modified time.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

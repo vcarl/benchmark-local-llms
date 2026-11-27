@@ -1,0 +1,628 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Events_3_BuyEventTickets",
+    "description": "Purchase tickets for a specific cultural event on a chosen date in a specified city.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_name": {
+          "type": "string",
+          "description": "The official title of the event, such as an artist's name or a play title."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The quantity of tickets to be reserved, must be an integer from 1 to 9."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the event, formatted as 'YYYY-MM-DD'."
+        },
+        "city": {
+          "type": "string",
+          "description": "The name of the city where the event will take place, formatted as 'City, State' (e.g., 'New York, NY')."
+        }
+      },
+      "required": [
+        "event_name",
+        "number_of_tickets",
+        "date",
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "Homes_2_FindHomeByArea",
+    "description": "Search for a property to rent or buy in a specified city, filtering by number of bedrooms, number of bathrooms, garage availability, and in-unit laundry facilities.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "description": "The city where the property is located, in the format of 'City, State' (e.g., 'San Francisco, CA'). State names must be abbreviated"
+        },
+        "intent": {
+          "type": "string",
+          "description": "The intent of the search, whether the user is looking to rent or buy.",
+          "enum": [
+            "rent",
+            "buy"
+          ]
+        },
+        "number_of_beds": {
+          "type": "integer",
+          "description": "The number of bedrooms required in the property."
+        },
+        "number_of_baths": {
+          "type": "integer",
+          "description": "The number of bathrooms required in the property."
+        },
+        "has_garage": {
+          "type": "boolean",
+          "description": "Indicates if the property must have a garage.",
+          "default": false
+        },
+        "in_unit_laundry": {
+          "type": "boolean",
+          "description": "Indicates if the property must have in-unit laundry facilities.",
+          "default": false
+        }
+      },
+      "required": [
+        "area",
+        "intent",
+        "number_of_beds",
+        "number_of_baths"
+      ]
+    }
+  },
+  {
+    "name": "set_ac_state",
+    "description": "Set the state of the air conditioner by adjusting the temperature, mode, fan speed, and fan position to achieve the desired comfort level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "integer",
+          "description": "Desired temperature setting for the air conditioner in degrees Celsius."
+        },
+        "mode": {
+          "type": "string",
+          "description": "The air conditioner's operating mode.",
+          "enum": [
+            "cool",
+            "heat",
+            "dry",
+            "fan",
+            "auto"
+          ]
+        },
+        "fan_speed": {
+          "type": "integer",
+          "description": "Fan speed level from 1 to 5, where 1 is the lowest speed and 5 is the highest."
+        },
+        "fan_position": {
+          "type": "integer",
+          "description": "Fan position level from 1 to 5, where 1 is the lowest and 5 is the highest."
+        }
+      },
+      "required": [
+        "temperature",
+        "mode",
+        "fan_speed",
+        "fan_position"
+      ]
+    }
+  },
+  {
+    "name": "Flights_4_SearchOnewayFlight",
+    "description": "Search for one-way flights from an origin to a destination on a specified date, with options for seating class, ticket quantity, and preferred airline.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "The IATA code or the name of the airport or city to depart from. For example, 'LAX' for Los Angeles International Airport."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "The IATA code or the name of the airport or city to arrive at. For example, 'JFK' for John F. Kennedy International Airport."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "The start date of the trip in the format 'YYYY-MM-DD'."
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "The cabin seat option for the flight.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business"
+          ],
+          "default": "Economy"
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "The number of flight tickets for the trip.",
+          "default": 1
+        },
+        "airlines": {
+          "type": "string",
+          "description": "The preferred airline company for the flight. Use 'dontcare' if there is no preference.",
+          "enum": [
+            "United Airlines",
+            "American Airlines",
+            "Delta Airlines",
+            "Southwest Airlines",
+            "Alaska Airlines",
+            "British Airways",
+            "Air Canada",
+            "Air France",
+            "South African Airways",
+            "LOT Polish Airlines",
+            "LATAM Brasil",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  },
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  },
+  {
+    "name": "getUserByEmail",
+    "description": "Fetch one user account of the admin console by the email address it is registered under.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Email address of the account, exactly as given."
+        }
+      },
+      "required": [
+        "email"
+      ]
+    }
+  },
+  {
+    "name": "search_products",
+    "description": "Search for products based on various criteria such as color, size, category, price range, and brand, to find specific Stock Keeping Units (SKUs) or general Stock Production Units (SPUs).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "string",
+          "description": "The color of the product. This is an optional parameter that can be used to refine SKU searches."
+        },
+        "size": {
+          "type": "string",
+          "description": "The size of the product. This is an optional parameter that can be used to refine SKU searches."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the product, such as 'electronics', 'clothing', 'shoes' or 'furniture'. This parameter is required for both SPU and SKU level searches."
+        },
+        "price_min": {
+          "type": "number",
+          "description": "The minimum price of the product search. Enter a float value representing the lowest price in dollars.",
+          "default": 0
+        },
+        "price_max": {
+          "type": "number",
+          "description": "The maximum price of the product search. Enter a float value representing the highest price in dollars."
+        },
+        "brand": {
+          "type": "string",
+          "description": "The brand of the product. This is an optional parameter for searching within a specific brand."
+        }
+      },
+      "required": [
+        "category"
+      ]
+    }
+  },
+  {
+    "name": "getClothes",
+    "description": "Provides a list of recommended clothing items based on the current temperature.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "integer",
+          "description": "The current temperature in degrees Celsius, for which clothing recommendations will be provided."
+        },
+        "clothing_type": {
+          "type": "string",
+          "description": "The type of clothing to filter recommendations, such as 'outerwear', 'footwear', etc.",
+          "enum": [
+            "outerwear",
+            "footwear",
+            "headgear",
+            "accessories"
+          ],
+          "default": "outerwear"
+        }
+      },
+      "required": [
+        "temperature"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_CheckBalance",
+    "description": "Get the current and available balance of one of the user's bank accounts, in the account currency.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "listFiles",
+    "description": "List the entries of a directory on the file server with their sizes and modification times.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the directory to list, e.g. '/var/log'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Descend into subdirectories and list their entries too.",
+          "default": false
+        },
+        "includeHidden": {
+          "type": "boolean",
+          "description": "Include dotfiles and other hidden entries in the listing.",
+          "default": false
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Field the listing is sorted by.",
+          "enum": [
+            "name",
+            "size",
+            "modified"
+          ],
+          "default": "name"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of entries to return in one response.",
+          "default": 100
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "Messaging_1_ShareLocation",
+    "description": "Shares the current geographical location with a specified contact.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The current location to share, expressed in the format 'Latitude, Longitude' (e.g., '34.052235, -118.243683')."
+        },
+        "contact_name": {
+          "type": "string",
+          "description": "The full name of the contact to whom the location will be sent."
+        }
+      },
+      "required": [
+        "location",
+        "contact_name"
+      ]
+    }
+  },
+  {
+    "name": "set_stock_level",
+    "description": "Overwrite the stock count of one SKU with an absolute number after a physical count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Stock-keeping unit, exactly as written, including leading zeros."
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "New absolute number of units on hand."
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse code the count applies to.",
+          "default": "MAIN"
+        }
+      },
+      "required": [
+        "sku",
+        "quantity"
+      ]
+    }
+  },
+  {
+    "name": "game_rewards.get",
+    "description": "Retrieve information about different types of rewards that a player can receive when playing a specific game across various platforms.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "description": "The exact name of the game for which reward information is being retrieved."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The gaming platform for which reward information is being retrieved, such as 'Xbox', 'PlayStation', or 'PC'."
+        },
+        "mission": {
+          "type": "string",
+          "description": "The specific mission within the game for which rewards are being queried. If omitted, rewards for the entire game will be returned.",
+          "default": "All Missions"
+        },
+        "trophy": {
+          "type": "string",
+          "description": "The trophy level, such as 'bronze', 'silver', 'gold', or 'platinum', for which rewards information is sought. If omitted, rewards for all trophy levels will be returned.",
+          "enum": [
+            "bronze",
+            "silver",
+            "gold",
+            "platinum",
+            "all levels"
+          ],
+          "default": "all levels"
+        }
+      },
+      "required": [
+        "game",
+        "platform"
+      ]
+    }
+  },
+  {
+    "name": "resizeImageAction",
+    "description": "This function resizes an image to the specified aspect ratio while maintaining the original image proportions. It returns the resized image in the desired format.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "aspect_ratio_width": {
+          "type": "integer",
+          "description": "The width component of the desired aspect ratio for the image. Must be a positive integer."
+        },
+        "aspect_ratio_height": {
+          "type": "integer",
+          "description": "The height component of the desired aspect ratio for the image. Must be a positive integer."
+        },
+        "image_format": {
+          "type": "string",
+          "description": "The file format for the output resized image. For example, 'jpeg' for Joint Photographic Experts Group format.",
+          "enum": [
+            "jpeg",
+            "png",
+            "gif",
+            "bmp"
+          ],
+          "default": "jpeg"
+        }
+      },
+      "required": [
+        "aspect_ratio_width",
+        "aspect_ratio_height"
+      ]
+    }
+  },
+  {
+    "name": "save_draft",
+    "description": "Save an email as a draft in the user's mailbox without sending it; recipients may be left empty.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the draft, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the draft, copied exactly as the user gives it."
+        },
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        }
+      },
+      "required": [
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_ListTransactions",
+    "description": "List the transactions of one of the user's accounts between two dates, newest first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "First day to include, formatted as YYYY-MM-DD."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "Last day to include, formatted as YYYY-MM-DD."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "min_amount": {
+          "type": "number",
+          "description": "Only list transactions of at least this absolute amount."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Only list transactions in these categories, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Category.",
+            "enum": [
+              "groceries",
+              "rent",
+              "travel",
+              "utilities",
+              "salary",
+              "other"
+            ]
+          }
+        }
+      },
+      "required": [
+        "start_date",
+        "end_date"
+      ]
+    }
+  },
+  {
+    "name": "Services_1_FindProvider",
+    "description": "Search for a hair stylist in a specified city, with options to filter for unisex salons.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The city where the stylist or salon is sought, such as 'New York, NY'. State names must be abbreviated with two letters."
+        },
+        "is_unisex": {
+          "type": "boolean",
+          "description": "Indicates whether the salon caters to all genders. True for yes, False for no.",
+          "default": false
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  }
+]
+
+Request: Montre-moi les opérations entre le 2025-05-01 et le 2025-06-11.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

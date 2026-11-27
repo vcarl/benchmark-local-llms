@@ -22,7 +22,6 @@ const samplePrompt: PromptCorpusEntry = {
     expected: "hello",
     extract: "(hello)",
   },
-  promptHash: "hashhashhash",
 };
 
 const sampleScenario: ScenarioCorpusEntry = {

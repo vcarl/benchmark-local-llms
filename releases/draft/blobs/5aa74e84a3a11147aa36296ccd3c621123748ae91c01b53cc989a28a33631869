@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches Mezzanine","pattern":"\\b[Mm][Ee][Zz][Zz][Aa][Nn][Ii][Nn][Ee]\\b"}],"type":"constraint"},"rules":2}

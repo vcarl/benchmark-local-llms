@@ -1,0 +1,250 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "create_shipment",
+    "description": "Create a parcel shipment with a label for one recipient and book the carrier pickup for it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "recipient": {
+          "type": "object",
+          "description": "Who receives the parcel and where it is delivered.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Recipient's full name as it should appear on the label."
+            },
+            "street": {
+              "type": "string",
+              "description": "Street address line, exactly as written."
+            },
+            "postal_code": {
+              "type": "string",
+              "description": "Postal code, exactly as written, as a string."
+            },
+            "country": {
+              "type": "string",
+              "description": "ISO 3166-1 alpha-2 country code.",
+              "enum": [
+                "US",
+                "DE",
+                "FR",
+                "JP"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "street",
+            "postal_code",
+            "country"
+          ]
+        },
+        "weight_kg": {
+          "type": "number",
+          "description": "Total parcel weight in kilograms, including the packaging."
+        },
+        "items": {
+          "type": "array",
+          "description": "Contents of the parcel, one entry per stock-keeping unit.",
+          "items": {
+            "type": "object",
+            "description": "One line of the contents.",
+            "properties": {
+              "sku": {
+                "type": "string",
+                "description": "Stock-keeping unit, exactly as written."
+              },
+              "quantity": {
+                "type": "integer",
+                "description": "Units."
+              }
+            },
+            "required": [
+              "sku",
+              "quantity"
+            ]
+          }
+        },
+        "service": {
+          "type": "string",
+          "description": "Delivery speed to book with the carrier.",
+          "enum": [
+            "ground",
+            "express",
+            "overnight"
+          ],
+          "default": "ground"
+        },
+        "signature_required": {
+          "type": "boolean",
+          "description": "Require a signature on delivery.",
+          "default": false
+        }
+      },
+      "required": [
+        "recipient",
+        "weight_kg",
+        "items"
+      ]
+    }
+  },
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "get_shipping_quote",
+    "description": "Price a parcel shipment to a destination without creating it or booking a carrier pickup.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "postal_code": {
+          "type": "string",
+          "description": "Destination postal code, exactly as written, as a string."
+        },
+        "country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code of the destination."
+        },
+        "weight_kg": {
+          "type": "number",
+          "description": "Total parcel weight in kilograms, including the packaging."
+        },
+        "dimensions_cm": {
+          "type": "object",
+          "description": "Outer size of the parcel in centimetres; priced as a standard box when left out.",
+          "properties": {
+            "length": {
+              "type": "number",
+              "description": "Length in cm."
+            },
+            "width": {
+              "type": "number",
+              "description": "Width in cm."
+            },
+            "height": {
+              "type": "number",
+              "description": "Height in cm."
+            }
+          },
+          "required": [
+            "length",
+            "width",
+            "height"
+          ]
+        }
+      },
+      "required": [
+        "postal_code",
+        "country",
+        "weight_kg"
+      ]
+    }
+  }
+]
+
+Request: Please cancel order ORD-320362. Reason: changed mind. Refund it as store credit. Also, where is my parcel? It's with UPS, tracking number 994459268028. And ship a 24.9 kg parcel to Keiko Mori, 220 Harbour Road, 09642, United States (US). It holds 5 of SKU 007731. Send it express.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

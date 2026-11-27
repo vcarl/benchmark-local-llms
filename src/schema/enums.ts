@@ -70,6 +70,7 @@ export const ConstraintCheck = Schema.Literal(
   "json_field_is_list",
   "json_list_item_has",
   "json_matches",
+  "tool_calls",
   "numbered_lines",
   "no_numbered_line",
   "numbered_line_exists",

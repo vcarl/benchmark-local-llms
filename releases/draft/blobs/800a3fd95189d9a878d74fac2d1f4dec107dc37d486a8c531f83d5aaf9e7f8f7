@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"date":"2026-03-26","flight_number":"JL491"},"name":"Flights_2_GetFlightStatus"}]}],"type":"constraint"},"rules":2}

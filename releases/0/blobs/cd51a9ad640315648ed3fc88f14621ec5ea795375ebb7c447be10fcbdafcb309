@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 15230.33","pattern":"(?<![\\d.]|\\d,)(?:15,230|15230)\\.330*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.]|\\d,)(?:15,230|15230)\\.380*(?!\\d)","slip":"round-at-end"}],"type":"constraint"}

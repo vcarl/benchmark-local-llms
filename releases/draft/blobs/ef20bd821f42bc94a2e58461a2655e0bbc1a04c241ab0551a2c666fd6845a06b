@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"char":"e","check":"not_contains_char","name":"no letter e"},{"check":"min_length","length":10,"name":"is a sentence"}],"type":"constraint"},"rules":2}

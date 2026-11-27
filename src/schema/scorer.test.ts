@@ -103,7 +103,7 @@ describe("ScorerConfig union", () => {
 
 describe("CustomConfig", () => {
   it("round-trips", () => {
-    const v = { type: "custom" as const, script: "scorers/weird_task.py" };
+    const v = { type: "custom" as const, source: "print('{\"score\": 1}')" };
     expect(roundTrip(CustomConfig, v)).toEqual(v);
   });
 });

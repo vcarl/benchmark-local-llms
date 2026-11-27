@@ -1,0 +1,106 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "kube.list_pods",
+    "description": "List the pods in a namespace with their status, restart counts and owning deployment.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "status": {
+          "type": "string",
+          "description": "Only list pods in this phase.",
+          "enum": [
+            "Running",
+            "Pending",
+            "Failed",
+            "Succeeded"
+          ]
+        },
+        "labels": {
+          "type": "object",
+          "description": "Only list pods carrying all of these labels.",
+          "properties": {
+            "app": {
+              "type": "string",
+              "description": "Value of the pod's 'app' label."
+            },
+            "tier": {
+              "type": "string",
+              "description": "Value of the pod's 'tier' label."
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "getClothes",
+    "description": "Provides a list of recommended clothing items based on the current temperature.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "integer",
+          "description": "The current temperature in degrees Celsius, for which clothing recommendations will be provided."
+        },
+        "clothing_type": {
+          "type": "string",
+          "description": "The type of clothing to filter recommendations, such as 'outerwear', 'footwear', etc.",
+          "enum": [
+            "outerwear",
+            "footwear",
+            "headgear",
+            "accessories"
+          ],
+          "default": "outerwear"
+        }
+      },
+      "required": [
+        "temperature"
+      ]
+    }
+  },
+  {
+    "name": "updateUserRole",
+    "description": "Change the role of one user account, which sets what the user can see and edit in the workspace.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        },
+        "role": {
+          "type": "string",
+          "description": "New role for the account.",
+          "enum": [
+            "viewer",
+            "editor",
+            "admin"
+          ]
+        },
+        "notifyUser": {
+          "type": "boolean",
+          "description": "Email the user about the change.",
+          "default": true
+        }
+      },
+      "required": [
+        "userId",
+        "role"
+      ]
+    }
+  }
+]
+
+Request: Make user 66533 an editor, and don't email them about it.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

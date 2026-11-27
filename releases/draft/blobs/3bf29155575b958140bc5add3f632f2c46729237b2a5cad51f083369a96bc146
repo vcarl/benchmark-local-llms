@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"delta":17,"reason":"restock","sku":"001849"},"name":"adjust_inventory","optional":{"warehouse":"MAIN"}}]}],"type":"constraint"},"rules":2}

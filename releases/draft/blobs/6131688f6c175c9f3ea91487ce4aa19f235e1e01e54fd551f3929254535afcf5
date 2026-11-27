@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 0.666667","pattern":"(?<![\\d.])0?\\.6666670*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.])0?\\.6666660*(?!\\d)","slip":"truncated"},{"credit":0.5,"pattern":"(?<![\\d.])66\\.66670*(?!\\d)\\s*%","slip":"percent-for-decimal"}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"amount":1967.38,"from_currency":"JPY","to_currency":"CHF"},"name":"convert_currency"}]}],"type":"constraint"},"rules":2}

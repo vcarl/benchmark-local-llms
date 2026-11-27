@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches in breach","pattern":"\\b[Ii][Nn]\\s+[Bb][Rr][Ee][Aa][Cc][Hh]\\b"}],"type":"constraint"},"rules":2}

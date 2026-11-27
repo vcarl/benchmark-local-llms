@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"amount":2492.17,"from_currency":"GBP","to_currency":"EUR"},"name":"convert_currency"}]}],"type":"constraint"},"rules":2}

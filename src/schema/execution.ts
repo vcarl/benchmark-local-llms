@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { ItemTiming } from "./attempt.js";
 import { AgentEventType, Runtime, TerminationReason } from "./enums.js";
 
 /**
@@ -30,9 +31,7 @@ export type AgentEvent = typeof AgentEvent.Type;
  * scans can read it from a single result line without re-decoding the
  * header.
  *
- * Cache key for cross-run dedup: `(artifact, promptName, promptHash, temperature)`.
- * `scenarioHash` is non-null for scenario runs; `promptHash` carries the same
- * value when the execution is a scenario (there is no distinct prompt hash).
+ * `scenarioHash` is non-null for scenario runs.
  *
  * `output` is the final answer that scorers consume. `reasoning` is the
  * separated thinking, populated either from the runtime's structured
@@ -61,6 +60,8 @@ export const ExecutionResult = Schema.Struct({
   generationTps: Schema.Number,
   peakMemoryGb: Schema.Number,
   wallTimeSec: Schema.Number,
+  /** Per-request timing from the stream; absent on errors. Copied flat onto the item line. */
+  timing: Schema.optional(ItemTiming),
 
   output: Schema.String,
   reasoning: Schema.NullOr(Schema.String),
@@ -73,7 +74,6 @@ export const ExecutionResult = Schema.Struct({
    */
   stopReason: Schema.optional(Schema.NullOr(Schema.String)),
 
-  promptHash: Schema.String,
   scenarioHash: Schema.NullOr(Schema.String),
 
   scenarioName: Schema.NullOr(Schema.String),

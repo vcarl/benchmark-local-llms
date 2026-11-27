@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"East":286.26,"North":246.04,"West":210.44}}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"hold_until":"16:00","target_temp_c":17.1,"zone":"office"},"name":"home.set_thermostat","optional":{"mode":"auto"}},{"arguments":{"on":true,"room":"bedroom"},"name":"home.set_lights","optional":{"brightness_pct":100}}]}],"type":"constraint"},"rules":2}

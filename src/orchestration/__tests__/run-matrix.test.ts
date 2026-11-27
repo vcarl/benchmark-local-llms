@@ -1,5 +1,4 @@
 import { readdir, readFile } from "node:fs/promises";
-import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -42,8 +41,12 @@ it("boots the server ONCE per configuration and reuses it across challenges", as
     runMatrix({
       configs: [config],
       challenges: [challengeA, challengeB],
-      archiveDir: dir,
+      store: dir,
+      release: "draft",
+      runId: "run-1",
+      contributor: "tester",
       env,
+      present: [],
       deps: deps as never,
     }).pipe(
       Effect.provide(m.layer),
@@ -55,18 +58,13 @@ it("boots the server ONCE per configuration and reuses it across challenges", as
   expect(boots).toBe(1); // the proof: one model load for two challenges
   expect(cells).toHaveLength(2);
   expect(cells.map((c) => c.challengeStem)).toEqual(["alpha", "beta"]);
-  // two finalized archives written
-  const files = await Effect.runPromise(
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      return yield* fs.readDirectory(dir);
-    }).pipe(Effect.provide(NodeContext.layer)),
-  );
+  // two sealed bundles written
+  const files = await readdir(`${dir}/bundles`);
   expect(files.filter((f) => f.endsWith(".jsonl"))).toHaveLength(2);
 });
 
 it("isolates a boot failure: that row is SKIPPED, later configs still run", async () => {
-  const configB = { ...config, id: "cfg-b", configHash: "hashb" };
+  const configB = { ...config, id: "cfg-b", maxTokens: 129 };
   const deps = {
     ...fakeDeps(),
     llmServer: (model: { name: string }) =>
@@ -78,8 +76,12 @@ it("isolates a boot failure: that row is SKIPPED, later configs still run", asyn
     runMatrix({
       configs: [config, configB],
       challenges: [challengeA],
-      archiveDir: dir,
+      store: dir,
+      release: "draft",
+      runId: "run-1",
+      contributor: "tester",
       env,
+      present: [],
       deps: deps as never,
     }).pipe(
       Effect.provide(m.layer),
@@ -94,7 +96,7 @@ it("isolates a boot failure: that row is SKIPPED, later configs still run", asyn
   expect(b?.status === "PASS" || b?.status === "FAIL").toBe(true);
 });
 
-it("stamps the probed runtime version into each attempt's env, probing once per runtime", async () => {
+it("stamps the probed runtime version into each bundle's env, probing once per runtime", async () => {
   const probes: string[] = [];
   const deps = {
     ...fakeDeps(),
@@ -107,8 +109,12 @@ it("stamps the probed runtime version into each attempt's env, probing once per 
     runMatrix({
       configs: [config],
       challenges: [challengeA, challengeB],
-      archiveDir: dir,
+      store: dir,
+      release: "draft",
+      runId: "run-1",
+      contributor: "tester",
       env,
+      present: [],
       deps: deps as never,
     }).pipe(
       Effect.provide(okStub().layer),
@@ -117,10 +123,10 @@ it("stamps the probed runtime version into each attempt's env, probing once per 
     ),
   );
   expect(probes).toEqual([config.runtime]);
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+  const files = (await readdir(`${dir}/bundles`)).filter((f) => f.endsWith(".jsonl"));
   expect(files).toHaveLength(2);
   for (const f of files) {
-    const header = JSON.parse((await readFile(`${dir}/${f}`, "utf8")).split("\n")[0] ?? "");
+    const header = JSON.parse((await readFile(`${dir}/bundles/${f}`, "utf8")).split("\n")[0] ?? "");
     expect(header.env.runtimeVersion).toBe(`probed-${config.runtime}`);
   }
 });

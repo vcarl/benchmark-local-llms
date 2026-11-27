@@ -1,0 +1,158 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "kube.scale_deployment",
+    "description": "Set the number of replicas of a Kubernetes deployment; the cluster adds or removes pods to match.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "Desired number of replicas, from 0 to 50."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment",
+        "replicas"
+      ]
+    }
+  },
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  },
+  {
+    "name": "kube.get_pod_logs",
+    "description": "Fetch the most recent log lines of one pod's container, optionally from its previous crashed run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pod": {
+          "type": "string",
+          "description": "Full pod name, exactly as listed, e.g. 'checkout-api-7d9f8-x2kqp'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return, counted from the end of the log.",
+          "default": 100
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "Read the log of the previous, terminated container instance.",
+          "default": false
+        }
+      },
+      "required": [
+        "pod"
+      ]
+    }
+  },
+  {
+    "name": "Restaurants_2_FindRestaurants",
+    "description": "Searches for restaurants based on specified location, category, and other optional preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "The type of cuisine or food category offered by the restaurant.",
+          "enum": [
+            "Mexican",
+            "Bistro",
+            "Izakaya",
+            "Brunch",
+            "Thai",
+            "Sandwich",
+            "Seafood",
+            "Barbecue",
+            "European",
+            "Steakhouse",
+            "Vietnamese",
+            "Asian",
+            "Coffeehouse",
+            "American",
+            "Gastropub",
+            "Austrian",
+            "Italian",
+            "Indian",
+            "Spanish",
+            "Vegetarian",
+            "Brasserie",
+            "Chinese",
+            "Breakfast",
+            "Greek",
+            "California",
+            "Tapas",
+            "Take-out",
+            "Japanese"
+          ]
+        },
+        "location": {
+          "type": "string",
+          "description": "The city where the restaurant is located, in the format 'City, State' (e.g., 'New York, NY'). State has to be abbrieviated"
+        },
+        "price_range": {
+          "type": "string",
+          "description": "The desired price range for the restaurant's offerings.",
+          "enum": [
+            "cheap",
+            "moderate",
+            "pricey",
+            "ultra high-end"
+          ],
+          "default": "moderate"
+        },
+        "has_vegetarian_options": {
+          "type": "boolean",
+          "description": "Specifies if the restaurant should offer vegetarian options.",
+          "default": false
+        },
+        "has_seating_outdoors": {
+          "type": "boolean",
+          "description": "Indicates whether the restaurant should have outdoor seating.",
+          "default": false
+        }
+      },
+      "required": [
+        "category",
+        "location"
+      ]
+    }
+  }
+]
+
+Request: Scale up search-indexer, it can't keep up.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

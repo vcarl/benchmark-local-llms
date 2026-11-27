@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"/api/search":{"200":1,"404":1,"503":2},"/api/users":{"304":1,"404":2,"503":2},"/health":{"200":1,"201":1,"204":1,"500":1,"503":3}}}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"says Layer.mergeAll or Layer.merge","pattern":"(?i)Layer\\.(mergeAll|merge)"}],"type":"constraint"},"rules":2}

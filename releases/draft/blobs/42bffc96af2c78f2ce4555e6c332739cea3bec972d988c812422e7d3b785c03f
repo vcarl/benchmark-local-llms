@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"order_id":"ORD-716247"},"name":"get_order_status"}]}],"type":"constraint"},"rules":2}

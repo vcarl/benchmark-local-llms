@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"delta":2,"reason":"restock","sku":"006941","warehouse":"RTM-1"},"name":"adjust_inventory"}]}],"type":"constraint"},"rules":2}

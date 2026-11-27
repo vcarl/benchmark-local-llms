@@ -1,0 +1,17 @@
+Write a Python regular expression that matches an ISO calendar date YYYY-MM-DD: a year from 1900 to 2099, a month from 01 to 12 and a day from 01 to 31, separated by hyphens, with nothing before or after. Do not check days per month (2023-02-31 counts as valid).
+
+It will be tested with re.fullmatch (so anchors are optional) against held-out strings: it must match every valid string and reject every invalid one. Examples (shown as JSON strings):
+
+Must match:
+  "1964-10-31"
+  "2088-01-01"
+  "1912-04-09"
+  "2081-01-18"
+
+Must not match:
+  "969-03-15"
+  "1969-07-32"
+  "196903-15"
+  "1969/03/15"
+
+Reply with only the pattern in a ```regex fenced block.

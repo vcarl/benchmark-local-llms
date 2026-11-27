@@ -39,28 +39,36 @@ const ConfigurationFields = Schema.Struct({
   extraArgs: Schema.optional(Schema.Array(Schema.String)),
   /**
    * Sampler repetition penalty (>1 discourages verbatim repeats). Left unset,
-   * nothing is sent and the configuration hashes exactly as it did before this
-   * field existed. Set it and the value joins `configHash`, because it changes
-   * what the model generates — results either side of it are not comparable.
+   * nothing is sent and the config digest omits it. Set it and the value joins the config digest,
+   * because it changes what the model generates — results either side of it are not comparable.
    */
   repetitionPenalty: Schema.optional(Schema.Number),
   /** How many recent tokens {@link repetitionPenalty} considers. */
   repetitionContextSize: Schema.optional(Schema.Number),
   /**
    * Nucleus sampling cutoff, sent as `top_p`. Left unset, nothing is sent and
-   * the configuration hashes as it would without the field. Set, it joins
-   * `configHash`.
+   * the config digest omits it. Set, it joins the config digest.
    */
   topP: Schema.optional(Schema.Number),
-  /** Top-k sampling cutoff, sent as `top_k`. Unset sends nothing; set joins `configHash`. */
+  /** Top-k sampling cutoff, sent as `top_k`. Unset sends nothing; set joins the config digest. */
   topK: Schema.optional(Schema.Number),
-  /** Min-p sampling floor, sent as `min_p`. Unset sends nothing; set joins `configHash`. */
+  /** Min-p sampling floor, sent as `min_p`. Unset sends nothing; set joins the config digest. */
   minP: Schema.optional(Schema.Number),
-  /** Presence penalty, sent as `presence_penalty`. Unset sends nothing; set joins `configHash`. */
+  /** Presence penalty, sent as `presence_penalty`. Unset sends nothing; set joins the config digest. */
   presencePenalty: Schema.optional(Schema.Number),
   /**
+   * How many recent tokens {@link presencePenalty} considers. Runtimes default
+   * to a short window (mlx_lm 20, llama.cpp 64) where model cards assume the
+   * whole generation. Widening it does not cure loops (docs/CONFIG.md, "The
+   * penalty window"). mlx sends `presence_context_size`; llama.cpp sends
+   * `repeat_last_n`, which is also its repetition window. Requires
+   * `presencePenalty`; rejected on omlx, which exposes no such knob. Unset
+   * sends nothing; set joins the config digest.
+   */
+  presenceContextSize: Schema.optional(Schema.Number),
+  /**
    * Extra chat-template variables (e.g. `reasoning_effort`, `enable_thinking`),
-   * sent as `chat_template_kwargs`. Unset sends nothing; set joins `configHash`.
+   * sent as `chat_template_kwargs`. Unset sends nothing; set joins the config digest.
    */
   chatTemplateKwargs: Schema.optional(
     Schema.Record({
@@ -87,5 +95,35 @@ export const Configuration = ConfigurationFields.pipe(
         }
       : undefined,
   ),
+  Schema.filter((c) => {
+    if (c.presenceContextSize === undefined) return undefined;
+    const path = ["presenceContextSize"];
+    if (c.presencePenalty === undefined) {
+      return { path, message: "presenceContextSize requires presencePenalty" };
+    }
+    if (c.runtime === "omlx") {
+      // oMLX 0.6.3 forwards only repetition_context_size to mlx_lm; the
+      // presence window stays at mlx_lm's default 20 (scheduler.py).
+      return {
+        path,
+        message:
+          "presenceContextSize is not supported for runtime 'omlx' (it exposes no presence window)",
+      };
+    }
+    // llama.cpp has one window (repeat_last_n) for every penalty.
+    if (
+      c.runtime === "llamacpp" &&
+      c.repetitionPenalty !== undefined &&
+      c.repetitionContextSize !== undefined &&
+      c.repetitionContextSize !== c.presenceContextSize
+    ) {
+      return {
+        path,
+        message:
+          "llamacpp applies one window (repeat_last_n) to every penalty; presenceContextSize and repetitionContextSize must match",
+      };
+    }
+    return undefined;
+  }),
 );
 export type Configuration = typeof Configuration.Type;

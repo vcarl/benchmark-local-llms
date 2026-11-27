@@ -1,0 +1,1 @@
+{"config":{"expected":"1350","extract":"(-?\\d[\\d,]*)(?:\\.0+(?!\\d))?","type":"exact_match"},"rules":2}

@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"matches shortage","pattern":"\\b[Ss][Hh][Oo][Rr][Tt][Aa][Gg][Ee]\\b"}],"type":"constraint"}

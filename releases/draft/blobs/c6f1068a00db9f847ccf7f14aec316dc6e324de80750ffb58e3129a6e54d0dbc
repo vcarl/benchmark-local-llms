@@ -1,0 +1,179 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "telemetry.flowrules.interfaceInfo.get",
+    "description": "Retrieves specified telemetry information for a network interface within a given fabric, node, and pod, filtered by the interface and information types.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fabricName": {
+          "type": "string",
+          "description": "The name of the fabric to limit the nodes pertaining to the given fabric name."
+        },
+        "nodeId": {
+          "type": "integer",
+          "description": "The identifier of the node to limit the results pertaining to the given node ID."
+        },
+        "podId": {
+          "type": "integer",
+          "description": "The identifier of the pod to limit the results pertaining to the given pod ID."
+        },
+        "interfaceType": {
+          "type": "string",
+          "description": "The type of the interface to limit the results pertaining to the given interface type.",
+          "enum": [
+            "svi",
+            "ethernet",
+            "loopback",
+            "port-channel"
+          ]
+        },
+        "infoType": {
+          "type": "string",
+          "description": "The type of information to retrieve about the interface.",
+          "enum": [
+            "interfaces",
+            "status",
+            "statistics",
+            "errors"
+          ]
+        }
+      },
+      "required": [
+        "fabricName",
+        "nodeId",
+        "podId",
+        "interfaceType",
+        "infoType"
+      ]
+    }
+  },
+  {
+    "name": "calendar_event_edit",
+    "description": "Modify one or more attributes of a calendar event. Unspecified fields remain unchanged, which allows for partial updates to an event's properties, such as rescheduling or changing the title.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "description": "Unique identifier of the event to be modified."
+        },
+        "new_title": {
+          "type": "string",
+          "description": "The new title for the event. If not provided, the title remains unchanged."
+        },
+        "new_start_date": {
+          "type": "string",
+          "description": "The new start date for the event in the format 'YYYY-MM-DD'. If not provided, the start date remains unchanged."
+        },
+        "new_start_time": {
+          "type": "string",
+          "description": "The new start time for the event in 24-hour format 'HH:MM'. If not provided, the start time remains unchanged."
+        },
+        "new_duration": {
+          "type": "integer",
+          "description": "The new duration of the event in minutes. If not provided, the duration remains unchanged."
+        },
+        "new_rrule": {
+          "type": "string",
+          "description": "The new recurrence rule for the event, following the iCalendar RRULE format. If not provided, the recurrence rule remains unchanged."
+        }
+      },
+      "required": [
+        "event_id"
+      ]
+    }
+  },
+  {
+    "name": "convert_currency",
+    "description": "Convert an amount of money from one currency to another at today's mid-market exchange rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount in the source currency, e.g. 250 or 99.95."
+        },
+        "from_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the source currency, e.g. 'USD'."
+        },
+        "to_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the target currency, e.g. 'EUR'."
+        }
+      },
+      "required": [
+        "amount",
+        "from_currency",
+        "to_currency"
+      ]
+    }
+  },
+  {
+    "name": "kube.list_pods",
+    "description": "List the pods in a namespace with their status, restart counts and owning deployment.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "status": {
+          "type": "string",
+          "description": "Only list pods in this phase.",
+          "enum": [
+            "Running",
+            "Pending",
+            "Failed",
+            "Succeeded"
+          ]
+        },
+        "labels": {
+          "type": "object",
+          "description": "Only list pods carrying all of these labels.",
+          "properties": {
+            "app": {
+              "type": "string",
+              "description": "Value of the pod's 'app' label."
+            },
+            "tier": {
+              "type": "string",
+              "description": "Value of the pod's 'tier' label."
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "Messaging_1_ShareLocation",
+    "description": "Shares the current geographical location with a specified contact.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The current location to share, expressed in the format 'Latitude, Longitude' (e.g., '34.052235, -118.243683')."
+        },
+        "contact_name": {
+          "type": "string",
+          "description": "The full name of the contact to whom the location will be sent."
+        }
+      },
+      "required": [
+        "location",
+        "contact_name"
+      ]
+    }
+  }
+]
+
+Request: Set the living room thermostat (zone living_room) to 21.3 degrees.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

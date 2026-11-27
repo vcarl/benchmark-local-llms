@@ -1,0 +1,163 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  },
+  {
+    "name": "text_to_speech.convert",
+    "description": "Converts input text into spoken audio, providing the resulting audio in a specified format.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The text to be converted to speech."
+        },
+        "language": {
+          "type": "string",
+          "description": "The language of the input text, use default if nothing specified",
+          "enum": [
+            "en-US",
+            "es-ES",
+            "de-DE",
+            "fr-FR",
+            "it-IT"
+          ],
+          "default": "en-US"
+        },
+        "gender": {
+          "type": "string",
+          "description": "The gender of the voice used for the text-to-speech conversion, use default if nothing specified",
+          "enum": [
+            "male",
+            "female"
+          ],
+          "default": "female"
+        },
+        "format": {
+          "type": "string",
+          "description": "The audio format of the resulting spoken text, use default if nothing specified",
+          "enum": [
+            "mp3",
+            "wav",
+            "ogg"
+          ],
+          "default": "mp3"
+        },
+        "speed": {
+          "type": "number",
+          "description": "The speed of the speech, represented as a float where 1.0 is the normal speed.",
+          "default": 1
+        }
+      },
+      "required": [
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_ListTransactions",
+    "description": "List the transactions of one of the user's accounts between two dates, newest first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "First day to include, formatted as YYYY-MM-DD."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "Last day to include, formatted as YYYY-MM-DD."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "min_amount": {
+          "type": "number",
+          "description": "Only list transactions of at least this absolute amount."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Only list transactions in these categories, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Category.",
+            "enum": [
+              "groceries",
+              "rent",
+              "travel",
+              "utilities",
+              "salary",
+              "other"
+            ]
+          }
+        }
+      },
+      "required": [
+        "start_date",
+        "end_date"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_CheckBalance",
+    "description": "Get the current and available balance of one of the user's bank accounts, in the account currency.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        }
+      },
+      "required": []
+    }
+  }
+]
+
+Request: Send 15.71 to my landlord.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

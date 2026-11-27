@@ -53,10 +53,9 @@ export type RunStats = typeof RunStats.Type;
  * `{archiveId}.jsonl` archive file, with ExecutionResults on subsequent lines
  * and a trailer rewriting `stats`/`finishedAt` at the end (§6.1).
  *
- * `archiveId` is the per-(model × invocation) identity that matches the
- * filename stem. `runId` is the logical-run group id — same value across
- * every archive produced by one `./bench run` invocation, and across resume
- * invocations of the same logical run.
+ * `archiveId` is the per-(model × run) identity that matches the filename
+ * stem. `runId` is the run's id — same value across every archive produced
+ * by one `./bench run`, and across resumes of the same run.
  *
  * `schemaVersion` stays at literal `1`.
  */

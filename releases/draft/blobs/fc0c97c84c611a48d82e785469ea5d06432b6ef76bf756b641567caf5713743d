@@ -1,0 +1,1 @@
+{"config":{"expected":["A","B","C","E"],"type":"ordered_match","vocabulary":["A","B","C","D","E"]},"rules":2}

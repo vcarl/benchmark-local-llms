@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"amount":4395.23,"from_currency":"AUD","to_currency":"CAD"},"name":"convert_currency"},{"arguments":{"amount":4395.23,"from_currency":"AUD","to_currency":"CHF"},"name":"convert_currency"}]}],"type":"constraint"},"rules":2}

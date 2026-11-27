@@ -1,0 +1,3 @@
+Two rival shippers repeatedly decide each season whether to Honour a price agreement (cooperate) or Undercut it (defect). In a single season the payoffs are: both Honour → 5 each; if you Undercut while the rival Honours you earn 9 and the rival earns 0; if you Honour while the rival Undercuts you earn 0 and the rival earns 9; both Undercut → 2 each. The game repeats indefinitely and each shipper discounts the next season's payoff by a factor δ. Both follow a grim-trigger strategy: Honour every season until the first Undercut, then Undercut forever.
+
+If the discount factor is δ = 0.6, is Honouring forever sustainable under grim trigger? Answer yes or no.

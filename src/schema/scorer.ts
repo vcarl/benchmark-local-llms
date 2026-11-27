@@ -39,6 +39,12 @@ export const ExactMatchConfig = Schema.Struct({
   expected: Schema.String,
   /** Regex with a capture group; last match's first group is compared. */
   extract: Schema.String,
+  /**
+   * Looser regex tried only when `extract` finds nothing (e.g. the answer
+   * without its `ANSWER:` marker); a correct answer it recovers is a format
+   * flaw (`FORMAT_FLAW_CREDIT`).
+   */
+  fallbackExtract: Schema.optional(Schema.String),
   /** Wrong answers that earn partial credit, checked in order when the answer is not `expected`. */
   nearMisses: Schema.optional(Schema.Array(ExactNearMiss)),
 });
@@ -121,10 +127,10 @@ export const OrderedMatchConfig = Schema.Struct({
 });
 export type OrderedMatchConfig = typeof OrderedMatchConfig.Type;
 
-/** Challenge-supplied scorer. `script` is a path to an executable scored via subprocess (§ Scoring). */
+/** Challenge-supplied Python scorer with its script source inline, run in the sandbox (`scoring/custom.ts`). */
 export const CustomConfig = Schema.Struct({
   type: Schema.Literal("custom"),
-  script: Schema.String,
+  source: Schema.String,
 });
 export type CustomConfig = typeof CustomConfig.Type;
 

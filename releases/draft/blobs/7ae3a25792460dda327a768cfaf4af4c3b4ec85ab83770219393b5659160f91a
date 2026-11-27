@@ -1,0 +1,181 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "kube.scale_deployment",
+    "description": "Set the number of replicas of a Kubernetes deployment; the cluster adds or removes pods to match.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "Desired number of replicas, from 0 to 50."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment",
+        "replicas"
+      ]
+    }
+  },
+  {
+    "name": "resizeImageAction",
+    "description": "This function resizes an image to the specified aspect ratio while maintaining the original image proportions. It returns the resized image in the desired format.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "aspect_ratio_width": {
+          "type": "integer",
+          "description": "The width component of the desired aspect ratio for the image. Must be a positive integer."
+        },
+        "aspect_ratio_height": {
+          "type": "integer",
+          "description": "The height component of the desired aspect ratio for the image. Must be a positive integer."
+        },
+        "image_format": {
+          "type": "string",
+          "description": "The file format for the output resized image. For example, 'jpeg' for Joint Photographic Experts Group format.",
+          "enum": [
+            "jpeg",
+            "png",
+            "gif",
+            "bmp"
+          ],
+          "default": "jpeg"
+        }
+      },
+      "required": [
+        "aspect_ratio_width",
+        "aspect_ratio_height"
+      ]
+    }
+  },
+  {
+    "name": "getUserByEmail",
+    "description": "Fetch one user account of the admin console by the email address it is registered under.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Email address of the account, exactly as given."
+        }
+      },
+      "required": [
+        "email"
+      ]
+    }
+  },
+  {
+    "name": "kube.get_pod_logs",
+    "description": "Fetch the most recent log lines of one pod's container, optionally from its previous crashed run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pod": {
+          "type": "string",
+          "description": "Full pod name, exactly as listed, e.g. 'checkout-api-7d9f8-x2kqp'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return, counted from the end of the log.",
+          "default": 100
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "Read the log of the previous, terminated container instance.",
+          "default": false
+        }
+      },
+      "required": [
+        "pod"
+      ]
+    }
+  },
+  {
+    "name": "RentalCars_3_ReserveCar",
+    "description": "This function reserves a car for rental, allowing a user to specify pick-up and drop-off times and locations, as well as the type of car and insurance options.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pickup_location": {
+          "type": "string",
+          "description": "The location where the car will be picked up, in the format of 'City, State', such as 'Berkeley, CA' or 'New York, NY'."
+        },
+        "start_date": {
+          "type": "string",
+          "description": "The starting date of the car rental in the format 'YYYY-MM-DD'."
+        },
+        "pickup_time": {
+          "type": "string",
+          "description": "The time of day when the car will be picked up, in 24-hour format 'HH:MM'."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "The end date of the car rental in the format 'YYYY-MM-DD'."
+        },
+        "car_type": {
+          "type": "string",
+          "description": "The category of car to reserve.",
+          "enum": [
+            "Hatchback",
+            "Sedan",
+            "SUV",
+            "dontcare"
+          ]
+        },
+        "add_insurance": {
+          "type": "boolean",
+          "description": "Flag to indicate whether to add insurance to the rental. True for adding insurance, false otherwise."
+        }
+      },
+      "required": [
+        "pickup_location",
+        "start_date",
+        "pickup_time",
+        "end_date",
+        "car_type",
+        "add_insurance"
+      ]
+    }
+  },
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  }
+]
+
+Request: Pull the last 50 log lines of each of these pods: search-indexer-9221-x86q, search-indexer-6525-x37q.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

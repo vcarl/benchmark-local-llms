@@ -1,0 +1,7 @@
+Write a short piece about learning to swim as an adult. Follow every rule below.
+
+1. First, a JSON object with exactly these keys: "title", "details". Every value must be a string.
+2. Then, after a blank line, exactly 4 bullet points, each line starting with "- ".
+3. Do not use the word "felt" anywhere.
+
+Output only the piece itself.

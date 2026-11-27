@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"says Data.TaggedError","pattern":"(?i)Data\\.TaggedError"}],"type":"constraint"}

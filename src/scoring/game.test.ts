@@ -21,7 +21,6 @@ const baseResult: ExecutionResult = {
   reasoning: null,
   rawOutput: "",
   error: null,
-  promptHash: "hash",
   scenarioHash: "scenhash",
   scenarioName: "scenario_smoke",
   terminationReason: "completed",

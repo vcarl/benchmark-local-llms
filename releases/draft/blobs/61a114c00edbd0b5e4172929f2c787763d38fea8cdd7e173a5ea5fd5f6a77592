@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"include_air_quality":true,"location":"Denver","units":"fahrenheit"},"name":"get_current_weather"}]}],"type":"constraint"},"rules":2}

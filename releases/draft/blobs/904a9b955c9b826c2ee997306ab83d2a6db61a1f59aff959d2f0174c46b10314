@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"includeHidden":true,"limit":49,"path":"/etc/nginx","recursive":true,"sortBy":"size"},"name":"listFiles"}]}],"type":"constraint"},"rules":2}

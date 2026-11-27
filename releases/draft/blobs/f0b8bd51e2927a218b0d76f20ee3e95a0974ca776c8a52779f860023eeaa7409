@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 0.259819","pattern":"(?<![\\d.])0?\\.2598190*(?!\\d)"}],"type":"constraint"},"rules":2}

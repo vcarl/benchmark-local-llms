@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"archivePath":"/srv/archive/old-reports.zip","paths":["/mnt/shared/finance/export-20260902.pdf","/mnt/shared/finance/report-20250722.csv"]},"name":"compressFiles","unordered":["paths"]}]}],"type":"constraint"},"rules":2}

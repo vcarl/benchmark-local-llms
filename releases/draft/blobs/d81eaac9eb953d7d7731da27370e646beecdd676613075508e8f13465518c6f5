@@ -1,0 +1,3 @@
+What is (17^3) mod 13?
+Respond with exactly: {"result": <number>}
+Output only the JSON, nothing else.

@@ -1,0 +1,226 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Restaurants_2_FindRestaurants",
+    "description": "Searches for restaurants based on specified location, category, and other optional preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "The type of cuisine or food category offered by the restaurant.",
+          "enum": [
+            "Mexican",
+            "Bistro",
+            "Izakaya",
+            "Brunch",
+            "Thai",
+            "Sandwich",
+            "Seafood",
+            "Barbecue",
+            "European",
+            "Steakhouse",
+            "Vietnamese",
+            "Asian",
+            "Coffeehouse",
+            "American",
+            "Gastropub",
+            "Austrian",
+            "Italian",
+            "Indian",
+            "Spanish",
+            "Vegetarian",
+            "Brasserie",
+            "Chinese",
+            "Breakfast",
+            "Greek",
+            "California",
+            "Tapas",
+            "Take-out",
+            "Japanese"
+          ]
+        },
+        "location": {
+          "type": "string",
+          "description": "The city where the restaurant is located, in the format 'City, State' (e.g., 'New York, NY'). State has to be abbrieviated"
+        },
+        "price_range": {
+          "type": "string",
+          "description": "The desired price range for the restaurant's offerings.",
+          "enum": [
+            "cheap",
+            "moderate",
+            "pricey",
+            "ultra high-end"
+          ],
+          "default": "moderate"
+        },
+        "has_vegetarian_options": {
+          "type": "boolean",
+          "description": "Specifies if the restaurant should offer vegetarian options.",
+          "default": false
+        },
+        "has_seating_outdoors": {
+          "type": "boolean",
+          "description": "Indicates whether the restaurant should have outdoor seating.",
+          "default": false
+        }
+      },
+      "required": [
+        "category",
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_CheckBalance",
+    "description": "Get the current and available balance of one of the user's bank accounts, in the account currency.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "calendar.delete_event",
+    "description": "Delete one event from the calendar by its id; attendees can be told that it was cancelled.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "description": "Event id exactly as returned by calendar.list_events, e.g. 'evt_3k9w'."
+        },
+        "notify_attendees": {
+          "type": "boolean",
+          "description": "Email the attendees a cancellation notice.",
+          "default": true
+        }
+      },
+      "required": [
+        "event_id"
+      ]
+    }
+  },
+  {
+    "name": "send_email",
+    "description": "Send an email right away from the user's mailbox to one or more recipients, with optional copies.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the message, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the message, copied exactly as the user gives it."
+        },
+        "cc": {
+          "type": "array",
+          "description": "Addresses to copy on the message, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "priority": {
+          "type": "string",
+          "description": "Importance flag shown to the recipients.",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "default": "normal"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Files from the user's drive to attach, by drive path, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Drive path of one file, e.g. '/Shared/budget.xlsx'."
+          }
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "Banking_1_ListTransactions",
+    "description": "List the transactions of one of the user's accounts between two dates, newest first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "First day to include, formatted as YYYY-MM-DD."
+        },
+        "end_date": {
+          "type": "string",
+          "description": "Last day to include, formatted as YYYY-MM-DD."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "min_amount": {
+          "type": "number",
+          "description": "Only list transactions of at least this absolute amount."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Only list transactions in these categories, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Category.",
+            "enum": [
+              "groceries",
+              "rent",
+              "travel",
+              "utilities",
+              "salary",
+              "other"
+            ]
+          }
+        }
+      },
+      "required": [
+        "start_date",
+        "end_date"
+      ]
+    }
+  }
+]
+
+Request: Transfer 524 to DE17107412887.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

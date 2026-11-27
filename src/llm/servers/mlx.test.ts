@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { mlxServer } from "./mlx.js";
@@ -98,5 +100,49 @@ describe("mlxServer", () => {
       String(ts.port),
       "--trust-remote-code",
     ]);
+  });
+
+  it("fails boot with ModelLoadError as soon as the generation thread dies on load", async () => {
+    // mlx_lm.server answers /v1/models while its generation thread is dead, and
+    // every completion then hangs. Only the thread's traceback says so.
+    const server = createServer((req, res) => {
+      if (req.method === "POST") return; // never answers, like the real hang
+      res.end("ok");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const port = (server.address() as AddressInfo).port;
+    ts = {
+      port,
+      hits: () => 0,
+      close: () =>
+        new Promise<void>((r) => {
+          server.closeAllConnections();
+          server.close(() => r());
+        }),
+    };
+    const mock = makeMockExecutor({
+      behaviour: "alive",
+      stderrLines: [
+        "Exception in thread Thread-1 (_generate):",
+        "Traceback (most recent call last):",
+        "ValueError: Received 126 parameters not in model:",
+      ],
+    });
+
+    const started = Date.now();
+    const outcome = await Effect.runPromise(
+      Effect.scoped(mlxServer({ artifactPath: "/snap", port, healthTimeoutSec: 30 })).pipe(
+        Effect.provide(Layer.mergeAll(mock.layer, httpClientLayer)),
+        Effect.either,
+      ),
+    );
+
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(outcome._tag).toBe("Left");
+    if (outcome._tag !== "Left") return;
+    expect(outcome.left._tag).toBe("ModelLoadError");
+    expect(String((outcome.left as { logTail?: string }).logTail)).toContain(
+      "Received 126 parameters not in model",
+    );
   });
 });

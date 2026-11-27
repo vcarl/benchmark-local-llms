@@ -1,0 +1,559 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Fitness_1_LogWorkout",
+    "description": "Log a completed workout to the user's training diary, with distance, time and heart rate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "description": "Kind of workout.",
+          "enum": [
+            "running",
+            "cycling",
+            "swimming",
+            "rowing"
+          ]
+        },
+        "distance_km": {
+          "type": "number",
+          "description": "Distance covered, in kilometres, e.g. 10.5."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Duration of the workout in whole minutes."
+        },
+        "heart_rate": {
+          "type": "object",
+          "description": "Heart rate during the workout, in beats per minute.",
+          "properties": {
+            "avg": {
+              "type": "integer",
+              "description": "Average beats per minute."
+            },
+            "max": {
+              "type": "integer",
+              "description": "Maximum beats per minute."
+            }
+          },
+          "required": [
+            "avg",
+            "max"
+          ]
+        },
+        "indoor": {
+          "type": "boolean",
+          "description": "The workout was done indoors, e.g. on a treadmill or trainer.",
+          "default": false
+        }
+      },
+      "required": [
+        "activity",
+        "distance_km",
+        "duration_minutes"
+      ]
+    }
+  },
+  {
+    "name": "send_email",
+    "description": "Send an email right away from the user's mailbox to one or more recipients, with optional copies.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the message, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the message, copied exactly as the user gives it."
+        },
+        "cc": {
+          "type": "array",
+          "description": "Addresses to copy on the message, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "priority": {
+          "type": "string",
+          "description": "Importance flag shown to the recipients.",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "default": "normal"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Files from the user's drive to attach, by drive path, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Drive path of one file, e.g. '/Shared/budget.xlsx'."
+          }
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "calendar.create_event",
+    "description": "Create a new event on the user's primary calendar and send invitations to any attendees listed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Short title shown on the calendar, e.g. 'Design review'."
+        },
+        "start": {
+          "type": "string",
+          "description": "Local start date and time of the event, formatted as YYYY-MM-DDTHH:MM."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Length of the event in minutes; the calendar default is half an hour.",
+          "default": 30
+        },
+        "attendees": {
+          "type": "array",
+          "description": "Email addresses of the people to invite, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "location": {
+          "type": "string",
+          "description": "Room name or address where the event takes place, as free text."
+        },
+        "reminder_minutes": {
+          "type": "integer",
+          "description": "Minutes before the start at which to send a reminder notification.",
+          "default": 10
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Who can see the event details on shared calendars.",
+          "enum": [
+            "default",
+            "public",
+            "private"
+          ],
+          "default": "default"
+        },
+        "recurrence": {
+          "type": "object",
+          "description": "Repeat rule for a recurring event; a one-off event when left out.",
+          "properties": {
+            "frequency": {
+              "type": "string",
+              "description": "How often the event repeats.",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "description": "Total number of occurrences, the first one included."
+            }
+          },
+          "required": [
+            "frequency",
+            "count"
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "start"
+      ]
+    }
+  },
+  {
+    "name": "ChaDri.change_drink",
+    "description": "Modifies the existing drink order to accommodate the customer's new request, ensuring the drink is updated according to the specified preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "drink_id": {
+          "type": "string",
+          "description": "The unique identifier of the drink to be changed.",
+          "default": "0000-0000-0000"
+        },
+        "new_preferences": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "string",
+              "description": "The size of the drink the customer prefers.",
+              "enum": [
+                "small",
+                "medium",
+                "large"
+              ],
+              "default": "medium"
+            },
+            "temperature": {
+              "type": "string",
+              "description": "The temperature at which the drink should be served.",
+              "enum": [
+                "cold",
+                "warm",
+                "hot"
+              ],
+              "default": "cold"
+            },
+            "sweetness_level": {
+              "type": "string",
+              "description": "The sweetness level the customer requests for the drink.",
+              "enum": [
+                "none",
+                "light",
+                "regular",
+                "extra"
+              ],
+              "default": "regular"
+            },
+            "milk_type": {
+              "type": "string",
+              "description": "The type of milk to be used in the drink, if applicable.",
+              "enum": [
+                "regular",
+                "soy",
+                "almond",
+                "coconut"
+              ],
+              "default": "regular"
+            },
+            "special_instructions": {
+              "type": "string",
+              "description": "Any additional instructions provided by the customer for the drink preparation.",
+              "default": ""
+            }
+          },
+          "required": [],
+          "description": "The updated preferences for the drink order."
+        }
+      },
+      "required": [
+        "new_preferences"
+      ]
+    }
+  },
+  {
+    "name": "getUserById",
+    "description": "Fetch one user account of the admin console by its numeric id, with profile and role.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        }
+      },
+      "required": [
+        "userId"
+      ]
+    }
+  },
+  {
+    "name": "connectBluetooth",
+    "description": "Establishes a connection to a Bluetooth device using its name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "device_name": {
+          "type": "string",
+          "description": "The name of the Bluetooth device to connect to."
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "The number of seconds to attempt a connection before timing out.",
+          "default": 30
+        },
+        "auto_reconnect": {
+          "type": "boolean",
+          "description": "Whether to automatically attempt to reconnect if the connection is lost.",
+          "default": false
+        }
+      },
+      "required": [
+        "device_name"
+      ]
+    }
+  },
+  {
+    "name": "calendar_event_create",
+    "description": "Creates a new calendar event for the user and returns the details of the event in JSON format. The event can be a single occurrence or follow a specified recurrence pattern.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "The start date of the event in the format 'YYYY-MM-DD'."
+        },
+        "start_time": {
+          "type": "string",
+          "description": "The start time of the event in 24-hour format 'HH:MM'."
+        },
+        "duration": {
+          "type": "integer",
+          "description": "The duration of the event in minutes."
+        },
+        "rrule": {
+          "type": "string",
+          "description": "A string specifying the recurrence pattern for repeating events, following the iCalendar (RFC 5545) specification.",
+          "default": "Does not repeat"
+        }
+      },
+      "required": [
+        "start_date",
+        "start_time",
+        "duration"
+      ]
+    }
+  },
+  {
+    "name": "schedule_email",
+    "description": "Queue an email to be sent automatically at a later date and time instead of right away.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the message, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the message, copied exactly as the user gives it."
+        },
+        "send_at": {
+          "type": "string",
+          "description": "Local date and time to send the message, formatted as YYYY-MM-DDTHH:MM."
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body",
+        "send_at"
+      ]
+    }
+  },
+  {
+    "name": "get_weather_forecast",
+    "description": "Get the daily weather forecast for a city, starting tomorrow, for up to ten days ahead.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "days": {
+          "type": "integer",
+          "description": "Number of days to forecast, from 1 to 10, starting with tomorrow."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "hourly": {
+          "type": "boolean",
+          "description": "Break each forecast day into hourly values instead of a daily summary.",
+          "default": false
+        },
+        "fields": {
+          "type": "array",
+          "description": "Forecast fields to return, in any order; all fields when left out.",
+          "items": {
+            "type": "string",
+            "description": "One forecast field.",
+            "enum": [
+              "temperature",
+              "precipitation",
+              "wind",
+              "humidity",
+              "uv_index"
+            ]
+          }
+        }
+      },
+      "required": [
+        "location",
+        "days"
+      ]
+    }
+  },
+  {
+    "name": "save_draft",
+    "description": "Save an email as a draft in the user's mailbox without sending it; recipients may be left empty.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the draft, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the draft, copied exactly as the user gives it."
+        },
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        }
+      },
+      "required": [
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "get_historical_weather",
+    "description": "Get the weather that was recorded in a city on a past date: temperatures, rainfall and wind.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name, optionally with a country, e.g. 'Lisbon' or 'Lisbon, Portugal'."
+        },
+        "date": {
+          "type": "string",
+          "description": "The past date to look up, formatted as YYYY-MM-DD."
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature unit for every value in the response: celsius or fahrenheit.",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ],
+          "default": "celsius"
+        },
+        "granularity": {
+          "type": "string",
+          "description": "Return one summary for the day or one value per hour.",
+          "enum": [
+            "daily",
+            "hourly"
+          ],
+          "default": "daily"
+        }
+      },
+      "required": [
+        "location",
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "create_a_docker_file",
+    "description": "This function generates a Dockerfile in the specified directory with basic configuration. The Dockerfile will be tailored to a simple Python application.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directory_name": {
+          "type": "string",
+          "description": "The name of the directory where the Dockerfile will be created. It should be a valid directory path relative to the current working directory."
+        },
+        "base_image": {
+          "type": "string",
+          "description": "The base image to use for the Dockerfile, representing the starting point for the build.",
+          "enum": [
+            "python:3.8-slim",
+            "python:3.9-slim",
+            "python:3.10-slim"
+          ],
+          "default": "python:3.8-slim"
+        },
+        "maintainer": {
+          "type": "string",
+          "description": "The name of the maintainer or author of the Dockerfile.",
+          "default": "Unknown"
+        },
+        "expose_port": {
+          "type": "integer",
+          "description": "The port number that the container should expose. This is typically the port that the application listens on.",
+          "default": 80
+        },
+        "entrypoint": {
+          "type": "string",
+          "description": "The command that will be executed when the Docker container starts.",
+          "default": "python app.py"
+        }
+      },
+      "required": [
+        "directory_name"
+      ]
+    }
+  },
+  {
+    "name": "moveFile",
+    "description": "Move or rename a single file on the file server; the destination is the file's full new path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "description": "Absolute path of the file to move, exactly as the user gives it."
+        },
+        "destinationPath": {
+          "type": "string",
+          "description": "Absolute new path of the file, including its file name."
+        },
+        "overwrite": {
+          "type": "boolean",
+          "description": "Replace an existing file at the destination instead of failing.",
+          "default": false
+        }
+      },
+      "required": [
+        "sourcePath",
+        "destinationPath"
+      ]
+    }
+  }
+]
+
+Request: Write to j.okafor@example.org and lars.berg@example.com with the subject "Lab access" and the message "Your badge now opens the second-floor lab.", but hold it until 2025-04-25T09:15.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

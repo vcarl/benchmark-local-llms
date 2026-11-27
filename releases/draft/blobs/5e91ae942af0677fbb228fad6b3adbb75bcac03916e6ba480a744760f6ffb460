@@ -1,0 +1,12 @@
+Classify the customer support ticket below by what the customer is actually asking for. Allowed labels:
+- billing: a question about charges, invoices or statements (no money back requested)
+- refund: the customer wants money returned
+- technical: something in the product is malfunctioning
+- account_access: the customer cannot sign in or get into their account
+- cancellation: the customer wants to end their subscription
+
+"""
+The order never arrived, so I want my payment returned. My bill itself looks correct.
+"""
+
+Choose exactly one label. End your reply with a final line of the form `Label: <label>`, with the label written exactly as listed.

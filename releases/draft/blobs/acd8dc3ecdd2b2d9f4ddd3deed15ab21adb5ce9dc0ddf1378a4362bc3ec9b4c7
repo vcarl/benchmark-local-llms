@@ -1,0 +1,3 @@
+A securitization distributes a $640 cash pool to its tranches in strict priority order. Each tranche is paid in full before the next receives anything, and no tranche is ever paid more than its claim. Claims, in priority order, are: Senior $520, Mezzanine $310, Junior $185. Whatever cash remains after all three are paid goes to the Equity tranche.
+
+How many dollars are left for the Equity tranche? Reply with only that number and no other figures.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"location":"Seoul"},"name":"get_current_weather","optional":{"include_air_quality":false,"units":"celsius"}}]}],"type":"constraint"},"rules":2}

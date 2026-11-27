@@ -1,0 +1,1 @@
+{"testCode":"assert fibonacci(0) == 0\nassert fibonacci(1) == 1\nassert fibonacci(2) == 1\nassert fibonacci(10) == 55\nassert fibonacci(20) == 6765\n","type":"code_exec"}

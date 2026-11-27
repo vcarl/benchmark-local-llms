@@ -5,7 +5,7 @@
  * A sample passes when its score is exactly 1 (same rule as `aggregate`); a
  * config's observation of an item is the pass fraction over its samples.
  */
-import { currentItems, type LoadedAttempt } from "../report/load-attempts.js";
+import { currentItems, type LoadedAttempt } from "../legacy/load-attempts.js";
 import { groupSamples, passFraction } from "../schema/attempt.js";
 
 export interface Obs {

@@ -1,0 +1,8 @@
+In Effect-TS, match each use case to the correct constructor:
+1. Wrap a pure value: Effect.???
+2. Create a failed Effect: Effect.???
+3. Wrap a side-effectful sync function: Effect.???
+4. Do nothing (unit): Effect.???
+
+Reply as JSON, using the full constructor name as each value: {"pure": "Effect.xxx", "fail": "Effect.xxx", "sync": "Effect.xxx", "unit": "Effect.xxx"}
+Output only the JSON object, no extra text.

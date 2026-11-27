@@ -1,0 +1,1 @@
+{"testCode":"result = word_frequency(\"the cat sat on the mat\")\nassert result[\"the\"] == 2\nassert result[\"cat\"] == 1\nassert result[\"mat\"] == 1\nresult = word_frequency(\"Hello, hello, HELLO!\")\nassert result[\"hello\"] == 3\nresult = word_frequency(\"\")\nassert result == {}\n","type":"code_exec"}

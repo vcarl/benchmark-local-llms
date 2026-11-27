@@ -1,0 +1,12 @@
+You track an agent's reliability θ (the probability that an interaction with it goes well) with a Beta(1, 1) prior, one interaction per round. Its record, oldest first:
+Round 1: good
+Round 2: good
+Round 3: good
+Round 4: good
+Round 5: good
+Round 6: bad
+Round 7: good
+Round 8: bad
+Round 9: bad
+Round 10: bad
+You use exponential forgetting with λ = 0.8: an interaction k rounds before the most recent one carries weight λ^k, so the most recent interaction has weight 1. With P the total weight of good interactions and N the total weight of bad ones, the posterior mean of θ is (P + 1)/(P + N + 2); the prior's pseudo-counts do not decay. What is the posterior mean of θ after round 10? Give it rounded to 4 decimal places. Reply with only the number.

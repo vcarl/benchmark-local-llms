@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"delta":-26,"reason":"sale","sku":"003231","warehouse":"EAST-2"},"name":"adjust_inventory"}]}],"type":"constraint"},"rules":2}

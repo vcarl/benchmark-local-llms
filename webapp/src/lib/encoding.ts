@@ -13,8 +13,8 @@ export interface ScatterPoint {
   temperature: number;
   x: number;
   y: number;
-  // Family-clustered standard error of y (null when too few families).
-  ySE: number | null;
+  // 95% CI half-width of y from the family-clustered SE (null when too few families).
+  yCI: number | null;
   peak_memory_gb: number;
   generation_tps: number;
   wall_time_sec: number;

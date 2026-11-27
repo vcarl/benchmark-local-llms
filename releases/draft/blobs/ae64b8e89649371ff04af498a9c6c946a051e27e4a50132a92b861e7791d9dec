@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"label printer":205.92,"roll of packing tape":33.66,"safety goggles":58.56}}],"type":"constraint"},"rules":2}

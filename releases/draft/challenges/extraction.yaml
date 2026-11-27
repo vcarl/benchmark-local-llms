@@ -1,0 +1,790 @@
+id: extraction
+version: 1
+passThreshold: 0.8
+items:
+  # key: {"invoice_number":"INV-5711","vendor":"Pellucid Glassworks","issue_date":"2023-02-09","currency":"GBP","line_items":[{"description":"desk lamp","quantity":12,"unit_price":25.45},{"description":"roll of packing tape","quantity":7,"unit_price":2.82},{"description":"box of nitrile gloves","quantity":4,"unit_price":18.45}],"total":398.94}
+  - name: extract_invoice_s0
+    family: extract_invoice
+    seed: 0
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the invoice in the email below into JSON with exactly these keys:
+
+
+      - "invoice_number": string, the current invoice's number, e.g. "INV-1234"
+
+      - "vendor": string, the sending company's name
+
+      - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+      - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+      - "line_items": array of {"description": string, "quantity": integer,
+      "unit_price": number}, in the order listed
+
+      - "total": number, the total due
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Hi Dana,
+
+
+      Attached is invoice INV-5711 for your purchase order PO-44282. It replaces
+      the draft we sent earlier as INV-5704, which you can discard. The invoice
+      was issued on February 9, 2023; everything shipped on December 7, 2023.
+
+
+      This covers: 12 × desk lamp at £25.45 each; 7 units of roll of packing
+      tape (£2.82 per unit); box of nitrile gloves, quantity 4, unit price
+      £18.45.
+
+
+      The total due is £398.94, payable within 30 days.
+
+
+      Best regards,
+
+      Grace Whitfield
+
+      Pellucid Glassworks
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          invoice_number: INV-5711
+          vendor: Pellucid Glassworks
+          issue_date: 2023-02-09
+          currency: GBP
+          line_items:
+            - description: desk lamp
+              quantity: 12
+              unit_price: 25.45
+            - description: roll of packing tape
+              quantity: 7
+              unit_price: 2.82
+            - description: box of nitrile gloves
+              quantity: 4
+              unit_price: 18.45
+          total: 398.94
+  # key: {"invoice_number":"INV-1256","vendor":"Halden Supply Co.","issue_date":"2023-04-10","currency":"GBP","line_items":[{"description":"roll of packing tape","quantity":6,"unit_price":5.61},{"description":"label printer","quantity":1,"unit_price":205.92},{"description":"safety goggles","quantity":6,"unit_price":9.76}],"total":298.14}
+  - name: extract_invoice_s1
+    family: extract_invoice
+    seed: 1
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the invoice in the email below into JSON with exactly these keys:
+
+
+      - "invoice_number": string, the current invoice's number, e.g. "INV-1234"
+
+      - "vendor": string, the sending company's name
+
+      - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+      - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+      - "line_items": array of {"description": string, "quantity": integer,
+      "unit_price": number}, in the order listed
+
+      - "total": number, the total due
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Hi Dana,
+
+
+      Attached is invoice INV-1256 for your purchase order PO-85962. It replaces
+      the draft we sent earlier as INV-1255, which you can discard. The invoice
+      was issued on April 10, 2023; everything shipped on November 11, 2023.
+
+
+      This covers: roll of packing tape, quantity 6, unit price £5.61; 1 units
+      of label printer (£205.92 per unit); 6 units of safety goggles (£9.76 per
+      unit).
+
+
+      The total due is £298.14, payable within 30 days.
+
+
+      Best regards,
+
+      Mara Quill
+
+      Halden Supply Co.
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          invoice_number: INV-1256
+          vendor: Halden Supply Co.
+          issue_date: 2023-04-10
+          currency: GBP
+          line_items:
+            - description: roll of packing tape
+              quantity: 6
+              unit_price: 5.61
+            - description: label printer
+              quantity: 1
+              unit_price: 205.92
+            - description: safety goggles
+              quantity: 6
+              unit_price: 9.76
+          total: 298.14
+  # key: {"invoice_number":"INV-6355","vendor":"Pellucid Glassworks","issue_date":"2025-08-27","currency":"GBP","line_items":[{"description":"label printer","quantity":11,"unit_price":100.04},{"description":"safety goggles","quantity":6,"unit_price":14.61}],"total":1188.1}
+  - name: extract_invoice_s2
+    family: extract_invoice
+    seed: 2
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the invoice in the email below into JSON with exactly these keys:
+
+
+      - "invoice_number": string, the current invoice's number, e.g. "INV-1234"
+
+      - "vendor": string, the sending company's name
+
+      - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+      - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+      - "line_items": array of {"description": string, "quantity": integer,
+      "unit_price": number}, in the order listed
+
+      - "total": number, the total due
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Hi Dana,
+
+
+      Attached is invoice INV-6355 for your purchase order PO-45326. It replaces
+      the draft we sent earlier as INV-6350, which you can discard. The invoice
+      was issued on August 27, 2025; everything shipped on April 22, 2025.
+
+
+      This covers: 11 × label printer at £100.04 each; safety goggles, quantity
+      6, unit price £14.61.
+
+
+      The total due is £1,188.10, payable within 30 days.
+
+
+      Best regards,
+
+      Mara Quill
+
+      Pellucid Glassworks
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          invoice_number: INV-6355
+          vendor: Pellucid Glassworks
+          issue_date: 2025-08-27
+          currency: GBP
+          line_items:
+            - description: label printer
+              quantity: 11
+              unit_price: 100.04
+            - description: safety goggles
+              quantity: 6
+              unit_price: 14.61
+          total: 1188.1
+  # key: {"invoice_number":"INV-3668","vendor":"Marrow Street Wholesale","issue_date":"2023-06-23","currency":"GBP","line_items":[{"description":"label printer","quantity":2,"unit_price":204.13},{"description":"pack of glass vials","quantity":12,"unit_price":20.67},{"description":"roll of packing tape","quantity":9,"unit_price":3.49},{"description":"ream of copy paper","quantity":12,"unit_price":5.99}],"total":759.59}
+  - name: extract_invoice_s3
+    family: extract_invoice
+    seed: 3
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the invoice in the email below into JSON with exactly these keys:
+
+
+      - "invoice_number": string, the current invoice's number, e.g. "INV-1234"
+
+      - "vendor": string, the sending company's name
+
+      - "issue_date": string, the date the invoice was issued, as YYYY-MM-DD
+
+      - "currency": string, the ISO 4217 code: "USD", "EUR" or "GBP"
+
+      - "line_items": array of {"description": string, "quantity": integer,
+      "unit_price": number}, in the order listed
+
+      - "total": number, the total due
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Hi Dana,
+
+
+      Attached is invoice INV-3668 for your purchase order PO-69709. It replaces
+      the draft we sent earlier as INV-3664, which you can discard. The invoice
+      was issued on June 23, 2023; everything shipped on October 23, 2023.
+
+
+      This covers: 2 units of label printer (£204.13 per unit); 12 units of pack
+      of glass vials (£20.67 per unit); 9 units of roll of packing tape (£3.49
+      per unit); 12 units of ream of copy paper (£5.99 per unit).
+
+
+      The total due is £759.59, payable within 30 days.
+
+
+      Best regards,
+
+      Tomas Reyes
+
+      Marrow Street Wholesale
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          invoice_number: INV-3668
+          vendor: Marrow Street Wholesale
+          issue_date: 2023-06-23
+          currency: GBP
+          line_items:
+            - description: label printer
+              quantity: 2
+              unit_price: 204.13
+            - description: pack of glass vials
+              quantity: 12
+              unit_price: 20.67
+            - description: roll of packing tape
+              quantity: 9
+              unit_price: 3.49
+            - description: ream of copy paper
+              quantity: 12
+              unit_price: 5.99
+          total: 759.59
+  # key: {"name":"Jonas Zhou","title":"Senior Data Engineer","company":"Quarry Lane Studios","email":"jonas.zhou@quarrylane.co","phone":"+15095551709","city":"Melbourne"}
+  - name: extract_contact_s0
+    family: extract_contact
+    seed: 0
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the sender's contact card from the message below into JSON with
+      exactly these keys:
+
+
+      - "name": string, the sender's full name
+
+      - "title": string, the sender's job title
+
+      - "company": string
+
+      - "email": string, the sender's email address in lowercase
+
+      - "phone": string, the sender's direct line in E.164 form: "+" followed by
+      country code and number, digits only (e.g. "+15551234567")
+
+      - "city": string, the city the sender works in
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Great meeting you at the HealthTech forum in Denver last week! As
+      promised, here are my details.
+
+
+      I'm the Senior Data Engineer at Quarry Lane Studios, working out of our
+      Melbourne office. Email is best: Jonas.Zhou@Quarrylane.co. My direct line
+      is +1 (509) 555-1709; the main switchboard (+1 (800) 555-6337) can also
+      find me. For scheduling, my assistant Hana Nair (hana@quarrylane.co, +1
+      (267) 555-7929) keeps my calendar.
+
+
+      Cheers,
+
+      Jonas Zhou
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          name: Jonas Zhou
+          title: Senior Data Engineer
+          company: Quarry Lane Studios
+          email: jonas.zhou@quarrylane.co
+          phone: "+15095551709"
+          city: Melbourne
+  # key: {"name":"Hana Sato","title":"Senior Data Engineer","company":"Calder & Moss","email":"hana.sato@caldermoss.com","phone":"+17675557873","city":"Austin"}
+  - name: extract_contact_s1
+    family: extract_contact
+    seed: 1
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the sender's contact card from the message below into JSON with
+      exactly these keys:
+
+
+      - "name": string, the sender's full name
+
+      - "title": string, the sender's job title
+
+      - "company": string
+
+      - "email": string, the sender's email address in lowercase
+
+      - "phone": string, the sender's direct line in E.164 form: "+" followed by
+      country code and number, digits only (e.g. "+15551234567")
+
+      - "city": string, the city the sender works in
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Great meeting you at the HealthTech forum in Leeds last week! As promised,
+      here are my details.
+
+
+      I'm the Senior Data Engineer at Calder & Moss, working out of our Austin
+      office. Email is best: Hana.Sato@Caldermoss.com. My direct line is +1
+      (767) 555-7873; the main switchboard (+1 (800) 555-4286) can also find me.
+      For scheduling, my assistant Sofia Rossi (sofia@caldermoss.com, +1 (725)
+      555-9961) keeps my calendar.
+
+
+      Cheers,
+
+      Hana Sato
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          name: Hana Sato
+          title: Senior Data Engineer
+          company: Calder & Moss
+          email: hana.sato@caldermoss.com
+          phone: "+17675557873"
+          city: Austin
+  # key: {"name":"Jonas Nair","title":"Director of Operations","company":"Quarry Lane Studios","email":"jonas.nair@quarrylane.co","phone":"+14005555887","city":"Austin"}
+  - name: extract_contact_s2
+    family: extract_contact
+    seed: 2
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the sender's contact card from the message below into JSON with
+      exactly these keys:
+
+
+      - "name": string, the sender's full name
+
+      - "title": string, the sender's job title
+
+      - "company": string
+
+      - "email": string, the sender's email address in lowercase
+
+      - "phone": string, the sender's direct line in E.164 form: "+" followed by
+      country code and number, digits only (e.g. "+15551234567")
+
+      - "city": string, the city the sender works in
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Great meeting you at the regional supply-chain expo in Melbourne last
+      week! As promised, here are my details.
+
+
+      I'm the Director of Operations at Quarry Lane Studios, working out of our
+      Austin office. Email is best: Jonas.Nair@Quarrylane.co. My direct line is
+      +1 (400) 555-5887; the main switchboard (+1 (800) 555-4078) can also find
+      me. For scheduling, my assistant Diego Zhou (diego@quarrylane.co, +1 (428)
+      555-9959) keeps my calendar.
+
+
+      Cheers,
+
+      Jonas Nair
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          name: Jonas Nair
+          title: Director of Operations
+          company: Quarry Lane Studios
+          email: jonas.nair@quarrylane.co
+          phone: "+14005555887"
+          city: Austin
+  # key: {"name":"Amara Zhou","title":"Director of Operations","company":"Calder & Moss","email":"amara.zhou@caldermoss.com","phone":"+16755558860","city":"Denver"}
+  - name: extract_contact_s3
+    family: extract_contact
+    seed: 3
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Extract the sender's contact card from the message below into JSON with
+      exactly these keys:
+
+
+      - "name": string, the sender's full name
+
+      - "title": string, the sender's job title
+
+      - "company": string
+
+      - "email": string, the sender's email address in lowercase
+
+      - "phone": string, the sender's direct line in E.164 form: "+" followed by
+      country code and number, digits only (e.g. "+15551234567")
+
+      - "city": string, the city the sender works in
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Great meeting you at the Data Council summit in Lisbon last week! As
+      promised, here are my details.
+
+
+      I'm the Director of Operations at Calder & Moss, working out of our Denver
+      office. Email is best: Amara.Zhou@Caldermoss.com. My direct line is +1
+      (675) 555-8860; the main switchboard (+1 (800) 555-4151) can also find me.
+      For scheduling, my assistant Priya Sato (priya@caldermoss.com, +1 (208)
+      555-2136) keeps my calendar.
+
+
+      Cheers,
+
+      Amara Zhou
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          name: Amara Zhou
+          title: Director of Operations
+          company: Calder & Moss
+          email: amara.zhou@caldermoss.com
+          phone: "+16755558860"
+          city: Denver
+  # key: {"ticket_id":"T-41636","customer":"Diego Okonkwo","product":"Shelfwise","category":"feature_request","severity":"low","order_id":null}
+  - name: extract_ticket_s0
+    family: extract_ticket
+    seed: 0
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Triage the support ticket below into JSON with exactly these keys:
+
+
+      - "ticket_id": string, this ticket's id, e.g. "T-12345"
+
+      - "customer": string, the customer's full name
+
+      - "product": string, the product the ticket is about
+
+      - "category": one of "billing", "bug", "account", "feature_request"
+
+      - "severity": one of "critical" (the product is completely unavailable, or
+      data was lost), "high" (something is broken and the customer has no
+      workaround), "medium" (something is broken but there is a workaround),
+      "low" (anything else: questions, requests, plan or account changes)
+
+      - "order_id": string, the order id mentioned (e.g. "ORD-123456"), or null
+      if none is mentioned
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Ticket T-41636
+
+      From: diego.okonkwo@example.com
+
+
+      Hello support,
+
+
+      It would be great if Shelfwise could export to CSV as well as PDF. Is that
+      on the roadmap? (This is unrelated to ticket T-40920, which you already
+      closed. We also use Ledgerly, and that's working fine.)
+
+
+      Thanks,
+
+      Diego Okonkwo
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          ticket_id: T-41636
+          customer: Diego Okonkwo
+          product: Shelfwise
+          category: feature_request
+          severity: low
+          order_id: null
+  # key: {"ticket_id":"T-48020","customer":"Priya Rossi","product":"Shelfwise","category":"billing","severity":"low","order_id":"ORD-307706"}
+  - name: extract_ticket_s1
+    family: extract_ticket
+    seed: 1
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Triage the support ticket below into JSON with exactly these keys:
+
+
+      - "ticket_id": string, this ticket's id, e.g. "T-12345"
+
+      - "customer": string, the customer's full name
+
+      - "product": string, the product the ticket is about
+
+      - "category": one of "billing", "bug", "account", "feature_request"
+
+      - "severity": one of "critical" (the product is completely unavailable, or
+      data was lost), "high" (something is broken and the customer has no
+      workaround), "medium" (something is broken but there is a workaround),
+      "low" (anything else: questions, requests, plan or account changes)
+
+      - "order_id": string, the order id mentioned (e.g. "ORD-123456"), or null
+      if none is mentioned
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Ticket T-48020
+
+      From: priya.rossi@example.com
+
+
+      Hello support,
+
+
+      Could you send me a PDF copy of the invoice for order ORD-307706? Our
+      accountant needs it for the Shelfwise subscription. (This is unrelated to
+      ticket T-47180, which you already closed. We also use TrackPilot, and
+      that's working fine.)
+
+
+      Thanks,
+
+      Priya Rossi
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          ticket_id: T-48020
+          customer: Priya Rossi
+          product: Shelfwise
+          category: billing
+          severity: low
+          order_id: ORD-307706
+  # key: {"ticket_id":"T-52188","customer":"Malik Okonkwo","product":"Shelfwise","category":"bug","severity":"high","order_id":null}
+  - name: extract_ticket_s2
+    family: extract_ticket
+    seed: 2
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Triage the support ticket below into JSON with exactly these keys:
+
+
+      - "ticket_id": string, this ticket's id, e.g. "T-12345"
+
+      - "customer": string, the customer's full name
+
+      - "product": string, the product the ticket is about
+
+      - "category": one of "billing", "bug", "account", "feature_request"
+
+      - "severity": one of "critical" (the product is completely unavailable, or
+      data was lost), "high" (something is broken and the customer has no
+      workaround), "medium" (something is broken but there is a workaround),
+      "low" (anything else: questions, requests, plan or account changes)
+
+      - "order_id": string, the order id mentioned (e.g. "ORD-123456"), or null
+      if none is mentioned
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Ticket T-52188
+
+      From: malik.okonkwo@example.com
+
+
+      Hello support,
+
+
+      Exporting reports from Shelfwise fails every time with "export error 0x2".
+      We've tried three browsers and there is no other way to get the data out.
+      (This is unrelated to ticket T-51937, which you already closed. We also
+      use Ledgerly, and that's working fine.)
+
+
+      Thanks,
+
+      Malik Okonkwo
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          ticket_id: T-52188
+          customer: Malik Okonkwo
+          product: Shelfwise
+          category: bug
+          severity: high
+          order_id: null
+  # key: {"ticket_id":"T-53925","customer":"Diego Sato","product":"TrackPilot","category":"bug","severity":"critical","order_id":null}
+  - name: extract_ticket_s3
+    family: extract_ticket
+    seed: 3
+    scope: core
+    category: extraction
+    tier: 2
+    prompt: >-
+      Triage the support ticket below into JSON with exactly these keys:
+
+
+      - "ticket_id": string, this ticket's id, e.g. "T-12345"
+
+      - "customer": string, the customer's full name
+
+      - "product": string, the product the ticket is about
+
+      - "category": one of "billing", "bug", "account", "feature_request"
+
+      - "severity": one of "critical" (the product is completely unavailable, or
+      data was lost), "high" (something is broken and the customer has no
+      workaround), "medium" (something is broken but there is a workaround),
+      "low" (anything else: questions, requests, plan or account changes)
+
+      - "order_id": string, the order id mentioned (e.g. "ORD-123456"), or null
+      if none is mentioned
+
+
+      Strings are copied exactly as written unless a format is given; numbers
+      are JSON numbers, not strings. Reply with only the JSON object.
+
+
+      ---
+
+      Ticket T-53925
+
+      From: diego.sato@example.com
+
+
+      Hello support,
+
+
+      After last night's sync, every note we added in TrackPilot this week is
+      gone. The records were there yesterday and now they're simply missing.
+      (This is unrelated to ticket T-53393, which you already closed. We also
+      use Shelfwise, and that's working fine.)
+
+
+      Thanks,
+
+      Diego Sato
+
+      ---
+    scorer: constraint
+    constraints:
+      - name: matches key
+        check: json_matches
+        value:
+          ticket_id: T-53925
+          customer: Diego Sato
+          product: TrackPilot
+          category: bug
+          severity: critical
+          order_id: null

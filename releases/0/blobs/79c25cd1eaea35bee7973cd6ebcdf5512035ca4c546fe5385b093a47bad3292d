@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 0.0508","pattern":"(?<![\\d.])0?\\.05080*(?!\\d)"}],"type":"constraint"}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"attendees":["ana.ruiz@example.com"],"start":"2026-02-15T14:30","title":"Vendor call"},"name":"calendar.create_event","optional":{"duration_minutes":30,"reminder_minutes":10,"visibility":"default"},"unordered":["attendees"]}]}],"type":"constraint"},"rules":2}

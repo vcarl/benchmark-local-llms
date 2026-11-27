@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 0.0508","pattern":"(?<![\\d.])0?\\.05080*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.])5\\.080*(?!\\d)\\s*%","slip":"percent-for-decimal"}],"type":"constraint"}

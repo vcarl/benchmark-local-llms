@@ -2,7 +2,7 @@
  * MLX server supervisor. Spawns `python -m mlx_lm.server`, waits for
  * /health, forks the exit watcher, and terminates on scope close.
  *
- * Invocation mirrors `runner.py::start_mlx_server` (lines 589-598):
+ * The launch command mirrors `runner.py::start_mlx_server` (lines 589-598):
  *   python -m mlx_lm.server
  *     --model <artifact>
  *     --host 127.0.0.1
@@ -16,12 +16,28 @@ import { Command, type CommandExecutor, type HttpClient } from "@effect/platform
 import { Effect } from "effect";
 import type {
   HealthCheckTimeout,
+  ModelLoadError,
   ServerSpawnError,
   TemplateVerificationError,
 } from "../../errors/index.js";
 import { type ServerHandle, superviseServer } from "./supervisor.js";
 
 export const MLX_DEFAULT_PORT = 18081;
+
+/**
+ * The OpenAI `model` id that names the `--model` path `mlx_lm.server` was
+ * launched with (server.py `ModelProvider._model_map`). Any other id makes the
+ * server load that id afresh, resolving an HF repo id over the network rather
+ * than the snapshot the bench resolved and template-verified.
+ */
+export const MLX_MODEL_ID = "default_model";
+
+/**
+ * `mlx_lm.server` loads `--model` on its generation thread at startup, outside
+ * any error handler. A load failure kills the thread, prints this header, and
+ * leaves `/v1/models` answering while every completion hangs.
+ */
+export const MLX_LOAD_FAILURE = /^Exception in thread .*\(_generate\)/;
 
 export interface MlxConfig {
   /**
@@ -63,7 +79,7 @@ export const mlxServer = (
   cfg: MlxConfig,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError | ModelLoadError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -86,5 +102,13 @@ export const mlxServer = (
       // exactly where tokenizer_config.json / chat_template.jinja live. When a
       // raw HF id (not a local dir) is passed, the verifier warns-and-skips.
       verifyTemplate: { runtime: "mlx", modelDir: cfg.artifactPath },
+      // /v1/models answers while the weights are still loading (or after the
+      // load has failed), so prove a completion works. The budget is the
+      // load budget; a failed load trips MLX_LOAD_FAILURE within seconds.
+      warmup: {
+        model: MLX_MODEL_ID,
+        timeoutSec: cfg.healthTimeoutSec ?? 600,
+        fatalOutput: MLX_LOAD_FAILURE,
+      },
     });
   });

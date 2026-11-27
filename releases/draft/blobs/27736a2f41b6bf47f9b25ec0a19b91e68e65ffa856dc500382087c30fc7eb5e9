@@ -1,0 +1,19 @@
+Extract the sender's contact card from the message below into JSON with exactly these keys:
+
+- "name": string, the sender's full name
+- "title": string, the sender's job title
+- "company": string
+- "email": string, the sender's email address in lowercase
+- "phone": string, the sender's direct line in E.164 form: "+" followed by country code and number, digits only (e.g. "+15551234567")
+- "city": string, the city the sender works in
+
+Strings are copied exactly as written unless a format is given; numbers are JSON numbers, not strings. Reply with only the JSON object.
+
+---
+Great meeting you at the HealthTech forum in Leeds last week! As promised, here are my details.
+
+I'm the Senior Data Engineer at Calder & Moss, working out of our Austin office. Email is best: Hana.Sato@Caldermoss.com. My direct line is +1 (767) 555-7873; the main switchboard (+1 (800) 555-4286) can also find me. For scheduling, my assistant Sofia Rossi (sofia@caldermoss.com, +1 (725) 555-9961) keeps my calendar.
+
+Cheers,
+Hana Sato
+---

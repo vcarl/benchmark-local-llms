@@ -24,11 +24,15 @@
  *   inlined into `content` with `<think>…</think>` tags.
  * - `usage.prompt_tokens`/`usage.completion_tokens` → tokens counters.
  * - `timings.prompt_per_second`/`timings.predicted_per_second` → tps
- *   counters when the server reports them (llamacpp). `mlx_lm.server` does
- *   not emit a `timings` object, so both tps fields come back as `null`.
- *   The caller (`runPrompt`) is responsible for either deriving `generationTps`
- *   from wall time or recording 0 explicitly — this service does NOT silently
- *   coerce missing timings to 0, because that hides the signal.
+ *   counters when the server reports them (llamacpp). `mlx_lm.server` and
+ *   oMLX emit no `timings` object: `generationTps` is then measured from the
+ *   stream's content-frame arrival times after the first token (decode only,
+ *   like llama.cpp's), and `promptTps` comes back `null`. When the stream
+ *   cannot measure it either, `generationTps` is `null` and the caller
+ *   (`runPrompt`) derives it from wall time or records 0 explicitly — this
+ *   service does NOT silently coerce missing timings to 0.
+ * - `timing`: TTFT on every runtime, the prefill/decode split, and cached
+ *   prompt tokens (see `buildTiming` and ARCHIVE-FORMAT.md § Request timing).
  */
 import { HttpClient, HttpClientRequest } from "@effect/platform";
 import type { HttpClientError } from "@effect/platform/HttpClientError";
@@ -39,6 +43,7 @@ import {
   LlmRequestError,
   LlmTimeoutError,
 } from "../errors/llm.js";
+import type { ItemTiming } from "../schema/attempt.js";
 import type { Runtime } from "../schema/enums.js";
 import type { ChatMessage } from "../schema/prompt.js";
 import { LOOP_WINDOW_WORDS, makeLoopDetector } from "./loop-detector.js";
@@ -63,8 +68,8 @@ export interface CompletionParams {
   readonly timeoutSec?: number;
   /**
    * Sampler repetition penalty. Omitted entirely when undefined, so a
-   * configuration that does not set it produces the exact request body (and
-   * `configHash`) it did before this knob existed.
+   * configuration that does not set it sends no such field and its config digest
+   * omits it.
    */
   readonly repetitionPenalty?: number;
   /** How many recent tokens the penalty considers. Ignored when no penalty is set. */
@@ -77,6 +82,8 @@ export interface CompletionParams {
   readonly minP?: number;
   /** Presence penalty (`presence_penalty`). Omitted from the body when undefined. */
   readonly presencePenalty?: number;
+  /** How many recent tokens the presence penalty considers. Ignored when no presence penalty is set. */
+  readonly presenceContextSize?: number;
   /** Extra chat-template variables (`chat_template_kwargs`). Omitted from the body when undefined. */
   readonly chatTemplateKwargs?: Readonly<Record<string, string | number | boolean>>;
   /** Sampler seed (`seed`, accepted by all three runtimes). Omitted from the body when undefined. */
@@ -100,15 +107,22 @@ export interface CompletionResult {
   readonly generationTokens: number;
   /**
    * Tokens/sec reported by the server's `timings` block (llamacpp emits these;
-   * mlx_lm.server omits the whole block). `null` means "server did not report"
-   * — callers must decide whether to derive a value from wall time or record
-   * zero explicitly. Do not coerce `null` to `0` at the decode site; that
-   * hides the MLX-vs-llamacpp signal.
+   * mlx_lm.server and oMLX omit the whole block). Without `timings`,
+   * `generationTps` is the decode rate measured from the stream (tokens after
+   * the first over the time between the first and last content frames), and
+   * `promptTps` stays `null`. `null` means "not measured" — callers must
+   * decide whether to derive a value from wall time or record zero
+   * explicitly. Do not coerce `null` to `0` at the decode site.
    */
   readonly promptTps: number | null;
   readonly generationTps: number | null;
   /** Server-reported stop reason ("stop" | "length" | …), or `null` if unreported. */
   readonly finishReason: string | null;
+  /**
+   * Per-request timing; unmeasured fields are absent (see {@link ItemTiming}).
+   * The live service always sets it; optional so stub completions may omit it.
+   */
+  readonly timing?: ItemTiming;
 }
 
 /** Service interface. */
@@ -131,11 +145,24 @@ export class ChatCompletion extends Context.Tag("llm/ChatCompletion")<
 const UsageSchema = Schema.Struct({
   prompt_tokens: Schema.optionalWith(Schema.Number, { default: () => 0 }),
   completion_tokens: Schema.optionalWith(Schema.Number, { default: () => 0 }),
+  // Sent by all three runtimes (llama.cpp `usage_json_oaicompat`, mlx_lm
+  // `generate_usage_response`, oMLX `PromptTokensDetails`).
+  prompt_tokens_details: Schema.optional(
+    Schema.Struct({ cached_tokens: Schema.optional(Schema.NullOr(Schema.Number)) }),
+  ),
 });
 
+/** llama.cpp's `server_slot_stats::to_json` (tools/server/server-common.cpp). */
 const TimingsSchema = Schema.Struct({
   prompt_per_second: Schema.optionalWith(Schema.Number, { default: () => 0 }),
   predicted_per_second: Schema.optionalWith(Schema.Number, { default: () => 0 }),
+  cache_n: Schema.optional(Schema.Number),
+  prompt_n: Schema.optional(Schema.Number),
+  prompt_ms: Schema.optional(Schema.Number),
+  predicted_ms: Schema.optional(Schema.Number),
+  // Present only when speculative decoding drafted tokens.
+  draft_n: Schema.optional(Schema.Number),
+  draft_n_accepted: Schema.optional(Schema.Number),
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -154,16 +181,27 @@ const endpointUrl = (runtime: Runtime): string =>
  * same configuration value has to be rendered per runtime. Returns an empty
  * object when unset — the body must stay byte-identical to its pre-knob shape
  * for configurations that don't opt in.
+ *
+ * llama.cpp has a single window, `repeat_last_n`, for the repetition and
+ * presence penalties alike (config validation keeps the two sizes equal when
+ * both apply); mlx_lm windows each penalty separately.
  */
 const penaltyFields = (p: CompletionParams): Record<string, number> => {
-  if (p.repetitionPenalty === undefined) return {};
-  const ctx = p.repetitionContextSize;
-  return p.runtime === "llamacpp"
-    ? { repeat_penalty: p.repetitionPenalty, ...(ctx === undefined ? {} : { repeat_last_n: ctx }) }
-    : {
-        repetition_penalty: p.repetitionPenalty,
-        ...(ctx === undefined ? {} : { repetition_context_size: ctx }),
-      };
+  const rp = p.repetitionPenalty;
+  const rctx = rp === undefined ? undefined : p.repetitionContextSize;
+  const pctx = p.presencePenalty === undefined ? undefined : p.presenceContextSize;
+  if (p.runtime === "llamacpp") {
+    const window = rctx ?? pctx;
+    return {
+      ...(rp === undefined ? {} : { repeat_penalty: rp }),
+      ...(window === undefined ? {} : { repeat_last_n: window }),
+    };
+  }
+  return {
+    ...(rp === undefined ? {} : { repetition_penalty: rp }),
+    ...(rctx === undefined ? {} : { repetition_context_size: rctx }),
+    ...(pctx === undefined ? {} : { presence_context_size: pctx }),
+  };
 };
 
 /** `top_p`/`top_k`/`min_p`/`presence_penalty` are spelled identically by all three runtimes. */
@@ -174,13 +212,21 @@ const samplerFields = (p: CompletionParams): Record<string, number> => ({
   ...(p.presencePenalty === undefined ? {} : { presence_penalty: p.presencePenalty }),
 });
 
+/**
+ * The exact `messages` array sent to the chat endpoint: system, history,
+ * prompt. A bundle's `messagesDigest` is the digest of this array.
+ */
+export const chatMessages = (
+  p: Pick<CompletionParams, "systemPrompt" | "userPrompt" | "history">,
+): ReadonlyArray<ChatMessage | { role: "system"; content: string }> => [
+  { role: "system", content: p.systemPrompt },
+  ...(p.history ?? []),
+  { role: "user", content: p.userPrompt },
+];
+
 const buildBody = (p: CompletionParams) => ({
   model: p.model,
-  messages: [
-    { role: "system", content: p.systemPrompt },
-    ...(p.history ?? []),
-    { role: "user", content: p.userPrompt },
-  ],
+  messages: chatMessages(p),
   temperature: p.temperature,
   max_tokens: p.maxTokens,
   stream: true,
@@ -237,9 +283,59 @@ const LOOP_DETECTED = Symbol.for("llm/loop-detected");
  * is the entire point: a stuck generation otherwise runs to the full token
  * budget, and in the archive that cost 346s per item to produce nothing.
  */
+/**
+ * Decode tok/s measured from the stream: the tokens after the first over the
+ * time from the first content frame to the last, so prefill (the wait for the
+ * first token) is excluded, as in llama.cpp's `predicted_per_second`. Null
+ * when it cannot be measured (fewer than two tokens, or one frame).
+ */
+const streamDecodeTps = (tokens: number, firstMs: number | null, lastMs: number): number | null =>
+  firstMs === null || tokens < 2 || lastMs <= firstMs
+    ? null
+    : (tokens - 1) / ((lastMs - firstMs) / 1000);
+
+type Timings = typeof TimingsSchema.Type;
+
+/**
+ * Assemble {@link ItemTiming}. llama.cpp's `timings` block is the source for
+ * prefill/decode when it carries `prompt_ms` and `predicted_ms`; otherwise the
+ * client clock: prefill = TTFT (so it includes HTTP and tokenization), decode
+ * = first to last content/reasoning frame. Unmeasured fields are omitted.
+ */
+const buildTiming = (
+  startMs: number,
+  firstMs: number | null,
+  lastMs: number,
+  timings: Timings | null,
+  usageCached: number | null,
+): ItemTiming => {
+  const opt = (k: string, v: number | null | undefined) => (v == null ? {} : { [k]: v });
+  const ttftMs = firstMs === null ? null : firstMs - startMs;
+  const server = timings?.prompt_ms !== undefined && timings.predicted_ms !== undefined;
+  return {
+    ...opt("ttftMs", ttftMs),
+    ...(server
+      ? {
+          timingSource: "server" as const,
+          prefillMs: timings.prompt_ms,
+          decodeMs: timings.predicted_ms,
+          ...opt("prefillTokens", timings.prompt_n),
+        }
+      : {
+          timingSource: "client" as const,
+          ...opt("prefillMs", ttftMs),
+          ...opt("decodeMs", firstMs !== null && lastMs > firstMs ? lastMs - firstMs : null),
+        }),
+    ...opt("cachedPromptTokens", timings?.cache_n ?? usageCached),
+    ...opt("draftTokens", timings?.draft_n),
+    ...opt("draftAcceptedTokens", timings?.draft_n_accepted),
+  };
+};
+
 const consumeStream = (
   params: CompletionParams,
   response: { readonly stream: Stream.Stream<Uint8Array, unknown> },
+  startMs: number,
 ): Effect.Effect<CompletionResult, LlmMalformedResponse> =>
   Effect.gen(function* () {
     let content = "";
@@ -250,7 +346,13 @@ const consumeStream = (
     let generationTokens: number | null = null;
     let promptTps: number | null = null;
     let generationTps: number | null = null;
+    let timings: Timings | null = null;
+    let usageCached: number | null = null;
     let looped = false;
+    // Arrival times of the first and last content frames: decode speed when
+    // the server reports no `timings`.
+    let firstMs: number | null = null;
+    let lastMs = 0;
     const detector = makeLoopDetector();
 
     const handleLine = (line: string): Effect.Effect<void, typeof LOOP_DETECTED> => {
@@ -265,8 +367,10 @@ const consumeStream = (
       if (chunk.usage !== undefined) {
         promptTokens = chunk.usage.prompt_tokens;
         generationTokens = chunk.usage.completion_tokens;
+        usageCached = chunk.usage.prompt_tokens_details?.cached_tokens ?? null;
       }
       if (chunk.timings !== undefined) {
+        timings = chunk.timings;
         promptTps = chunk.timings.prompt_per_second;
         generationTps = chunk.timings.predicted_per_second;
       }
@@ -284,18 +388,23 @@ const consumeStream = (
       // Reasoning is where runaways happen, but score them together: a model
       // repeating itself in the answer is just as stuck.
       const advanced = (think ?? "") + (delta.content ?? "");
-      if (advanced.length > 0 && detector.push(advanced)) {
-        looped = true;
-        // INFO, not debug: cancelling the request makes the server log a
-        // BrokenPipeError traceback, and without this line next to it that
-        // traceback reads like a crash rather than a deliberate abort.
-        return Effect.logInfo(
-          `loop detected in ${params.promptName} after ${detector.wordCount()} words ` +
-            `(a ${LOOP_WINDOW_WORDS}-word window repeated ${detector.maxRepeats()}x) — ` +
-            "cancelling the request; the server may log a broken pipe in response",
-        ).pipe(Effect.annotateLogs("scope", "chat"), Effect.zipRight(Effect.fail(LOOP_DETECTED)));
-      }
-      return Effect.void;
+      if (advanced.length === 0) return Effect.void;
+      return Clock.currentTimeMillis.pipe(
+        Effect.flatMap((ms) => {
+          firstMs ??= ms;
+          lastMs = ms;
+          if (!detector.push(advanced)) return Effect.void;
+          looped = true;
+          // INFO, not debug: cancelling the request makes the server log a
+          // BrokenPipeError traceback, and without this line next to it that
+          // traceback reads like a crash rather than a deliberate abort.
+          return Effect.logInfo(
+            `loop detected in ${params.promptName} after ${detector.wordCount()} words ` +
+              `(a ${LOOP_WINDOW_WORDS}-word window repeated ${detector.maxRepeats()}x) — ` +
+              "cancelling the request; the server may log a broken pipe in response",
+          ).pipe(Effect.annotateLogs("scope", "chat"), Effect.zipRight(Effect.fail(LOOP_DETECTED)));
+        }),
+      );
     };
 
     yield* response.stream.pipe(
@@ -348,8 +457,9 @@ const consumeStream = (
       // would be a plausible-looking wrong number, which is worse than none.
       generationTokens: generationTokens ?? 0,
       promptTps,
-      generationTps,
+      generationTps: generationTps ?? streamDecodeTps(generationTokens ?? 0, firstMs, lastMs),
       finishReason: looped ? "loop" : finishReason,
+      timing: buildTiming(startMs, firstMs, lastMs, timings, usageCached),
     } satisfies CompletionResult;
   });
 
@@ -444,7 +554,7 @@ const makeService = (client: HttpClient.HttpClient): ChatCompletionService => ({
         ),
       );
 
-      const result = yield* consumeStream(params, response);
+      const result = yield* consumeStream(params, response, startMs);
 
       if (result.output.length === 0 && result.reasoning === null) {
         return yield* Effect.fail(

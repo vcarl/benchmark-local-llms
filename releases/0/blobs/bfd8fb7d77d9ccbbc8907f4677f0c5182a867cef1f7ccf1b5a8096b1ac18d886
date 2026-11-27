@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 2444.36","pattern":"(?<![\\d.]|\\d,)(?:2,444|2444)\\.360*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.]|\\d,)(?:2,444|2444)\\.380*(?!\\d)","slip":"round-at-end"}],"type":"constraint"}

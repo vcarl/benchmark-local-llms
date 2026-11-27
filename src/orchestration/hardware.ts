@@ -8,7 +8,8 @@
 import os from "node:os";
 import { Command, type CommandExecutor } from "@effect/platform";
 import { Effect } from "effect";
-import { shortSha256, stableStringify } from "../config/hashing.js";
+import { stableStringify } from "../config/hashing.js";
+import { shortSha256 } from "../legacy/identity.js";
 import type { HardwareProfile } from "../schema/run-manifest.js";
 
 /** `hw.nperflevels`, then a name/count line pair per level → `{ name: cores }`. */

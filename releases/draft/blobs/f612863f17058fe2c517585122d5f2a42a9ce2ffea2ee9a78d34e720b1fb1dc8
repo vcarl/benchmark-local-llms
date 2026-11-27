@@ -1,0 +1,1 @@
+{"config":{"expected":"6.61","extract":"(?i)ANSWER:\\*{0,2}\\s*\\*{0,2}(-?\\d[\\d,]*(?:\\.\\d+)?)","fallbackExtract":"(-?\\d[\\d,]*(?:\\.\\d+)?)","nearMisses":[{"credit":0.5,"expected":"6.60","slip":"truncated"}],"type":"exact_match"},"rules":2}

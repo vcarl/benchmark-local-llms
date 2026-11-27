@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 0.648","pattern":"(?<![\\d.])0?\\.6480*(?!\\d)"}],"type":"constraint"},"rules":2}

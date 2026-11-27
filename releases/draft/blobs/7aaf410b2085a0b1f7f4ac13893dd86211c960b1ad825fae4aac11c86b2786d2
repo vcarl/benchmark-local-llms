@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"query":"Okafor"},"name":"searchUsers","optional":{"includeInactive":false,"limit":10}}]}],"type":"constraint"},"rules":2}

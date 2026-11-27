@@ -1,0 +1,493 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  },
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  },
+  {
+    "name": "Services_4_BookAppointment",
+    "description": "Books an appointment with a selected therapist for a specified date and time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "therapist_name": {
+          "type": "string",
+          "description": "The full name of the therapist with whom the appointment is to be booked."
+        },
+        "appointment_time": {
+          "type": "string",
+          "description": "The desired time for the appointment, in 24-hour format (e.g., '14:00' for 2 PM)."
+        },
+        "appointment_date": {
+          "type": "string",
+          "description": "The desired date for the appointment, in the format of 'YYYY-MM-DD' (e.g., '2023-04-15')."
+        }
+      },
+      "required": [
+        "therapist_name",
+        "appointment_time",
+        "appointment_date"
+      ]
+    }
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel a store order that has not been delivered yet and refund it to the chosen payment method.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the customer is cancelling, used for reporting.",
+          "enum": [
+            "changed_mind",
+            "found_cheaper",
+            "ordered_by_mistake",
+            "arrives_too_late"
+          ]
+        },
+        "refund_method": {
+          "type": "string",
+          "description": "Where the refund is paid: the original card or store credit.",
+          "enum": [
+            "original_payment",
+            "store_credit"
+          ],
+          "default": "original_payment"
+        }
+      },
+      "required": [
+        "order_id",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  },
+  {
+    "name": "updateUserRole",
+    "description": "Change the role of one user account, which sets what the user can see and edit in the workspace.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        },
+        "role": {
+          "type": "string",
+          "description": "New role for the account.",
+          "enum": [
+            "viewer",
+            "editor",
+            "admin"
+          ]
+        },
+        "notifyUser": {
+          "type": "boolean",
+          "description": "Email the user about the change.",
+          "default": true
+        }
+      },
+      "required": [
+        "userId",
+        "role"
+      ]
+    }
+  },
+  {
+    "name": "Travel_1_FindAttractions",
+    "description": "Browse attractions in a given city, filtering by various criteria such as free entry, category, and suitability for children.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The name of the city or town where the attraction is located, in the format of 'City, State' or 'City, Country', such as 'Paris, France' or 'New York, NY'."
+        },
+        "free_entry": {
+          "type": "string",
+          "description": "Flag indicating whether the attraction offers free entry. A value of 'True' filters for attractions with free entry, 'False' for attractions with an entry fee, and 'dontcare' (default) includes all attractions regardless of entry fee.",
+          "enum": [
+            "True",
+            "False",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the attraction, such as 'Place of Worship', 'Theme Park', etc. Use 'dontcare' (default) to include all categories.",
+          "enum": [
+            "Place of Worship",
+            "Theme Park",
+            "Museum",
+            "Historical Landmark",
+            "Park",
+            "Tourist Attraction",
+            "Sports Venue",
+            "Shopping Area",
+            "Performing Arts Venue",
+            "Nature Preserve",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "good_for_kids": {
+          "type": "string",
+          "description": "Flag indicating whether the attraction is suitable for children. 'True' filters for kid-friendly attractions, 'False' for attractions that may not be suitable for children, and 'dontcare' (default) includes all attractions.",
+          "enum": [
+            "True",
+            "False",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  },
+  {
+    "name": "ChaDri.change_drink",
+    "description": "Modifies the existing drink order to accommodate the customer's new request, ensuring the drink is updated according to the specified preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "drink_id": {
+          "type": "string",
+          "description": "The unique identifier of the drink to be changed.",
+          "default": "0000-0000-0000"
+        },
+        "new_preferences": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "string",
+              "description": "The size of the drink the customer prefers.",
+              "enum": [
+                "small",
+                "medium",
+                "large"
+              ],
+              "default": "medium"
+            },
+            "temperature": {
+              "type": "string",
+              "description": "The temperature at which the drink should be served.",
+              "enum": [
+                "cold",
+                "warm",
+                "hot"
+              ],
+              "default": "cold"
+            },
+            "sweetness_level": {
+              "type": "string",
+              "description": "The sweetness level the customer requests for the drink.",
+              "enum": [
+                "none",
+                "light",
+                "regular",
+                "extra"
+              ],
+              "default": "regular"
+            },
+            "milk_type": {
+              "type": "string",
+              "description": "The type of milk to be used in the drink, if applicable.",
+              "enum": [
+                "regular",
+                "soy",
+                "almond",
+                "coconut"
+              ],
+              "default": "regular"
+            },
+            "special_instructions": {
+              "type": "string",
+              "description": "Any additional instructions provided by the customer for the drink preparation.",
+              "default": ""
+            }
+          },
+          "required": [],
+          "description": "The updated preferences for the drink order."
+        }
+      },
+      "required": [
+        "new_preferences"
+      ]
+    }
+  },
+  {
+    "name": "connectBluetooth",
+    "description": "Establishes a connection to a Bluetooth device using its name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "device_name": {
+          "type": "string",
+          "description": "The name of the Bluetooth device to connect to."
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "The number of seconds to attempt a connection before timing out.",
+          "default": 30
+        },
+        "auto_reconnect": {
+          "type": "boolean",
+          "description": "Whether to automatically attempt to reconnect if the connection is lost.",
+          "default": false
+        }
+      },
+      "required": [
+        "device_name"
+      ]
+    }
+  },
+  {
+    "name": "Hotels_2_SearchHouse",
+    "description": "Search for a house accommodation at a specific location, optionally filtering by laundry service availability, number of adults, and review rating.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "where_to": {
+          "type": "string",
+          "description": "The destination where the house is searched for, in the format of 'City, State', such as 'Austin, TX' or 'San Francisco, CA'. State has to be abbrieviated"
+        },
+        "has_laundry_service": {
+          "type": "string",
+          "description": "Indicates if the house should have laundry service available.",
+          "enum": [
+            "True",
+            "False",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "number_of_adults": {
+          "type": "integer",
+          "description": "The number of adults for the reservation. Use 0 to indicate 'dontcare'.",
+          "default": 0
+        },
+        "rating": {
+          "type": "number",
+          "description": "The minimum review rating of the house on a scale from 1.0 to 5.0, with 5.0 being the highest. Use 0 to indicate 'dontcare'.",
+          "default": 0
+        }
+      },
+      "required": [
+        "where_to"
+      ]
+    }
+  },
+  {
+    "name": "Messaging_1_ShareLocation",
+    "description": "Shares the current geographical location with a specified contact.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The current location to share, expressed in the format 'Latitude, Longitude' (e.g., '34.052235, -118.243683')."
+        },
+        "contact_name": {
+          "type": "string",
+          "description": "The full name of the contact to whom the location will be sent."
+        }
+      },
+      "required": [
+        "location",
+        "contact_name"
+      ]
+    }
+  },
+  {
+    "name": "Music_3_PlayMedia",
+    "description": "Plays a specified track on a designated media player device.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "track": {
+          "type": "string",
+          "description": "The title of the song to be played."
+        },
+        "artist": {
+          "type": "string",
+          "description": "The name of the artist performing the song. If unspecified, any artist is acceptable.",
+          "default": "dontcare"
+        },
+        "device": {
+          "type": "string",
+          "description": "The media player device where the song will be played.",
+          "enum": [
+            "Living room",
+            "Kitchen",
+            "Patio"
+          ],
+          "default": "Living room"
+        },
+        "album": {
+          "type": "string",
+          "description": "The album where the song is featured. If unspecified, any album is acceptable.",
+          "default": "dontcare"
+        }
+      },
+      "required": [
+        "track"
+      ]
+    }
+  },
+  {
+    "name": "get_exchange_rate",
+    "description": "Get the exchange rate between two currencies on a date; no amount is converted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the base currency, e.g. 'USD'."
+        },
+        "quote_currency": {
+          "type": "string",
+          "description": "ISO 4217 code of the quote currency, e.g. 'EUR'."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the rate, formatted as YYYY-MM-DD; today when left out."
+        }
+      },
+      "required": [
+        "base_currency",
+        "quote_currency"
+      ]
+    }
+  }
+]
+
+Request: Wo ist mein Paket? Es ist bei DHL, Sendungsnummer 913733977259.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

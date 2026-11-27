@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"carrier":"ups","tracking_number":"322270135533"},"name":"track_package","optional":{"language":"en"}},{"arguments":{"carrier":"dhl","tracking_number":"554149549626"},"name":"track_package","optional":{"language":"en"}}]}],"type":"constraint"},"rules":2}

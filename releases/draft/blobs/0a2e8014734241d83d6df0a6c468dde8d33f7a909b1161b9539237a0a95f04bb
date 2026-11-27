@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"mentions success/value for A","pattern":"(?i)(success|result|value|output|return)"},{"check":"regex","name":"mentions error for E","pattern":"(?i)(error|fail)"},{"check":"regex","name":"mentions requirements/dependencies/context for R","pattern":"(?i)(require|depend|context|service|environment)"}],"type":"constraint"},"rules":2}

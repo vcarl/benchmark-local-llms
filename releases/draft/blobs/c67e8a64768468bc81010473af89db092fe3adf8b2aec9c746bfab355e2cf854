@@ -1,0 +1,77 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "get_pods",
+    "description": "Retrieves a list of all pods within a specified namespace in a Kubernetes cluster.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "The namespace from which to retrieve pods. For example, 'default' or 'kube-system'."
+        },
+        "label_selector": {
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their labels. Defaults to everything if not specified.",
+          "default": ""
+        },
+        "field_selector": {
+          "type": "string",
+          "description": "A selector to restrict the list of returned objects by their fields. Defaults to everything if not specified.",
+          "default": ""
+        },
+        "include_uninitialized": {
+          "type": "boolean",
+          "description": "If true, partially initialized resources are included in the response.",
+          "default": false
+        }
+      },
+      "required": [
+        "namespace"
+      ]
+    }
+  },
+  {
+    "name": "track_package",
+    "description": "Get the delivery status and scan history of a parcel from its carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": "string",
+          "description": "Shipping carrier that holds the parcel, in lower case.",
+          "enum": [
+            "ups",
+            "fedex",
+            "dhl",
+            "usps"
+          ]
+        },
+        "tracking_number": {
+          "type": "string",
+          "description": "The carrier's tracking number, exactly as given, digits as a string."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language of the scan descriptions in the response.",
+          "enum": [
+            "en",
+            "es",
+            "fr",
+            "de"
+          ],
+          "default": "en"
+        }
+      },
+      "required": [
+        "carrier",
+        "tracking_number"
+      ]
+    }
+  }
+]
+
+Request: Set the office thermostat (zone office) to 22.2 degrees and hold it until 16:15.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

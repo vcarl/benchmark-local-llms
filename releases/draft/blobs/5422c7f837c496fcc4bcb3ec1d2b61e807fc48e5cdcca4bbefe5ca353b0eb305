@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 0.4","pattern":"(?<![\\d.])0?\\.40*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.])40(?:\\.0*)?\\s*%","slip":"percent-for-decimal"}],"type":"constraint"},"rules":2}

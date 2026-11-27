@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"equals 0.75","pattern":"(?<![\\d.])0?\\.750*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.])75(?:\\.0*)?\\s*%","slip":"percent-for-decimal"}],"type":"constraint"},"rules":2}

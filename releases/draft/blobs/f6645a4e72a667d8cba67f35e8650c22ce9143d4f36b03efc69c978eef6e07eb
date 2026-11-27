@@ -1,0 +1,225 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "get_shipping_quote",
+    "description": "Price a parcel shipment to a destination without creating it or booking a carrier pickup.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "postal_code": {
+          "type": "string",
+          "description": "Destination postal code, exactly as written, as a string."
+        },
+        "country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code of the destination."
+        },
+        "weight_kg": {
+          "type": "number",
+          "description": "Total parcel weight in kilograms, including the packaging."
+        },
+        "dimensions_cm": {
+          "type": "object",
+          "description": "Outer size of the parcel in centimetres; priced as a standard box when left out.",
+          "properties": {
+            "length": {
+              "type": "number",
+              "description": "Length in cm."
+            },
+            "width": {
+              "type": "number",
+              "description": "Width in cm."
+            },
+            "height": {
+              "type": "number",
+              "description": "Height in cm."
+            }
+          },
+          "required": [
+            "length",
+            "width",
+            "height"
+          ]
+        }
+      },
+      "required": [
+        "postal_code",
+        "country",
+        "weight_kg"
+      ]
+    }
+  },
+  {
+    "name": "Flights_2_GetFlightStatus",
+    "description": "Get the live status of one scheduled flight: gate, departure and arrival times, delays or cancellation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_number": {
+          "type": "string",
+          "description": "Airline flight number, e.g. 'BA117', exactly as printed on the ticket."
+        },
+        "date": {
+          "type": "string",
+          "description": "Scheduled departure date of the flight, formatted as YYYY-MM-DD."
+        }
+      },
+      "required": [
+        "flight_number",
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "listFiles",
+    "description": "List the entries of a directory on the file server with their sizes and modification times.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the directory to list, e.g. '/var/log'."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Descend into subdirectories and list their entries too.",
+          "default": false
+        },
+        "includeHidden": {
+          "type": "boolean",
+          "description": "Include dotfiles and other hidden entries in the listing.",
+          "default": false
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Field the listing is sorted by.",
+          "enum": [
+            "name",
+            "size",
+            "modified"
+          ],
+          "default": "name"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of entries to return in one response.",
+          "default": 100
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "set_ac_state",
+    "description": "Set the state of the air conditioner by adjusting the temperature, mode, fan speed, and fan position to achieve the desired comfort level.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "integer",
+          "description": "Desired temperature setting for the air conditioner in degrees Celsius."
+        },
+        "mode": {
+          "type": "string",
+          "description": "The air conditioner's operating mode.",
+          "enum": [
+            "cool",
+            "heat",
+            "dry",
+            "fan",
+            "auto"
+          ]
+        },
+        "fan_speed": {
+          "type": "integer",
+          "description": "Fan speed level from 1 to 5, where 1 is the lowest speed and 5 is the highest."
+        },
+        "fan_position": {
+          "type": "integer",
+          "description": "Fan position level from 1 to 5, where 1 is the lowest and 5 is the highest."
+        }
+      },
+      "required": [
+        "temperature",
+        "mode",
+        "fan_speed",
+        "fan_position"
+      ]
+    }
+  },
+  {
+    "name": "telemetry.flowrules.interfaceInfo.get",
+    "description": "Retrieves specified telemetry information for a network interface within a given fabric, node, and pod, filtered by the interface and information types.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fabricName": {
+          "type": "string",
+          "description": "The name of the fabric to limit the nodes pertaining to the given fabric name."
+        },
+        "nodeId": {
+          "type": "integer",
+          "description": "The identifier of the node to limit the results pertaining to the given node ID."
+        },
+        "podId": {
+          "type": "integer",
+          "description": "The identifier of the pod to limit the results pertaining to the given pod ID."
+        },
+        "interfaceType": {
+          "type": "string",
+          "description": "The type of the interface to limit the results pertaining to the given interface type.",
+          "enum": [
+            "svi",
+            "ethernet",
+            "loopback",
+            "port-channel"
+          ]
+        },
+        "infoType": {
+          "type": "string",
+          "description": "The type of information to retrieve about the interface.",
+          "enum": [
+            "interfaces",
+            "status",
+            "statistics",
+            "errors"
+          ]
+        }
+      },
+      "required": [
+        "fabricName",
+        "nodeId",
+        "podId",
+        "interfaceType",
+        "infoType"
+      ]
+    }
+  },
+  {
+    "name": "Weather_1_GetWeather",
+    "description": "Retrieves the current or historical weather data for a specified city on a given date.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The name of the city for which to retrieve weather data."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date for which to retrieve the weather, in the format 'YYYY-MM-DD'. A default value of 'null' indicates the current date."
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  }
+]
+
+Request: List what's in /etc/nginx, including everything in its subdirectories, with hidden dotfiles shown too, sorted by size, showing at most 49 entries.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

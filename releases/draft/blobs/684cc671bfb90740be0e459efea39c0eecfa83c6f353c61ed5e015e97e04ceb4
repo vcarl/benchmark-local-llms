@@ -1,0 +1,157 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "kube.restart_deployment",
+    "description": "Restart every pod of a Kubernetes deployment with a rolling restart, keeping the replica count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment"
+      ]
+    }
+  },
+  {
+    "name": "kube.get_pod_logs",
+    "description": "Fetch the most recent log lines of one pod's container, optionally from its previous crashed run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "pod": {
+          "type": "string",
+          "description": "Full pod name, exactly as listed, e.g. 'checkout-api-7d9f8-x2kqp'."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return, counted from the end of the log.",
+          "default": 100
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "Read the log of the previous, terminated container instance.",
+          "default": false
+        }
+      },
+      "required": [
+        "pod"
+      ]
+    }
+  },
+  {
+    "name": "generate_password",
+    "description": "Generate a secure, random password based on specified criteria including length, numerical, and special character inclusion.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "length": {
+          "type": "integer",
+          "description": "The desired number of characters in the password. Must be an integer greater than 0."
+        },
+        "include_numbers": {
+          "type": "boolean",
+          "description": "Whether to include numerical digits (0-9) in the password.",
+          "default": true
+        },
+        "include_special_characters": {
+          "type": "boolean",
+          "description": "Whether to include special characters (e.g., !, @, #) in the password.",
+          "default": false
+        }
+      },
+      "required": [
+        "length"
+      ]
+    }
+  },
+  {
+    "name": "Homes_2_FindHomeByArea",
+    "description": "Search for a property to rent or buy in a specified city, filtering by number of bedrooms, number of bathrooms, garage availability, and in-unit laundry facilities.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "description": "The city where the property is located, in the format of 'City, State' (e.g., 'San Francisco, CA'). State names must be abbreviated"
+        },
+        "intent": {
+          "type": "string",
+          "description": "The intent of the search, whether the user is looking to rent or buy.",
+          "enum": [
+            "rent",
+            "buy"
+          ]
+        },
+        "number_of_beds": {
+          "type": "integer",
+          "description": "The number of bedrooms required in the property."
+        },
+        "number_of_baths": {
+          "type": "integer",
+          "description": "The number of bathrooms required in the property."
+        },
+        "has_garage": {
+          "type": "boolean",
+          "description": "Indicates if the property must have a garage.",
+          "default": false
+        },
+        "in_unit_laundry": {
+          "type": "boolean",
+          "description": "Indicates if the property must have in-unit laundry facilities.",
+          "default": false
+        }
+      },
+      "required": [
+        "area",
+        "intent",
+        "number_of_beds",
+        "number_of_baths"
+      ]
+    }
+  },
+  {
+    "name": "kube.scale_deployment",
+    "description": "Set the number of replicas of a Kubernetes deployment; the cluster adds or removes pods to match.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "description": "Name of the deployment, exactly as given, e.g. 'checkout-api'."
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "Desired number of replicas, from 0 to 50."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace the resource lives in.",
+          "default": "default"
+        }
+      },
+      "required": [
+        "deployment",
+        "replicas"
+      ]
+    }
+  }
+]
+
+Request: Pull the last 20 log lines of each of these pods: billing-worker-9866-x90q, billing-worker-5408-x53q, checkout-api-3245-x30q.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

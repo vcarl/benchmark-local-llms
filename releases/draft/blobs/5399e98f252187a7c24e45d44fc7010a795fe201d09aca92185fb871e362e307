@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"account_type":"savings","end_date":"2025-02-01","start_date":"2025-01-01"},"name":"Banking_1_ListTransactions"}]}],"type":"constraint"},"rules":2}

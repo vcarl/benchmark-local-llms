@@ -1,0 +1,1 @@
+Output a JSON object with exactly 3 keys: "name", "age", "city". All values must be strings. Output only the JSON, nothing else.

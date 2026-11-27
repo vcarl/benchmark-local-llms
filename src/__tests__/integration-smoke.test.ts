@@ -22,7 +22,7 @@ import { scoreExecution } from "../scoring/score-result.js";
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const challengesDir = path.join(repoRoot, "challenges");
+const challengesDir = path.join(repoRoot, "releases", "0", "challenges");
 const scenariosDir = path.join(repoRoot, "scenarios");
 const systemPromptsPath = path.join(repoRoot, "system-prompts.yaml");
 
@@ -65,7 +65,6 @@ describe("integration smoke: YAML -> score pipeline", () => {
         reasoning: null,
         rawOutput: "The answer is 4183",
         error: null,
-        promptHash: prompt.promptHash,
         scenarioHash: null,
         scenarioName: null,
         terminationReason: null,

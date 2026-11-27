@@ -12,11 +12,12 @@
  *   - start_llamacpp_server / stop_llamacpp_server (terminate then kill at 10s)
  *   - start_mlx_server / stop_mlx_server (identical shape)
  */
-import { Command, type CommandExecutor, type HttpClient } from "@effect/platform";
+import { Command, type CommandExecutor, HttpClient, HttpClientRequest } from "@effect/platform";
 import { Clock, Deferred, Duration, Effect, Exit, Fiber, Stream } from "effect";
 import { deregisterSubprocess, registerSubprocess } from "../../cli/subprocess-registry.js";
 import {
   type HealthCheckTimeout,
+  ModelLoadError,
   ServerSpawnError,
   type TemplateVerificationError,
 } from "../../errors/index.js";
@@ -27,6 +28,9 @@ import { type ProcessHealthMonitor, watchProcess } from "./process-health.js";
 import { type VerifyTemplateArgs, verifyTemplate } from "./template-verification.js";
 
 const PEAK_RSS_POLL_MS = 30_000;
+
+/** Server output lines kept for {@link ModelLoadError} `logTail`. */
+const LOG_TAIL_LINES = 40;
 
 /**
  * Forward a subprocess byte stream to the Effect logger at Info level,
@@ -43,6 +47,7 @@ const PEAK_RSS_POLL_MS = 30_000;
 const forwardSubprocessStream = <E>(
   stream: Stream.Stream<Uint8Array, E>,
   runtime: Runtime,
+  onLine: (line: string) => Effect.Effect<void>,
 ): Effect.Effect<void> =>
   stream.pipe(
     Stream.decodeText("utf-8"),
@@ -50,7 +55,10 @@ const forwardSubprocessStream = <E>(
     Stream.runForEach((line) =>
       line.length === 0
         ? Effect.void
-        : Effect.logInfo(line).pipe(Effect.annotateLogs("scope", runtime)),
+        : Effect.zipRight(
+            onLine(line),
+            Effect.logInfo(line).pipe(Effect.annotateLogs("scope", runtime)),
+          ),
     ),
     Effect.ignore,
   );
@@ -107,7 +115,63 @@ export interface SuperviseParams {
    * never subject to the gate.
    */
   readonly verifyTemplate?: VerifyTemplateArgs;
+  /**
+   * When set, prove the model loaded and generates before the handle is
+   * returned: after health and template verification, POST a `max_tokens: 1`
+   * chat completion naming `model`. A non-2xx answer, no answer within
+   * `timeoutSec`, or a server output line matching `fatalOutput` fails boot
+   * with `ModelLoadError`. Health alone cannot prove this: `mlx_lm.server`
+   * and oMLX answer `/v1/models` before (or regardless of) the weight load.
+   */
+  readonly warmup?: {
+    readonly model: string;
+    readonly timeoutSec: number;
+    /** A server output line that proves the load failed; fails boot at once. */
+    readonly fatalOutput?: RegExp;
+  };
 }
+
+/** POST a one-token completion; any failure or timeout is a `ModelLoadError`. */
+const warmupRequest = (
+  runtime: Runtime,
+  port: number,
+  warmup: NonNullable<SuperviseParams["warmup"]>,
+): Effect.Effect<void, ModelLoadError, HttpClient.HttpClient> =>
+  Effect.gen(function* () {
+    const client = yield* HttpClient.HttpClient;
+    const fail = (reason: string) => new ModelLoadError({ runtime, reason });
+    const request = yield* HttpClientRequest.post(
+      `http://127.0.0.1:${port}/v1/chat/completions`,
+    ).pipe(
+      HttpClientRequest.bodyJson({
+        model: warmup.model,
+        messages: [{ role: "user", content: "hi" }],
+        max_tokens: 1,
+        temperature: 0,
+        stream: false,
+      }),
+      Effect.mapError((err) => fail(`could not encode the warmup request: ${String(err)}`)),
+    );
+    const response = yield* client
+      .execute(request)
+      .pipe(Effect.mapError((err) => fail(`warmup request failed: ${String(err)}`)));
+    if (response.status < 200 || response.status >= 300) {
+      const body = yield* response.text.pipe(Effect.orElseSucceed(() => ""));
+      return yield* fail(
+        `warmup completion returned HTTP ${response.status}: ${body.slice(0, 500)}`,
+      );
+    }
+  }).pipe(
+    Effect.scoped,
+    Effect.timeoutFail({
+      duration: Duration.seconds(warmup.timeoutSec),
+      onTimeout: () =>
+        new ModelLoadError({
+          runtime,
+          reason: `warmup completion did not answer within ${warmup.timeoutSec}s; the model never finished loading`,
+        }),
+    }),
+  );
 
 /**
  * Spawn a server subprocess, wait for it to become healthy, and fork a
@@ -118,7 +182,7 @@ export const superviseServer = (
   params: SuperviseParams,
 ): Effect.Effect<
   ServerHandle,
-  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError,
+  ServerSpawnError | HealthCheckTimeout | TemplateVerificationError | ModelLoadError,
   CommandExecutor.CommandExecutor | HttpClient.HttpClient | import("effect/Scope").Scope
 > =>
   Effect.gen(function* () {
@@ -152,8 +216,27 @@ export const superviseServer = (
     // scoped so they die with the supervisor; they do NOT block health
     // checks or downstream work. Stream failures are swallowed inside the
     // helper — a broken log pipe never fails the server.
-    yield* Effect.forkScoped(forwardSubprocessStream(proc.stderr, params.runtime));
-    yield* Effect.forkScoped(forwardSubprocessStream(proc.stdout, params.runtime));
+    // Every line also lands in a bounded tail (attached to a ModelLoadError)
+    // and is checked against the warmup's fatal pattern.
+    const logTail: string[] = [];
+    const fatal = yield* Deferred.make<never, ModelLoadError>();
+    const fatalOutput = params.warmup?.fatalOutput;
+    const onLine = (line: string): Effect.Effect<void> =>
+      Effect.suspend(() => {
+        logTail.push(line);
+        if (logTail.length > LOG_TAIL_LINES) logTail.shift();
+        return fatalOutput?.test(line) === true
+          ? Deferred.fail(
+              fatal,
+              new ModelLoadError({
+                runtime: params.runtime,
+                reason: `server reported a fatal error while loading the model: ${line}`,
+              }),
+            ).pipe(Effect.asVoid)
+          : Effect.void;
+      });
+    yield* Effect.forkScoped(forwardSubprocessStream(proc.stderr, params.runtime, onLine));
+    yield* Effect.forkScoped(forwardSubprocessStream(proc.stdout, params.runtime, onLine));
 
     // Must be set up before the shutdown finalizer so the finalizer can
     // read the peak for its log line. The poll fiber itself is scoped and
@@ -290,6 +373,35 @@ export const superviseServer = (
     // graceful-shutdown finalizer tears the subprocess down on failure.
     if (params.verifyTemplate !== undefined) {
       yield* verifyTemplate(params.verifyTemplate);
+    }
+
+    // Load gate. Whichever settles first wins: the one-token completion, a
+    // fatal output line, or the process dying. The traceback that explains a
+    // fatal line follows it, so the tail is read after a short settle.
+    if (params.warmup !== undefined) {
+      yield* Effect.logInfo(`warming ${params.warmup.model} (1-token load check)`).pipe(
+        Effect.annotateLogs("scope", "llm-server"),
+      );
+      yield* warmupRequest(params.runtime, params.port, params.warmup).pipe(
+        Effect.raceFirst(Deferred.await(fatal)),
+        Effect.raceFirst(Deferred.await(monitor.exited)),
+        Effect.catchTag("ModelLoadError", (e) =>
+          Effect.sleep(Duration.millis(500)).pipe(
+            Effect.zipRight(
+              Effect.fail(
+                new ModelLoadError({
+                  runtime: e.runtime,
+                  reason: e.reason,
+                  logTail: logTail.join("\n"),
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+      // Weights are resident now, including on runtimes that load lazily.
+      yield* sampleNow;
+      yield* Effect.logInfo("warmed").pipe(Effect.annotateLogs("scope", "llm-server"));
     }
 
     return {

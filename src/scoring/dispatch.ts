@@ -58,7 +58,7 @@ export const scoreByConfig = (
     case "ordered_match":
       return scoreOrderedMatch(output, cfg);
     case "custom":
-      return scoreCustom(output, cfg.script, meta);
+      return scoreCustom(output, cfg.source, meta);
     case "game":
       return Effect.fail(new ScorerNotFound({ scorerName: cfg.gameScorer }));
   }

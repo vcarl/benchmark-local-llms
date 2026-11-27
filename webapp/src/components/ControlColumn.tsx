@@ -1,4 +1,14 @@
+import { Link } from "@tanstack/react-router";
 import styles from "./ControlColumn.module.css";
+import {
+  altEntry,
+  setChipName,
+  type IndexEntry,
+  indexCounts,
+  releaseGroups,
+  releaseHeading,
+  shortDigest,
+} from "../lib/snapshots";
 import { hardwareLabel, type RowsDataset } from "../lib/rows";
 import type { GroupBy, ItemScope, ScopedRow, SortKey } from "../lib/model";
 import {
@@ -11,15 +21,13 @@ import {
   type Funnel,
   funnelText,
   MEM_CAPS,
-  PILOT_SET,
-  PRESETS,
+  presetsFor,
   type ViewState,
 } from "../lib/view-state";
 
 interface Props {
   view: ViewState;
   defaultSet: string;
-  datasets: RowsDataset[];
   dataset: RowsDataset;
   /** The set's rows in scope, before filters (facet counts). */
   scoped: ScopedRow[];
@@ -32,10 +40,10 @@ const FACET_LABEL: Record<Facet, string> = {
   quant: "Quant",
   family: "Family",
   hw: "Hardware",
-  sub: "Submitter",
+  sub: "Contributor",
 };
 const SORT_LABEL: Record<SortKey, string> = {
-  score: "score",
+  score: "pass rate",
   efficiency: "efficiency",
   speed: "speed",
   memory: "memory",
@@ -74,10 +82,7 @@ function Segmented<T extends string>({
   );
 }
 
-/**
- * The column's title, identical collapsed and expanded (only rotated): a
- * non-default item scope or challenge subset, then the row funnel.
- */
+/** The filters' summary line: a non-default item scope or challenge subset, then the row funnel. */
 export const columnTitle = (v: ViewState, f: Funnel): string =>
   [
     ...(v.scope.items === "all" ? [] : [v.scope.items]),
@@ -94,73 +99,117 @@ export function PresetChips({
 }: {
   view: ViewState;
   defaultSet: string;
-  datasets: RowsDataset[];
+  datasets: IndexEntry[];
   onChange: (v: ViewState) => void;
 }) {
-  const active = activePreset(view, defaultSet);
-  const hasPilot = datasets.some((d) => d.dataset.label === PILOT_SET);
+  const alt = altEntry(datasets);
+  const draftSet = alt?.dataset;
+  const active = activePreset(view, defaultSet, draftSet);
   return (
     <div className={styles.chips} role="toolbar" aria-label="Presets">
-      {PRESETS.filter((p) => p.id !== "pilot" || hasPilot).map((p) => (
+      {presetsFor(draftSet).map((p) => (
         <button
           type="button"
           key={p.id}
           className={styles.preset}
           aria-pressed={active?.id === p.id}
-          onClick={() => onChange(applyPreset(p, view, defaultSet))}
+          onClick={() => onChange(applyPreset(p, view, defaultSet, draftSet))}
         >
-          {p.name}
+          {p.id === "alt" && alt !== undefined ? setChipName(alt) : p.name}
         </button>
       ))}
     </div>
   );
 }
 
-export function ControlColumn({ view, defaultSet, datasets, dataset, scoped, funnel, onChange }: Props) {
+/** `alpha`, `legacy`, `unranked`: what a reader must know before comparing a dataset's numbers. */
+export const datasetTags = (e: { release: string | null; legacy: boolean; ranked: boolean }): string[] => [
+  ...(e.legacy && e.release === "0" ? ["alpha"] : []),
+  ...(e.legacy ? ["legacy"] : []),
+  ...(e.ranked ? [] : ["unranked"]),
+];
+
+/**
+ * Dataset drawer: the datasets under their releases, one radio each with its
+ * facts. Choosing a dataset
+ * clears the challenge subset, which names its challenges.
+ */
+export function DatasetColumn({
+  view,
+  datasets,
+  dataset,
+  onChange,
+}: {
+  view: ViewState;
+  datasets: IndexEntry[];
+  /** The selected dataset's current snapshot. */
+  dataset: IndexEntry;
+  onChange: (v: ViewState) => void;
+}) {
+  return (
+    <div className={styles.body} role="radiogroup" aria-label="Dataset">
+      {releaseGroups(datasets).map(({ release, entries }) => (
+        <section key={release ?? ""} className={styles.release}>
+          {release === null ? (
+            <span className={styles.releaseHeading}>{releaseHeading(release)}</span>
+          ) : (
+            <Link to="/release/$release" params={{ release }} className={styles.releaseHeading}>
+              {releaseHeading(release)} · notes
+            </Link>
+          )}
+          {entries.map((d) => {
+            const chosen = d.dataset === dataset.dataset;
+            return (
+              <div key={d.dataset}>
+                <label className={styles.option}>
+                  <input
+                    type="radio"
+                    name="dataset"
+                    checked={chosen}
+                    onChange={() =>
+                      onChange({ ...view, set: d.dataset, scope: { ...view.scope, challenges: [] } })
+                    }
+                  />
+                  <span className={styles.optionText}>
+                    <span className={styles.optionTitle}>
+                      {d.title}
+                      {datasetTags(d).map((t) => (
+                        <span key={t} className={styles.tag}>
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                    {d.span !== null && <span className={styles.optionMeta}>{d.span}</span>}
+                    <span className={styles.optionMeta}>{indexCounts(d)}</span>
+                    <span className={styles.optionMeta} title={d.digest}>
+                      snapshot {shortDigest(d.digest)}…
+                    </span>
+                  </span>
+                </label>
+              </div>
+            );
+          })}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** Filter drawer: scoring scope, row filters, grouping and sort. */
+export function ControlColumn({ view, defaultSet, dataset, scoped, funnel, onChange }: Props) {
   const set = (edit: (v: ViewState) => void) => {
     const next = structuredClone(view);
     edit(next);
     onChange(next);
   };
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const title = columnTitle(view, funnel);
 
   return (
-    <aside className={styles.column} data-open={view.open} aria-label="Filters">
-      <button
-        type="button"
-        className={styles.head}
-        onClick={() => set((v) => (v.open = !v.open))}
-        aria-expanded={view.open}
-        title={view.open ? "Hide filters" : "Show filters"}
-      >
-        <span className={styles.icon} aria-hidden="true">
-          ⧩
-        </span>
-        <span className={styles.title}>{title}</span>
-        <span className={styles.close} aria-hidden={!view.open}>
-          <span className={styles.closeWide}>«</span>
-          <span className={styles.closeNarrow}>Done</span>
-        </span>
-      </button>
-      {view.open && (
-        <div className={styles.body}>
+    <div className={styles.body}>
+      <p className={styles.summary}>{columnTitle(view, funnel)}</p>
       <fieldset className={styles.scope}>
         <legend>Scoring</legend>
-        <p className={styles.hint}>Changes every row's score.</p>
-        {datasets.length > 1 && (
-          <Segmented
-            label="Set"
-            value={view.set}
-            options={datasets.map((d) => ({ value: d.dataset.label, label: d.dataset.label }))}
-            onPick={(s) =>
-              set((v) => {
-                v.set = s;
-                v.scope.challenges = [];
-              })
-            }
-          />
-        )}
+        <p className={styles.hint}>Changes every row's pass rate.</p>
         <Segmented<ItemScope>
           label="Items"
           value={view.scope.items}
@@ -254,12 +303,10 @@ export function ControlColumn({ view, defaultSet, datasets, dataset, scoped, fun
         <span>
           Showing {funnel.view ?? funnel.match} of {funnel.inScope} rows in scope
         </span>
-        <button type="button" className={styles.reset} onClick={() => onChange({ ...view, ...defaultView(defaultSet), open: true })}>
+        <button type="button" className={styles.reset} onClick={() => onChange({ ...view, ...defaultView(defaultSet) })}>
           Reset
         </button>
       </div>
-        </div>
-      )}
-    </aside>
+    </div>
   );
 }

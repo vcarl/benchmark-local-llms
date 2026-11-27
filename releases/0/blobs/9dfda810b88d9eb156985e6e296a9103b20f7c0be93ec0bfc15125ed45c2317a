@@ -1,0 +1,1 @@
+{"constraints":[{"check":"regex","name":"equals 26.666667","pattern":"(?<![\\d.])26\\.6666670*(?!\\d)"}],"nearMisses":[{"credit":0.5,"pattern":"(?<![\\d.])26\\.6666660*(?!\\d)","slip":"truncated"}],"type":"constraint"}

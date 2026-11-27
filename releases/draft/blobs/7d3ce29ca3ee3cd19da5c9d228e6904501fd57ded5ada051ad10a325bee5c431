@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"directory":"/mnt/shared/finance","pattern":"report-*"},"name":"searchFiles","optional":{"maxResults":50,"recursive":true}}]}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"numbered_lines","from":1,"name":"has 5 numbered lines","to":5},{"check":"no_numbered_line","line":6,"name":"has no 6th item"}],"type":"constraint"},"rules":2}

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"matches overgrazing","pattern":"\\b[Oo][Vv][Ee][Rr][Gg][Rr][Aa][Zz][Ii][Nn][Gg]\\b"}],"type":"constraint"},"rules":2}

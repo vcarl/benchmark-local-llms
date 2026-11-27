@@ -1,0 +1,28 @@
+Below is a web server access log. Each line is: timestamp, HTTP method, path, status code, latency. Lines starting with # are comments, not requests.
+
+Count the requests per path and status code, using only requests with timestamps from 18:00:00 to 18:59:59 inclusive (all methods). Reply with only a JSON object mapping each path to an object that maps each status code (as a string key) to its count, e.g. {"/a": {"200": 3, "404": 1}}. Leave out paths and status codes with no requests in the window.
+
+```
+# access.log for 2025-04-13, rotated at 00:00:00
+2025-04-13T17:53:54Z GET /api/cart 404 621ms
+2025-04-13T17:59:59Z GET /api/cart 200 86ms
+2025-04-13T18:00:00Z GET /api/cart 404 458ms
+2025-04-13T18:02:37Z GET /api/users 200 177ms
+2025-04-13T18:21:00Z GET /api/orders 204 297ms
+2025-04-13T18:21:21Z POST /api/users 204 105ms
+2025-04-13T18:21:23Z GET /api/users 201 337ms
+2025-04-13T18:26:59Z GET /api/orders 200 386ms
+2025-04-13T18:31:05Z GET /api/orders 201 654ms
+2025-04-13T18:34:43Z GET /api/cart 503 295ms
+2025-04-13T18:41:23Z GET /api/orders 200 413ms
+2025-04-13T18:42:29Z GET /api/orders 400 773ms
+2025-04-13T18:52:32Z GET /api/cart 201 144ms
+2025-04-13T18:56:40Z GET /api/orders 400 700ms
+2025-04-13T18:58:18Z GET /api/orders 304 824ms
+2025-04-13T18:59:26Z GET /api/users 404 773ms
+2025-04-13T18:59:28Z POST /api/orders 304 618ms
+2025-04-13T18:59:59Z POST /api/orders 200 680ms
+2025-04-13T19:00:00Z GET /api/cart 304 776ms
+2025-04-13T19:10:12Z GET /api/cart 404 350ms
+2025-04-13T19:12:04Z POST /api/orders 304 284ms
+```

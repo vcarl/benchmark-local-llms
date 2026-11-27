@@ -1,0 +1,5 @@
+In Effect-TS, you want to create a Stream from an array, transform each
+element with an effectful function, then collect all results into an array.
+Name the three functions you'd chain together.
+Reply as JSON: {"create": "Stream.xxx", "transform": "Stream.xxx", "collect": "xxx"}
+Output only the JSON object, no extra text.

@@ -1,0 +1,117 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "resizeImageAction",
+    "description": "This function resizes an image to the specified aspect ratio while maintaining the original image proportions. It returns the resized image in the desired format.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "aspect_ratio_width": {
+          "type": "integer",
+          "description": "The width component of the desired aspect ratio for the image. Must be a positive integer."
+        },
+        "aspect_ratio_height": {
+          "type": "integer",
+          "description": "The height component of the desired aspect ratio for the image. Must be a positive integer."
+        },
+        "image_format": {
+          "type": "string",
+          "description": "The file format for the output resized image. For example, 'jpeg' for Joint Photographic Experts Group format.",
+          "enum": [
+            "jpeg",
+            "png",
+            "gif",
+            "bmp"
+          ],
+          "default": "jpeg"
+        }
+      },
+      "required": [
+        "aspect_ratio_width",
+        "aspect_ratio_height"
+      ]
+    }
+  },
+  {
+    "name": "Movies_3_FindMovies",
+    "description": "Retrieves a list of movies based on the specified director, genre, and cast. The default behavior without parameters is to find a wide range of movies without specific preferences.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "directed_by": {
+          "type": "string",
+          "description": "The name of the movie's director. Use 'dontcare' to ignore this filter.",
+          "default": "dontcare"
+        },
+        "genre": {
+          "type": "string",
+          "description": "The genre category of the movie. Use 'dontcare' for no specific genre preference.",
+          "enum": [
+            "Offbeat",
+            "Fantasy",
+            "World",
+            "Mystery",
+            "Thriller",
+            "Comedy",
+            "Comedy-drama",
+            "Horror",
+            "Animation",
+            "Sci-fi",
+            "Cult",
+            "Drama",
+            "Anime",
+            "Family",
+            "Action",
+            "dontcare"
+          ],
+          "default": "dontcare"
+        },
+        "cast": {
+          "type": "string",
+          "description": "A comma-separated list of actors in the movie. Use 'dontcare' to ignore this filter.",
+          "default": "dontcare"
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "Banking_1_TransferMoney",
+    "description": "Transfer money from one of the user's accounts to another account number, executed immediately.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Amount to transfer in the account currency, e.g. 125.5."
+        },
+        "recipient_account": {
+          "type": "string",
+          "description": "Recipient's account number or IBAN, exactly as given."
+        },
+        "account_type": {
+          "type": "string",
+          "description": "Which of the user's accounts to use.",
+          "enum": [
+            "checking",
+            "savings"
+          ],
+          "default": "checking"
+        },
+        "memo": {
+          "type": "string",
+          "description": "Reference text the recipient sees on their statement."
+        }
+      },
+      "required": [
+        "amount",
+        "recipient_account"
+      ]
+    }
+  }
+]
+
+Request: Send 607.65 to account DE710529996586086401.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

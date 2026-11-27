@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"regex","name":"exactly 3 bullet points","pattern":"(?m)(?<![\\s\\S])(?=(?:[\\s\\S]*?^[-*] ){3})(?!(?:[\\s\\S]*?^[-*] ){4})"},{"check":"regex","name":"avoids from","pattern":"(?i)^(?![\\s\\S]*\\bfrom\\b)"},{"check":"word_count_exact","count":2,"name":"near x2","word":"near"}],"type":"constraint"},"rules":2}

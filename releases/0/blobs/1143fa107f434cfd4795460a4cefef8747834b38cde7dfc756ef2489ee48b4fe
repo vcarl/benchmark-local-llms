@@ -1,0 +1,1 @@
+In Effect-TS, when would you use `.pipe()` with combinators like Effect.map/Effect.flatMap versus `Effect.gen` with yield*? Reply in 2-3 sentences.

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { LlmRequestError, LlmTimeoutError } from "../../errors/index.js";
-import { deriveTps, makeSuccessResult, runPrompt } from "../run-prompt.js";
+import { deriveTps, makeSuccessResult, runPrompt, stringifyLlmError } from "../run-prompt.js";
 import { makeChatCompletionMock, sampleModel, samplePromptExact } from "./fixtures.js";
 
 describe("runPrompt", () => {
@@ -43,7 +43,6 @@ describe("runPrompt", () => {
     expect(result.generationTps).toBeCloseTo(30.2);
     expect(result.runtime).toBe("mlx");
     expect(result.runId).toBe("run-1");
-    expect(result.promptHash).toBe("hash-p1");
     expect(result.scenarioName).toBeNull();
   });
 
@@ -413,5 +412,25 @@ describe("runPrompt", () => {
     expect(deriveTps(null, 10, 0)).toBe(0);
     // Negative/nonsensical wall time → same rule.
     expect(deriveTps(null, 10, -1)).toBe(0);
+  });
+});
+
+describe("stringifyLlmError", () => {
+  const req = (cause: string) => new LlmRequestError({ model: "m", promptName: "p", cause });
+
+  it("records a llama-server context overflow as context_exceeded", () => {
+    const body =
+      'HTTP 400: {"error":{"code":400,"message":"request (40000 tokens) exceeds the available context size (16384 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":40000,"n_ctx":16384}}';
+    expect(stringifyLlmError(req(body))).toBe("context_exceeded");
+  });
+
+  it("records an oMLX context overflow as context_exceeded", () => {
+    const body =
+      'HTTP 400: {"error":{"message":"Prompt too long: 25707 tokens exceeds max context window of 16384 tokens","type":"invalid_request_error","param":null,"code":null}}';
+    expect(stringifyLlmError(req(body))).toBe("context_exceeded");
+  });
+
+  it("keeps any other request error as its truncated JSON", () => {
+    expect(stringifyLlmError(req("HTTP 500: boom"))).toContain("LlmRequestError");
   });
 });

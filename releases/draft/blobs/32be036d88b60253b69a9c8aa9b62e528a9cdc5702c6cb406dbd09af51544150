@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"bongani":187,"elif":169,"farah":42}}],"type":"constraint"},"rules":2}

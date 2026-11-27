@@ -1,0 +1,3 @@
+Five banks A, B, C, D and E are linked by interbank loans. Each holds a capital buffer that absorbs losses: A=$50, B=$80, C=$60, D=$300, E=$45. A bank defaults when its total incoming losses exceed its buffer; on default it passes the full face value of every loan it owes to its creditor (loss given default = 100%). The loans (debtor → creditor: amount) are: A owes B $100; B owes C $120; C owes E $70; D owes E $55; B owes D $40. An external shock hits bank A with a $120 loss. Resolve the cascade until no further bank defaults; if two banks would default at the same time, the one earlier in the order A, B, C, D, E is taken first.
+
+List every bank that defaults, in the order they fail, from first to last. Give the bank letters in order.

@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"json_matches","name":"matches key","value":{"line_items":["desk lamp","box of nitrile gloves"],"total":379.2}}],"type":"constraint"},"rules":2}

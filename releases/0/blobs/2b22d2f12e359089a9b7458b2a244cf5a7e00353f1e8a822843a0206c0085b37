@@ -1,0 +1,4 @@
+Repeated prisoner's dilemma; each round's payoff (you, them): both cooperate (3,3); you cooperate–they defect (0,5); you defect–they cooperate (5,0); both defect (1,1).
+Over five rounds Rell: C C C C C and Sten: C D D D D.
+
+Who ended with the higher TOTAL payoff — Rell or Sten? Reply with just the name.

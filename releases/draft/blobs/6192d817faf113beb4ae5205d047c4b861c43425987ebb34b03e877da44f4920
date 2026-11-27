@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"account_type":"savings","amount":1062,"memo":"Rent March","recipient_account":"NL72BANK0938098303"},"name":"Banking_1_TransferMoney"}]}],"type":"constraint"},"rules":2}

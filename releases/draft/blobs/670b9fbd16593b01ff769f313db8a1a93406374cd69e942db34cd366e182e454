@@ -1,0 +1,13 @@
+Tag the customer feedback below with every product area where the customer reports a problem or asks for a change. Do not tag an area they mention only to say it works well. Allowed tags:
+- pricing: cost and plans
+- performance: speed and responsiveness
+- mobile_app: the phone apps
+- integrations: connections to other tools
+- docs: guides and help content
+- sign_in: logging in and authentication
+
+"""
+The phone app works well. The tutorials still show the old menu layout. I have to re-enter my password every morning even with 'remember me' ticked. The calendar integration works perfectly. Dashboards take ages to load once a project has a few hundred tasks.
+"""
+
+Reply with only the applicable tags, comma-separated on one line, written exactly as listed, and no other text.

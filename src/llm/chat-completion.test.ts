@@ -138,6 +138,7 @@ describe("ChatCompletion", () => {
       promptTps: 120.5,
       generationTps: 42.25,
       finishReason: "stop",
+      timing: expect.any(Object),
     });
   });
 
@@ -469,7 +470,47 @@ describe("ChatCompletion", () => {
       promptTps: null,
       generationTps: null,
       finishReason: "stop",
+      timing: expect.any(Object),
     });
+  });
+
+  it("without `timings`, measures decode tok/s from the stream after the first token", async () => {
+    // Prefill (the wait before the first token) is excluded: 4 more tokens
+    // over the ~200 ms between the first and last content frames ≈ 20 tok/s.
+    const frame = (o: unknown) => `data: ${JSON.stringify(o)}\n\n`;
+    const frames: [number, string][] = [
+      [300, frame({ choices: [{ delta: { content: "a" } }] })],
+      [100, frame({ choices: [{ delta: { content: "b" } }] })],
+      [100, frame({ choices: [{ delta: { content: "c" } }] })],
+      [0, frame({ choices: [{ delta: {}, finish_reason: "stop" }] })],
+      [0, frame({ usage: { prompt_tokens: 7, completion_tokens: 5 } })],
+      [0, "data: [DONE]\n\n"],
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      async start(ctrl) {
+        for (const [ms, f] of frames) {
+          if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+          ctrl.enqueue(new TextEncoder().encode(f));
+        }
+        ctrl.close();
+      },
+    });
+    const layer = ChatCompletionLive.pipe(
+      Layer.provide(
+        mockClient(
+          () =>
+            new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }),
+        ),
+      ),
+    );
+    const program = Effect.gen(function* () {
+      const chat = yield* ChatCompletion;
+      return yield* chat.complete(baseParams({ runtime: "mlx" }));
+    });
+    const result = await Effect.runPromise(Effect.provide(program, layer));
+    expect(result.promptTps).toBeNull();
+    expect(result.generationTps).toBeGreaterThan(12);
+    expect(result.generationTps).toBeLessThan(21);
   });
 
   it("emits DBG lines around a successful request", async () => {
@@ -578,6 +619,28 @@ describe("ChatCompletion", () => {
       });
       expect(captured).not.toHaveProperty("repeat_penalty");
     }
+  });
+
+  it("maps the presence window to each runtime's knob", async () => {
+    const { captured: mlx } = await Effect.runPromise(
+      captureBody(baseParams({ runtime: "mlx", presencePenalty: 1.5, presenceContextSize: 4096 })),
+    );
+    expect(mlx).toMatchObject({ presence_penalty: 1.5, presence_context_size: 4096 });
+    expect(mlx).not.toHaveProperty("repetition_context_size");
+
+    // llama.cpp windows every penalty with repeat_last_n.
+    const { captured: llama } = await Effect.runPromise(
+      captureBody(baseParams({ presencePenalty: 1.5, presenceContextSize: 4096 })),
+    );
+    expect(llama).toMatchObject({ presence_penalty: 1.5, repeat_last_n: 4096 });
+    expect(llama).not.toHaveProperty("repeat_penalty");
+    expect(llama).not.toHaveProperty("presence_context_size");
+
+    // No presence penalty, no window.
+    const { captured: bare } = await Effect.runPromise(
+      captureBody(baseParams({ runtime: "mlx", presenceContextSize: 4096 })),
+    );
+    expect(bare).not.toHaveProperty("presence_context_size");
   });
 
   it("sends no top_p/top_k/min_p when the configuration does not set them", async () => {
@@ -824,5 +887,193 @@ describe("ChatCompletion", () => {
     );
     expect(result.output).toBe("The answer.");
     expect(result.generationTokens).toBe(2);
+  });
+
+  // ── Per-request timing, one fixture per runtime's SSE shape ──────────────
+  //
+  // Frames arrive on real timers: 150 ms before the first token (prefill as
+  // the client sees it), then 100 ms per further frame.
+  const frame = (o: unknown) => `data: ${JSON.stringify(o)}\n\n`;
+  const completeWith = (
+    runtime: CompletionParams["runtime"],
+    frames: ReadonlyArray<readonly [number, string]>,
+  ) =>
+    Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const chat = yield* ChatCompletion;
+          return yield* chat.complete(baseParams({ runtime }));
+        }),
+        ChatCompletionLive.pipe(
+          Layer.provide(
+            mockClient(
+              () =>
+                new Response(
+                  new ReadableStream<Uint8Array>({
+                    async start(ctrl) {
+                      for (const [ms, f] of frames) {
+                        if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+                        ctrl.enqueue(new TextEncoder().encode(f));
+                      }
+                      ctrl.close();
+                    },
+                  }),
+                  { status: 200, headers: { "Content-Type": "text/event-stream" } },
+                ),
+            ),
+          ),
+        ),
+      ),
+    ).then((r) => {
+      if (r.timing === undefined) throw new Error("live service must always set timing");
+      return { ...r, timing: r.timing };
+    });
+
+  it("llama.cpp: keeps the final `timings` block (server source) and measures TTFT", async () => {
+    // llama-server's stream: deltas, a finish frame, then the final chunk with
+    // usage and `timings` (server_slot_stats::to_json in server-common.cpp).
+    const result = await completeWith("llamacpp", [
+      [150, frame({ choices: [{ delta: { reasoning_content: "hm" } }] })],
+      [100, frame({ choices: [{ delta: { content: "4" } }] })],
+      [0, frame({ choices: [{ delta: {}, finish_reason: "stop" }] })],
+      [
+        0,
+        frame({
+          choices: [],
+          usage: {
+            prompt_tokens: 40,
+            completion_tokens: 2,
+            prompt_tokens_details: { cached_tokens: 32 },
+          },
+          timings: {
+            cache_n: 32,
+            prompt_n: 8,
+            prompt_ms: 12.5,
+            prompt_per_token_ms: 1.5625,
+            prompt_per_second: 640,
+            predicted_n: 2,
+            predicted_ms: 95.25,
+            predicted_per_token_ms: 47.625,
+            predicted_per_second: 21,
+            draft_n: 6,
+            draft_n_accepted: 4,
+          },
+        }),
+      ],
+      [0, "data: [DONE]\n\n"],
+    ]);
+    const { ttftMs, ...rest } = result.timing;
+    expect(ttftMs).toBeGreaterThanOrEqual(140);
+    expect(ttftMs).toBeLessThan(400);
+    expect(rest).toEqual({
+      timingSource: "server",
+      prefillMs: 12.5,
+      decodeMs: 95.25,
+      prefillTokens: 8,
+      cachedPromptTokens: 32,
+      draftTokens: 6,
+      draftAcceptedTokens: 4,
+    });
+  });
+
+  it("llama.cpp: no draft fields when speculative decoding is off", async () => {
+    const result = await completeWith("llamacpp", [
+      [0, frame({ choices: [{ delta: { content: "4" } }] })],
+      [
+        0,
+        frame({
+          choices: [{ delta: {}, finish_reason: "stop" }],
+          usage: { prompt_tokens: 9, completion_tokens: 1 },
+          timings: {
+            cache_n: 0,
+            prompt_n: 9,
+            prompt_ms: 20,
+            prompt_per_second: 450,
+            predicted_n: 1,
+            predicted_ms: 0.5,
+            predicted_per_second: 2000,
+          },
+        }),
+      ],
+      [0, "data: [DONE]\n\n"],
+    ]);
+    expect(result.timing).not.toHaveProperty("draftTokens");
+    expect(result.timing).not.toHaveProperty("draftAcceptedTokens");
+    expect(result.timing.cachedPromptTokens).toBe(0);
+  });
+
+  it("mlx_lm: prefill is TTFT, decode is first-to-last frame, cached tokens from usage", async () => {
+    // mlx_lm.server: `reasoning` deltas, then content, then a trailing usage
+    // chunk with prompt_tokens_details.cached_tokens and no `timings`.
+    const result = await completeWith("mlx", [
+      [150, frame({ choices: [{ delta: { reasoning: "hm" } }] })],
+      [100, frame({ choices: [{ delta: { content: "4" } }] })],
+      [100, frame({ choices: [{ delta: { content: "." }, finish_reason: "stop" }] })],
+      [
+        0,
+        frame({
+          choices: [],
+          usage: {
+            prompt_tokens: 40,
+            completion_tokens: 3,
+            prompt_tokens_details: { cached_tokens: 24 },
+          },
+        }),
+      ],
+      [0, "data: [DONE]\n\n"],
+    ]);
+    const t = result.timing;
+    expect(t.timingSource).toBe("client");
+    expect(t.ttftMs).toBeGreaterThanOrEqual(140);
+    expect(t.prefillMs).toBe(t.ttftMs);
+    expect(t.decodeMs).toBeGreaterThanOrEqual(180);
+    expect(t.decodeMs).toBeLessThan(450);
+    expect(t.cachedPromptTokens).toBe(24);
+    expect(t).not.toHaveProperty("prefillTokens");
+  });
+
+  it("oMLX: same client split; reads cached tokens and ignores its usage timing extension", async () => {
+    // oMLX: `reasoning_content` deltas; the usage chunk carries
+    // prompt_tokens_details plus its own (seconds, 2-dp) timing extension.
+    const result = await completeWith("omlx", [
+      [150, frame({ choices: [{ delta: { reasoning_content: "hm" } }] })],
+      [100, frame({ choices: [{ delta: { content: "4" } }] })],
+      [0, frame({ choices: [{ delta: {}, finish_reason: "stop" }] })],
+      [
+        0,
+        frame({
+          choices: [],
+          usage: {
+            prompt_tokens: 40,
+            completion_tokens: 2,
+            total_tokens: 42,
+            prompt_tokens_details: { cached_tokens: 0 },
+            time_to_first_token: 0.15,
+            total_time: 0.25,
+            prompt_eval_duration: 0.15,
+            generation_duration: 0.1,
+          },
+        }),
+      ],
+      [0, "data: [DONE]\n\n"],
+    ]);
+    const t = result.timing;
+    expect(t.timingSource).toBe("client");
+    expect(t.ttftMs).toBeGreaterThanOrEqual(140);
+    expect(t.prefillMs).toBe(t.ttftMs);
+    expect(t.decodeMs).toBeGreaterThanOrEqual(90);
+    expect(t.cachedPromptTokens).toBe(0);
+  });
+
+  it("omits decode time and cached tokens when the stream cannot supply them", async () => {
+    // One content frame, no prompt_tokens_details: nothing to measure decode over.
+    const result = await completeWith("mlx", [
+      [0, frame({ choices: [{ delta: { content: "4" }, finish_reason: "stop" }] })],
+      [0, frame({ usage: { prompt_tokens: 3, completion_tokens: 1 } })],
+      [0, "data: [DONE]\n\n"],
+    ]);
+    expect(result.timing.ttftMs).toBeTypeOf("number");
+    expect(result.timing).not.toHaveProperty("decodeMs");
+    expect(result.timing).not.toHaveProperty("cachedPromptTokens");
   });
 });

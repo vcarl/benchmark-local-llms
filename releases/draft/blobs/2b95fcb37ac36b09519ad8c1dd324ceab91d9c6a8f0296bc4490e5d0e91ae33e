@@ -1,0 +1,25 @@
+The CSV below logs study sessions: a header row, then one row per session.
+
+Rank users by their total minutes across all sessions and list the top 3, highest first (break ties alphabetically). Reply with only a JSON array of the 3 user names, e.g. ["ann", "bo", "cy"].
+
+```csv
+date,user,minutes
+2025-10-01,dmitri,59
+2025-10-02,bongani,14
+2025-10-02,elif,42
+2025-10-05,hiroshi,87
+2025-10-09,bongani,41
+2025-10-10,hiroshi,91
+2025-10-12,elif,53
+2025-10-13,chen,80
+2025-10-16,chen,113
+2025-10-16,elif,73
+2025-10-18,chen,109
+2025-10-19,dmitri,50
+2025-10-20,gustavo,108
+2025-10-20,elif,16
+2025-10-22,chen,80
+2025-10-28,elif,68
+2025-10-28,chen,119
+2025-10-28,hiroshi,85
+```

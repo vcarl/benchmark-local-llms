@@ -1,0 +1,95 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "schedule_email",
+    "description": "Queue an email to be sent automatically at a later date and time instead of right away.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the message, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the message, copied exactly as the user gives it."
+        },
+        "send_at": {
+          "type": "string",
+          "description": "Local date and time to send the message, formatted as YYYY-MM-DDTHH:MM."
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body",
+        "send_at"
+      ]
+    }
+  },
+  {
+    "name": "set_stock_level",
+    "description": "Overwrite the stock count of one SKU with an absolute number after a physical count.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Stock-keeping unit, exactly as written, including leading zeros."
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "New absolute number of units on hand."
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse code the count applies to.",
+          "default": "MAIN"
+        }
+      },
+      "required": [
+        "sku",
+        "quantity"
+      ]
+    }
+  },
+  {
+    "name": "connectBluetooth",
+    "description": "Establishes a connection to a Bluetooth device using its name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "device_name": {
+          "type": "string",
+          "description": "The name of the Bluetooth device to connect to."
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "The number of seconds to attempt a connection before timing out.",
+          "default": 30
+        },
+        "auto_reconnect": {
+          "type": "boolean",
+          "description": "Whether to automatically attempt to reconnect if the connection is lost.",
+          "default": false
+        }
+      },
+      "required": [
+        "device_name"
+      ]
+    }
+  }
+]
+
+Request: Find me flights from SYD to CDG on 2025-12-18 for 5 people, Premium Economy class.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

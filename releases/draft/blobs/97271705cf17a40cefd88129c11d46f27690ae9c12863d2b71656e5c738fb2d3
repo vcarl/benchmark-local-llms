@@ -1,0 +1,1 @@
+{"config":{"expected":"213.32","extract":"(-?\\d[\\d,]*(?:\\.\\d+)?)","nearMisses":[{"credit":0.5,"expected":"213.31","slip":"truncated"}],"type":"exact_match"},"rules":2}

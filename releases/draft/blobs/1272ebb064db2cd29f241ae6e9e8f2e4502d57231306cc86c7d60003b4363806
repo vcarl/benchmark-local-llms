@@ -1,0 +1,75 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "Flights_2_SearchOnewayFlight",
+    "description": "Search for one-way flights between two airports on a given date and list the options with prices.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin_airport": {
+          "type": "string",
+          "description": "IATA code of the departure airport, e.g. 'JFK' for New York JFK."
+        },
+        "destination_airport": {
+          "type": "string",
+          "description": "IATA code of the arrival airport, e.g. 'LHR' for London Heathrow."
+        },
+        "departure_date": {
+          "type": "string",
+          "description": "Date of departure, formatted as YYYY-MM-DD."
+        },
+        "number_of_tickets": {
+          "type": "integer",
+          "description": "Number of passenger tickets to price, between 1 and 9.",
+          "default": 1
+        },
+        "seating_class": {
+          "type": "string",
+          "description": "Cabin class to search in.",
+          "enum": [
+            "Economy",
+            "Premium Economy",
+            "Business",
+            "First"
+          ],
+          "default": "Economy"
+        },
+        "nonstop_only": {
+          "type": "boolean",
+          "description": "Only return flights without a connection.",
+          "default": false
+        }
+      },
+      "required": [
+        "origin_airport",
+        "destination_airport",
+        "departure_date"
+      ]
+    }
+  },
+  {
+    "name": "getCurrentTime",
+    "description": "Returns the current local time in ISO 8601 format.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "description": "The timezone for which the current time is requested, in the format of 'Area/Location' (e.g., 'America/New_York'). If not provided, defaults to the server's local timezone.",
+          "default": "local"
+        },
+        "include_date": {
+          "type": "boolean",
+          "description": "Determines whether the date should be included in the time string. If set to true, the date is included. Defaults to false.",
+          "default": false
+        }
+      },
+      "required": []
+    }
+  }
+]
+
+Request: Find me nonstop flights from NBO to YYZ on 2026-05-27, Business class.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

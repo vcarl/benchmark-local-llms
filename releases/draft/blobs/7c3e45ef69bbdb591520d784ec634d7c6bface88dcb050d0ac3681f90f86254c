@@ -1,0 +1,174 @@
+You can call these tools (parameters are JSON Schema; "required" lists the required arguments, and "default" is the value used when an optional argument is left out):
+
+[
+  {
+    "name": "send_email",
+    "description": "Send an email right away from the user's mailbox to one or more recipients, with optional copies.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the message, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the message, copied exactly as the user gives it."
+        },
+        "cc": {
+          "type": "array",
+          "description": "Addresses to copy on the message, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "priority": {
+          "type": "string",
+          "description": "Importance flag shown to the recipients.",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "default": "normal"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Files from the user's drive to attach, by drive path, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Drive path of one file, e.g. '/Shared/budget.xlsx'."
+          }
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "save_draft",
+    "description": "Save an email as a draft in the user's mailbox without sending it; recipients may be left empty.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the draft, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the draft, copied exactly as the user gives it."
+        },
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        }
+      },
+      "required": [
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "schedule_email",
+    "description": "Queue an email to be sent automatically at a later date and time instead of right away.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "description": "Recipient email addresses, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Email address"
+          }
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line of the message, copied exactly as the user gives it."
+        },
+        "body": {
+          "type": "string",
+          "description": "Plain-text body of the message, copied exactly as the user gives it."
+        },
+        "send_at": {
+          "type": "string",
+          "description": "Local date and time to send the message, formatted as YYYY-MM-DDTHH:MM."
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body",
+        "send_at"
+      ]
+    }
+  },
+  {
+    "name": "resetPassword",
+    "description": "Invalidate a user's password and email them a single-use link to choose a new one.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "integer",
+          "description": "Numeric user id, e.g. 48213."
+        }
+      },
+      "required": [
+        "userId"
+      ]
+    }
+  },
+  {
+    "name": "get_order_status",
+    "description": "Look up an order placed in our store: its items, payment state, shipping carrier and tracking number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "description": "Store order id, formatted like 'ORD-123456'."
+        },
+        "include": {
+          "type": "array",
+          "description": "Extra sections to include in the response, in any order.",
+          "items": {
+            "type": "string",
+            "description": "Section name.",
+            "enum": [
+              "items",
+              "payments",
+              "shipping",
+              "returns"
+            ]
+          }
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    }
+  }
+]
+
+Request: Write to lars.berg@example.com with the subject "Offsite agenda" and the message "The agenda for the offsite is attached; comments by Friday please.", but hold it until 2025-04-02T08:15.
+
+Reply with only a JSON array of the tool calls that fulfil the request, each of the form {"name": "<tool name>", "arguments": {...}}, where "arguments" is a JSON object (not a string). When the request needs several calls, list them all. Reply with [] if no tool fits the request, or if the request does not give a value for a required argument: never guess one. Include every required argument. Include an optional argument only if the request asks for a value for it; otherwise leave it out and the tool applies its default. Give each value the type its schema declares: JSON numbers for integer and number, true or false for boolean, and strings for string, copied exactly as written.

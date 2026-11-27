@@ -1,0 +1,1 @@
+Output a JSON object representing a person with: "name" (string), "age" (number), "address" (object with "street", "city", "zip"). Use realistic values. Output only valid JSON, nothing else.

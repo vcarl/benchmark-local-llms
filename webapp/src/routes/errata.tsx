@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import processMd from "../../../docs/ERRATA-PROCESS.md?raw";
 import {
@@ -9,14 +9,18 @@ import {
   parseMarkdown,
   releaseName,
   releaseStatusLabel,
+  scoresChangedLabel,
 } from "../lib/errata";
-import { DATASETS } from "../lib/rows";
+import { entryFor, releaseHeading, useIndex, useSnapshot } from "../lib/snapshots";
 import styles from "./errata.module.css";
 
 // Public errata page: docs/ERRATA-PROCESS.md (the public summary of
-// docs/ERRATA.md) above the live registry the report emitted from errata.yaml.
+// docs/ERRATA.md) above one release's errata, from the release's newest
+// snapshot. `release` picks it; the default is the selected dataset's release.
 export const Route = createFileRoute("/errata")({
   component: ErrataPage,
+  validateSearch: (s: Record<string, unknown>): { release?: string } =>
+    s.release === undefined ? {} : { release: String(s.release) },
 });
 
 const BLOCKS = parseMarkdown(processMd);
@@ -57,8 +61,15 @@ const block = (b: Block, i: number): ReactNode => {
 };
 
 function ErrataPage() {
-  const ds = DATASETS[0]?.dataset;
-  const errata = ds?.errata ?? [];
+  const index = useIndex();
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const list = index.status === "loaded" ? index.value : [];
+  const release = search.release === undefined ? entryFor(list, String(search.set ?? ""))?.release : String(search.release);
+  // The release's newest snapshot: its first index entry.
+  const entry = list.find((e) => e.release === release);
+  const snapshot = useSnapshot(entry);
+  const ds = snapshot.status === "loaded" ? snapshot.value.dataset : undefined;
+  const errata = ds === undefined || release == null ? [] : errataOnRelease(ds.errata, release);
   return (
     <div className={styles.page}>
       <article className={styles.doc}>
@@ -66,17 +77,27 @@ function ErrataPage() {
           ← Overview
         </Link>
         {BLOCKS.map(block)}
-        <h3>Errata</h3>
-        <p className={styles.baseline}>
-          {ds !== undefined && ds.release !== null && ds.version !== null ? (
+        <h3>Errata · {releaseHeading(release ?? null)}</h3>
+        <p className={styles.evalLine}>
+          {ds !== undefined && release != null ? (
             <>
-              Eval <code>{ds.version}</code> · {releaseName(ds.release)} baseline ·{" "}
-              {errataOnRelease(errata, ds.release).length} errata
+              {ds.version !== null && (
+                <>
+                  Eval <code>{ds.version}</code> ·{" "}
+                </>
+              )}
+              {releaseName(release)} · {errata.length} errata ·{" "}
+              <Link to="/release/$release" params={{ release }}>
+                release notes
+              </Link>
             </>
+          ) : snapshot.status === "error" ? (
+            snapshot.message
+          ) : entry === undefined && index.status === "loaded" ? (
+            `No dataset of ${releaseHeading(release ?? null)} in the index.`
           ) : (
-            `${errata.length} errata`
+            "Loading…"
           )}
-          {ds?.generatedAt !== undefined && ` · as of ${ds.generatedAt.slice(0, 10)}`}
         </p>
         <ol className={styles.list}>
           {errata.map((e) => (
@@ -88,7 +109,7 @@ function ErrataPage() {
               </div>
               <p>{inline(e.description)}</p>
               <div className={styles.meta}>
-                <span>{e.scorerChange ? "Changes scores" : "No score change"}</span>
+                <span>{scoresChangedLabel(e)}</span>
                 <span>{releaseStatusLabel(e)}</span>
               </div>
               <details className={styles.items}>

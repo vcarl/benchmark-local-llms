@@ -1,0 +1,1 @@
+{"config":{"constraints":[{"check":"tool_calls","name":"calls","value":[{"arguments":{"amount":4886.58,"from_currency":"CHF","to_currency":"GBP"},"name":"convert_currency"},{"arguments":{"amount":4886.58,"from_currency":"CHF","to_currency":"AUD"},"name":"convert_currency"}]}],"type":"constraint"},"rules":2}

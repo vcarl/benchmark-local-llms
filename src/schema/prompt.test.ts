@@ -32,7 +32,6 @@ describe("PromptCorpusEntry", () => {
         expected: "4183",
         extract: "ANSWER:\\s*(\\d+)",
       },
-      promptHash: "abc123def456",
     };
     expect(roundTrip(PromptCorpusEntry, v)).toEqual(v);
   });
@@ -51,7 +50,6 @@ describe("PromptCorpusEntry", () => {
           { check: "json_has_keys", name: "keys", keys: ["name", "steps"] },
         ],
       },
-      promptHash: "111222333444",
     };
     expect(roundTrip(PromptCorpusEntry, v)).toEqual(v);
   });
@@ -67,7 +65,6 @@ describe("PromptCorpusEntry", () => {
         type: "code_exec",
         testCode: "assert is_palindrome('racecar') == True",
       },
-      promptHash: "deadbeefcafe",
     };
     expect(roundTrip(PromptCorpusEntry, v)).toEqual(v);
   });
@@ -84,7 +81,6 @@ describe("PromptCorpusEntry", () => {
         expected: "4183",
         extract: "ANSWER:\\s*(\\d+)",
       },
-      promptHash: "abc123def456",
       tags: ["foo", "bar"],
     };
     expect(roundTrip(PromptCorpusEntry, v)).toEqual(v);
