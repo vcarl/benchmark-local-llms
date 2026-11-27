@@ -66,7 +66,7 @@ The alpha challenge set is `releases/0/`; the pre-release set is `releases/draft
 - The pre-release draft is the live dataset, v4 only. A result counts when its prompt is the draft item's current prompt; every config version is its own row, shown as a variant row of its model; every counted result is graded by its item's full scorer digest (config, scoring rules version, sandbox runner) at the dataset's eval version.
 - The alpha challenge set is closed and archival: its published `0.7` rows are pinned by its manifest's `rowsDigest`, and a build that would change them fails.
 - A release's ranking counts only that release's items. Releases share no items, so scores aren't comparable across releases. The webapp never plots one release's scores against another's as if they were on the same scale.
-- **Evaluation timing.** Prompts are public. Even so, some evaluations run before a challenge set is widely available and some after, and a model may be trained on public items ("benchmaxxing"). A per-row flag can't capture that, so rows carry none. A future design records each evaluation's timing relative to the set's publication — the execution date against the release's publication date, the model's release date, or its training cutoff — so readers can weigh results accordingly.
+- **Evaluation timing.** Prompts are public, and a model may be trained on public items ("benchmaxxing"). A per-row flag can't capture that, so rows carry none. Timing is recorded per item and model instead: when the item's prompt became public against when the model's weights were published and its stated cutoff ([2026-11-26 evaluation timing design](./2026-11-26-evaluation-timing-design.md)), so readers can weigh results accordingly.
 
 ## Webapp disclosure
 
