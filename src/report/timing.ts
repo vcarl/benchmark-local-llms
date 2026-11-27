@@ -99,8 +99,8 @@ export interface Timing {
   >;
   /** modelKey → its dates (sources and notes kept), for the rows' modelKeys that have an entry. */
   readonly models: Record<string, ModelDate>;
-  /** rowId → items of its scored cells per label. */
-  readonly rows: Record<string, Record<TimingLabel, number>>;
+  /** rowId → scored challenge → its items per label (a row's share sums these). */
+  readonly rows: Record<string, Record<string, Record<TimingLabel, number>>>;
 }
 
 /** Fail unless every date in `model-dates.yaml` names its source. */
@@ -170,12 +170,14 @@ export const timingOf = (
   for (const row of rows) {
     const weights = modelDates?.value[row.modelKey];
     if (weights !== undefined) models[row.modelKey] = weights;
-    const n = Object.fromEntries(TIMING_LABELS.map((l) => [l, 0])) as Record<TimingLabel, number>;
+    const byChallenge: Record<string, Record<TimingLabel, number>> = {};
     for (const c of challenges) {
       if (row.cells[c.id]?.status !== "scored") continue;
+      const n = Object.fromEntries(TIMING_LABELS.map((l) => [l, 0])) as Record<TimingLabel, number>;
       for (const i of c.items) n[timingLabel(day[`${c.id}/${i.itemId}`], weights)]++;
+      byChallenge[c.id] = n;
     }
-    counts[row.rowId] = n;
+    counts[row.rowId] = byChallenge;
   }
   return {
     itemDates:

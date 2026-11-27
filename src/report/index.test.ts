@@ -210,7 +210,7 @@ describe("runReport (legacy manifest)", () => {
     });
     expect(snap.rows[0].cells.ch.sourceAttempts).toEqual(["a1"]);
     // Timing sits beside the rows: the item public 2026-01-01, model "a" released 2025-12.
-    expect(snap.timing.rows[snap.rows[0].rowId]).toEqual({
+    expect(snap.timing.rows[snap.rows[0].rowId].ch).toEqual({
       unpublished: 0,
       predates: 1,
       "cutoff-claimed": 0,
