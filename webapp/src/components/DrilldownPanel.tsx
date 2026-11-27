@@ -152,7 +152,7 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
         </div>
 
         <div className={styles.debugGroup}>
-          <Stat label="Executed" value={span(row.freshness.executedFrom, row.freshness.executedTo)} />
+          <Stat label="Executed" value={<span className={styles.nowrap}>{span(row.freshness.executedFrom, row.freshness.executedTo)}</span>} />
           <Stat label="Runtime" value={list(p.runtimeVersions)} />
           <Stat label="Git sha" value={list(p.gitShas)} />
           <Stat label="Samples / item" value={p.samples === null ? "—" : p.samples[0] === p.samples[1] ? String(p.samples[0]) : `${p.samples[0]}–${p.samples[1]}`} />
@@ -190,7 +190,19 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
               </span>
               <span className={styles.challengeCoverage}>
                 {scored
-                  ? `${formatCount(y)}/${n} · ${span(c.executedFrom, c.executedTo)} · ${c.samples?.[1] ?? 1}× · ${list(c.runtimeVersions)}${c.cost === null ? "" : ` · ${formatWallTime(c.cost.wallSec)}`}`
+                  ? [
+                      `${formatCount(y)}/${n}`,
+                      span(c.executedFrom, c.executedTo),
+                      `${c.samples?.[1] ?? 1}×`,
+                      list(c.runtimeVersions),
+                      ...(c.cost === null ? [] : [formatWallTime(c.cost.wallSec)]),
+                    ].map((part, i) => (
+                      // Counts and dates stay whole; only the gaps between parts break.
+                      <span key={i} className={i === 3 ? undefined : styles.nowrap}>
+                        {i > 0 && " · "}
+                        {part}
+                      </span>
+                    ))
                   : STATUS[c.status]}
               </span>
               <span className={styles.challengeScore} data-band={scoreBand(n === 0 ? 0 : y / n)}>

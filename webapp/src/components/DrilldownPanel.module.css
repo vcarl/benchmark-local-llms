@@ -2,7 +2,7 @@
   padding: var(--space-6) var(--space-8);
   color: var(--text-primary);
   font-size: var(--fz-12);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .empty { color: var(--text-faint); padding: var(--space-8); text-align: center; }
 .challengeRow {
@@ -20,9 +20,10 @@
   font: inherit;
 }
 .challengeRow:hover { background: var(--surface-hover); }
-.challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; white-space: nowrap; }
-.challengeScore { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
-.challengeCoverage { color: var(--text-muted); font-size: var(--fz-11); }
+.nowrap { white-space: nowrap; }
+.challengeKey { font-family: ui-monospace, SFMono-Regular, monospace; white-space: nowrap; flex: none; }
+.challengeScore { flex: none; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; color: var(--band, var(--text-primary)); font-weight: 600; }
+.challengeCoverage { color: var(--text-muted); font-size: var(--fz-11); min-width: 0; overflow-wrap: anywhere; }
 /* Cells that count as 0 (stale, interrupted, not run). Listed so the source of
    the score penalty is visible; not clickable. */
 .challengeRowMissing { cursor: default; opacity: 0.6; }
@@ -83,6 +84,8 @@
   letter-spacing: 0.05em;
 }
 .debugStatValue {
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: var(--fz-11);
   color: var(--text-secondary);
