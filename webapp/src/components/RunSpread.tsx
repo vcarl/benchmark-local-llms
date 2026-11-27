@@ -166,6 +166,7 @@ export function RunSpread({ rows, scope }: { rows: ScopedRow[]; scope: Scope }) 
         {runs.length} complete run{runs.length === 1 ? "" : "s"}
         {partial > 0 && ` · ${partial} partial excluded`}
       </div>
+      <div className={styles.charts}>
       <section className={styles.section}>
         <h3 className={styles.heading}>Pass rate per challenge</h3>
         <Legend runtimes={runtimes} swatch="dot" />
@@ -177,6 +178,7 @@ export function RunSpread({ rows, scope }: { rows: ScopedRow[]; scope: Scope }) 
         <FailureRadar runs={runs} />
         <p className={styles.note}>Failed samples per run. “untagged” = failures archived before failure kinds were recorded.</p>
       </section>
+      </div>
     </div>
   );
 }

@@ -69,7 +69,8 @@
    own strip; the list scrolls below them. */
 .listLane { display: flex; flex-direction: column; height: 100%; min-width: 0; }
 .listScroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
-.detailsLane { height: 100%; overflow-y: auto; }
+/* Container for the panel's @container rules: they follow the pane width, not the viewport. */
+.detailsLane { height: 100%; overflow-y: auto; overflow-x: hidden; container-type: inline-size; }
 
 /* Phone breakpoint — keep 600px in sync across modules */
 @media (max-width: 600px) {
