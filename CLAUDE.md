@@ -33,7 +33,7 @@ npm run lint                # biome + scripts/lint-strict.sh (src/ only)
 - `./bench report` refuses tracked changes under `src/`, `releases/`, `datasets/`, `configs.yaml`, `system-prompts.yaml` unless `--allow-dirty` (snapshot marked `harnessDirty`).
 - New runs join the draft: `./bench run`, then `./bench dataset add draft <bundle…>`, `./bench score --dataset draft`, commit `datasets/draft.yaml`, then `./bench report` (it refuses an uncommitted manifest).
 - `scripts/` is outside tsc and lint, but `scripts/author/**/*.test.ts` run under `npm test`.
-- `scripts/deploy-gh-pages.sh` is stale (it calls `report --archive-dir`, which `./bench report` does not accept); `scripts/build-report.sh` is the current build.
+- `scripts/deploy-pages.sh` builds the site (snapshots, webapp, `llms.txt`) into a local directory; `--push` publishes it to `gh-pages`. Never run it with `--push` unless Carl asks. [DEPLOY](docs/DEPLOY.md)
 
 ## Map
 
@@ -55,7 +55,7 @@ npm run lint                # biome + scripts/lint-strict.sh (src/ only)
 | `releases/<release>/` | `challenges/`, `release.json`, `errata.yaml`, `blobs/`; `0` = alpha, `draft` = pre-release |
 | `datasets/` | Manifests (`alpha.yaml` legacy, `draft.yaml` v4); `sources/` holds conversion source records |
 | `store/` | Gitignored: `bundles/`, `open/`, `scores/` |
-| `webapp/` | Static viewer of `webapp/public/snapshots/` |
+| `webapp/` | Static viewer of `webapp/public/snapshots/`; `webapp/src/llms/` renders the agent-facing markdown |
 
 Docs (each owns its topic):
 
@@ -71,6 +71,7 @@ Docs (each owns its topic):
 - [EEE-EXPORT.md](docs/EEE-EXPORT.md): Every Eval Ever export
 - [SCENARIOS.md](docs/SCENARIOS.md): intent of the spacemolt scenarios
 - [SUBMISSION-READINESS.md](docs/SUBMISSION-READINESS.md): gate for any external submission
+- [DEPLOY.md](docs/DEPLOY.md): GitHub Pages hosting behind vcarl.com/evals, the deploy script, llms.txt
 - [FOLLOW-UPS.md](docs/FOLLOW-UPS.md): known open work, with where to start
 - `docs/research/`: dated research reports
 

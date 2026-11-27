@@ -132,6 +132,8 @@ then:          details/<id>.json + prompts/<sha256>.json (index order) → index
 
 `RowsDataset` (`src/legacy/rows.ts`) is the backend→webapp contract. `webapp/src/lib/rows.ts` mirrors the fields the webapp reads; there is no compile-time link between the two files, so a change to one must be mirrored in the other.
 
+`scripts/deploy-pages.sh` builds the snapshots, the webapp and `webapp/src/llms/` markdown into a static site and publishes it to GitHub Pages: [DEPLOY.md](./DEPLOY.md).
+
 ## Reasoning split
 
 A completion's text is separated into `output` / `reasoning` / `rawOutput` / `error` **once**, at completion time, in `run-prompt.ts`:

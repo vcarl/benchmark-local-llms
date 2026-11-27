@@ -76,7 +76,8 @@ fi
 
 # --- Publish: one orphan commit replaces gh-pages, so its history never grows ---
 git_dir="$(mktemp -d "${TMPDIR:-/tmp}/deploy-pages-git.XXXXXX")"
-pub() { git --git-dir="$git_dir" --work-tree="$out" "$@"; }
+# No background gc/maintenance: it would still be writing into git_dir when it is removed.
+pub() { git --git-dir="$git_dir" --work-tree="$out" -c gc.auto=0 -c maintenance.auto=false "$@"; }
 pub init -q -b gh-pages
 pub add -A
 pub -c user.useConfigOnly=true commit -q -m "deploy: site from ${short_sha}"

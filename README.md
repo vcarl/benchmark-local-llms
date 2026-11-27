@@ -71,6 +71,7 @@ A configuration's `runtime` field selects which server the harness launches per 
 - [`docs/ARCHIVE-FORMAT.md`](./docs/ARCHIVE-FORMAT.md) — the store (bundles, score log), releases, dataset manifests and snapshots, and the read-only legacy attempt format (schemaVersion 1–3); the design rationale is in [`docs/superpowers/specs/2026-11-17-archive-data-model-design.md`](./docs/superpowers/specs/2026-11-17-archive-data-model-design.md)
 - [`docs/SCORING.md`](./docs/SCORING.md) — scorer dispatch and the constraint-check catalog
 - [`docs/ERRATA.md`](./docs/ERRATA.md) — errata registry, release file, eval versions, and the release command
+- [`docs/DEPLOY.md`](./docs/DEPLOY.md) — publishing the report to GitHub Pages behind `vcarl.com/evals`, and the agent-facing `llms.txt`
 
 ## CLI reference
 

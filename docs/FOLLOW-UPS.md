@@ -4,7 +4,8 @@ Known open work, in no particular order. Each entry says what is missing and whe
 
 ## Build and publish
 
-- **CI/CD.** Nothing runs `npm test`, typecheck or lint on push, and nothing builds or deploys the webapp. `scripts/deploy-gh-pages.sh` is stale: it calls `./bench report --archive-dir` and expects `data.js`, neither of which exists. `scripts/build-report.sh` is the current build. Deploy is its own scope; it needs Carl's go-ahead.
+- **CI.** Nothing runs `npm test`, typecheck or lint on push. Deploy is local by design ([DEPLOY.md](DEPLOY.md)): it reads the local store.
+- **Snapshot rows carry no weights digest.** A row's `weightsDigest` reaches the webapp and `llms/` pages only as a variant-label prefix when it tells rows apart. Add it to the row's `provenance` in `src/report/` and `webapp/src/lib/rows.ts` (a new snapshot digest).
 - **EEE export of v4 data.** `src/export/eee/build.ts` reads legacy attempts only, so the ranked draft cannot be exported. The export is for standardization ([EEE-EXPORT.md](EEE-EXPORT.md)); nothing is ever submitted upstream.
 
 ## Data integrity
