@@ -282,6 +282,68 @@ describe("runReport (legacy manifest)", () => {
     ]);
   });
 
+  describe("one snapshot per dataset and eval version", () => {
+    const prior = (digest: string, evalVersion: string | null): IndexEntry => ({
+      dataset: "alpha",
+      title: "Alpha challenge set",
+      release: "0",
+      evalVersion,
+      ranked: false,
+      legacy: true,
+      digest,
+      rows: 1,
+      challenges: 1,
+      span: null,
+    });
+    // A seeded file is a minimal snapshot, so its digest is `sha(snap(label))`.
+    const snap = (label: string) => JSON.stringify({ rows: [], label });
+    const seed = async (labels: Record<string, IndexEntry>) => {
+      const entries = Object.values(labels);
+      for (const [label, e] of Object.entries(labels))
+        await put(`out/${e.digest}.json`, snap(label));
+      await put("out/index.json", JSON.stringify({ snapshots: entries }));
+    };
+    const listed = async () =>
+      JSON.parse(await readFile(join(opts.output, "index.json"), "utf8")).snapshots.map(
+        (e: IndexEntry) => e.digest,
+      );
+    const exists = (d: string) =>
+      readFile(join(opts.output, `${d}.json`)).then(
+        () => true,
+        () => false,
+      );
+
+    it("a rebuild replaces the same-eval-version entry and deletes its file", async () => {
+      const { snapshots } = await run(runReport(opts));
+      const fresh = snapshots[0]?.entry;
+      const stale = sha(snap("stale"));
+      await seed({ stale: fresh ? { ...fresh, digest: stale } : prior(stale, "0.1") });
+      const again = await run(runReport(opts));
+      expect(await listed()).toEqual([again.snapshots[0]?.entry.digest]);
+      expect(await exists(stale)).toBe(false);
+    });
+
+    it("keeps an earlier eval version of the same dataset", async () => {
+      const old = sha(snap("old"));
+      await seed({ old: prior(old, "0.0") });
+      const s = await run(runReport(opts));
+      expect(await listed()).toEqual([s.snapshots[0]?.entry.digest, old]);
+      expect(await exists(old)).toBe(true);
+    });
+
+    it("keeps one snapshot of a draft (null eval version)", async () => {
+      const [a, b] = [sha(snap("a")), sha(snap("b"))];
+      await seed({ a: prior(a, null), b: prior(b, null) });
+      const s = await run(runReport(opts));
+      const fresh = s.snapshots[0]?.entry;
+      expect(fresh?.evalVersion).not.toBeNull();
+      // Two null-version entries share one slot: the first in index order stays, the other goes.
+      expect(await listed()).toContain(a);
+      expect(await listed()).not.toContain(b);
+      expect(await exists(b)).toBe(false);
+    });
+  });
+
   it("fails naming a challenge file that does not load", async () => {
     await put("releases/0/challenges/bad.yaml", "id: [unterminated\n");
     const r = await exit(runReport(opts));

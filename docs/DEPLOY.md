@@ -33,7 +33,7 @@ scripts/deploy-pages.sh [--store DIR] [--legacy-root DIR] [--out DIR] [--remote 
 
 The script stops if any tracked file has uncommitted changes. `./bench report` additionally refuses uncommitted dataset manifests. Then it:
 
-1. Runs `./bench report --store … --legacy-root …` into `webapp/public/snapshots/`. Earlier snapshots still in that directory stay in its index, so they remain citable after a new eval version.
+1. Runs `./bench report --store … --legacy-root …` into `webapp/public/snapshots/`. The index keeps one snapshot per (dataset, eval version), the newest build; earlier eval versions of a dataset stay in that directory and its index, so they remain citable.
 2. Runs `vite build` with `PAGES_ORIGIN` and `SITE_URL` into the site directory, which copies `public/snapshots/` in.
 3. Runs `webapp/src/llms/cli.ts` on the site directory (below) and adds `.nojekyll`.
 4. Prints the file count and total bytes, and the bytes that pass through `SITE_URL`.

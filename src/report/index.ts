@@ -460,7 +460,7 @@ const SnapshotRefs = Schema.Struct({
 /**
  * Build every dataset's snapshot and write it, its detail files and the
  * index, then remove detail files that no indexed snapshot references. An existing `<digest>.json` must hold the same bytes (a snapshot is
- * never rewritten); earlier index entries whose file is still present stay.
+ * never rewritten); earlier index entries whose file is still present stay unless this build has a snapshot of the same dataset and eval version, which replaces them and removes their files.
  */
 export const runReport = (opts: ReportOptions) =>
   Effect.gen(function* () {
@@ -483,14 +483,24 @@ export const runReport = (opts: ReportOptions) =>
     const prior = yield* Schema.decodeUnknown(Schema.parseJson(IndexFile))(priorSrc).pipe(
       Effect.mapError((e) => new SnapshotInvalid({ path: indexPath, detail: e.message })),
     );
+    // One snapshot per (dataset, eval version): this build's, else the first prior one in index order; a replaced one's file is removed.
+    const slot = (e: IndexEntry) => `${e.dataset}\0${e.evalVersion}`;
+    const taken = new Set([...files.values()].map((f) => slot(f.entry)));
     const kept: IndexEntry[] = [];
     for (const e of prior.snapshots) {
       if (files.has(e.digest)) continue;
       const file = path.join(opts.output, `${e.digest}.json`);
-      if (!(yield* fs.exists(file).pipe(Effect.mapError(io(file, "stat"))))) continue;
+      const present = yield* fs.exists(file).pipe(Effect.mapError(io(file, "stat")));
+      if (taken.has(slot(e))) {
+        if (present) yield* fs.remove(file).pipe(Effect.mapError(io(file, "remove")));
+        continue;
+      }
+      if (!present) continue;
       const bytes = yield* fs.readFile(file).pipe(Effect.mapError(io(file, "read")));
-      if (sha256Hex(bytes) === e.digest) kept.push(e);
-      else
+      if (sha256Hex(bytes) === e.digest) {
+        kept.push(e);
+        taken.add(slot(e));
+      } else
         yield* Effect.logWarning(
           `report: dropping index entry ${e.digest}: ${file} does not hash to it`,
         );
