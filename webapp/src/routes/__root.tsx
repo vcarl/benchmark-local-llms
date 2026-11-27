@@ -292,7 +292,7 @@ function Shell({ index }: { index: IndexEntry[] }) {
             <Pane
               id="details"
               title="Details"
-              focus={1 / 5}
+              focus={1 / 10} // below its share, so a narrowed pane reflows instead of sliding under
               minWidth={180}
               maxWidth={560}
               opensTo={[2 / 5, 4 / 5]} // 2:2:1
