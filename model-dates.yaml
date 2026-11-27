@@ -1,0 +1,355 @@
+# Base-model publication dates per modelKey (src/report/model-key.ts). Every
+# fact has a source; a missing fact is unknown. See docs/EVAL-TIMING.md.
+cyber-tiel-coder-35b-a3b:
+  model: peculiar-ragdoll/Cyber-Tiel-Coder-35B-A3B-GGUF
+  released: "2026-09-08"
+  releasedSource: https://huggingface.co/api/models/peculiar-ragdoll/Cyber-Tiel-Coder-35B-A3B-GGUF
+  releasedNote: "HF repo createdAt of the GGUF repo (the only public repo found; a community abliterated fine-tune of huihui-ai/Huihui-Ornith-1.5-35B-A3B-abliterated). No cutoff is stated on the card."
+deepseek-coder-v2-lite-instruct:
+  model: deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct
+  released: "2024-06-14"
+  releasedSource: https://huggingface.co/api/models/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+deepseek-r1-0528-qwen3-8b:
+  model: deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+  released: "2025-05-29"
+  releasedSource: https://huggingface.co/api/models/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+deepseek-r1-distill-llama-70b:
+  model: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+  released: "2025-01-20"
+  releasedSource: https://huggingface.co/api/models/deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+deepseek-r1-distill-qwen-14b:
+  model: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+  released: "2025-01-20"
+  releasedSource: https://huggingface.co/api/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+deepseek-r1-distill-qwen-32b:
+  model: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+  released: "2025-01-20"
+  releasedSource: https://huggingface.co/api/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+deepseek-r1-distill-qwen-7b:
+  model: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+  released: "2025-01-20"
+  releasedSource: https://huggingface.co/api/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+devstral-2-123b-instruct-2512:
+  model: mistralai/Devstral-2-123B-Instruct-2512
+  released: "2025-11-28"
+  releasedSource: https://huggingface.co/api/models/mistralai/Devstral-2-123B-Instruct-2512
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+devstral-small-2-24b-instruct-2512:
+  model: mistralai/Devstral-Small-2-24B-Instruct-2512
+  released: "2025-11-28"
+  releasedSource: https://huggingface.co/api/models/mistralai/Devstral-Small-2-24B-Instruct-2512
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+flint:
+  model: RecursiveSI/flint
+  released: "2026-10-21"
+  releasedSource: https://huggingface.co/api/models/RecursiveSI/flint
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2026-06"
+  cutoffSource: https://huggingface.co/unsloth/flint-GGUF/raw/main/README.md
+  cutoffNote: "Stated knowledge cutoff on the unsloth GGUF card for RecursiveSI/flint."
+gemma-4-12b-it:
+  model: google/gemma-4-12B-it
+  released: "2026-05-23"
+  releasedSource: https://huggingface.co/api/models/google/gemma-4-12B-it
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2025-01"
+  cutoffSource: https://huggingface.co/google/gemma-4-12B-it/raw/main/README.md
+  cutoffNote: "Pre-training data cutoff date stated on the model card."
+gemma-4-26b-a4b-it:
+  model: google/gemma-4-26B-A4B-it
+  released: "2026-03-11"
+  releasedSource: https://huggingface.co/api/models/google/gemma-4-26B-A4B-it
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2025-01"
+  cutoffSource: https://huggingface.co/google/gemma-4-26B-A4B-it/raw/main/README.md
+  cutoffNote: "Pre-training data cutoff date stated on the model card."
+gemma-4-31b-it:
+  model: google/gemma-4-31B-it
+  released: "2026-03-11"
+  releasedSource: https://huggingface.co/api/models/google/gemma-4-31B-it
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2025-01"
+  cutoffSource: https://huggingface.co/google/gemma-4-31B-it/raw/main/README.md
+  cutoffNote: "Pre-training data cutoff date stated on the model card."
+gemma-4-e4b-it:
+  model: google/gemma-4-E4B-it
+  released: "2026-03-02"
+  releasedSource: https://huggingface.co/api/models/google/gemma-4-E4B-it
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2025-01"
+  cutoffSource: https://huggingface.co/google/gemma-4-E4B-it/raw/main/README.md
+  cutoffNote: "Pre-training data cutoff date stated on the model card."
+glm-4.7-flash:
+  model: zai-org/GLM-4.7-Flash
+  released: "2026-01-19"
+  releasedSource: https://huggingface.co/api/models/zai-org/GLM-4.7-Flash
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+gpt-oss-120b:
+  model: openai/gpt-oss-120b
+  released: "2025-08-05"
+  releasedSource: https://openai.com/index/introducing-gpt-oss/
+  releasedNote: "OpenAI announcement dated August 5, 2025."
+gpt-oss-20b:
+  model: openai/gpt-oss-20b
+  released: "2025-08-05"
+  releasedSource: https://openai.com/index/introducing-gpt-oss/
+  releasedNote: "OpenAI announcement dated August 5, 2025."
+hunyuan-a13b-instruct:
+  model: tencent/Hunyuan-A13B-Instruct
+  released: "2025-06-25"
+  releasedSource: https://huggingface.co/api/models/tencent/Hunyuan-A13B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+inkling-2-mini:
+  model: thinkingmachines/Inkling-2-Mini
+  released: "2026-11-20"
+  releasedSource: https://huggingface.co/thinkingmachines/Inkling-2-Mini/raw/main/README.md
+  releasedNote: "Date of release stated on the model card; the card states no training-data cutoff."
+kimi-linear-48b-a3b-instruct:
+  model: moonshotai/Kimi-Linear-48B-A3B-Instruct
+  released: "2025-10-30"
+  releasedSource: https://huggingface.co/api/models/moonshotai/Kimi-Linear-48B-A3B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+kolibri-1:
+  model: Aleph-Alpha/Kolibri-1
+  released: "2026-10-02"
+  releasedSource: https://huggingface.co/api/models/Aleph-Alpha/Kolibri-1
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+laguna-s-2.1:
+  model: poolside/Laguna-S-2.1
+  released: "2026-07-13"
+  releasedSource: https://huggingface.co/api/models/poolside/Laguna-S-2.1
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+lfm2.5-1.2b-instruct:
+  model: LiquidAI/LFM2.5-1.2B-Instruct
+  released: "2026-01-06"
+  releasedSource: https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2024"
+  cutoffSource: https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/raw/main/README.md
+  cutoffNote: "Card states 'Knowledge cutoff: Mid-2024'; recorded at year precision."
+lfm2.5-1.2b-instruct-bf16:
+  model: LiquidAI/LFM2.5-1.2B-Instruct
+  released: "2026-01-06"
+  releasedSource: https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2024"
+  cutoffSource: https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/raw/main/README.md
+  cutoffNote: "Card states 'Knowledge cutoff: Mid-2024'; recorded at year precision."
+lfm2.5-1.2b-thinking:
+  model: LiquidAI/LFM2.5-1.2B-Thinking
+  released: "2026-01-20"
+  releasedSource: https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Thinking
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2024"
+  cutoffSource: https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking/raw/main/README.md
+  cutoffNote: "Card states 'Knowledge cutoff: Mid-2024'; recorded at year precision."
+lfm2.5-1.2b-thinking-bf16:
+  model: LiquidAI/LFM2.5-1.2B-Thinking
+  released: "2026-01-20"
+  releasedSource: https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Thinking
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+  cutoff: "2024"
+  cutoffSource: https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking/raw/main/README.md
+  cutoffNote: "Card states 'Knowledge cutoff: Mid-2024'; recorded at year precision."
+lfm2.5-24b-a2b:
+  model: LiquidAI/LFM2.5-24B-A2B
+  released: "2026-10-12"
+  releasedSource: https://huggingface.co/api/models/LiquidAI/LFM2.5-24B-A2B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+lfm3-1.7b:
+  model: LiquidAI/LFM3-1.7B
+  released: "2026-10-23"
+  releasedSource: https://huggingface.co/api/models/LiquidAI/LFM3-1.7B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+ling-3.0-flash:
+  model: inclusionAI/Ling-3.0-flash
+  released: "2026-08-02"
+  releasedSource: https://huggingface.co/api/models/inclusionAI/Ling-3.0-flash
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+llama-3.1-nemotron-nano-8b-v1:
+  model: nvidia/Llama-3.1-Nemotron-Nano-8B-v1
+  released: "2025-03-18"
+  releasedSource: https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1/raw/main/README.md
+  releasedNote: "Release Date stated on the model card (3/18/2025)."
+  cutoff: "2023"
+  cutoffSource: https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1/raw/main/README.md
+  cutoffNote: "Card: 'The pretraining data has a cutoff of 2023 per Meta Llama 3.1 8B'."
+llama-3_3-nemotron-super-49b-v1_5:
+  model: nvidia/Llama-3_3-Nemotron-Super-49B-v1_5
+  released: "2025-07-25"
+  releasedSource: https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1_5/raw/main/README.md
+  releasedNote: "Release Date stated on the model card (7/25/2025)."
+  cutoff: "2023"
+  cutoffSource: https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1_5/raw/main/README.md
+  cutoffNote: "Card: 'The pretraining data has a cutoff of 2023 per Meta Llama 3.3 70B'."
+llama-4-maverick-17b-128e-instruct:
+  model: meta-llama/Llama-4-Maverick-17B-128E-Instruct
+  released: "2025-04-05"
+  releasedSource: https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama4/MODEL_CARD.md
+  releasedNote: "Model Release Date stated on Meta's Llama 4 model card."
+  cutoff: "2024-08"
+  cutoffSource: https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama4/MODEL_CARD.md
+  cutoffNote: "Meta model card: pretraining data cutoff August 2024."
+llama-4-scout-17b-16e-instruct:
+  model: meta-llama/Llama-4-Scout-17B-16E-Instruct
+  released: "2025-04-05"
+  releasedSource: https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama4/MODEL_CARD.md
+  releasedNote: "Model Release Date stated on Meta's Llama 4 model card."
+  cutoff: "2024-08"
+  cutoffSource: https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama4/MODEL_CARD.md
+  cutoffNote: "Meta model card: pretraining data cutoff August 2024."
+magistral-small-2509:
+  model: mistralai/Magistral-Small-2509
+  released: "2025-09-12"
+  releasedSource: https://huggingface.co/api/models/mistralai/Magistral-Small-2509
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+mellum2.1-12b-a2.5b-thinking:
+  model: JetBrains/Mellum2.1-12B-A2.5B-Thinking
+  released: "2026-09-20"
+  releasedSource: https://huggingface.co/api/models/JetBrains/Mellum2.1-12B-A2.5B-Thinking
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+meta-llama-3.1-8b-instruct:
+  model: meta-llama/Llama-3.1-8B-Instruct
+  released: "2024-07-23"
+  releasedSource: https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama3_1/MODEL_CARD.md
+  releasedNote: "Model Release Date stated on Meta's model card."
+  cutoff: "2023-12"
+  cutoffSource: https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama3_1/MODEL_CARD.md
+  cutoffNote: "Meta model card: pretraining data cutoff December 2023."
+mistral-small-3.2-24b-instruct-2506:
+  model: mistralai/Mistral-Small-3.2-24B-Instruct-2506
+  released: "2025-06-19"
+  releasedSource: https://huggingface.co/api/models/mistralai/Mistral-Small-3.2-24B-Instruct-2506
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+mistral-small-4-119b-2603:
+  model: mistralai/Mistral-Small-4-119B-2603
+  released: "2026-03-16"
+  releasedSource: https://mistral.ai/news/mistral-small-4
+  releasedNote: "Mistral announcement dated March 16, 2026."
+nvidia-nemotron-3.5-lightning-30b-a3b:
+  model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16
+  released: "2026-08-11"
+  releasedSource: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16/raw/main/README.md
+  releasedNote: "Release Date stated on the model card of the BF16 repo."
+  cutoff: "2025-09"
+  cutoffSource: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16/raw/main/README.md
+  cutoffNote: "Card: pre-training data cutoff September 2025 (post-training data cutoff May 2026)."
+phi-4:
+  model: microsoft/phi-4
+  released: "2024-12-12"
+  releasedSource: https://huggingface.co/microsoft/phi-4/raw/main/README.md
+  releasedNote: "Release date stated on the model card (December 12, 2024)."
+  cutoff: "2024-06"
+  cutoffSource: https://huggingface.co/microsoft/phi-4/raw/main/README.md
+  cutoffNote: "Card: offline dataset with cutoff dates of June 2024 and earlier for publicly available data."
+qwen2.5-0.5b-instruct:
+  model: Qwen/Qwen2.5-0.5B-Instruct
+  released: "2024-09-16"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen2.5-32b-instruct:
+  model: Qwen/Qwen2.5-32B-Instruct
+  released: "2024-09-17"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen2.5-32B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen2.5-72b-instruct:
+  model: Qwen/Qwen2.5-72B-Instruct
+  released: "2024-09-16"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen2.5-72B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen2.5-7b-instruct:
+  model: Qwen/Qwen2.5-7B-Instruct
+  released: "2024-09-16"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen2.5-7B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen2.5-coder-32b-instruct:
+  model: Qwen/Qwen2.5-Coder-32B-Instruct
+  released: "2024-11-06"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen2.5-Coder-32B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3-32b:
+  model: Qwen/Qwen3-32B
+  released: "2025-04-27"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3-32B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3-coder-30b-a3b-instruct:
+  model: Qwen/Qwen3-Coder-30B-A3B-Instruct
+  released: "2025-07-31"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3-Coder-30B-A3B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3-coder-next:
+  model: Qwen/Qwen3-Coder-Next
+  released: "2026-01-30"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3-Coder-Next
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.5-0.8b:
+  model: Qwen/Qwen3.5-0.8B
+  released: "2026-02-28"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.5-0.8B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.5-122b-a10b:
+  model: Qwen/Qwen3.5-122B-A10B
+  released: "2026-02-24"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.5-122B-A10B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.5-27b:
+  model: Qwen/Qwen3.5-27B
+  released: "2026-02-24"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.5-27B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.5-2b:
+  model: Qwen/Qwen3.5-2B
+  released: "2026-02-28"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.5-2B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.5-35b-a3b:
+  model: Qwen/Qwen3.5-35B-A3B
+  released: "2026-02-24"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.5-35B-A3B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.5-9b:
+  model: Qwen/Qwen3.5-9B
+  released: "2026-02-27"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.5-9B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.6-27b:
+  model: Qwen/Qwen3.6-27B
+  released: "2026-04-21"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.6-27B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.6-35b-a3b:
+  model: Qwen/Qwen3.6-35B-A3B
+  released: "2026-04-15"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.6-35B-A3B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.8-27b:
+  model: Qwen/Qwen3.8-27B
+  released: "2026-08-05"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.8-27B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwen3.8-flash-next:
+  model: Qwen/Qwen3.8-Flash-Next
+  released: "2026-08-24"
+  releasedSource: https://huggingface.co/api/models/Qwen/Qwen3.8-Flash-Next
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+qwq-32b:
+  model: Qwen/QwQ-32B
+  released: "2025-03-05"
+  releasedSource: https://huggingface.co/api/models/Qwen/QwQ-32B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+seed-oss-36b-instruct:
+  model: ByteDance-Seed/Seed-OSS-36B-Instruct
+  released: "2025-08-20"
+  releasedSource: https://huggingface.co/api/models/ByteDance-Seed/Seed-OSS-36B-Instruct
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."
+spark-x2.6-1.7b:
+  model: XHToken/Spark-X2.6-1.7B
+  released: "2026-10-19"
+  releasedSource: https://huggingface.co/api/models/XHToken/Spark-X2.6-1.7B
+  releasedNote: "HF repo createdAt of the original repo; the public release may be later."

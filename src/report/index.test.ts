@@ -149,6 +149,8 @@ beforeEach(async () => {
     legacyRoot: root,
     output: join(root, "out"),
     configsPath: join(root, "configs.yaml"),
+    itemDatesPath: join(root, "item-dates.json"),
+    modelDatesPath: join(root, "model-dates.yaml"),
     harnessGitSha: "f".repeat(40),
   };
 });
@@ -173,6 +175,10 @@ describe("runReport (legacy manifest)", () => {
   });
 
   it("writes the snapshot under the digest of its bytes, its details and the index", async () => {
+    const itemDates = `${JSON.stringify({ asOf: "2026-02-01T00:00:00Z", source: "s", items: { [sha(PROMPT)]: { publishedAt: "2026-01-01T12:00:00Z", evidence: "e" } } })}\n`;
+    const modelDates = 'a:\n  released: "2025-12"\n  releasedSource: https://example.test\n';
+    await put("item-dates.json", itemDates);
+    await put("model-dates.yaml", modelDates);
     const summary = await run(runReport(opts));
     const entry = summary.snapshots[0]?.entry as IndexEntry;
     const bytes = await readFile(join(opts.output, `${entry.digest}.json`));
@@ -194,6 +200,8 @@ describe("runReport (legacy manifest)", () => {
       manifest: sha(await readFile(join(root, "datasets/alpha.yaml"))),
       release: sha(await readFile(join(root, "releases/0/release.json"))),
       configs: null,
+      itemDates: sha(itemDates),
+      modelDates: sha(modelDates),
       runners: [],
       // A closed release's line graded by its item's current scorer keeps its stored (Rules 1) score.
       scoringRules: [1],
@@ -201,6 +209,22 @@ describe("runReport (legacy manifest)", () => {
       harnessDirty: false,
     });
     expect(snap.rows[0].cells.ch.sourceAttempts).toEqual(["a1"]);
+    // Timing sits beside the rows: the item public 2026-01-01, model "a" released 2025-12.
+    expect(snap.timing.rows[snap.rows[0].rowId]).toEqual({
+      unpublished: 0,
+      predates: 1,
+      "cutoff-claimed": 0,
+      exposable: 0,
+      unknown: 0,
+    });
+    expect(snap.timing.items["ch/q"]).toEqual({
+      publishedAt: "2026-01-01T12:00:00Z",
+      evidence: "e",
+    });
+    expect(snap.timing.models.a).toEqual({
+      released: "2025-12",
+      releasedSource: "https://example.test",
+    });
     expect(snap.rows[0].hardwareId).toBe("hw");
     const detail = JSON.parse(await readFile(join(opts.output, "details/a1.json"), "utf8"));
     expect(detail.items[0]).toMatchObject({ family: "fam" });

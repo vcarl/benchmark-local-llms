@@ -43,6 +43,7 @@ import { challengeDrift, loadRelease, type Release } from "../release/release.js
 import type { AttemptManifest, ItemResult } from "../schema/attempt.js";
 import { digestOf, sha256Hex } from "../store/digest.js";
 import { modelKeyOverrides } from "./model-key.js";
+import { loadTimingInputs, type Timing, timingOf } from "./timing.js";
 import { gradersOf, scoredExecutions, v4RowsOf, writeV4Details } from "./v4-rows.js";
 
 export interface ReportOptions {
@@ -58,6 +59,10 @@ export interface ReportOptions {
   readonly output: string;
   /** `configs.yaml` whose `modelKey` overrides apply (missing = none). */
   readonly configsPath: string;
+  /** `item-dates.json`: when each prompt became public (unset or missing: every item unknown). */
+  readonly itemDatesPath?: string;
+  /** `model-dates.yaml`: each model's release date and stated cutoff (unset or missing: every model unknown). */
+  readonly modelDatesPath?: string;
   /** Full `git rev-parse HEAD` of the harness building the snapshots. */
   readonly harnessGitSha: string;
   /** The harness has tracked changes the snapshot's rows can depend on (`./bench report --allow-dirty`). */
@@ -67,6 +72,8 @@ export interface ReportOptions {
 /** A snapshot file's content (D11). */
 export interface Snapshot extends RowsDataset {
   readonly schemaVersion: 4;
+  /** Evaluation timing beside the rows (never in them): label counts per row and the dates behind them. */
+  readonly timing: Timing;
   /** The release's `release.json` without its items: label, dates, commitment. */
   readonly releaseFile: Omit<Release["file"], "items">;
   readonly inputs: {
@@ -84,6 +91,9 @@ export interface Snapshot extends RowsDataset {
      * stored score (alpha). The scorer digests are `release.json`'s at the eval version.
      */
     readonly scoringRules: ReadonlyArray<number>;
+    /** SHA-256 of `item-dates.json` and `model-dates.yaml`; null when absent. */
+    readonly itemDates: string | null;
+    readonly modelDates: string | null;
     /** The harness commit; suffixed `-dirty` when `harnessDirty`. */
     readonly harnessGitSha: string;
     /** Built from a tree with tracked changes, so `harnessGitSha` does not reproduce it. */
@@ -348,14 +358,18 @@ export const buildSnapshot = (manifestPath: string, opts: ReportOptions) =>
       );
     }
     const { items: _, ...releaseFile } = release.file;
+    const dates = yield* loadTimingInputs(opts.itemDatesPath, opts.modelDatesPath);
     const snapshot: Snapshot = {
       schemaVersion: 4,
       releaseFile,
       ...built.rows,
+      timing: timingOf(built.rows.rows, set.challenges, dates),
       inputs: {
         manifest: yield* sha256Of(manifestPath),
         release: yield* sha256Of(path.join(releaseDir, "release.json")),
         configs: configs.digest,
+        itemDates: dates.items?.digest ?? null,
+        modelDates: dates.models?.digest ?? null,
         runners: [...new Set(built.runners)].sort(),
         scoringRules: [...new Set(built.rules)].sort((a, b) => a - b),
         harnessGitSha: opts.harnessDirty ? `${opts.harnessGitSha}-dirty` : opts.harnessGitSha,
