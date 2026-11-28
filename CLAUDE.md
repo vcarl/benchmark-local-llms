@@ -30,7 +30,7 @@ npm run lint                # biome + scripts/lint-strict.sh (src/ only)
 ./bench report              # snapshots → webapp/public/snapshots/
 ```
 
-- `./bench report` refuses tracked changes under `src/`, `releases/`, `datasets/`, `configs.yaml`, `system-prompts.yaml`, `item-dates.json`, `model-dates.yaml` unless `--allow-dirty` (snapshot marked `harnessDirty`).
+- `./bench report` refuses tracked changes under `src/`, `releases/`, `datasets/`, `configs.yaml`, `system-prompts.yaml` unless `--allow-dirty` (snapshot marked `harnessDirty`).
 - New runs join the draft: `./bench run`, then `./bench dataset add draft <bundle…>`, `./bench score --dataset draft`, commit `datasets/draft.yaml`, then `./bench report` (it refuses an uncommitted manifest).
 - `scripts/` is outside tsc and lint, but `scripts/author/**/*.test.ts` run under `npm test`.
 - `scripts/deploy-pages.sh` builds the site (snapshots, webapp, `llms.txt`) into a local directory; `--push` publishes it to `gh-pages`. Never run it with `--push` unless Carl asks. [DEPLOY](docs/DEPLOY.md)
@@ -65,7 +65,7 @@ Docs (each owns its topic):
 - [ARCHIVE-FORMAT.md](docs/ARCHIVE-FORMAT.md): on-disk formats: store, bundles, score log, releases, datasets, snapshots, legacy archives, freeze/convert
 - [SCORING.md](docs/SCORING.md): scorers, pass rate, run skip, row/cell selection, failure kinds, scorer digests
 - [ERRATA.md](docs/ERRATA.md): erratum fields, eval versions, coverage check, errata workflow, cutting a release
-- [EVAL-TIMING.md](docs/EVAL-TIMING.md): item publication dates, model dates, per-row timing labels
+- [EVAL-TIMING.md](docs/EVAL-TIMING.md): item freeze dates, weights publication dates recorded on the run, per-row timing labels
 - [ERRATA-PROCESS.md](docs/ERRATA-PROCESS.md): public errata rules, rendered at `/errata` (keep it in step with ERRATA.md; no repo links)
 - [CONFIG.md](docs/CONFIG.md): YAML schemas for configs, challenges, system prompts
 - [CHAT-TEMPLATES.md](docs/CHAT-TEMPLATES.md): chat templates and their pitfalls per runtime
