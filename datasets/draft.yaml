@@ -1879,3 +1879,26 @@ bundles:
   - f2d0245181918ad2e9302231c0eaff1955c1de675577fbc511b5dc71c1b3daea # ternary-bonsai-2.5-27b-llamacpp · code
   - cc177d201e7b00dd501801e214eb77057a8d5342bf2b54406c6e476c937ba0cc # phi-4-omlx · longctx
   - c842db7aad3b2dcd0ec6b06d15ef787bee06535069aae6a27e97e0bfd155162e # phi-4-omlx-8bit · longctx
+  - 4afc2448a37c2ddc45684f05eb4c7656ed4d74645397fb36a5bce8bd2a29fdd9 # inkling-2-mini-llamacpp · chains
+  - 77dc0ef8b3e3fa4dad2b050449085fa5cf0823502ecd28a7b49b8551a1a191c9 # inkling-2-mini-llamacpp · classify
+  - e22c760f2d35e0d5a4ce2bb7daa5a8032591d2b1448bd054353f7ad7b96a8f27 # inkling-2-mini-llamacpp · code
+  - e5c2a96c9bf5a80d1a1cf82e5c083b5dc330a48820c8acb1649d5067b0378ec0 # inkling-2-mini-llamacpp · codefix
+  - 424aa9629e4d9be1867a741a3f873ec82438d72b8c0f5e6f87a9abaa060993d1 # inkling-2-mini-llamacpp · constraint
+  - f44ec8c20e24674b8e2be8c159d98300336c831fdc8c274449c82a2bcaf413e5 # inkling-2-mini-llamacpp · dates
+  - 5513fc7401d85e7ea669706861da3e24d7f7607f52c33a7bf5a18084149b4041 # inkling-2-mini-llamacpp · economics
+  - f4499360a8f41e0abedd2f58c61f391bf046209a9f3481bd1a5db06cd468cb23 # inkling-2-mini-llamacpp · effect-ts
+  - fbfa0b7a9f4a87a60bbb13983c49e308c4312f976acb6c2d3e2c3bdcb109321c # inkling-2-mini-llamacpp · extraction
+  - f5de8383cfe6ddc652a59198767153631760834602c41bb8d7a62783478299cc # inkling-2-mini-llamacpp · factual
+  - 4a81d3eb3b3fd228d5312564b15acc58fb572e8c2613974cb364d2ea2a4e510b # inkling-2-mini-llamacpp · financial
+  - a244fb42b147dab979ed1c9f7bb9930a6476b6c6d1f9b0e3009e43c19e70760c # inkling-2-mini-llamacpp · followups
+  - 70035baa62db5546a1b1639411e5e7bf42a3cdd6b86a720714afe83e3f92b23d # inkling-2-mini-llamacpp · ifeval
+  - dfb7dabffaaf15464d2604d5b6ae493dd554abd91a052e9db612395a1ead1014 # inkling-2-mini-llamacpp · logic
+  - 78f89a8c0365f33a41f78f36696a458eb19bb457e23ffb523ad6f32818352af0 # inkling-2-mini-llamacpp · longctx
+  - 9494d81787f1788408bc6d4288551b2ab9f2901032072df3cdbda44c6497eb57 # inkling-2-mini-llamacpp · math
+  - 27d4e98a03c76d4c56ee31ec62ef00a648b9768319f37c7f1d39de10d00e9088 # inkling-2-mini-llamacpp · regex
+  - ed275517194b76c958d2af1bbe5257b1f60a8fc3b58b41057240b964367a32ee # inkling-2-mini-llamacpp · smoke
+  - 37daeca36e74c6aa3c9b57f2a7f11d20ffad961504c7ab8e500758bc96473d44 # inkling-2-mini-llamacpp · sql
+  - 18b4eacf99051d131280c9e7668fa95722f18c677c18fb46aebc49e6d88598e4 # inkling-2-mini-llamacpp · stretch
+  - ea96d5da2abaae6995ffa26b05026719dc2b47c420e4618e0f0658cb7cc342f3 # inkling-2-mini-llamacpp · toolcall
+  - 4c7445d2dc4c62b8b2c88aeeb93f009cd98afea2fb167f539257da69e0864eaa # inkling-2-mini-llamacpp · transform
+  - 109653da62792f58a82cf753cdc3ef17f3592ed3b8856184dcb13871456aa330 # inkling-2-mini-llamacpp · trust
