@@ -1,76 +1,62 @@
 // Evaluation timing disclosure (server shape: src/report/timing.ts). Display
 // only: a label never changes a score or rank.
 
-export const TIMING_LABELS = ["unpublished", "predates", "cutoff-claimed", "exposable", "unknown"] as const;
+export const TIMING_LABELS = ["predates", "exposable", "unknown"] as const;
 export type TimingLabel = (typeof TIMING_LABELS)[number];
 export type TimingCounts = Record<TimingLabel, number>;
 
-export interface ModelDates {
-  model?: string;
-  note?: string;
-  released?: string;
-  releasedSource?: string;
-  releasedNote?: string;
-  cutoff?: string;
-  cutoffSource?: string;
-  cutoffNote?: string;
+/** The hub revision a bundle's weights were loaded from; `publishedAt` null when the run could not look it up. */
+export interface WeightsSource {
+  repo: string;
+  revision: string;
+  publishedAt: string | null;
 }
 
 export interface Timing {
-  itemDates: { asOf: string; source: string } | null;
-  /** `publishedAt`: the later of the first public push (`pushedAt`) and the first frozen release's `committedAt` (`frozenAt`). */
-  items: Record<string, { publishedAt: string; pushedAt: string; frozenAt: string | null; evidence: string } | null>;
-  models: Record<string, ModelDates>;
-  rows: Record<string, Record<string, TimingCounts>>;
+  /** `<challenge>/<item>` → `committedAt` of the earliest frozen release holding its prompt. */
+  items: Record<string, string>;
+  rows: Record<string, Record<string, { weights: WeightsSource | null; labels: TimingCounts }>>;
 }
 
 export const LABEL_HELP: Record<TimingLabel, string> = {
-  unpublished: "Item not public as of the item-dates snapshot, so it cannot have been trained on.",
-  predates: "The weights were published before the item became public.",
-  "cutoff-claimed": "Weights published after the item, but the vendor's stated training cutoff is before it (a vendor claim).",
-  exposable: "Weights published after the item; the cutoff is missing or not before it.",
-  unknown: "A date is missing, or the dates fall in the same day or period.",
+  predates: "The weights were published on an earlier day than the item's release was frozen.",
+  exposable: "The weights were published on a later day than the item's release was frozen.",
+  unknown: "Same day, or the run recorded no weights publication date.",
 };
 
 export const TIMING_NOTE =
-  "Disclosure only; it never affects score or rank. `predates` does not mean uncontaminated: upstream sources and classic puzzles may be in training data elsewhere. Training cutoffs are vendor claims.";
+  "Disclosure only; it never affects score or rank. Weights publication is when the Hugging Face revision was committed, not when the model was trained; a requant uploaded after its base model gets the later date. `predates` does not mean uncontaminated: upstream sources and classic puzzles may be in training data elsewhere.";
 
-export interface TimingTotals {
-  total: number;
-  counts: TimingCounts;
-  /** Share per label, in TIMING_LABELS order; all 0 when total is 0. */
-  shares: TimingCounts;
-}
+const zero = (): TimingCounts => ({ predates: 0, exposable: 0, unknown: 0 });
 
-const zero = (): TimingCounts => ({ unpublished: 0, predates: 0, "cutoff-claimed": 0, exposable: 0, unknown: 0 });
+/** The row's scored challenges, restricted to `challenges` (empty: all). */
+const cellsOf = (timing: Timing, rowId: string, challenges: readonly string[]) =>
+  Object.entries(timing.rows[rowId] ?? {}).filter(([id]) => challenges.length === 0 || challenges.includes(id));
 
-/** Sum a row's per-challenge counts; `challenges` (empty/undefined: all) restricts them. */
-export const timingTotals = (
-  timing: Timing,
-  rowId: string,
-  challenges: readonly string[] = [],
-): TimingTotals | null => {
-  const per = timing.rows[rowId];
-  if (per === undefined) return null;
+/** Sum a row's per-challenge counts; null when the snapshot has no timing for the row. */
+export const timingTotals = (timing: Timing, rowId: string, challenges: readonly string[] = []) => {
+  if (timing.rows[rowId] === undefined) return null;
   const counts = zero();
-  for (const [id, c] of Object.entries(per)) {
-    if (challenges.length > 0 && !challenges.includes(id)) continue;
-    for (const l of TIMING_LABELS) counts[l] += c[l];
-  }
+  for (const [, c] of cellsOf(timing, rowId, challenges)) for (const l of TIMING_LABELS) counts[l] += c.labels[l];
   const total = TIMING_LABELS.reduce((s, l) => s + counts[l], 0);
   const shares = zero();
   if (total > 0) for (const l of TIMING_LABELS) shares[l] = counts[l] / total;
   return { total, counts, shares };
 };
 
-/** Min and max `publishedAt` among a challenge's public items, plus how many are not public. */
-export const challengeItemDates = (timing: Timing, challenge: string) => {
-  const entries = Object.entries(timing.items).filter(([k]) => k.startsWith(`${challenge}/`));
-  const dates = entries.flatMap(([, v]) => (v === null ? [] : [v.publishedAt.slice(0, 10)])).sort();
-  return {
-    items: entries.map(([k, v]) => ({ item: k.slice(challenge.length + 1), date: v })),
-    first: dates[0] ?? null,
-    last: dates[dates.length - 1] ?? null,
-    notPublic: entries.filter(([, v]) => v === null).length,
-  };
+/** The distinct weights behind a row's cells (null: a bundle that recorded none). */
+export const rowWeights = (timing: Timing, rowId: string, challenges: readonly string[] = []) => {
+  const seen = new Map<string, WeightsSource | null>();
+  for (const [, c] of cellsOf(timing, rowId, challenges))
+    seen.set(c.weights === null ? "" : `${c.weights.repo}@${c.weights.revision}`, c.weights);
+  return [...seen.values()];
+};
+
+/** The earliest and latest freeze day of a challenge's items; null when none is in a frozen release. */
+export const frozenSpan = (timing: Timing, challenge: string): [string, string] | null => {
+  const days = Object.entries(timing.items)
+    .filter(([k]) => k.startsWith(`${challenge}/`))
+    .map(([, at]) => at.slice(0, 10))
+    .sort();
+  return days.length === 0 ? null : [days[0]!, days[days.length - 1]!];
 };

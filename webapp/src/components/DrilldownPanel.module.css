@@ -120,9 +120,7 @@
 .timing { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-3); font-size: var(--fz-11); cursor: help; }
 .timingBar { display: flex; flex: 0 0 120px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--border-subtle); }
 .timingText { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.t_unpublished { background: var(--accent-700); }
 .t_predates { background: var(--accent-300); }
-.t_cutoff_claimed { background: var(--gray-300); }
 .t_exposable { background: var(--gray-500); }
 .t_unknown { background: var(--gray-650); }
 .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
@@ -130,7 +128,6 @@
 .timingBody { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) 0; font-size: var(--fz-11); }
 .timingNote { color: var(--text-muted); font-size: var(--fz-11); }
 .timingChallenge { padding-left: var(--space-4); }
-.timingChallenge > summary { cursor: pointer; }
 
 /* Narrow pane: stack each challenge row (key, coverage, score) and give targets room. */
 @container (max-width: 300px) {

@@ -1,35 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { challengeItemDates, timingTotals } from "./timing";
+import { frozenSpan, rowWeights, timingTotals } from "./timing";
 import type { Timing } from "./timing";
 
-const z = { unpublished: 0, predates: 0, "cutoff-claimed": 0, exposable: 0, unknown: 0 };
+const z = { predates: 0, exposable: 0, unknown: 0 };
+const w = { repo: "o/m", revision: "a".repeat(40), publishedAt: "2027-03-01T00:00:00.000Z" };
 const timing: Timing = {
-  itemDates: { asOf: "2026-11-01", source: "x" },
-  items: {
-    "a/1": { publishedAt: "2024-05-01", pushedAt: "2024-05-01", frozenAt: null, evidence: "e" },
-    "a/2": { publishedAt: "2025-01-02", pushedAt: "2025-01-02", frozenAt: null, evidence: "e" },
-    "a/3": null,
+  items: { "a/1": "2027-02-01T00:00:00.000Z", "a/2": "2027-05-01T00:00:00.000Z", "b/1": "2027-02-01T00:00:00.000Z" },
+  rows: {
+    r: {
+      a: { weights: w, labels: { ...z, predates: 1, exposable: 1 } },
+      b: { weights: null, labels: { ...z, unknown: 2 } },
+    },
   },
-  models: {},
-  rows: { r: { a: { ...z, predates: 1, exposable: 2, unpublished: 1 }, b: { ...z, predates: 4 } } },
 };
 
 describe("timingTotals", () => {
   it("sums all challenges", () => {
     const t = timingTotals(timing, "r")!;
-    expect(t.total).toBe(8);
-    expect(t.counts.predates).toBe(5);
-    expect(t.shares.exposable).toBe(0.25);
+    expect(t.total).toBe(4);
+    expect(t.shares).toEqual({ predates: 0.25, exposable: 0.25, unknown: 0.5 });
   });
   it("restricts to a challenge subset", () => {
-    expect(timingTotals(timing, "r", ["b"])!.shares.predates).toBe(1);
+    expect(timingTotals(timing, "r", ["b"])!.shares.unknown).toBe(1);
   });
   it("is null for an unknown row", () => expect(timingTotals(timing, "q")).toBeNull());
 });
 
-describe("challengeItemDates", () => {
-  it("gives the range and not-public count", () => {
-    const d = challengeItemDates(timing, "a");
-    expect([d.first, d.last, d.notPublic]).toEqual(["2024-05-01", "2025-01-02", 1]);
+describe("rowWeights and frozenSpan", () => {
+  it("lists distinct weights and a challenge's freeze range", () => {
+    expect(rowWeights(timing, "r")).toEqual([w, null]);
+    expect(rowWeights(timing, "r", ["a"])).toEqual([w]);
+    expect(frozenSpan(timing, "a")).toEqual(["2027-02-01", "2027-05-01"]);
+    expect(frozenSpan(timing, "c")).toBeNull();
   });
 });

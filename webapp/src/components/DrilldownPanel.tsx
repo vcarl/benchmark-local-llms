@@ -9,8 +9,8 @@ import { formatCount, formatItemTiming, formatWallTime } from "../lib/format";
 import type { Scope, ScopedRow, Tier } from "../lib/model";
 import type { Cell, CellStatus, RowsDataset } from "../lib/rows";
 import { useAttemptDetail } from "../lib/use-attempt-detail";
-import { challengeItemDates, LABEL_HELP, TIMING_LABELS, TIMING_NOTE, timingTotals } from "../lib/timing";
-import type { ModelDates, Timing } from "../lib/timing";
+import { frozenSpan, LABEL_HELP, rowWeights, TIMING_LABELS, TIMING_NOTE, timingTotals } from "../lib/timing";
+import type { Timing, WeightsSource } from "../lib/timing";
 
 interface Props {
   r: ScopedRow;
@@ -48,23 +48,9 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-const labelClass = (l: (typeof TIMING_LABELS)[number]) => styles[`t_${l.replace("-", "_")}`];
+const labelClass = (l: (typeof TIMING_LABELS)[number]) => styles[`t_${l}`];
 
-const dateLine = (what: string, date: string | undefined, source: string | undefined, note: string | undefined) => (
-  <div>
-    {what}:{" "}
-    {date === undefined ? (
-      "unknown"
-    ) : source === undefined ? (
-      date
-    ) : (
-      <a href={source} target="_blank" rel="noreferrer">
-        {date}
-      </a>
-    )}
-    {note !== undefined && <span className={styles.timingNote}> — {note}</span>}
-  </div>
-);
+const range = (r: [string, string] | null) => (r === null ? "unknown" : r[0] === r[1] ? r[0] : `${r[0]} – ${r[1]}`);
 
 /** Row-level timing bar and text; null when the snapshot has no timing for the row. */
 function TimingSummary({ timing, rowId, challenges }: { timing: Timing; rowId: string; challenges: string[] }) {
@@ -84,10 +70,23 @@ function TimingSummary({ timing, rowId, challenges }: { timing: Timing; rowId: s
   );
 }
 
-function TimingSection({ timing, modelKey, rowId, ids }: { timing: Timing; modelKey: string; rowId: string; ids: string[] }) {
-  const m: ModelDates = timing.models[modelKey] ?? {};
+function WeightsDate({ w }: { w: WeightsSource | null }) {
+  if (w === null) return <>unknown (no Hugging Face revision recorded)</>;
+  return (
+    <>
+      {w.publishedAt === null ? "unknown" : day(w.publishedAt)}{" "}
+      <a className={styles.timingNote} href={`https://huggingface.co/${w.repo}/tree/${w.revision}`} target="_blank" rel="noreferrer">
+        {w.repo}@{w.revision.slice(0, 7)}
+      </a>
+    </>
+  );
+}
+
+function TimingSection({ timing, rowId, ids }: { timing: Timing; rowId: string; ids: string[] }) {
   const per = timing.rows[rowId] ?? {};
   const shown = ids.filter((id) => per[id] !== undefined);
+  if (shown.length === 0) return null;
+  const weights = rowWeights(timing, rowId, shown);
   return (
     <details className={styles.timingSection}>
       <summary className={styles.thinkingSummary}>Evaluation timing</summary>
@@ -95,38 +94,33 @@ function TimingSection({ timing, modelKey, rowId, ids }: { timing: Timing; model
         <div className={styles.timingNote}>{TIMING_NOTE}</div>
         <div className={styles.timingNote}>
           {TIMING_LABELS.map((l) => (
-              <div key={l}>
-                <span className={`${styles.swatch} ${labelClass(l)}`} /> {l}: {LABEL_HELP[l]}
-              </div>
-            ))}
+            <div key={l}>
+              <span className={`${styles.swatch} ${labelClass(l)}`} /> {l}: {LABEL_HELP[l]}
+            </div>
+          ))}
         </div>
-        <div>
-          {dateLine("Weights released", m.released, m.releasedSource, m.releasedNote)}
-          {dateLine("Training cutoff (vendor claim)", m.cutoff, m.cutoffSource, m.cutoffNote)}
-          {m.note !== undefined && <div className={styles.timingNote}>{m.note}</div>}
-          <div>Item dates as of: {timing.itemDates?.asOf ?? "unknown (no item-dates file)"}</div>
-        </div>
+        {weights.length === 1 && (
+          <div>
+            Weights published: <WeightsDate w={weights[0]!} />
+          </div>
+        )}
         {shown.map((id) => {
           const c = per[id]!;
-          const d = challengeItemDates(timing, id);
           return (
-            <details key={id} className={styles.timingChallenge}>
-              <summary>
-                <span className={styles.challengeKey}>{id}</span>{" "}
-                <span className={styles.timingNote}>
-                  {TIMING_LABELS.filter((l) => c[l] > 0)
-                    .map((l) => `${l} ${c[l]}`)
-                    .join(" · ")}
-                  {d.first === null ? " · none public" : ` · published ${d.first === d.last ? d.first : `${d.first} – ${d.last}`}`}
-                  {d.notPublic > 0 && d.first !== null ? ` · ${d.notPublic} not public` : ""}
-                </span>
-              </summary>
-              {d.items.map(({ item, date }) => (
-                <div key={item} className={styles.timingNote}>
-                  {item}: {date === null ? "not public" : `${date.publishedAt.slice(0, 10)}${date.frozenAt === null ? "" : ` (pushed ${date.pushedAt.slice(0, 10)}, frozen ${date.frozenAt.slice(0, 10)})`} — ${date.evidence}`}
+            <div key={id} className={styles.timingChallenge}>
+              <span className={styles.challengeKey}>{id}</span>{" "}
+              <span className={styles.timingNote}>
+                {TIMING_LABELS.filter((l) => c.labels[l] > 0)
+                  .map((l) => `${l} ${c.labels[l]}`)
+                  .join(" · ")}
+                {` · frozen ${range(frozenSpan(timing, id))}`}
+              </span>
+              {weights.length > 1 && (
+                <div className={styles.timingNote}>
+                  Weights published: <WeightsDate w={c.weights} />
                 </div>
-              ))}
-            </details>
+              )}
+            </div>
           );
         })}
       </div>
@@ -252,7 +246,7 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
         </div>
       </div>
       {dataset.timing && (
-        <TimingSection timing={dataset.timing} modelKey={row.modelKey} rowId={row.rowId} ids={cells.map(([id]) => id)} />
+        <TimingSection timing={dataset.timing} rowId={row.rowId} ids={cells.map(([id]) => id)} />
       )}
 
       {cells.map(([id, c]) => {
