@@ -1,0 +1,58 @@
+# Local LLM benchmark
+
+> Local language models benchmarked on one workstation (Apple M5 Max 128GB) on bounded, checkable text work: code, math and finance, logic, extraction, instruction constraints, tool calls. Every item has a deterministic scorer; there is no LLM judge. Each result describes a model on a stack (runtime, quant, chat template, sampler settings) on that machine, with a 95% interval.
+
+Notes:
+
+- Pages are markdown and quote snapshot digests; cite a digest with any number you reuse.
+- Pass rates count a missing or failed item as a fail (coverage adjustment). Configs within one tier are not statistically resolved from each other; prefer tiers over single-rank differences.
+- The pre-release (draft) set is newest and largest but may still change; the alpha challenge set is archival.
+- The same data, interactive, needs JavaScript: https://vcarl.com/evals/
+
+## Alpha challenge set
+
+- [Leaderboard](https://vcarl.com/evals/llms/alpha/leaderboard.md): 110 configs ranked by pass rate with 95% intervals and tiers; links to each config's page
+- [Release notes](https://vcarl.com/evals/llms/alpha/release.md): release facts, challenge list, snapshot digests
+- [Errata](https://vcarl.com/evals/llms/alpha/errata.md): 7 errata with the scores each changed
+- [Challenge code](https://vcarl.com/evals/llms/alpha/challenges/code.md): 12 items, per-config pass rates
+- [Challenge constraint](https://vcarl.com/evals/llms/alpha/challenges/constraint.md): 10 items, per-config pass rates
+- [Challenge economics](https://vcarl.com/evals/llms/alpha/challenges/economics.md): 35 items, per-config pass rates
+- [Challenge effect-ts](https://vcarl.com/evals/llms/alpha/challenges/effect-ts.md): 26 items, per-config pass rates
+- [Challenge factual](https://vcarl.com/evals/llms/alpha/challenges/factual.md): 7 items, per-config pass rates
+- [Challenge financial](https://vcarl.com/evals/llms/alpha/challenges/financial.md): 26 items, per-config pass rates
+- [Challenge logic](https://vcarl.com/evals/llms/alpha/challenges/logic.md): 10 items, per-config pass rates
+- [Challenge math](https://vcarl.com/evals/llms/alpha/challenges/math.md): 13 items, per-config pass rates
+- [Challenge smoke](https://vcarl.com/evals/llms/alpha/challenges/smoke.md): 4 items, per-config pass rates
+- [Challenge trust](https://vcarl.com/evals/llms/alpha/challenges/trust.md): 26 items, per-config pass rates
+
+## Pre-release (draft)
+
+- [Leaderboard](https://vcarl.com/evals/llms/draft/leaderboard.md): 79 configs ranked by pass rate with 95% intervals and tiers; links to each config's page
+- [Release notes](https://vcarl.com/evals/llms/draft/release.md): release facts, challenge list, snapshot digests
+- [Challenge chains](https://vcarl.com/evals/llms/draft/challenges/chains.md): 13 items, per-config pass rates
+- [Challenge classify](https://vcarl.com/evals/llms/draft/challenges/classify.md): 12 items, per-config pass rates
+- [Challenge code](https://vcarl.com/evals/llms/draft/challenges/code.md): 12 items, per-config pass rates
+- [Challenge codefix](https://vcarl.com/evals/llms/draft/challenges/codefix.md): 12 items, per-config pass rates
+- [Challenge constraint](https://vcarl.com/evals/llms/draft/challenges/constraint.md): 10 items, per-config pass rates
+- [Challenge dates](https://vcarl.com/evals/llms/draft/challenges/dates.md): 12 items, per-config pass rates
+- [Challenge economics](https://vcarl.com/evals/llms/draft/challenges/economics.md): 35 items, per-config pass rates
+- [Challenge effect-ts](https://vcarl.com/evals/llms/draft/challenges/effect-ts.md): 26 items, per-config pass rates
+- [Challenge extraction](https://vcarl.com/evals/llms/draft/challenges/extraction.md): 12 items, per-config pass rates
+- [Challenge factual](https://vcarl.com/evals/llms/draft/challenges/factual.md): 7 items, per-config pass rates
+- [Challenge financial](https://vcarl.com/evals/llms/draft/challenges/financial.md): 26 items, per-config pass rates
+- [Challenge followups](https://vcarl.com/evals/llms/draft/challenges/followups.md): 36 items, per-config pass rates
+- [Challenge ifeval](https://vcarl.com/evals/llms/draft/challenges/ifeval.md): 12 items, per-config pass rates
+- [Challenge logic](https://vcarl.com/evals/llms/draft/challenges/logic.md): 10 items, per-config pass rates
+- [Challenge longctx](https://vcarl.com/evals/llms/draft/challenges/longctx.md): 8 items, per-config pass rates
+- [Challenge math](https://vcarl.com/evals/llms/draft/challenges/math.md): 13 items, per-config pass rates
+- [Challenge regex](https://vcarl.com/evals/llms/draft/challenges/regex.md): 9 items, per-config pass rates
+- [Challenge smoke](https://vcarl.com/evals/llms/draft/challenges/smoke.md): 4 items, per-config pass rates
+- [Challenge sql](https://vcarl.com/evals/llms/draft/challenges/sql.md): 9 items, per-config pass rates
+- [Challenge stretch](https://vcarl.com/evals/llms/draft/challenges/stretch.md): 29 items, per-config pass rates
+- [Challenge toolcall](https://vcarl.com/evals/llms/draft/challenges/toolcall.md): 316 items, per-config pass rates
+- [Challenge transform](https://vcarl.com/evals/llms/draft/challenges/transform.md): 12 items, per-config pass rates
+- [Challenge trust](https://vcarl.com/evals/llms/draft/challenges/trust.md): 26 items, per-config pass rates
+
+## Methodology
+
+- [Methodology](https://vcarl.com/evals/llms/methodology.md): pass rule, coverage adjustment, intervals, tiers

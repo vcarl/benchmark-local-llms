@@ -1,0 +1,28 @@
+{
+  "snapshots": [
+    {
+      "dataset": "alpha",
+      "title": "Alpha challenge set",
+      "release": "0",
+      "evalVersion": "0.7",
+      "ranked": true,
+      "legacy": true,
+      "digest": "f588ca4568895dfe3e83c6d11387683ec4f245f2ca83b02935f263f9e63067c6",
+      "rows": 110,
+      "challenges": 10,
+      "span": "2026-06-19 – 2026-11-20"
+    },
+    {
+      "dataset": "draft",
+      "title": "Pre-release (draft)",
+      "release": "draft",
+      "evalVersion": null,
+      "ranked": true,
+      "legacy": false,
+      "digest": "172dc26d4bdb74f74ceaacf9b148460c2036e032b8a39008c94ccb8d398d0648",
+      "rows": 79,
+      "challenges": 23,
+      "span": "2026-06-19 – 2026-11-28"
+    }
+  ]
+}
