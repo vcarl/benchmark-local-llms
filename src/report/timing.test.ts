@@ -2,38 +2,17 @@ import { describe, expect, it } from "vitest";
 import type { ResolvedChallenge } from "../config/challenges.js";
 import type { Row } from "../legacy/rows.js";
 import { sha256Hex } from "../store/digest.js";
-import {
-  compareDays,
-  frozenAt,
-  hasTiming,
-  type TimingInputs,
-  timingLabel,
-  timingOf,
-} from "./timing.js";
-
-describe("compareDays", () => {
-  it("compares dates at their precision", () => {
-    expect(compareDays("2025-06", "2025-07-01")).toBe(-1);
-    expect(compareDays("2025-06", "2025-06-30")).toBe(0);
-    expect(compareDays("2025", "2025-03-04")).toBe(0);
-    expect(compareDays("2026-02-29".slice(0, 7), "2026-03-01")).toBe(-1);
-    expect(compareDays("2026-03-02", "2026-03-01")).toBe(1);
-  });
-});
+import { frozenAt, hasTiming, timingLabel, timingOf } from "./timing.js";
 
 describe("timingLabel", () => {
-  const item = "2026-06-20";
-  it("labels each case", () => {
-    expect(timingLabel(null, { released: "2027-01-01" })).toBe("unpublished");
-    expect(timingLabel(undefined, { released: "2020-01-01" })).toBe("unknown");
+  const item = "2027-02-01T12:00:00.000Z";
+  it("compares the weights' and the item's UTC days", () => {
+    expect(timingLabel(item, "2027-01-31T23:59:59.000Z")).toBe("predates");
+    expect(timingLabel(item, "2027-02-02T00:00:00.000Z")).toBe("exposable");
+    expect(timingLabel(item, "2027-02-01T00:00:01.000Z")).toBe("unknown");
+    expect(timingLabel(item, "2027-02-01T23:00:00.000Z")).toBe("unknown");
+    expect(timingLabel(item, null)).toBe("unknown");
     expect(timingLabel(item, undefined)).toBe("unknown");
-    expect(timingLabel(item, {})).toBe("unknown");
-    expect(timingLabel(item, { released: "2026-06-19" })).toBe("predates");
-    expect(timingLabel(item, { released: "2026-06-20" })).toBe("unknown");
-    expect(timingLabel(item, { released: "2026-06" })).toBe("unknown");
-    expect(timingLabel(item, { released: "2026-07-01", cutoff: "2026-05" })).toBe("cutoff-claimed");
-    expect(timingLabel(item, { released: "2026-07-01", cutoff: "2026-06" })).toBe("exposable");
-    expect(timingLabel(item, { released: "2026-07-01" })).toBe("exposable");
   });
 });
 
@@ -43,61 +22,56 @@ describe("timingOf (frozen release)", () => {
       id,
       items: prompts.map((p, n) => ({ itemId: `i${n}`, prompt: { promptText: p } })),
     }) as unknown as ResolvedChallenge;
-  const row = { rowId: "r", modelKey: "m", cells: { ch: { status: "scored" } } } as unknown as Row;
-  const inputs = (published: Record<string, string>): TimingInputs => ({
-    items: {
-      digest: "d",
-      value: {
-        asOf: "2027-06-01T00:00:00Z",
-        source: "s",
-        items: Object.fromEntries(
-          Object.entries(published).map(([p, at]) => [
-            sha256Hex(p),
-            { publishedAt: at, evidence: "e" },
-          ]),
-        ),
-      },
-    },
-    models: { digest: "d", value: { m: { released: "2027-03-01", releasedSource: "u" } } },
-  });
+  const row = (rowId: string, sources: string[]) =>
+    ({ rowId, cells: { ch: { status: "scored", sourceAttempts: sources } } }) as unknown as Row;
   const releases = [
-    { release: "0", items: { "ch/a": { prompt: sha256Hex("early") } } },
-    { release: "draft", items: { "ch/a": { prompt: sha256Hex("early") } } },
+    { release: "0", items: { "ch/a": { prompt: sha256Hex("old") } } },
+    { release: "draft", items: { "ch/a": { prompt: sha256Hex("old") } } },
     {
       release: "2027.1",
-      committedAt: "2027-02-01T00:00:00Z",
-      items: {
-        "ch/i0": { prompt: sha256Hex("early") },
-        "ch/i1": { prompt: sha256Hex("late") },
-        "ch/i2": { prompt: sha256Hex("secret") },
-      },
+      committedAt: "2027-02-01T00:00:00.000Z",
+      items: { "ch/i0": { prompt: sha256Hex("old") } },
     },
     {
       release: "2027.2",
-      committedAt: "2027-05-01T00:00:00Z",
-      items: { "ch/i0": { prompt: sha256Hex("early") } },
+      committedAt: "2027-05-01T00:00:00.000Z",
+      items: { "ch/i0": { prompt: sha256Hex("old") }, "ch/i1": { prompt: sha256Hex("new") } },
     },
   ];
+  const weights = (publishedAt: string | null) => ({ repo: "o/m", revision: "r", publishedAt });
 
-  it("dates an item by the later of its push and its first frozen release", () => {
+  it("dates an item by the earliest frozen release holding its prompt", () => {
     const frozen = frozenAt(releases);
-    expect(frozen.get(sha256Hex("early"))).toBe("2027-02-01T00:00:00Z");
+    expect(frozen.get(sha256Hex("old"))).toBe("2027-02-01T00:00:00.000Z");
+    expect(frozen.get(sha256Hex("new"))).toBe("2027-05-01T00:00:00.000Z");
+  });
+
+  it("labels each counted cell against its bundle's weights date", () => {
     const t = timingOf(
-      [row],
-      [challenge("ch", ["early", "late", "secret"])],
-      inputs({ early: "2026-03-24T00:00:00Z", late: "2027-04-01T00:00:00Z" }),
-      frozen,
+      [row("a", ["b1"]), row("b", ["b2"]), row("c", ["b3"])],
+      [challenge("ch", ["old", "new", "unreleased"])],
+      frozenAt(releases),
+      new Map([
+        ["b1", weights("2027-03-01T00:00:00.000Z")],
+        ["b2", weights(null)],
+      ]),
     );
-    // Pushed before the cut: dates to committedAt, before the 2027-03-01 weights (exposable).
-    expect(t.items["ch/i0"]).toMatchObject({
-      publishedAt: "2027-02-01T00:00:00Z",
-      pushedAt: "2026-03-24T00:00:00Z",
+    expect(t.items).toEqual({
+      "ch/i0": "2027-02-01T00:00:00.000Z",
+      "ch/i1": "2027-05-01T00:00:00.000Z",
     });
-    // Pushed after the cut: dates to its push, after the weights (predates).
-    expect(t.items["ch/i1"]?.publishedAt).toBe("2027-04-01T00:00:00Z");
-    expect(t.items["ch/i2"]).toBeNull();
+    // Between the two freezes: exposable to i0, predates i1; i2 is in no frozen release.
+    // b: the lookup failed; c: the bundle recorded no source. Both unknown.
+    const none = { predates: 0, exposable: 0, unknown: 2 };
     expect(t.rows).toEqual({
-      r: { ch: { unpublished: 1, predates: 1, "cutoff-claimed": 0, exposable: 1, unknown: 0 } },
+      a: {
+        ch: {
+          weights: weights("2027-03-01T00:00:00.000Z"),
+          labels: { predates: 1, exposable: 1, unknown: 0 },
+        },
+      },
+      b: { ch: { weights: weights(null), labels: none } },
+      c: { ch: { weights: null, labels: none } },
     });
   });
 

@@ -52,6 +52,18 @@ export const BundleConfig = Schema.Struct({
 });
 export type BundleConfig = typeof BundleConfig.Type;
 
+/**
+ * The Hugging Face revision a config's weights were loaded from, and when the
+ * hub published it (that revision's commit time, ISO); `publishedAt` is null
+ * when the lookup failed (offline, timeout, unknown repo).
+ */
+export const WeightsSource = Schema.Struct({
+  repo: Schema.String,
+  revision: Schema.String,
+  publishedAt: Schema.NullOr(Schema.String),
+});
+export type WeightsSource = typeof WeightsSource.Type;
+
 export const BundleEnv = Schema.Struct({
   platform: Schema.String,
   runtimeVersion: Schema.String,
@@ -63,6 +75,8 @@ export const BundleEnv = Schema.Struct({
   extraArgs: Schema.optional(Schema.Array(Schema.String)),
   serverFlags: Schema.optional(Schema.Array(Schema.String)),
   chatTemplate: Schema.optional(Schema.String),
+  /** Absent when the weights are not in the Hugging Face cache (a local path, or no weights located). */
+  weightsSource: Schema.optional(WeightsSource),
 });
 export type BundleEnv = typeof BundleEnv.Type;
 

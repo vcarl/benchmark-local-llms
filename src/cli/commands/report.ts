@@ -26,15 +26,7 @@ export const logSummary = (summary: ReportSummary): Effect.Effect<void> =>
   });
 
 /** Tracked paths a snapshot's rows depend on. */
-const HARNESS_PATHS = [
-  "src",
-  "releases",
-  "datasets",
-  "configs.yaml",
-  "system-prompts.yaml",
-  "item-dates.json",
-  "model-dates.yaml",
-];
+const HARNESS_PATHS = ["src", "releases", "datasets", "configs.yaml", "system-prompts.yaml"];
 
 /** `git status --porcelain` lines of tracked changes under {@link HARNESS_PATHS}; a failed check counts as a change. */
 const trackedChanges = Proc.lines(
@@ -82,14 +74,6 @@ const configsFile = Options.file("configs-file").pipe(
   Options.withDescription("configs.yaml whose modelKey overrides apply"),
   Options.withDefault("configs.yaml"),
 );
-const itemDatesFile = Options.file("item-dates-file").pipe(
-  Options.withDescription("When each prompt became public (scripts/timing/date-items.ts)"),
-  Options.withDefault("item-dates.json"),
-);
-const modelDatesFile = Options.file("model-dates-file").pipe(
-  Options.withDescription("Each model's release date and stated training cutoff, with sources"),
-  Options.withDefault("model-dates.yaml"),
-);
 const allowDirty = Options.boolean("allow-dirty").pipe(
   Options.withDescription(
     "Build from a tree with tracked changes; the snapshot records harnessDirty: true and a -dirty sha",
@@ -104,18 +88,7 @@ const verbose = Options.boolean("verbose").pipe(
 
 export const reportCommand = Command.make(
   "report",
-  {
-    datasetsDir,
-    store,
-    releasesDir,
-    legacyRoot,
-    output,
-    configsFile,
-    itemDatesFile,
-    modelDatesFile,
-    allowDirty,
-    verbose,
-  },
+  { datasetsDir, store, releasesDir, legacyRoot, output, configsFile, allowDirty, verbose },
   (args) =>
     Effect.gen(function* () {
       const { harnessDirty } = yield* harnessTree(yield* trackedChanges, args.allowDirty);
@@ -126,8 +99,6 @@ export const reportCommand = Command.make(
         legacyRoot: args.legacyRoot,
         output: args.output,
         configsPath: args.configsFile,
-        itemDatesPath: args.itemDatesFile,
-        modelDatesPath: args.modelDatesFile,
         harnessGitSha: yield* gitSha,
         harnessDirty,
       });

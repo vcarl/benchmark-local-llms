@@ -149,8 +149,6 @@ beforeEach(async () => {
     legacyRoot: root,
     output: join(root, "out"),
     configsPath: join(root, "configs.yaml"),
-    itemDatesPath: join(root, "item-dates.json"),
-    modelDatesPath: join(root, "model-dates.yaml"),
     harnessGitSha: "f".repeat(40),
   };
 });
@@ -175,9 +173,6 @@ describe("runReport (legacy manifest)", () => {
   });
 
   it("writes the snapshot under the digest of its bytes, its details and the index", async () => {
-    // Alpha carries no timing labels: the dates files are present but unused.
-    await put("item-dates.json", `${JSON.stringify({ asOf: "x", source: "s", items: {} })}\n`);
-    await put("model-dates.yaml", "{}\n");
     const summary = await run(runReport(opts));
     const entry = summary.snapshots[0]?.entry as IndexEntry;
     const bytes = await readFile(join(opts.output, `${entry.digest}.json`));
@@ -199,8 +194,6 @@ describe("runReport (legacy manifest)", () => {
       manifest: sha(await readFile(join(root, "datasets/alpha.yaml"))),
       release: sha(await readFile(join(root, "releases/0/release.json"))),
       configs: null,
-      itemDates: null,
-      modelDates: null,
       runners: [],
       // A closed release's line graded by its item's current scorer keeps its stored (Rules 1) score.
       scoringRules: [1],

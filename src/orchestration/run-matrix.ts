@@ -17,7 +17,7 @@ import type { ResolvedConfiguration } from "../config/configurations.js";
 import type { ChatCompletion } from "../llm/chat-completion.js";
 import type { Runtime } from "../schema/enums.js";
 import type { Held } from "../store/store-index.js";
-import { weightsDigest } from "../store/weights.js";
+import { weightsDigest, weightsSource } from "../store/weights.js";
 import { modelFromConfig, type RunEnv, runChallengeWithServer } from "./run-challenge.js";
 import type { RunModelDeps } from "./run-model.js";
 
@@ -90,7 +90,12 @@ export const runMatrix = (
             runtimeVersion = yield* input.deps.runtimeVersion(config.runtime);
             versions.set(config.runtime, runtimeVersion);
           }
-          const env = { ...input.env, runtimeVersion };
+          const source = yield* weightsSource(config);
+          const env = {
+            ...input.env,
+            runtimeVersion,
+            ...(source === null ? {} : { weightsSource: source }),
+          };
           const rowCells: MatrixCell[] = [];
           for (const ch of input.challenges) {
             const result = yield* runChallengeWithServer(

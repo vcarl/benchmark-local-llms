@@ -284,7 +284,7 @@ const buildPromptEntry = (
   });
 
 /** One scored unit: a single-shot item, or one turn of a multi-turn item. */
-export interface Unit {
+interface Unit {
   readonly item: SingleItem;
   /** Gold assistant answer (turns only). */
   readonly answer?: string;
@@ -297,7 +297,7 @@ export interface Unit {
  * Expand a multi-turn item into one unit per turn (`name#k`), each carrying
  * the gold history of turns 1..k-1. Single-shot items pass through.
  */
-export const expandItem = (item: ChallengeItem): ReadonlyArray<Unit> => {
+const expandItem = (item: ChallengeItem): ReadonlyArray<Unit> => {
   if (!("turns" in item)) return [{ item }];
   const history: ChatMessage[] = [];
   return item.turns.map(({ answer, ...turn }, i) => {
