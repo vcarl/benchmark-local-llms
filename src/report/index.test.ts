@@ -201,6 +201,7 @@ describe("runReport (legacy manifest)", () => {
       harnessDirty: false,
     });
     expect(snap.rows[0].cells.ch.sourceAttempts).toEqual(["a1"]);
+    expect(snap.timing).toBeNull();
     expect(snap.rows[0].hardwareId).toBe("hw");
     const detail = JSON.parse(await readFile(join(opts.output, "details/a1.json"), "utf8"));
     expect(detail.items[0]).toMatchObject({ family: "fam" });

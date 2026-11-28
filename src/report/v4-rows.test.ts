@@ -7,6 +7,7 @@ import { scoreDataset } from "../cli/commands/score.js";
 import { stableStringify } from "../config/hashing.js";
 import { writeManifest } from "../dataset/manifest.js";
 import { MESSAGES_DIGEST, makeDraftRelease } from "../release/__tests__/fixtures.js";
+import { commitRelease } from "../release/release.js";
 import { execution, header } from "../store/__tests__/fixtures.js";
 import type { Execution } from "../store/bundle.js";
 import { appendExecution, createOpenBundle, sealBundle } from "../store/bundle.js";
@@ -299,5 +300,63 @@ describe("v4 rows", () => {
       ),
     );
     expect(stableStringify(snap.rows[0].cells.math.sourceAttempts)).toBe(stableStringify([one]));
+  });
+});
+
+describe("evaluation timing", () => {
+  it("labels a frozen release's items against each counted bundle's weights date", async () => {
+    await run(commitRelease(opts.releasesDir, "2027.1", path.join(opts.releasesDir, "draft")));
+    const frozen = JSON.parse(
+      await fsp.readFile(path.join(opts.releasesDir, "2027.1", "release.json"), "utf8"),
+    );
+    const bundle = (contributor: string, publishedAt: string | null) =>
+      run(
+        Effect.gen(function* () {
+          const h = header({
+            release: "2027.1",
+            run: { ...header().run, id: contributor, contributor },
+          });
+          const weightsSource = { repo: "o/m", revision: "a".repeat(40), publishedAt };
+          const open = yield* createOpenBundle(opts.store, {
+            ...h,
+            env: { ...h.env, weightsSource },
+          });
+          for (const i of ALL) yield* appendExecution(open, exec(i, "4"));
+          return yield* sealBundle(opts.store, open, "2026-01-01T00:01:00.000Z");
+        }),
+      );
+    const bundles = [
+      await bundle("old", "2020-01-01T00:00:00.000Z"),
+      await bundle("new", "2099-01-01T00:00:00.000Z"),
+      await bundle("offline", null),
+    ];
+    await run(
+      writeManifest(path.join(opts.datasetsDir, "d.yaml"), {
+        name: "d",
+        title: "Frozen",
+        release: "2027.1",
+        evalVersion: "2027.1.0",
+        ranked: true,
+        bundles,
+      }),
+    );
+    await score();
+    const { timing, rows } = await snapshot();
+    expect(Object.values(timing?.items ?? {})).toEqual(ALL.map(() => frozen.committedAt));
+    const labels = rows.map((r) => [
+      r.provenance.submitters[0],
+      timing?.rows[r.rowId]?.["math"]?.labels,
+    ]);
+    expect(Object.fromEntries(labels)).toEqual({
+      old: { predates: 4, exposable: 0, unknown: 0 },
+      new: { predates: 0, exposable: 4, unknown: 0 },
+      offline: { predates: 0, exposable: 0, unknown: 4 },
+    });
+  });
+
+  it("gives a draft dataset no timing", async () => {
+    await manifest([await seal("r1", [exec("a", "4")])]);
+    await score();
+    expect((await snapshot()).timing).toBeNull();
   });
 });

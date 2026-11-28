@@ -84,7 +84,9 @@ Ref: `src/legacy/pinned.ts`, `src/legacy/content-store.ts`, `src/legacy/reconstr
 
 Every bundle one run writes shares its `run.id` and records its contributor in `run.contributor` (`BENCH_CONTRIBUTOR`, default `local`). The header's `env.hardware` and `env.hardwareId` identify the machine by its specification only: no hostname, serial number, username, or email is written, and a `BENCH_CONTRIBUTOR` containing `@` is refused before any model starts. The hardware probe never fails a run; a field it cannot read is left out.
 
-Ref: `src/orchestration/hardware.ts`, `src/orchestration/run-loop.ts`, `src/cli/commands/run.ts`.
+`env.weightsSource` dates the weights from the Hugging Face Hub: one request per config per run, carrying only the public repo id and revision (no user, host or path), with a 5 s timeout. It never fails a run: any failure records `publishedAt: null` ([EVAL-TIMING.md § Weights date](./EVAL-TIMING.md#weights-date)).
+
+Ref: `src/orchestration/hardware.ts`, `src/orchestration/run-loop.ts`, `src/store/weights.ts`, `src/cli/commands/run.ts`.
 
 ## Report row selection
 

@@ -65,6 +65,7 @@ Docs (each owns its topic):
 - [ARCHIVE-FORMAT.md](docs/ARCHIVE-FORMAT.md): on-disk formats: store, bundles, score log, releases, datasets, snapshots, legacy archives, freeze/convert
 - [SCORING.md](docs/SCORING.md): scorers, pass rate, run skip, row/cell selection, failure kinds, scorer digests
 - [ERRATA.md](docs/ERRATA.md): erratum fields, eval versions, coverage check, errata workflow, cutting a release
+- [EVAL-TIMING.md](docs/EVAL-TIMING.md): item freeze dates, weights publication dates recorded on the run, per-row timing labels
 - [ERRATA-PROCESS.md](docs/ERRATA-PROCESS.md): public errata rules, rendered at `/errata` (keep it in step with ERRATA.md; no repo links)
 - [CONFIG.md](docs/CONFIG.md): YAML schemas for configs, challenges, system prompts
 - [CHAT-TEMPLATES.md](docs/CHAT-TEMPLATES.md): chat templates and their pitfalls per runtime

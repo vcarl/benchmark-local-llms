@@ -75,7 +75,7 @@ src/store/
   digest.ts              stableStringify and SHA-256 digests
   bundle.ts              open-file writer, canonical sealing, verifying reader
   store-index.ts         skip index over sealed bundles
-  weights.ts             weights digest, cached in store/weights.json
+  weights.ts             weights digest, cached in store/weights.json; hub revision + its publication time
   scores.ts              score records, scorer digests
 
 src/scoring/rules.ts     SCORING_RULES, the harness-wide scoring rules version
@@ -100,7 +100,7 @@ src/errors/              typed Data.TaggedError classes, re-exported from index.
 
 `run` executes each `(configuration × challenge)` cell as one bundle, in order:
 
-1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items, the config digest, the weights digest (cached in `store/weights.json`) and the hardware id. The release is taken from `--challenges-dir`.
+1. **Resolve inputs.** Load `configs.yaml`, the challenge YAML, and the system-prompt registry. Find the configuration by id (an unknown id is a hard `dieMessage`). Resolve the challenge's inline items, the config digest, the weights digest (cached in `store/weights.json`), the weights' Hugging Face revision and its publication time (`env.weightsSource`, [EVAL-TIMING.md § Weights date](./EVAL-TIMING.md#weights-date)) and the hardware id. The release is taken from `--challenges-dir`.
 2. **Skip, resume or open.** A cell one sealed bundle already holds whole is skipped ([SCORING.md § Report rows](./SCORING.md#report-rows), run skip). Otherwise, inside `Effect.scoped`, the cell's matching open file in `store/open/` is resumed, or a new one is written: line 1 is the header, then one execution per line ([ARCHIVE-FORMAT.md § Lifecycle](./ARCHIVE-FORMAT.md#lifecycle-open-to-sealed)). `--no-skip` runs every cell.
 3. **Boot the LLM server.** `run` boots the runtime's server **once per configuration** and reuses it across that configuration's challenges. A server that won't boot skips the whole configuration's row — every cell is recorded `SKIPPED` and the sweep continues to the next configuration. (The single-attempt `runChallenge` wrapper instead `orDie`s, having nothing to recover to.) The supervisor spawns the process, waits on its health endpoint, registers it with the process-level safety net, and forks a peak-RSS poller. Health alone does not prove the model loaded — `mlx_lm.server` and oMLX answer `/v1/models` before the weights are in memory, and `mlx_lm.server` keeps answering after its load has failed while every completion hangs — so after the chat-template gate the supervisor sends a one-token completion. A non-2xx answer, no answer within the load budget, or (mlx) the generation thread's crash header on the server's output aborts the boot with a typed `ModelLoadError` carrying the server's last output lines, and the row is `SKIPPED` with that reason. mlx requests name the model `default_model`, the id `mlx_lm.server` gives its `--model` path; any other id makes it reload the model by that id.
 4. **Run each item.** Execute every item and each of its samples (one unless `--samples`) via `runPrompt` with a random seed and append the execution line.

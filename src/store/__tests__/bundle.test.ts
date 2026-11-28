@@ -133,6 +133,20 @@ describe("verifying reader", () => {
     expect(b.digest).toBe(sha256Hex(text));
   });
 
+  it("verifies a header with or without env.weightsSource, and rejects an unknown env field", async () => {
+    const plain = bundleText(sealedLines());
+    expect(
+      (await run(readBundle(await writeLoose(plain)))).header.env.weightsSource,
+    ).toBeUndefined();
+    const weightsSource = { repo: "o/m", revision: "a".repeat(40), publishedAt: null };
+    const text = bundleText(sealedLines({ env: { ...header().env, weightsSource } }));
+    expect((await run(readBundle(await writeLoose(text)))).header.env.weightsSource).toEqual(
+      weightsSource,
+    );
+    const extra = bundleText(sealedLines({ env: { ...header().env, weightsDate: "x" } as never }));
+    expect(await checkOf(await writeLoose(extra))).toBe("schema");
+  });
+
   it("fails `name` when an edited byte makes the digest differ from the file name", async () => {
     const digest = await writeSealed();
     const file = bundlePath(store, digest);

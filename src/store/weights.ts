@@ -7,17 +7,23 @@
  * Files are hashed by streaming and cached in `<store>/weights.json` keyed by
  * absolute path, valid while size and mtime match, so each artifact is hashed
  * once.
+ *
+ * `weightsSource`: the Hugging Face repo and revision those files sit in
+ * (`…/models--<org>--<name>/snapshots/<revision>/`) and when the hub published
+ * that revision, for the bundle's `env` (docs/EVAL-TIMING.md).
  */
 
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import * as fsp from "node:fs/promises";
 import path from "node:path";
-import { Effect, Option } from "effect";
+import { HttpClient, HttpClientResponse } from "@effect/platform";
+import { Duration, Effect, Option, Schema } from "effect";
 import { FileIOError } from "../errors/index.js";
 import { resolveLlamacppGguf } from "../llm/servers/resolve-gguf.js";
 import { resolveMlxModel } from "../llm/servers/resolve-mlx.js";
 import type { Runtime } from "../schema/enums.js";
+import type { WeightsSource } from "./bundle.js";
 import { digestOf } from "./digest.js";
 
 interface HashedFile {
@@ -117,4 +123,47 @@ export const weightsDigest = (
     return model.runtime === "llamacpp" && pairs.length === 1 && only !== undefined
       ? only[1]
       : digestOf(pairs);
+  });
+
+/** The hub repo and revision of a file in the Hugging Face cache; null outside it. */
+export const hfRevisionOf = (file: string): { repo: string; revision: string } | null => {
+  // Hub repo ids never contain `--`, so the first `--` separates org from name.
+  const m = /\/models--([\w.-]+?)--([\w.-]+)\/snapshots\/([0-9a-f]{40})\//.exec(file);
+  return m === null ? null : { repo: `${m[1]}/${m[2]}`, revision: m[3] as string };
+};
+
+const HubRevision = Schema.Struct({ sha: Schema.String, lastModified: Schema.String });
+
+/**
+ * When the hub published `revision` of `repo`: the `lastModified` of
+ * `GET /api/models/<repo>/revision/<sha>`, which is that revision's commit
+ * time (`createdAt` there is the repo's). The request carries only the public
+ * repo id and revision. Any failure (offline, 5 s timeout, non-2xx, another
+ * sha in the reply) is null.
+ */
+export const revisionPublishedAt = (repo: string, revision: string) =>
+  Effect.gen(function* () {
+    const client = yield* HttpClient.HttpClient;
+    const res = yield* client
+      .get(`https://huggingface.co/api/models/${repo}/revision/${revision}`)
+      .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk));
+    const body = yield* HttpClientResponse.schemaBodyJson(HubRevision)(res);
+    const at = new Date(body.lastModified);
+    return body.sha === revision && !Number.isNaN(at.getTime()) ? at.toISOString() : null;
+  }).pipe(
+    Effect.timeout(Duration.seconds(5)),
+    Effect.orElseSucceed(() => null),
+  );
+
+/** The located weights' hub revision and its publication time; null when they are not in the hub cache. */
+export const weightsSource = (model: {
+  artifact: string;
+  runtime: Runtime;
+  quant?: string | undefined;
+}): Effect.Effect<WeightsSource | null, never, HttpClient.HttpClient> =>
+  Effect.gen(function* () {
+    const files = yield* locate(model).pipe(Effect.orElseSucceed(() => undefined));
+    const source = files?.[0] === undefined ? null : hfRevisionOf(files[0]);
+    if (source === null) return null;
+    return { ...source, publishedAt: yield* revisionPublishedAt(source.repo, source.revision) };
   });

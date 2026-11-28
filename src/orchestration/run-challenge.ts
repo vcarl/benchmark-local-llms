@@ -48,7 +48,13 @@ import { runPrompt } from "./run-prompt.js";
 /** The machine and harness part of a bundle's `env`. */
 export type RunEnv = Pick<
   BundleEnv,
-  "platform" | "runtimeVersion" | "nodeVersion" | "harnessGitSha" | "hardware" | "hardwareId"
+  | "platform"
+  | "runtimeVersion"
+  | "nodeVersion"
+  | "harnessGitSha"
+  | "hardware"
+  | "hardwareId"
+  | "weightsSource"
 >;
 
 export interface RunChallengeInput {

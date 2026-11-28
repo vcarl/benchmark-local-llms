@@ -72,6 +72,7 @@ A configuration's `runtime` field selects which server the harness launches per 
 - [`docs/SCORING.md`](./docs/SCORING.md) — scorer dispatch and the constraint-check catalog
 - [`docs/ERRATA.md`](./docs/ERRATA.md) — errata registry, release file, eval versions, and the release command
 - [`docs/DEPLOY.md`](./docs/DEPLOY.md) — publishing the report to GitHub Pages behind `vcarl.com/evals`, and the agent-facing `llms.txt`
+- [`docs/EVAL-TIMING.md`](./docs/EVAL-TIMING.md) — when each item's release was frozen versus when the weights a run loaded were published, and the per-row timing labels
 
 ## CLI reference
 
@@ -124,7 +125,7 @@ All subcommands take `--help`. Paths default to convention.
 
   **Provenance before reuse.** Every evaluation result keeps its provenance: a result in an older format is reused only when its provenance is proven while converting it, otherwise the evaluation is rerun, and each dataset holds exactly one format. See [GUARANTEES.md § Provenance before reuse](docs/GUARANTEES.md#provenance-before-reuse).
 - **`audit`** reads a legacy archive's completed attempts, takes each config's latest result per challenge, and prints one row per item; see [Item audit](docs/SCORING.md#item-audit).
-- **`report`** builds one snapshot per manifest in `--datasets-dir` (default `datasets`) into `--output` (default `webapp/public/snapshots`): `<digest>.json` named by the SHA-256 of its bytes and never rewritten, `details/<id>.json`, and `index.json`. A v4 dataset reads its bundles from `--store` and their score records at its eval version (a missing record fails the build: run `./bench score --dataset` first); a legacy dataset reads its pinned attempt files under `--legacy-root` and fails on any file that no longer matches its pin. It prints one line per snapshot and the detail counts; see [ARCHITECTURE.md § Report pipeline](docs/ARCHITECTURE.md#report-pipeline).
+- **`report`** builds one snapshot per manifest in `--datasets-dir` (default `datasets`) into `--output` (default `webapp/public/snapshots`): `<digest>.json` named by the SHA-256 of its bytes and never rewritten, `details/<id>.json`, and `index.json`. A v4 dataset reads its bundles from `--store` and their score records at its eval version (a missing record fails the build: run `./bench score --dataset` first); a legacy dataset reads its pinned attempt files under `--legacy-root` and fails on any file that no longer matches its pin. A frozen release's snapshot carries the evaluation-timing labels of its rows (alpha and draft snapshots carry none) ([EVAL-TIMING.md](docs/EVAL-TIMING.md)). It prints one line per snapshot and the detail counts; see [ARCHITECTURE.md § Report pipeline](docs/ARCHITECTURE.md#report-pipeline).
 - **`export-eee`** writes one completed legacy attempt as Every Eval Ever (schema 0.3.0) JSON plus an instance-level samples JSONL, locally; see [EEE-EXPORT.md](docs/EEE-EXPORT.md).
 - **`list-models`** reads `configs.yaml` and prints one line per configuration (`id`, `artifact`, `runtime`, `quant`, `active`). **`list-prompts`** aggregates every challenge file's inline items and prints each item's name, category, and tier (tab-separated), followed by a `# Scenarios` section. Both are read-only sanity checks.
 

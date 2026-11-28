@@ -41,8 +41,10 @@ import {
 } from "../legacy/write-details.js";
 import { challengeDrift, loadRelease, type Release } from "../release/release.js";
 import type { AttemptManifest, ItemResult } from "../schema/attempt.js";
+import type { WeightsSource } from "../store/bundle.js";
 import { digestOf, sha256Hex } from "../store/digest.js";
 import { modelKeyOverrides } from "./model-key.js";
+import { frozenAt, hasTiming, type Timing, timingOf } from "./timing.js";
 import { gradersOf, scoredExecutions, v4RowsOf, writeV4Details } from "./v4-rows.js";
 
 export interface ReportOptions {
@@ -67,6 +69,11 @@ export interface ReportOptions {
 /** A snapshot file's content (D11). */
 export interface Snapshot extends RowsDataset {
   readonly schemaVersion: 4;
+  /**
+   * Evaluation timing beside the rows (never in them): label counts per row and
+   * the dates behind them (docs/EVAL-TIMING.md). Null for a dataset on release `0` or `draft`.
+   */
+  readonly timing: Timing | null;
   /** The release's `release.json` without its items: label, dates, commitment. */
   readonly releaseFile: Omit<Release["file"], "items">;
   readonly inputs: {
@@ -289,8 +296,13 @@ const v4Rows = (
       },
       modelKeys,
     );
+    const weights = new Map<string, WeightsSource>();
+    for (const { bundle } of scored)
+      if (bundle.header.env.weightsSource !== undefined)
+        weights.set(bundle.digest, bundle.header.env.weightsSource);
     return {
       rows,
+      weights,
       ...(yield* gradersOf(scored, release)),
       writeDetails: (dir: string, done: Set<string>) =>
         writeV4Details(dir, done, scored, release, challenges, familyOf),
@@ -316,6 +328,22 @@ const checkedChallengeSet = (release: Release) =>
         }),
       );
     return set;
+  });
+
+/** Prompt digest → `committedAt` of the earliest frozen release under `releasesDir` holding it. */
+const frozenReleases = (releasesDir: string) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const names = yield* fs
+      .readDirectory(releasesDir)
+      .pipe(Effect.mapError(io(releasesDir, "list")));
+    const files = [];
+    for (const name of names.filter(hasTiming).sort()) {
+      const p = path.join(releasesDir, name, "release.json");
+      if (!(yield* fs.exists(p).pipe(Effect.mapError(io(p, "stat"))))) continue;
+      files.push((yield* loadRelease(path.join(releasesDir, name))).file);
+    }
+    return frozenAt(files);
   });
 
 /** Build one dataset's snapshot in memory. */
@@ -352,6 +380,14 @@ export const buildSnapshot = (manifestPath: string, opts: ReportOptions) =>
       schemaVersion: 4,
       releaseFile,
       ...built.rows,
+      timing: hasTiming(manifest.release)
+        ? timingOf(
+            built.rows.rows,
+            set.challenges,
+            yield* frozenReleases(opts.releasesDir),
+            "weights" in built ? built.weights : new Map(),
+          )
+        : null,
       inputs: {
         manifest: yield* sha256Of(manifestPath),
         release: yield* sha256Of(path.join(releaseDir, "release.json")),

@@ -9,6 +9,8 @@ import { formatCount, formatItemTiming, formatWallTime } from "../lib/format";
 import type { Scope, ScopedRow, Tier } from "../lib/model";
 import type { Cell, CellStatus, RowsDataset } from "../lib/rows";
 import { useAttemptDetail } from "../lib/use-attempt-detail";
+import { frozenSpan, LABEL_HELP, rowWeights, TIMING_LABELS, TIMING_NOTE, timingTotals } from "../lib/timing";
+import type { Timing, WeightsSource } from "../lib/timing";
 
 interface Props {
   r: ScopedRow;
@@ -43,6 +45,86 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
       <span className={styles.debugStatLabel}>{label}</span>
       <span className={styles.debugStatValue}>{value}</span>
     </div>
+  );
+}
+
+const labelClass = (l: (typeof TIMING_LABELS)[number]) => styles[`t_${l}`];
+
+const range = (r: [string, string] | null) => (r === null ? "unknown" : r[0] === r[1] ? r[0] : `${r[0]} – ${r[1]}`);
+
+/** Row-level timing bar and text; null when the snapshot has no timing for the row. */
+function TimingSummary({ timing, rowId, challenges }: { timing: Timing; rowId: string; challenges: string[] }) {
+  const t = timingTotals(timing, rowId, challenges);
+  if (t === null || t.total === 0) return null;
+  const shown = TIMING_LABELS.filter((l) => t.counts[l] > 0);
+  return (
+    <div className={styles.timing} title={shown.map((l) => `${l}: ${LABEL_HELP[l]}`).join("\n")}>
+      <span className={styles.debugStatLabel}>Timing</span>
+      <div className={styles.timingBar} aria-hidden="true">
+        {shown.map((l) => (
+          <span key={l} className={labelClass(l)} style={{ flexGrow: t.counts[l] }} />
+        ))}
+      </div>
+      <span className={styles.timingText}>{shown.map((l) => `${l} ${pct(t.shares[l], 0)}`).join(" · ")}</span>
+    </div>
+  );
+}
+
+function WeightsDate({ w }: { w: WeightsSource | null }) {
+  if (w === null) return <>unknown (no Hugging Face revision recorded)</>;
+  return (
+    <>
+      {w.publishedAt === null ? "unknown" : day(w.publishedAt)}{" "}
+      <a className={styles.timingNote} href={`https://huggingface.co/${w.repo}/tree/${w.revision}`} target="_blank" rel="noreferrer">
+        {w.repo}@{w.revision.slice(0, 7)}
+      </a>
+    </>
+  );
+}
+
+function TimingSection({ timing, rowId, ids }: { timing: Timing; rowId: string; ids: string[] }) {
+  const per = timing.rows[rowId] ?? {};
+  const shown = ids.filter((id) => per[id] !== undefined);
+  if (shown.length === 0) return null;
+  const weights = rowWeights(timing, rowId, shown);
+  return (
+    <details className={styles.timingSection}>
+      <summary className={styles.thinkingSummary}>Evaluation timing</summary>
+      <div className={styles.timingBody}>
+        <div className={styles.timingNote}>{TIMING_NOTE}</div>
+        <div className={styles.timingNote}>
+          {TIMING_LABELS.map((l) => (
+            <div key={l}>
+              <span className={`${styles.swatch} ${labelClass(l)}`} /> {l}: {LABEL_HELP[l]}
+            </div>
+          ))}
+        </div>
+        {weights.length === 1 && (
+          <div>
+            Weights published: <WeightsDate w={weights[0]!} />
+          </div>
+        )}
+        {shown.map((id) => {
+          const c = per[id]!;
+          return (
+            <div key={id} className={styles.timingChallenge}>
+              <span className={styles.challengeKey}>{id}</span>{" "}
+              <span className={styles.timingNote}>
+                {TIMING_LABELS.filter((l) => c.labels[l] > 0)
+                  .map((l) => `${l} ${c.labels[l]}`)
+                  .join(" · ")}
+                {` · frozen ${range(frozenSpan(timing, id))}`}
+              </span>
+              {weights.length > 1 && (
+                <div className={styles.timingNote}>
+                  Weights published: <WeightsDate w={c.weights} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -150,6 +232,9 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
           />
           <Stat label="Contributor" value={list(p.submitters)} />
         </div>
+        {dataset.timing && (
+          <TimingSummary timing={dataset.timing} rowId={row.rowId} challenges={ids} />
+        )}
 
         <div className={styles.debugGroup}>
           <Stat label="Executed" value={<span className={styles.nowrap}>{span(row.freshness.executedFrom, row.freshness.executedTo)}</span>} />
@@ -160,6 +245,9 @@ export function DrilldownPanel({ r, runs, dataset, scope, rank, changed, attempt
           {mixedWhy.length > 0 && <Stat label="Mixed" value={mixedWhy.join(" · ")} />}
         </div>
       </div>
+      {dataset.timing && (
+        <TimingSection timing={dataset.timing} rowId={row.rowId} ids={cells.map(([id]) => id)} />
+      )}
 
       {cells.map(([id, c]) => {
         const [n, y] = counts(c, scope);
